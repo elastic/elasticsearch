@@ -41,6 +41,14 @@ public class Pivot extends UnaryPlan {
         this.aggregates = aggregates;
     }
 
+    private static Expression withQualifierNull(Expression e){
+        if (e instanceof Attribute) {
+            Attribute fa = (Attribute) e;
+            return fa.withQualifier(null);
+        }
+        return e;
+    }
+
     @Override
     protected NodeInfo<Pivot> info() {
         return NodeInfo.create(this, Pivot::new, child(), column, values, aggregates);
@@ -49,17 +57,20 @@ public class Pivot extends UnaryPlan {
     @Override
     protected Pivot replaceChild(LogicalPlan newChild) {
 
-       java.util.function.Function<Expression, Expression> withQualifierNull = (Expression e)-> {
-            if (e instanceof Attribute && newChild instanceof EsRelation) {
-                Attribute fa = (Attribute) e;
-                return fa.withQualifier(null);
-            }
-            return e;
-        };
-        Expression newColumn = column.transformUp(withQualifierNull);
-        List<NamedExpression> newAggregates = aggregates.stream().map((NamedExpression aggregate)->
-            (NamedExpression) aggregate.transformUp(withQualifierNull)
-        ).collect(Collectors.toUnmodifiableList());
+        Expression newColumn = column;
+        List<NamedExpression> newAggregates = aggregates;
+
+        if(newChild instanceof EsRelation) {
+            // when changing from a SubQueryAlias to EsRelation
+            // the qualifier of the column and aggregates needs
+            // to be changed to null like the attributes of EsRelation
+            // otherwise they don't equal and aren't removed
+            // when calculating the groupingSet
+            newColumn = column.transformUp(Pivot::withQualifierNull);
+            newAggregates = aggregates.stream().map((NamedExpression aggregate) ->
+                (NamedExpression) aggregate.transformUp(Pivot::withQualifierNull)
+            ).collect(Collectors.toUnmodifiableList());
+        }
 
         return new Pivot(source(), newChild, newColumn, values, newAggregates);
     }

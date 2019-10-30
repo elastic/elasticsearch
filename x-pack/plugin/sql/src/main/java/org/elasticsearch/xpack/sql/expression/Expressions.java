@@ -103,8 +103,7 @@ public final class Expressions {
         return set;
     }
 
-    public static AttributeSet referencesExcept(Set<? extends Expression> exps,
-                                                AttributeSet except) {
+    public static AttributeSet referencesExcept(Set<? extends Expression> exps, AttributeSet except) {
         AttributeSet ret = new AttributeSet();
         while(exps.size()>0){
 

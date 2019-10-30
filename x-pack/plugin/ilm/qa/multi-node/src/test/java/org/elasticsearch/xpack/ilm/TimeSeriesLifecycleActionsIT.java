@@ -68,7 +68,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
-    private static final String FAILED_STEP_RETRY_COUNT = "failed_step_retry_count";
+    private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
+    private static final String IS_AUTO_RETRYABLE_ERROR_FIELD = "is_auto_retryable_error";
 
     private String index;
     private String policy;
@@ -864,11 +865,22 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertNotNull(onlyErrorsResponse);
             assertThat(onlyErrorsResponse, allOf(hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
             assertThat(onlyErrorsResponse, allOf(not(hasKey(goodIndex)), not(hasKey(unmanagedIndex))));
+        });
+    }
 
-            Map<String, Object> errorIndexResponse = onlyErrorsResponse.get(errorIndex);
-            assertThat(errorIndex + "should've had the rollover step retried once",
-                (Integer) errorIndexResponse.get(FAILED_STEP_RETRY_COUNT), greaterThanOrEqualTo(1));
-            assertThat(errorIndexResponse.get("is_auto_retryable_error"), is(true));
+    public void testExplainIndexContainsAutomaticRetriesInformation() throws Exception {
+        createFullPolicy(TimeValue.ZERO);
+
+        // create index without alias so the rollover action fails and is retried
+        createIndexWithSettingsNoAlias(index, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+
+        assertBusy(() -> {
+            Map<String, Object> explainIndex = explainIndex(index);
+            assertThat((Integer) explainIndex.get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1));
+            assertThat(explainIndex.get(IS_AUTO_RETRYABLE_ERROR_FIELD), is(true));
         });
     }
 
@@ -889,7 +901,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
 
         // wait for ILM to start retrying the step
-        assertBusy(() -> assertThat((Integer) explainIndex(firstIndex).get(FAILED_STEP_RETRY_COUNT), greaterThanOrEqualTo(1)));
+        assertBusy(() -> assertThat((Integer) explainIndex(firstIndex).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)));
 
         // remove the read only block
         Request allowWritesOnIndexSettingUpdate = new Request("PUT", firstIndex + "/_settings");

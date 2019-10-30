@@ -424,6 +424,7 @@ public class IndexLifecycleRunner {
             LifecycleExecutionState nextStepState = moveExecutionStateToNextStep(policyMetadata,
                 lifecycleState, currentStepKey, nextStepKey, nowSupplier, true);
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
+            retryStepState.setIsAutoRetryableError(lifecycleState.isAutoRetryableError());
             Integer currentRetryCount = lifecycleState.getFailedStepRetryCount();
             if (isAutomaticRetry) {
                 retryStepState.setFailedStepRetryCount(currentRetryCount == null ? 1 : ++currentRetryCount);

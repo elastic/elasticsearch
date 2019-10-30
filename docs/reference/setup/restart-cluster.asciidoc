@@ -130,7 +130,7 @@ GET _cat/recovery
 --------------------------------------------------
 --
 
-. *Restart machine learning jobs.*
+. *Restart machine learning jobs.* (Optional)
 +
 --
 If you temporarily halted the tasks associated with your {ml} jobs, use the 

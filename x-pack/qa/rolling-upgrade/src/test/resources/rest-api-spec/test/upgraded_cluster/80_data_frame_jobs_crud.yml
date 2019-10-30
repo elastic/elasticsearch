@@ -279,6 +279,6 @@ setup:
 
   - do:
       indices.get_mapping:
-        index: .transform-internal-003
-  - match: { \.transform-internal-003.mappings.dynamic: "false" }
-  - match: { \.transform-internal-003.mappings.properties.id.type: "keyword" }
+        index: .transform-internal-004
+  - match: { \.transform-internal-004.mappings.dynamic: "false" }
+  - match: { \.transform-internal-004.mappings.properties.id.type: "keyword" }

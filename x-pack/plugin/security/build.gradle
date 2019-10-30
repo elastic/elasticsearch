@@ -275,7 +275,7 @@ thirdPartyAudit {
         'com.google.crypto.tink.subtle.Ed25519Sign',
         'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
         'com.google.crypto.tink.subtle.Ed25519Verify',
-        'com.google.crypto.tink.subtle.X25519'
+        'com.google.crypto.tink.subtle.X25519',
         // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
         // acknoweledge them here instead of adding bouncy castle as a compileOnly dependency
         'org.bouncycastle.asn1.ASN1Encodable',

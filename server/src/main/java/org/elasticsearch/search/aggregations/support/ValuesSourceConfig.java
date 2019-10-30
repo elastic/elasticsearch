@@ -54,10 +54,10 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         String field, Script script,
         Object missing,
         ZoneId timeZone,
-        String format) {
-        return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES);
+        String format, String aggregationName) {
+        return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES, aggregationName);
     }
-
+    
     /**
      * Resolve a {@link ValuesSourceConfig} given configuration parameters.
      */
@@ -68,8 +68,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         Object missing,
         ZoneId timeZone,
         String format,
-        Function<Script, ValuesSourceType> resolveScriptAny
-    ) {
+        Function<Script, ValuesSourceType> resolveScriptAny,
+        String aggregationName) {
 
         if (field == null) {
             if (script == null) {

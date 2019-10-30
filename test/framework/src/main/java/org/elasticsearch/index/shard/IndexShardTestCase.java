@@ -805,11 +805,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
             new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, version, index);
         final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, recoverySource);
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repository.restoreShard(shard.store(),
             snapshot.getSnapshotId(),
             indexId,
             shard.shardId(),
-            shard.recoveryState());
+            shard.recoveryState(),
+            future);
+        future.actionGet();
     }
 
     /**

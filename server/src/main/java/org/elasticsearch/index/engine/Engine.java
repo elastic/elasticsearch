@@ -670,6 +670,7 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
+            assert assertSearcherIsWarmedUp(source, scope);
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             final ElasticsearchDirectoryReader acquire = referenceManager.acquire();
             AtomicBoolean released = new AtomicBoolean(false);
@@ -704,6 +705,10 @@ public abstract class Engine implements Closeable {
     }
 
     protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
+
+    boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
+        return true;
+    }
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL

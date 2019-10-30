@@ -1,3 +1,9 @@
+[[release-notes-7.4.2]]
+== {es} version 7.4.2
+
+coming[7.4.2]
+
+
 [[release-notes-7.4.1]]
 == {es} version 7.4.1
 

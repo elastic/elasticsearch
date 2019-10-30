@@ -61,4 +61,4 @@
                   type: keyword
 
   - match: { error.caused_by.type: "illegal_argument_exception" }
-  - match: { error.caused_by.reason: "The mapping definition cannot be nested under a type [_doc] unless include_type_name is set to true." }
+  - match: { error.caused_by.reason: "The mapping definition cannot be nested under a type" }

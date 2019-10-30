@@ -215,26 +215,26 @@ subprojects { Project subProject ->
   if (subProject.name.contains('docker-export')) {
     apply plugin: 'distribution'
 
-    final boolean oss = subProject.name.startsWith('oss')
-    final boolean ubi = subProject.name.contains('ubi')
+    final boolean oss = subProject.name.contains('oss-')
+    final boolean ubi = subProject.name.contains('ubi-')
 
     def exportTaskName = taskName("export", oss, ubi, "DockerImage")
     def buildTaskName = taskName("build", oss, ubi, "DockerImage")
-    def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
+    def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}.docker.tar"
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
       executable 'docker'
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi' : ''}:test"
+        "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}:test"
     }
 
     exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
 
     artifacts.add('default', file(tarFile)) {
         type 'tar'
-        name "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi' : ''}"
+        name "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}"
         builtBy exportTaskName
     }
 

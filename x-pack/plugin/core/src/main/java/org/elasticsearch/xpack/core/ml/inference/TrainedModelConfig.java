@@ -64,7 +64,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         parser.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
         parser.declareString((trainedModelConfig, s) -> {}, InferenceIndexConstants.DOC_TYPE);
         parser.declareObject(TrainedModelConfig.Builder::setInput,
-            (p, c) -> Input.fromXContent(p, ignoreUnknownFields),
+            (p, c) -> TrainedModelInput.fromXContent(p, ignoreUnknownFields),
             INPUT);
         return parser;
     }
@@ -80,7 +80,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final Instant createTime;
     private final List<String> tags;
     private final Map<String, Object> metadata;
-    private final Input input;
+    private final TrainedModelInput input;
 
     private final TrainedModelDefinition definition;
 
@@ -92,7 +92,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        TrainedModelDefinition definition,
                        List<String> tags,
                        Map<String, Object> metadata,
-                       Input input) {
+                       TrainedModelInput input) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
@@ -113,7 +113,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         definition = in.readOptionalWriteable(TrainedModelDefinition::new);
         tags = Collections.unmodifiableList(in.readList(StreamInput::readString));
         metadata = in.readMap();
-        input = new Input(in);
+        input = new TrainedModelInput(in);
     }
 
     public String getModelId() {
@@ -149,7 +149,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return definition;
     }
 
-    public Input getInput() {
+    public TrainedModelInput getInput() {
         return input;
     }
 
@@ -240,7 +240,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Instant createTime;
         private List<String> tags = Collections.emptyList();
         private Map<String, Object> metadata;
-        private Input input;
+        private TrainedModelInput input;
         private TrainedModelDefinition definition;
 
         public Builder setModelId(String modelId) {
@@ -292,7 +292,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setInput(Input input) {
+        public Builder setInput(TrainedModelInput input) {
             this.input = input;
             return this;
         }

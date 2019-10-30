@@ -234,10 +234,9 @@ public class TrainedModelProvider {
         } catch (IOException ex) {
             // This should never happen. If we were able to deserialize the object (from Native or REST) and then fail to serialize it again
             // that is not the users fault. We did something wrong and should throw.
-            throw new ElasticsearchStatusException("Unexpected serialization exception for [{}]",
-                RestStatus.INTERNAL_SERVER_ERROR,
-                ex,
-                docId);
+            throw ExceptionsHelper.serverError(
+                new ParameterizedMessage("Unexpected serialization exception for [{}]", docId).getFormattedMessage(),
+                ex);
         }
     }
 }

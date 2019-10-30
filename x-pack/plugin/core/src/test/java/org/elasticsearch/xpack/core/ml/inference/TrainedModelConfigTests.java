@@ -74,7 +74,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             null, // is not parsed so should not be provided
             tags,
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            new Input(Stream.generate(() -> randomAlphaOfLength(10))
+            new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
                 .limit(randomInt(10))
                 .collect(Collectors.toList())));
     }
@@ -109,7 +109,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelDefinitionTests.createRandomBuilder(randomAlphaOfLength(10)).build(),
             Collections.emptyList(),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            new Input(Stream.generate(() -> randomAlphaOfLength(10))
+            new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
                 .limit(randomInt(10))
                 .collect(Collectors.toList())));
 

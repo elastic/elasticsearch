@@ -28,15 +28,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Input implements ToXContentObject {
+public class TrainedModelInput implements ToXContentObject {
 
     public static final String NAME = "trained_model_config_input";
     public static final ParseField FIELD_NAMES = new ParseField("field_names");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Input, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    public static final ConstructingObjectParser<TrainedModelInput, Void> PARSER = new ConstructingObjectParser<>(NAME,
         true,
-        a -> new Input((List<String>) a[0]));
+        a -> new TrainedModelInput((List<String>) a[0]));
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), FIELD_NAMES);
@@ -44,11 +44,11 @@ public class Input implements ToXContentObject {
 
     private final List<String> fieldNames;
 
-    public Input(List<String> fieldNames) {
+    public TrainedModelInput(List<String> fieldNames) {
         this.fieldNames = fieldNames;
     }
 
-    public static Input fromXContent(XContentParser parser) throws IOException {
+    public static TrainedModelInput fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -70,7 +70,7 @@ public class Input implements ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Input that = (Input) o;
+        TrainedModelInput that = (TrainedModelInput) o;
         return Objects.equals(fieldNames, that.fieldNames);
     }
 

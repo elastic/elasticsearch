@@ -65,7 +65,7 @@ public class TrainedModelConfig implements ToXContentObject {
             DEFINITION);
         PARSER.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
-        PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> Input.fromXContent(p), INPUT);
+        PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> TrainedModelInput.fromXContent(p), INPUT);
     }
 
     public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
@@ -80,7 +80,7 @@ public class TrainedModelConfig implements ToXContentObject {
     private final TrainedModelDefinition definition;
     private final List<String> tags;
     private final Map<String, Object> metadata;
-    private final Input input;
+    private final TrainedModelInput input;
 
     TrainedModelConfig(String modelId,
                        String createdBy,
@@ -90,7 +90,7 @@ public class TrainedModelConfig implements ToXContentObject {
                        TrainedModelDefinition definition,
                        List<String> tags,
                        Map<String, Object> metadata,
-                       Input input) {
+                       TrainedModelInput input) {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
@@ -134,7 +134,7 @@ public class TrainedModelConfig implements ToXContentObject {
         return definition;
     }
 
-    public Input getInput() {
+    public TrainedModelInput getInput() {
         return input;
     }
 
@@ -221,7 +221,7 @@ public class TrainedModelConfig implements ToXContentObject {
         private Map<String, Object> metadata;
         private List<String> tags;
         private TrainedModelDefinition definition;
-        private Input input;
+        private TrainedModelInput input;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -272,7 +272,7 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setInput(Input input) {
+        public Builder setInput(TrainedModelInput input) {
             this.input = input;
             return this;
         }

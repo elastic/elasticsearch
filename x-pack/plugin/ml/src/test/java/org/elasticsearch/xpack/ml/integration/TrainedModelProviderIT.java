@@ -11,11 +11,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.xpack.core.ml.inference.Input;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -146,7 +146,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setVersion(Version.CURRENT)
-            .setInput(new Input(Stream.generate(() -> randomAlphaOfLength(10))
+            .setInput(new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
                 .limit(randomIntBetween(0, 10))
                 .collect(Collectors.toList())));
     }

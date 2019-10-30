@@ -21,33 +21,33 @@ import java.util.List;
 import java.util.Objects;
 
 
-public class Input implements ToXContentObject, Writeable {
+public class TrainedModelInput implements ToXContentObject, Writeable {
 
     public static final String NAME = "trained_model_config_input";
     public static final ParseField FIELD_NAMES = new ParseField("field_names");
 
-    public static final ConstructingObjectParser<Input, Void> LENIENT_PARSER = createParser(true);
-    public static final ConstructingObjectParser<Input, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<TrainedModelInput, Void> LENIENT_PARSER = createParser(true);
+    public static final ConstructingObjectParser<TrainedModelInput, Void> STRICT_PARSER = createParser(false);
     private final List<String> fieldNames;
 
-    public Input(List<String> fieldNames) {
+    public TrainedModelInput(List<String> fieldNames) {
         this.fieldNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(fieldNames, FIELD_NAMES));
     }
 
-    public Input(StreamInput in) throws IOException {
+    public TrainedModelInput(StreamInput in) throws IOException {
         this.fieldNames = Collections.unmodifiableList(in.readStringList());
     }
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<Input, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Input, Void> parser = new ConstructingObjectParser<>(NAME,
+    private static ConstructingObjectParser<TrainedModelInput, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<TrainedModelInput, Void> parser = new ConstructingObjectParser<>(NAME,
             ignoreUnknownFields,
-            a -> new Input((List<String>) a[0]));
+            a -> new TrainedModelInput((List<String>) a[0]));
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), FIELD_NAMES);
         return parser;
     }
 
-    public static Input fromXContent(XContentParser parser, boolean lenient) throws IOException {
+    public static TrainedModelInput fromXContent(XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.parse(parser, null) : STRICT_PARSER.parse(parser, null);
     }
 
@@ -72,7 +72,7 @@ public class Input implements ToXContentObject, Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Input that = (Input) o;
+        TrainedModelInput that = (TrainedModelInput) o;
         return Objects.equals(fieldNames, that.fieldNames);
     }
 

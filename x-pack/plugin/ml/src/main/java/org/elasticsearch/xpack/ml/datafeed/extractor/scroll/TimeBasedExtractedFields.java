@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -42,13 +41,13 @@ public class TimeBasedExtractedFields extends ExtractedFields {
     public Long timeFieldValue(SearchHit hit) {
         Object[] value = timeField.value(hit);
         if (value.length != 1) {
-            throw new RuntimeException("Time field [" + timeField.getAlias() + "] expected a single value; actual was: "
+            throw new RuntimeException("Time field [" + timeField.getName() + "] expected a single value; actual was: "
                     + Arrays.toString(value));
         }
         if (value[0] instanceof Long) {
             return (Long) value[0];
         }
-        throw new RuntimeException("Time field [" + timeField.getAlias() + "] expected a long value; actual was: " + value[0]);
+        throw new RuntimeException("Time field [" + timeField.getName() + "] expected a long value; actual was: " + value[0]);
     }
 
     public static TimeBasedExtractedFields build(Job job, DatafeedConfig datafeed, FieldCapabilitiesResponse fieldsCapabilities) {
@@ -58,20 +57,18 @@ public class TimeBasedExtractedFields extends ExtractedFields {
         if (scriptFields.contains(timeField) == false && extractionMethodDetector.isAggregatable(timeField) == false) {
             throw new IllegalArgumentException("cannot retrieve time field [" + timeField + "] because it is not aggregatable");
         }
-        ExtractedField timeExtractedField = extractedTimeField(timeField, scriptFields, fieldsCapabilities);
+        ExtractedField timeExtractedField = extractedTimeField(timeField, scriptFields);
         List<String> remainingFields = job.allInputFields().stream().filter(f -> !f.equals(timeField)).collect(Collectors.toList());
         List<ExtractedField> allExtractedFields = new ArrayList<>(remainingFields.size() + 1);
         allExtractedFields.add(timeExtractedField);
         remainingFields.stream().forEach(field -> allExtractedFields.add(extractionMethodDetector.detect(field)));
+
         return new TimeBasedExtractedFields(timeExtractedField, allExtractedFields);
     }
 
-    private static ExtractedField extractedTimeField(String timeField, Set<String> scriptFields,
-                                                     FieldCapabilitiesResponse fieldCapabilities) {
-        if (scriptFields.contains(timeField)) {
-            return ExtractedField.newTimeField(timeField, Collections.emptySet(), ExtractedField.ExtractionMethod.SCRIPT_FIELD);
-        }
-        return ExtractedField.newTimeField(timeField, fieldCapabilities.getField(timeField).keySet(),
-            ExtractedField.ExtractionMethod.DOC_VALUE);
+    private static ExtractedField extractedTimeField(String timeField, Set<String> scriptFields) {
+        ExtractedField.Method method = scriptFields.contains(timeField) ? ExtractedField.Method.SCRIPT_FIELD
+            : ExtractedField.Method.DOC_VALUE;
+        return ExtractedFields.newTimeField(timeField, method);
     }
 }

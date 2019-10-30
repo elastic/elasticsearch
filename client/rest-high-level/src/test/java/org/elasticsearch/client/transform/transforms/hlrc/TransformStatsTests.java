@@ -102,7 +102,7 @@ public class TransformStatsTests extends AbstractResponseTestCase<org.elasticsea
         assertThat(serverTestInstance.getTransportAddress(), equalTo(clientInstance.getTransportAddress()));
     }
 
-    private void assertTransformProgress(org.elasticsearch.xpack.core.transform.transforms.TransformProgress serverTestInstance,
+    public static void assertTransformProgress(org.elasticsearch.xpack.core.transform.transforms.TransformProgress serverTestInstance,
                                          TransformProgress clientInstance) {
         if (serverTestInstance == null || clientInstance == null) {
             assertNull(serverTestInstance);
@@ -115,16 +115,16 @@ public class TransformStatsTests extends AbstractResponseTestCase<org.elasticsea
         assertThat(serverTestInstance.getDocumentsIndexed(), equalTo(clientInstance.getDocumentsIndexed()));
     }
 
-    private void assertPosition(org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition serverTestInstance,
+    public static void assertPosition(org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition serverTestInstance,
                                 TransformIndexerPosition clientInstance) {
         assertThat(serverTestInstance.getIndexerPosition(), equalTo(clientInstance.getIndexerPosition()));
         assertThat(serverTestInstance.getBucketsPosition(), equalTo(clientInstance.getBucketsPosition()));
     }
 
 
-    private void assertTransformCheckpointStats(
-        org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats serverTestInstance,
-        TransformCheckpointStats clientInstance) {
+    public static void assertTransformCheckpointStats(
+            org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats serverTestInstance,
+            TransformCheckpointStats clientInstance) {
         assertTransformProgress(serverTestInstance.getCheckpointProgress(), clientInstance.getCheckpointProgress());
         assertThat(serverTestInstance.getCheckpoint(), equalTo(clientInstance.getCheckpoint()));
         assertPosition(serverTestInstance.getPosition(), clientInstance.getPosition());
@@ -132,17 +132,18 @@ public class TransformStatsTests extends AbstractResponseTestCase<org.elasticsea
         assertThat(serverTestInstance.getTimeUpperBoundMillis(), equalTo(clientInstance.getTimeUpperBoundMillis()));
     }
 
-    private void assertTransformCheckpointInfo(
-        org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo serverTestInstance,
-        TransformCheckpointingInfo clientInstance) {
+    public static void assertTransformCheckpointInfo(
+            org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo serverTestInstance,
+            TransformCheckpointingInfo clientInstance) {
         assertTransformCheckpointStats(serverTestInstance.getNext(), clientInstance.getNext());
         assertTransformCheckpointStats(serverTestInstance.getLast(), clientInstance.getLast());
         assertThat(serverTestInstance.getChangesLastDetectedAt(), equalTo(clientInstance.getChangesLastDetectedAt()));
         assertThat(serverTestInstance.getOperationsBehind(), equalTo(clientInstance.getOperationsBehind()));
     }
 
-    private void assertTransformIndexerStats(org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats serverTestInstance,
-                                             TransformIndexerStats clientInstance) {
+    public static void assertTransformIndexerStats(
+            org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats serverTestInstance,
+            TransformIndexerStats clientInstance) {
         assertThat(serverTestInstance.getExpAvgCheckpointDurationMs(), equalTo(clientInstance.getExpAvgCheckpointDurationMs()));
         assertThat(serverTestInstance.getExpAvgDocumentsProcessed(), equalTo(clientInstance.getExpAvgDocumentsProcessed()));
         assertThat(serverTestInstance.getExpAvgDocumentsIndexed(), equalTo(clientInstance.getExpAvgDocumentsIndexed()));

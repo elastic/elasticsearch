@@ -113,7 +113,7 @@ PUT _cluster/settings
 ------------------------------------------------------
 
 
-Once allocation is reenabled, the cluster starts allocating replica shards to
+Once allocation is re-enabled, the cluster starts allocating replica shards to
 the data nodes. At this point it is safe to resume indexing and searching,
 but your cluster will recover more quickly if you can wait until all primary
 and replica shards have been successfully allocated and the status of all nodes

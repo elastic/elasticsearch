@@ -87,17 +87,19 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
     }
 
     @Override
     public PersistentTasksCustomMetaData.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState);
         if (unavailableIndices.size() != 0) {
-            String reason = "Not starting transform [" + params.getId() + "], " +
-                "because not all primary shards are active for the following indices [" +
-                String.join(",", unavailableIndices) + "]";
+            String reason = "Not starting transform ["
+                + params.getId()
+                + "], "
+                + "because not all primary shards are active for the following indices ["
+                + String.join(",", unavailableIndices)
+                + "]";
             logger.debug(reason);
             return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
@@ -110,12 +112,13 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
-        String[] indices = resolver.concreteIndexNames(
-            clusterState,
-            IndicesOptions.lenientExpandOpen(),
-            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
-            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
-        );
+        String[] indices = resolver
+            .concreteIndexNames(
+                clusterState,
+                IndicesOptions.lenientExpandOpen(),
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+            );
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
@@ -139,102 +142,84 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
 
-        final ClientTransformIndexerBuilder indexerBuilder =
-            new ClientTransformIndexerBuilder()
-                .setAuditor(auditor)
-                .setClient(client)
-                .setTransformsCheckpointService(transformCheckpointService)
-                .setTransformsConfigManager(transformsConfigManager);
+        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder()
+            .setAuditor(auditor)
+            .setClient(client)
+            .setTransformsCheckpointService(transformCheckpointService)
+            .setTransformsConfigManager(transformsConfigManager);
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 
-        ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(
-            response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId),
-            failure -> {
-                auditor.error(
-                    transformId,
-                    "Failed to start transform. " +
-                        "Please stop and attempt to start again. Failure: " + failure.getMessage()
-                );
+        ActionListener<StartTransformAction.Response> startTaskListener = ActionListener
+            .wrap(response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId), failure -> {
+                auditor
+                    .error(
+                        transformId,
+                        "Failed to start transform. " + "Please stop and attempt to start again. Failure: " + failure.getMessage()
+                    );
                 logger.error("Failed to start task [" + transformId + "] in node operation", failure);
-            }
-        );
+            });
 
         // <7> load next checkpoint
-        ActionListener<TransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(
-            nextCheckpoint -> {
+        ActionListener<TransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(nextCheckpoint -> {
 
-                if (nextCheckpoint.isEmpty()) {
-                    // extra safety: reset position and progress if next checkpoint is empty
-                    // prevents a failure if for some reason the next checkpoint has been deleted
-                    indexerBuilder.setInitialPosition(null);
-                    indexerBuilder.setProgress(null);
-                } else {
-                    logger.trace(
-                        "[{}] Loaded next checkpoint [{}] found, starting the task",
-                        transformId,
-                        nextCheckpoint.getCheckpoint()
-                    );
-                    indexerBuilder.setNextCheckpoint(nextCheckpoint);
-                }
-
-                final long lastCheckpoint = stateHolder.get().getCheckpoint();
-
-                startTask(buildTask, indexerBuilder, lastCheckpoint, startTaskListener);
-            },
-            error -> {
-                // TODO: do not use the same error message as for loading the last checkpoint
-                String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
-                logger.error(msg, error);
-                markAsFailed(buildTask, msg);
+            if (nextCheckpoint.isEmpty()) {
+                // extra safety: reset position and progress if next checkpoint is empty
+                // prevents a failure if for some reason the next checkpoint has been deleted
+                indexerBuilder.setInitialPosition(null);
+                indexerBuilder.setProgress(null);
+            } else {
+                logger.trace("[{}] Loaded next checkpoint [{}] found, starting the task", transformId, nextCheckpoint.getCheckpoint());
+                indexerBuilder.setNextCheckpoint(nextCheckpoint);
             }
-        );
+
+            final long lastCheckpoint = stateHolder.get().getCheckpoint();
+
+            startTask(buildTask, indexerBuilder, lastCheckpoint, startTaskListener);
+        }, error -> {
+            // TODO: do not use the same error message as for loading the last checkpoint
+            String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
+            logger.error(msg, error);
+            markAsFailed(buildTask, msg);
+        });
 
         // <6> load last checkpoint
-        ActionListener<TransformCheckpoint> getTransformLastCheckpointListener = ActionListener.wrap(
-            lastCheckpoint -> {
-                indexerBuilder.setLastCheckpoint(lastCheckpoint);
+        ActionListener<TransformCheckpoint> getTransformLastCheckpointListener = ActionListener.wrap(lastCheckpoint -> {
+            indexerBuilder.setLastCheckpoint(lastCheckpoint);
 
-                logger.trace(
-                    "[{}] Loaded last checkpoint [{}], looking for next checkpoint",
-                    transformId,
-                    lastCheckpoint.getCheckpoint()
-                );
-                transformsConfigManager.getTransformCheckpoint(
-                    transformId,
-                    lastCheckpoint.getCheckpoint() + 1,
-                    getTransformNextCheckpointListener
-                );
-            },
-            error -> {
-                String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
-                logger.error(msg, error);
-                markAsFailed(buildTask, msg);
-            }
-        );
+            logger.trace("[{}] Loaded last checkpoint [{}], looking for next checkpoint", transformId, lastCheckpoint.getCheckpoint());
+            transformsConfigManager
+                .getTransformCheckpoint(transformId, lastCheckpoint.getCheckpoint() + 1, getTransformNextCheckpointListener);
+        }, error -> {
+            String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
+            logger.error(msg, error);
+            markAsFailed(buildTask, msg);
+        });
 
         // <5> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
-        ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> transformStatsActionListener = ActionListener.wrap(
-            stateAndStatsAndSeqNoPrimaryTermAndIndex -> {
+        ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> transformStatsActionListener = ActionListener
+            .wrap(stateAndStatsAndSeqNoPrimaryTermAndIndex -> {
                 TransformStoredDoc stateAndStats = stateAndStatsAndSeqNoPrimaryTermAndIndex.v1();
                 SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = stateAndStatsAndSeqNoPrimaryTermAndIndex.v2();
                 // Since we have not set the value for this yet, it SHOULD be null
                 logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
                 TransformState transformState = stateAndStats.getTransformState();
-                indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
+                indexerBuilder
+                    .setInitialStats(stateAndStats.getTransformStats())
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
                     .setProgress(stateAndStats.getTransformState().getProgress())
                     .setIndexerState(currentIndexerState(transformState))
                     .setSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex)
                     .setShouldStopAtCheckpoint(transformState.shouldStopAtNextCheckpoint());
-                logger.debug(
-                    "[{}] Loading existing state: [{}], position [{}]",
-                    transformId,
-                    stateAndStats.getTransformState(),
-                    stateAndStats.getTransformState().getPosition()
-                );
+                logger
+                    .debug(
+                        "[{}] Loading existing state: [{}], position [{}]",
+                        transformId,
+                        stateAndStats.getTransformState(),
+                        stateAndStats.getTransformState().getPosition()
+                    );
 
                 stateHolder.set(transformState);
                 final long lastCheckpoint = stateHolder.get().getCheckpoint();
@@ -246,8 +231,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     logger.trace("[{}] Restore last checkpoint: [{}]", transformId, lastCheckpoint);
                     transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint, getTransformLastCheckpointListener);
                 }
-            },
-            error -> {
+            }, error -> {
                 if (error instanceof ResourceNotFoundException == false) {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_STATE, transformId);
                     logger.error(msg, error);
@@ -256,54 +240,43 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     logger.trace("[{}] No stats found (new transform), starting the task", transformId);
                     startTask(buildTask, indexerBuilder, null, startTaskListener);
                 }
-            }
-        );
+            });
 
         // <4> set fieldmappings for the indexer, get the previous stats (if they exist)
-        ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(
-            fieldMappings -> {
-                indexerBuilder.setFieldMappings(fieldMappings);
-                transformsConfigManager.getTransformStoredDoc(transformId, transformStatsActionListener);
-            },
-            error -> {
-                String msg = TransformMessages.getMessage(
+        ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(fieldMappings -> {
+            indexerBuilder.setFieldMappings(fieldMappings);
+            transformsConfigManager.getTransformStoredDoc(transformId, transformStatsActionListener);
+        }, error -> {
+            String msg = TransformMessages
+                .getMessage(
                     TransformMessages.UNABLE_TO_GATHER_FIELD_MAPPINGS,
                     indexerBuilder.getTransformConfig().getDestination().getIndex()
                 );
-                logger.error(msg, error);
-                markAsFailed(buildTask, msg);
-            }
-        );
+            logger.error(msg, error);
+            markAsFailed(buildTask, msg);
+        });
 
         // <3> Validate the transform, assigning it to the indexer, and get the field mappings
-        ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(
-            config -> {
-                if (config.isValid()) {
-                    indexerBuilder.setTransformConfig(config);
-                    SchemaUtil.getDestinationFieldMappings(client, config.getDestination().getIndex(), getFieldMappingsListener);
-                } else {
-                    markAsFailed(
-                        buildTask,
-                        TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId)
-                    );
-                }
-            },
-            error -> {
-                String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId);
-                logger.error(msg, error);
-                markAsFailed(buildTask, msg);
+        ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
+            if (config.isValid()) {
+                indexerBuilder.setTransformConfig(config);
+                SchemaUtil.getDestinationFieldMappings(client, config.getDestination().getIndex(), getFieldMappingsListener);
+            } else {
+                markAsFailed(buildTask, TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId));
             }
-        );
+        }, error -> {
+            String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId);
+            logger.error(msg, error);
+            markAsFailed(buildTask, msg);
+        });
 
         // <2> Get the transform config
-        ActionListener<Void> templateCheckListener = ActionListener.wrap(
-            aVoid -> transformsConfigManager.getTransformConfiguration(transformId, getTransformConfigListener),
-            error -> {
+        ActionListener<Void> templateCheckListener = ActionListener
+            .wrap(aVoid -> transformsConfigManager.getTransformConfiguration(transformId, getTransformConfigListener), error -> {
                 String msg = "Failed to create internal index mappings";
                 logger.error(msg, error);
                 markAsFailed(buildTask, msg);
-            }
-        );
+            });
 
         // <1> Check the internal index template is installed
         TransformInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, templateCheckListener);
@@ -332,16 +305,15 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private void markAsFailed(TransformTask task, String reason) {
         CountDownLatch latch = new CountDownLatch(1);
 
-        task.fail(
-            reason,
-            new LatchedActionListener<>(
-                ActionListener.wrap(
-                    nil -> {},
-                    failure -> logger.error("Failed to set task [" + task.getTransformId() + "] to failed", failure)
-                ),
-                latch
-            )
-        );
+        task
+            .fail(
+                reason,
+                new LatchedActionListener<>(
+                    ActionListener
+                        .wrap(nil -> {}, failure -> logger.error("Failed to set task [" + task.getTransformId() + "] to failed", failure)),
+                    latch
+                )
+            );
         try {
             latch.await(MARK_AS_FAILED_TIMEOUT_SEC, TimeUnit.SECONDS);
         } catch (InterruptedException e) {

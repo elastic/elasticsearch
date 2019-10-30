@@ -41,10 +41,7 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     }
 
     @Override
-    public void sourceHasChanged(
-        TransformCheckpoint lastCheckpoint,
-        ActionListener<Boolean> listener
-    ) {
+    public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener) {
 
         final long timestamp = getTime();
 
@@ -57,9 +54,11 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             .trackTotalHitsUpTo(1);
 
         QueryBuilder queryBuilder = transformConfig.getSource().getQueryConfig().getQuery();
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
+            .filter(queryBuilder)
             .filter(
-                new RangeQueryBuilder(timeSyncConfig.getField()).gte(lastCheckpoint.getTimeUpperBound())
+                new RangeQueryBuilder(timeSyncConfig.getField())
+                    .gte(lastCheckpoint.getTimeUpperBound())
                     .lt(timestamp - timeSyncConfig.getDelay().millis())
                     .format("epoch_millis")
             );
@@ -69,26 +68,19 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
         logger.trace("query for changes based on time: {}", sourceBuilder);
 
-        ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
-            ClientHelper.TRANSFORM_ORIGIN,
-            client,
-            SearchAction.INSTANCE,
-            searchRequest,
-            ActionListener.wrap(
-                r -> {
-                    listener.onResponse(r.getHits().getTotalHits().value > 0L);
-                },
-                listener::onFailure
-            )
-        );
+        ClientHelper
+            .executeWithHeadersAsync(
+                transformConfig.getHeaders(),
+                ClientHelper.TRANSFORM_ORIGIN,
+                client,
+                SearchAction.INSTANCE,
+                searchRequest,
+                ActionListener.wrap(r -> { listener.onResponse(r.getHits().getTotalHits().value > 0L); }, listener::onFailure)
+            );
     }
 
     @Override
-    public void createNextCheckpoint(
-        final TransformCheckpoint lastCheckpoint,
-        final ActionListener<TransformCheckpoint> listener
-    ) {
+    public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint, final ActionListener<TransformCheckpoint> listener) {
         final long timestamp = getTime();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
@@ -96,14 +88,16 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         long timeUpperBound = timestamp - timeSyncConfig.getDelay().millis();
 
         getIndexCheckpoints(
-            ActionListener.wrap(
-                checkpointsByIndex -> {
-                    listener.onResponse(
-                        new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
-                    );
-                },
-                listener::onFailure
-            )
+            ActionListener
+                .wrap(
+                    checkpointsByIndex -> {
+                        listener
+                            .onResponse(
+                                new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
+                            );
+                    },
+                    listener::onFailure
+                )
         );
     }
 

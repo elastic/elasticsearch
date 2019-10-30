@@ -184,41 +184,42 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * Request a checkpoint
      */
     protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
-        checkpointProvider.createNextCheckpoint(
-            getLastCheckpoint(),
-            ActionListener.wrap(
-                checkpoint -> transformsConfigManager.putTransformCheckpoint(
-                    checkpoint,
-                    ActionListener.wrap(
-                        putCheckPointResponse -> listener.onResponse(checkpoint),
-                        createCheckpointException -> {
-                            logger.warn(
-                                new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()),
-                                createCheckpointException
-                            );
-                            listener.onFailure(
-                                new RuntimeException(
-                                    "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
-                                    createCheckpointException
-                                )
-                            );
+        checkpointProvider
+            .createNextCheckpoint(
+                getLastCheckpoint(),
+                ActionListener
+                    .wrap(
+                        checkpoint -> transformsConfigManager
+                            .putTransformCheckpoint(
+                                checkpoint,
+                                ActionListener.wrap(putCheckPointResponse -> listener.onResponse(checkpoint), createCheckpointException -> {
+                                    logger
+                                        .warn(
+                                            new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()),
+                                            createCheckpointException
+                                        );
+                                    listener
+                                        .onFailure(
+                                            new RuntimeException(
+                                                "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
+                                                createCheckpointException
+                                            )
+                                        );
+                                })
+                            ),
+                        getCheckPointException -> {
+                            logger
+                                .warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
+                            listener
+                                .onFailure(
+                                    new RuntimeException(
+                                        "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
+                                        getCheckPointException
+                                    )
+                                );
                         }
                     )
-                ),
-                getCheckPointException -> {
-                    logger.warn(
-                        new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()),
-                        getCheckPointException
-                    );
-                    listener.onFailure(
-                        new RuntimeException(
-                            "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
-                            getCheckPointException
-                        )
-                    );
-                }
-            )
-        );
+            );
     }
 
     @Override
@@ -249,109 +250,76 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // On each run, we need to get the total number of docs and reset the count of processed docs
         // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
         // the progress here, and not in the executor.
-        ActionListener<Void> updateConfigListener = ActionListener.wrap(
-            updateConfigResponse -> {
-                if (initialRun()) {
-                    createCheckpoint(ActionListener.wrap(cp -> {
-                        nextCheckpoint = cp;
-                        // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
-                        // Consequently, the idea of percent complete no longer makes sense.
-                        if (nextCheckpoint.getCheckpoint() > 1) {
-                            progress = new TransformProgress(null, 0L, 0L);
-                            finalListener.onResponse(null);
-                            return;
-                        }
-                        progressGatherer.getInitialProgress(
-                            buildFilterQuery(),
-                            getConfig(),
-                            ActionListener.wrap(
-                                newProgress -> {
-                                    logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
-                                    progress = newProgress;
-                                    finalListener.onResponse(null);
-                                },
-                                failure -> {
-                                    progress = null;
-                                    logger.warn(
-                                        new ParameterizedMessage(
-                                            "[{}] unable to load progress information for task.",
-                                            getJobId()
-                                        ),
-                                        failure
-                                    );
-                                    finalListener.onResponse(null);
-                                }
-                            )
-                        );
-                    }, listener::onFailure));
-                } else {
-                    finalListener.onResponse(null);
-                }
-            },
-            listener::onFailure
-        );
+        ActionListener<Void> updateConfigListener = ActionListener.wrap(updateConfigResponse -> {
+            if (initialRun()) {
+                createCheckpoint(ActionListener.wrap(cp -> {
+                    nextCheckpoint = cp;
+                    // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
+                    // Consequently, the idea of percent complete no longer makes sense.
+                    if (nextCheckpoint.getCheckpoint() > 1) {
+                        progress = new TransformProgress(null, 0L, 0L);
+                        finalListener.onResponse(null);
+                        return;
+                    }
+                    progressGatherer.getInitialProgress(buildFilterQuery(), getConfig(), ActionListener.wrap(newProgress -> {
+                        logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
+                        progress = newProgress;
+                        finalListener.onResponse(null);
+                    }, failure -> {
+                        progress = null;
+                        logger.warn(new ParameterizedMessage("[{}] unable to load progress information for task.", getJobId()), failure);
+                        finalListener.onResponse(null);
+                    }));
+                }, listener::onFailure));
+            } else {
+                finalListener.onResponse(null);
+            }
+        }, listener::onFailure);
 
         // If we are continuous, we will want to verify we have the latest stored configuration
-        ActionListener<Void> changedSourceListener = ActionListener.wrap(
-            r -> {
-                if (isContinuous()) {
-                    transformsConfigManager.getTransformConfiguration(
-                        getJobId(),
-                        ActionListener.wrap(
-                            config -> {
-                                transformConfig = config;
-                                logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
-                                updateConfigListener.onResponse(null);
-                            },
-                            failure -> {
-                                String msg = TransformMessages.getMessage(
-                                    TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION,
-                                    getJobId()
-                                );
-                                logger.error(msg, failure);
-                                // If the transform config index or the transform config is gone, something serious occurred
-                                // We are in an unknown state and should fail out
-                                if (failure instanceof ResourceNotFoundException) {
-                                    updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
-                                } else {
-                                    auditor.warning(getJobId(), msg);
-                                    updateConfigListener.onResponse(null);
-                                }
-                            }
-                        )
-                    );
-                } else {
+        ActionListener<Void> changedSourceListener = ActionListener.wrap(r -> {
+            if (isContinuous()) {
+                transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
+                    transformConfig = config;
+                    logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
                     updateConfigListener.onResponse(null);
-                }
-            },
-            listener::onFailure
-        );
+                }, failure -> {
+                    String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION, getJobId());
+                    logger.error(msg, failure);
+                    // If the transform config index or the transform config is gone, something serious occurred
+                    // We are in an unknown state and should fail out
+                    if (failure instanceof ResourceNotFoundException) {
+                        updateConfigListener.onFailure(new TransformConfigReloadingException(msg, failure));
+                    } else {
+                        auditor.warning(getJobId(), msg);
+                        updateConfigListener.onResponse(null);
+                    }
+                }));
+            } else {
+                updateConfigListener.onResponse(null);
+            }
+        }, listener::onFailure);
 
         // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
-            sourceHasChanged(
-                ActionListener.wrap(
-                    hasChanged -> {
-                        hasSourceChanged = hasChanged;
-                        if (hasChanged) {
-                            context.setChangesLastDetectedAt(Instant.now());
-                            logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
-                            changedSourceListener.onResponse(null);
-                        } else {
-                            logger.trace("[{}] source has not changed, finish indexer early.", getJobId());
-                            // No changes, stop executing
-                            listener.onResponse(false);
-                        }
-                    },
-                    failure -> {
-                        // If we failed determining if the source changed, it's safer to assume there were changes.
-                        // We should allow the failure path to complete as normal
-                        hasSourceChanged = true;
-                        listener.onFailure(failure);
-                    }
-                )
-            );
+            sourceHasChanged(ActionListener.wrap(hasChanged -> {
+                hasSourceChanged = hasChanged;
+                if (hasChanged) {
+                    context.setChangesLastDetectedAt(Instant.now());
+                    logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
+                    changedSourceListener.onResponse(null);
+                } else {
+                    logger.trace("[{}] source has not changed, finish indexer early.", getJobId());
+                    // No changes, stop executing
+                    listener.onResponse(false);
+                }
+            }, failure -> {
+                // If we failed determining if the source changed, it's safer to assume there were changes.
+                // We should allow the failure path to complete as normal
+                hasSourceChanged = true;
+                listener.onFailure(failure);
+            }));
         } else {
             hasSourceChanged = true;
             changedSourceListener.onResponse(null);
@@ -407,16 +375,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
             }
             if (shouldAuditOnFinish(checkpoint)) {
-                auditor.info(
-                    getJobId(),
-                    "Finished indexing for transform checkpoint [" + checkpoint + "]."
-                );
+                auditor.info(getJobId(), "Finished indexing for transform checkpoint [" + checkpoint + "].");
             }
-            logger.debug(
-                "[{}] finished indexing for transform checkpoint [{}].",
-                getJobId(),
-                checkpoint
-            );
+            logger.debug("[{}] finished indexing for transform checkpoint [{}].", getJobId(), checkpoint);
             auditBulkFailures = true;
             listener.onResponse(null);
         } catch (Exception e) {
@@ -430,18 +391,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // Treat this as a "we reached the end".
         // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
         if (aggregations == null) {
-            logger.info(
-                "[{}] unexpected null aggregations in search response. " +
-                    "Source indices have been deleted or closed.",
-                getJobId()
-            );
-            auditor.info(
-                getJobId(),
-                "Source indices have been deleted or closed. " +
-                    "Please verify that these indices exist and are open [" +
-                    Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex()) +
-                    "]."
-            );
+            logger
+                .info("[{}] unexpected null aggregations in search response. " + "Source indices have been deleted or closed.", getJobId());
+            auditor
+                .info(
+                    getJobId(),
+                    "Source indices have been deleted or closed. "
+                        + "Please verify that these indices exist and are open ["
+                        + Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex())
+                        + "]."
+                );
             return new IterationResult<>(Collections.emptyList(), null, true);
         }
         final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
@@ -484,10 +443,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         try {
             handleFailure(exc);
         } catch (Exception e) {
-            logger.error(
-                new ParameterizedMessage("[{}] transform encountered an unexpected internal exception: ", getJobId()),
-                e
-            );
+            logger.error(new ParameterizedMessage("[{}] transform encountered an unexpected internal exception: ", getJobId()), e);
         }
     }
 
@@ -505,13 +461,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     synchronized void handleFailure(Exception e) {
-        logger.warn(
-            new ParameterizedMessage(
-                "[{}] transform encountered an exception: ",
-                getJobId()
-            ),
-            e
-        );
+        logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
         if (handleCircuitBreakingException(e)) {
             return;
         }
@@ -525,41 +475,33 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
             // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
             if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                auditor.warning(
-                    getJobId(),
-                    "Transform encountered an exception: " + e.getMessage() +
-                        " Will attempt again at next scheduled trigger."
-                );
+                auditor
+                    .warning(
+                        getJobId(),
+                        "Transform encountered an exception: " + e.getMessage() + " Will attempt again at next scheduled trigger."
+                    );
                 lastAuditedExceptionMessage = e.getMessage();
             }
         }
     }
 
     private void sourceHasChanged(ActionListener<Boolean> hasChangedListener) {
-        checkpointProvider.sourceHasChanged(
-            getLastCheckpoint(),
-            ActionListener.wrap(
-                hasChanged -> {
-                    logger.trace("[{}] change detected [{}].", getJobId(), hasChanged);
-                    hasChangedListener.onResponse(hasChanged);
-                },
-                e -> {
-                    logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] failed to detect changes for transform. Skipping update till next check.",
-                            getJobId()
-                        ),
-                        e
-                    );
-                    auditor.warning(
-                        getJobId(),
-                        "Failed to detect changes for transform, skipping update till next check. Exception: "
-                            + e.getMessage()
-                    );
-                    hasChangedListener.onResponse(false);
-                }
-            )
-        );
+        checkpointProvider.sourceHasChanged(getLastCheckpoint(), ActionListener.wrap(hasChanged -> {
+            logger.trace("[{}] change detected [{}].", getJobId(), hasChanged);
+            hasChangedListener.onResponse(hasChanged);
+        }, e -> {
+            logger
+                .warn(
+                    new ParameterizedMessage("[{}] failed to detect changes for transform. Skipping update till next check.", getJobId()),
+                    e
+                );
+            auditor
+                .warning(
+                    getJobId(),
+                    "Failed to detect changes for transform, skipping update till next check. Exception: " + e.getMessage()
+                );
+            hasChangedListener.onResponse(false);
+        }));
     }
 
     private boolean isIrrecoverableFailure(Exception e) {
@@ -606,11 +548,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // reset the runState to fetch changed buckets
             runState = RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
             // advance the cursor for changed bucket detection
-            return new IterationResult<>(
-                Collections.emptyList(),
-                new TransformIndexerPosition(null, changedBucketsAfterKey),
-                false
-            );
+            return new IterationResult<>(Collections.emptyList(), new TransformIndexerPosition(null, changedBucketsAfterKey), false);
         }
 
         return processBuckets(agg);
@@ -631,18 +569,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // else
 
         // collect all buckets that require the update
-        agg.getBuckets()
-            .stream()
-            .forEach(
-                bucket -> {
-                    bucket.getKey()
-                        .forEach(
-                            (k, v) -> {
-                                changedBuckets.get(k).add(v.toString());
-                            }
-                        );
-                }
-            );
+        agg.getBuckets().stream().forEach(bucket -> { bucket.getKey().forEach((k, v) -> { changedBuckets.get(k).add(v.toString()); }); });
 
         // remember the after key but do not store it in the state yet (in the failure we need to retrieve it again)
         changedBucketsAfterKey = agg.afterKey();
@@ -703,8 +630,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformConfig config = getConfig();
         if (this.isContinuous()) {
 
-            BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-                .filter(pivotQueryBuilder);
+            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder);
 
             if (lastCheckpoint != null) {
                 filteredQuery.filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
@@ -724,8 +650,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex())
             .allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .size(0);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
 
         switch (runState) {
             case FULL_RUN:
@@ -757,10 +682,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (isContinuous()) {
             BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
                 .filter(pivotQueryBuilder)
-                .filter(
-                    config.getSyncConfig()
-                        .getRangeQuery(nextCheckpoint)
-                );
+                .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
             sourceBuilder.query(filteredQuery);
         } else {
             sourceBuilder.query(pivotQueryBuilder);
@@ -783,7 +705,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
         TransformConfig config = getConfig();
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
+            .filter(pivotQueryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
 
         sourceBuilder.query(filteredQuery);
@@ -804,10 +727,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
             .filter(pivotQueryBuilder)
-            .filter(
-                config.getSyncConfig()
-                    .getRangeQuery(nextCheckpoint)
-            );
+            .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
         if (changedBuckets != null && changedBuckets.isEmpty() == false) {
             QueryBuilder pivotFilter = pivot.filterBuckets(changedBuckets);
@@ -840,10 +760,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return false;
         }
 
-        double reducingFactor = Math.min(
-            (double) circuitBreakingException.getByteLimit() / circuitBreakingException.getBytesWanted(),
-            1 - (Math.log10(pageSize) * 0.1)
-        );
+        double reducingFactor = Math
+            .min(
+                (double) circuitBreakingException.getByteLimit() / circuitBreakingException.getBytesWanted(),
+                1 - (Math.log10(pageSize) * 0.1)
+            );
 
         int newPageSize = (int) Math.round(reducingFactor * pageSize);
 
@@ -853,11 +774,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return true;
         }
 
-        String message = TransformMessages.getMessage(
-            TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE,
-            pageSize,
-            newPageSize
-        );
+        String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize, newPageSize);
         auditor.info(getJobId(), message);
         logger.info("Data frame transform [" + getJobId() + "]:" + message);
 

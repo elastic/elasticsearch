@@ -58,9 +58,16 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
     public TransformTask(
-        long id, String type, String action, TaskId parentTask, TransformTaskParams transform,
-        TransformState state, SchedulerEngine schedulerEngine, TransformAuditor auditor,
-        ThreadPool threadPool, Map<String, String> headers
+        long id,
+        String type,
+        String action,
+        TaskId parentTask,
+        TransformTaskParams transform,
+        TransformState state,
+        SchedulerEngine schedulerEngine,
+        TransformAuditor auditor,
+        ThreadPool threadPool,
+        Map<String, String> headers
     ) {
         super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
         this.transform = transform;
@@ -152,31 +159,23 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     ) {
         ClientTransformIndexer indexer = getIndexer();
         if (indexer == null) {
-            transformsCheckpointService.getCheckpointingInfo(
-                transform.getId(),
-                context.getCheckpoint(),
-                initialPosition,
-                null,
-                listener
-            );
+            transformsCheckpointService.getCheckpointingInfo(transform.getId(), context.getCheckpoint(), initialPosition, null, listener);
             return;
         }
-        indexer.getCheckpointProvider()
+        indexer
+            .getCheckpointProvider()
             .getCheckpointingInfo(
                 indexer.getLastCheckpoint(),
                 indexer.getNextCheckpoint(),
                 indexer.getPosition(),
                 indexer.getProgress(),
-                ActionListener.wrap(
-                    info -> {
-                        if (context.getChangesLastDetectedAt() == null) {
-                            listener.onResponse(info);
-                        } else {
-                            listener.onResponse(info.setChangesLastDetectedAt(context.getChangesLastDetectedAt()));
-                        }
-                    },
-                    listener::onFailure
-                )
+                ActionListener.wrap(info -> {
+                    if (context.getChangesLastDetectedAt() == null) {
+                        listener.onResponse(info);
+                    } else {
+                        listener.onResponse(info.setChangesLastDetectedAt(context.getChangesLastDetectedAt()));
+                    }
+                }, listener::onFailure)
             );
     }
 
@@ -190,16 +189,13 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     synchronized void start(Long startingCheckpoint, ActionListener<StartTransformAction.Response> listener) {
         logger.debug("[{}] start called with state [{}].", getTransformId(), getState());
         if (context.getTaskState() == TransformTaskState.FAILED) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.getMessage(
-                        CANNOT_START_FAILED_TRANSFORM,
-                        getTransformId(),
-                        context.getStateReason()
-                    ),
-                    RestStatus.CONFLICT
-                )
-            );
+            listener
+                .onFailure(
+                    new ElasticsearchStatusException(
+                        TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
+                        RestStatus.CONFLICT
+                    )
+                );
             return;
         }
         if (getIndexer() == null) {
@@ -209,25 +205,23 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             String msg = context.getTaskState() == TransformTaskState.FAILED
                 ? "It failed during the initialization process; force stop to allow reinitialization."
                 : "Try again later.";
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Task for transform [{}] not fully initialized. {}",
-                    RestStatus.CONFLICT,
-                    getTransformId(),
-                    msg
-                )
-            );
+            listener
+                .onFailure(
+                    new ElasticsearchStatusException(
+                        "Task for transform [{}] not fully initialized. {}",
+                        RestStatus.CONFLICT,
+                        getTransformId(),
+                        msg
+                    )
+                );
             return;
         }
         final IndexerState newState = getIndexer().start();
         if (Arrays.stream(RUNNING_STATES).noneMatch(newState::equals)) {
-            listener.onFailure(
-                new ElasticsearchException(
-                    "Cannot start task for transform [{}], because state was [{}]",
-                    transform.getId(),
-                    newState
-                )
-            );
+            listener
+                .onFailure(
+                    new ElasticsearchException("Cannot start task for transform [{}], because state was [{}]", transform.getId(), newState)
+                );
             return;
         }
         context.resetTaskState();
@@ -252,37 +246,29 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
         // we could not read the previous state information from said index.
-        persistStateToClusterState(
-            state,
-            ActionListener.wrap(
-                task -> {
-                    auditor.info(
-                        transform.getId(),
-                        "Updated transform state to [" + state.getTaskState() + "]."
-                    );
-                    long now = System.currentTimeMillis();
-                    // kick off the indexer
-                    triggered(new Event(schedulerJobName(), now, now));
-                    registerWithSchedulerJob();
-                    listener.onResponse(new StartTransformAction.Response(true));
-                },
-                exc -> {
-                    auditor.warning(
-                        transform.getId(),
-                        "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
-                    );
-                    logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
-                    getIndexer().stop();
-                    listener.onFailure(
-                        new ElasticsearchException(
-                            "Error while updating state for transform ["
-                                + transform.getId() + "] to [" + state.getIndexerState() + "].",
-                            exc
-                        )
-                    );
-                }
-            )
-        );
+        persistStateToClusterState(state, ActionListener.wrap(task -> {
+            auditor.info(transform.getId(), "Updated transform state to [" + state.getTaskState() + "].");
+            long now = System.currentTimeMillis();
+            // kick off the indexer
+            triggered(new Event(schedulerJobName(), now, now));
+            registerWithSchedulerJob();
+            listener.onResponse(new StartTransformAction.Response(true));
+        }, exc -> {
+            auditor
+                .warning(
+                    transform.getId(),
+                    "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
+                );
+            logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
+            getIndexer().stop();
+            listener
+                .onFailure(
+                    new ElasticsearchException(
+                        "Error while updating state for transform [" + transform.getId() + "] to [" + state.getIndexerState() + "].",
+                        exc
+                    )
+                );
+        }));
     }
 
     /**
@@ -298,12 +284,13 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         boolean shouldStopAtCheckpoint,
         ActionListener<Void> shouldStopAtCheckpointListener
     ) {
-        logger.debug(
-            "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
-            getTransformId(),
-            shouldStopAtCheckpoint,
-            getState()
-        );
+        logger
+            .debug(
+                "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
+                getTransformId(),
+                shouldStopAtCheckpoint,
+                getState()
+            );
         if (context.getTaskState() != TransformTaskState.STARTED || getIndexer() == null) {
             shouldStopAtCheckpointListener.onResponse(null);
             return;
@@ -312,13 +299,14 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {
-        logger.debug(
-            "[{}] stop called with force [{}], shouldStopAtCheckpoint [{}], state [{}]",
-            getTransformId(),
-            force,
-            shouldStopAtCheckpoint,
-            getState()
-        );
+        logger
+            .debug(
+                "[{}] stop called with force [{}], shouldStopAtCheckpoint [{}], state [{}]",
+                getTransformId(),
+                force,
+                shouldStopAtCheckpoint,
+                getState()
+            );
         if (getIndexer() == null) {
             // If there is no indexer the task has not been triggered
             // but it still needs to be stopped and removed
@@ -332,11 +320,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
 
         if (context.getTaskState() == TransformTaskState.FAILED && force == false) {
             throw new ElasticsearchStatusException(
-                TransformMessages.getMessage(
-                    CANNOT_STOP_FAILED_TRANSFORM,
-                    getTransformId(),
-                    context.getStateReason()
-                ),
+                TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
                 RestStatus.CONFLICT
             );
         }
@@ -375,19 +359,20 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }
 
         if (context.getTaskState() == TransformTaskState.FAILED || context.getTaskState() == TransformTaskState.STOPPED) {
-            logger.debug(
-                "[{}] schedule was triggered for transform but task is [{}]. Ignoring trigger.",
-                getTransformId(),
-                context.getTaskState()
-            );
+            logger
+                .debug(
+                    "[{}] schedule was triggered for transform but task is [{}]. Ignoring trigger.",
+                    getTransformId(),
+                    context.getTaskState()
+                );
             return;
         }
 
         // ignore trigger if indexer is running or completely stopped
         IndexerState indexerState = getIndexer().getState();
-        if (IndexerState.INDEXING.equals(indexerState) ||
-            IndexerState.STOPPING.equals(indexerState) ||
-            IndexerState.STOPPED.equals(indexerState)) {
+        if (IndexerState.INDEXING.equals(indexerState)
+            || IndexerState.STOPPING.equals(indexerState)
+            || IndexerState.STOPPED.equals(indexerState)) {
             logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getTransformId(), indexerState);
             return;
         }
@@ -413,29 +398,14 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         markAsCompleted();
     }
 
-    void persistStateToClusterState(
-        TransformState state,
-        ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener
-    ) {
-        updatePersistentTaskState(
-            state,
-            ActionListener.wrap(
-                success -> {
-                    logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
-                    listener.onResponse(success);
-                },
-                failure -> {
-                    logger.error(
-                        new ParameterizedMessage(
-                            "[{}] failed to update cluster state for transform.",
-                            transform.getId()
-                        ),
-                        failure
-                    );
-                    listener.onFailure(failure);
-                }
-            )
-        );
+    void persistStateToClusterState(TransformState state, ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener) {
+        updatePersistentTaskState(state, ActionListener.wrap(success -> {
+            logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
+            listener.onResponse(success);
+        }, failure -> {
+            logger.error(new ParameterizedMessage("[{}] failed to update cluster state for transform.", transform.getId()), failure);
+            listener.onFailure(failure);
+        }));
     }
 
     @Override
@@ -478,24 +448,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state could occur because we failed to read the config from the internal index, which would imply that
         // we could not read the previous state information from said index.
-        persistStateToClusterState(
-            newState,
-            ActionListener.wrap(
-                r -> listener.onResponse(null),
-                e -> {
-                    String msg = "Failed to persist to cluster state while marking task as failed with reason [" + reason + "].";
-                    auditor.warning(
-                        transform.getId(),
-                        msg + " Failure: " + e.getMessage()
-                    );
-                    logger.error(
-                        new ParameterizedMessage("[{}] {}", getTransformId(), msg),
-                        e
-                    );
-                    listener.onFailure(e);
-                }
-            )
-        );
+        persistStateToClusterState(newState, ActionListener.wrap(r -> listener.onResponse(null), e -> {
+            String msg = "Failed to persist to cluster state while marking task as failed with reason [" + reason + "].";
+            auditor.warning(transform.getId(), msg + " Failure: " + e.getMessage());
+            logger.error(new ParameterizedMessage("[{}] {}", getTransformId(), msg), e);
+            listener.onFailure(e);
+        }));
     }
 
     /**
@@ -505,11 +463,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      */
     @Override
     public synchronized void onCancelled() {
-        logger.info(
-            "[{}] received cancellation request for transform, state: [{}].",
-            getTransformId(),
-            context.getTaskState()
-        );
+        logger.info("[{}] received cancellation request for transform, state: [{}].", getTransformId(), context.getTaskState());
         if (getIndexer() != null && getIndexer().abort()) {
             // there is no background transform running, we can shutdown safely
             shutdown();

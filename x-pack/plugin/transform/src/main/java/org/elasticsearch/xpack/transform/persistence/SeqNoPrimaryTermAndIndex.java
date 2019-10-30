@@ -61,9 +61,7 @@ public class SeqNoPrimaryTermAndIndex {
         }
 
         SeqNoPrimaryTermAndIndex other = (SeqNoPrimaryTermAndIndex) obj;
-        return Objects.equals(seqNo, other.seqNo)
-            && Objects.equals(primaryTerm, other.primaryTerm)
-            && Objects.equals(index, other.index);
+        return Objects.equals(seqNo, other.seqNo) && Objects.equals(primaryTerm, other.primaryTerm) && Objects.equals(index, other.index);
     }
 
     @Override

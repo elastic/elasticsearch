@@ -66,9 +66,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source did not resolve to any open indexes"
             ),
-            () -> {
-                provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.emptySet());
-            }
+            () -> { provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.emptySet()); }
         );
 
         assertExpectation(
@@ -84,9 +82,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source did not resolve to any concrete indexes"
             ),
-            () -> {
-                provider.reportSourceIndexChanges(Collections.emptySet(), Collections.emptySet());
-            }
+            () -> { provider.reportSourceIndexChanges(Collections.emptySet(), Collections.emptySet()); }
         );
     }
 
@@ -114,9 +110,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: [other_index]"
             ),
-            () -> {
-                provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.singleton("other_index"));
-            }
+            () -> { provider.reportSourceIndexChanges(Collections.singleton("index"), Collections.singleton("other_index")); }
         );
 
         assertExpectation(
@@ -132,9 +126,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: []"
             ),
-            () -> {
-                provider.reportSourceIndexChanges(Sets.newHashSet("index", "other_index"), Collections.singleton("other_index"));
-            }
+            () -> { provider.reportSourceIndexChanges(Sets.newHashSet("index", "other_index"), Collections.singleton("other_index")); }
         );
         assertExpectation(
             new MockLogAppender.SeenEventExpectation(
@@ -149,9 +141,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found changes, removedIndexes: [], new indexes: [other_index]"
             ),
-            () -> {
-                provider.reportSourceIndexChanges(Collections.singleton("index"), Sets.newHashSet("index", "other_index"));
-            }
+            () -> { provider.reportSourceIndexChanges(Collections.singleton("index"), Sets.newHashSet("index", "other_index")); }
         );
     }
 
@@ -188,17 +178,12 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 transformId,
                 "Source index resolve found more than 10 changes, [50] removed indexes, [50] new indexes"
             ),
-            () -> {
-                provider.reportSourceIndexChanges(oldSet, newSet);
-            }
+            () -> { provider.reportSourceIndexChanges(oldSet, newSet); }
         );
     }
 
-    private void assertExpectation(
-        LoggingExpectation loggingExpectation,
-        AuditExpectation auditExpectation,
-        Runnable codeBlock
-    ) throws IllegalAccessException {
+    private void assertExpectation(LoggingExpectation loggingExpectation, AuditExpectation auditExpectation, Runnable codeBlock)
+        throws IllegalAccessException {
         MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.start();
 

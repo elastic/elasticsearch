@@ -312,11 +312,7 @@ public class TransformIndexerTests extends ESTestCase {
         );
         SearchResponse searchResponse = new SearchResponse(
             new InternalSearchResponse(
-                new SearchHits(
-                    new SearchHit[0],
-                    new TotalHits(0L, TotalHits.Relation.EQUAL_TO),
-                    0.0f
-                ),
+                new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
                 // Simulate completely null aggs
                 null,
                 new Suggest(Collections.emptyList()),

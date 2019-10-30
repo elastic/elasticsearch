@@ -65,6 +65,12 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
 
             service.setUpdateSchedule("");
             assertThat(service.getScheduler().jobCount(), equalTo(0));
+
+            // Service should not scheduled any jobs once closed
+            service.close();
+            service.onMaster();
+            assertThat(service.getScheduler().jobCount(), equalTo(0));
+
             threadPool.shutdownNow();
         }
     }

@@ -15,7 +15,10 @@ Elastic support team.
 === Collecting monitoring data about {es}
 
 There are two methods for collecting and sending data about the health of your
-production cluster to {esms-init}: {metricbeat} or collectors and exporters.
+production cluster to {esms-init}:
+
+* {metricbeat}
+* collectors and exporters
 
 To use {metricbeat}:
 
@@ -72,7 +75,8 @@ output.elasticsearch:
   username: cloud_monitoring_agent <2>
   password: MONITORING_AGENT_PASSWORD <3>
 ----------------------------------
-<1> Replace `MONITORING_ELASTICSEARCH_URL` with the appropriate URL for {esms-init}.
+<1> Replace `MONITORING_ELASTICSEARCH_URL` with the appropriate URL for {esms-init},
+which was provided by the Elastic support team.
 <2> The Elastic support team creates this user in {esms-init} and grants it the
 {stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
 <3> Replace `MONITORING_AGENT_PASSWORD` with the value provided to you by the
@@ -369,8 +373,8 @@ include::esms.asciidoc[tag=metricbeat-config]
 +
 --
 Open {kib} in your web browser. Use the {kib} URL and the administrator user ID
-that was provided to you by the Elastic support team.
-{kibana-ref}/kibana-page.html[View the {kib} metrics] on the *Stack Monitoring* page.
+that was provided to you by the Elastic support team. View the 
+{kibana-ref}/beats-page.html[{beats} metrics] on the *Stack Monitoring* page.
 
 If you do not see your metrics yet, see
 <<monitoring-troubleshooting,Troubleshooting {monitor-features}>>.

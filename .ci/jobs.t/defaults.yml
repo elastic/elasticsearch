@@ -57,7 +57,7 @@
             JAVA12_HOME=$HOME/.java/openjdk12
             JAVA13_HOME=$HOME/.java/openjdk13
        - shell: |
-          #!/usr/local/bin/runbld --redirect-stderr {runbld_args}
+          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+git+push
           .ci/build.sh check
     publishers:
       - email:
@@ -82,10 +82,10 @@
                   - UNSTABLE
               build-steps:
                 - shell: |
-                     curl -sS -X POST \
-                        -H "Content-Type: text/plain" \
-                        --data "$BUILD_URL" \
-                       "https://homer.app.elstc.co/webhook/jenkins/buil
+                    curl -sS -X POST \
+                      -H "Content-Type: text/plain" \
+                      --data "$BUILD_URL" \
+                      "https://homer.app.elstc.co/webhook/jenkins/build-finished" || true
 
 
 

@@ -20,6 +20,7 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.GeoTestUtil;
 import org.apache.lucene.geo.Tessellator;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;
@@ -30,8 +31,11 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.test.ESTestCase;
+import org.locationtech.spatial4j.io.GeohashUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -141,30 +145,97 @@ public class EncodingComparisonTests extends ESTestCase {
         output2.close();
         String s1 = "Triangles: " + output1.bytes().length();
         String s2 = "Edge tree: " + output2.bytes().length();
-        System.out.println(s1 + " / " + s2 + " /  diff: " + (double) output1.bytes().length() / output2.bytes().length());
+        // System.out.println(s1 + " / " + s2 + " /  diff: " + (double) output1.bytes().length() / output2.bytes().length());
 
-//        org.apache.lucene.geo.Rectangle random = GeoTestUtil.nextBoxNotCrossingDateline();
-//
-//        int minX = encoder.encodeX(random.minLon);
-//        int maxX = encoder.encodeX(random.maxLon);
-//        int minY = encoder.encodeY(random.minLat);
-//        int maxY = encoder.encodeY(random.maxLat);
-//
-//        TriangleTreeReader reader1 = new TriangleTreeReader(output1.bytes().toBytesRef(), encoder);
-//        GeometryTreeReader reader2 = new GeometryTreeReader(output2.bytes().toBytesRef(), encoder);
-//        long t1 = System.currentTimeMillis();
-//        for (int i =0; i< 1000; i ++) {
-//            reader1.intersects(minX, maxX, minY, maxY);
-//        }
-//        long t2 = System.currentTimeMillis();
-//        long t3 = System.currentTimeMillis();
-//        for (int i =0; i< 1000; i ++) {
-//            reader2.intersects(Extent.fromPoints(minX, minY, maxX, maxY));
-//        }
-//        long t4 = System.currentTimeMillis();
-//        String s3 = "Triangles: " + (t2 - t1);
-//        String s4 = "Edge tree: " + (t4 - t3);
-//        System.out.println(s3 + " / " + s4 + " /  diff: " + (double) (t2 - t1) / (t4 - t3));
+        TriangleTreeReader reader1 = new TriangleTreeReader(output1.bytes().toBytesRef(), encoder);
+        long t1 = System.currentTimeMillis();
+        int h1 = getHashesAtLevel(reader1, encoder, "", 5);
+        long t2 = System.currentTimeMillis();
+        GeometryTreeReader reader2 = new GeometryTreeReader(output2.bytes().toBytesRef(), encoder);
+        long t3 = System.currentTimeMillis();
+        int h2= getHashesAtLevel(reader2, encoder, "", 5);
+        long t4 = System.currentTimeMillis();
+
+        // checks that intersects and relate gives same result
+        int h3 = getHashesAtLevelIntersects(reader1, encoder, "", 5);
+        assertEquals(h1, h3);
+
+        String s3 = "Triangles: " + h1; //(t2 - t1);
+        String s4 = "Edge tree: " + h2; //(t4 - t3);
+        System.out.println("Query: " + s3 + " / " + s4 + " /  diff: " + (double) (t2 - t1) / (t4 - t3));
+    }
+
+    private int getHashesAtLevelIntersects(TriangleTreeReader reader, CoordinateEncoder encoder, String hash, int maxPrecision) throws IOException {
+        int hits = 0;
+        String[] hashes = GeohashUtils.getSubGeohashes(hash);
+        for (int i =0; i < hashes.length; i++) {
+            Rectangle r = Geohash.toBoundingBox(hashes[i]);
+            if (reader.intersects(encoder.encodeX(r.getMinLon()), encoder.encodeX(r.getMaxLon()),
+                encoder.encodeY(r.getMinLat()), encoder.encodeY(r.getMaxLat()))) {
+                if (hashes[i].length() == maxPrecision) {
+                    hits++;
+                } else {
+                    hits += getHashesAtLevelIntersects(reader, encoder, hashes[i], maxPrecision);
+                }
+            }
+        }
+        return hits;
+    }
+
+    private int getHashesAtLevel(TriangleTreeReader reader, CoordinateEncoder encoder, String hash, int maxPrecision) throws IOException {
+        int hits = 0;
+        String[] hashes = GeohashUtils.getSubGeohashes(hash);
+        for (int i =0; i < hashes.length; i++) {
+            Rectangle r = Geohash.toBoundingBox(hashes[i]);
+            PointValues.Relation rel = reader.relate(encoder.encodeX(r.getMinLon()), encoder.encodeX(r.getMaxLon()),
+                encoder.encodeY(r.getMinLat()), encoder.encodeY(r.getMaxLat()));
+            if (rel == PointValues.Relation.CELL_CROSSES_QUERY) {
+                if (hashes[i].length() == maxPrecision) {
+                    hits++;
+                } else {
+                    hits += getHashesAtLevel(reader, encoder, hashes[i], maxPrecision);
+                }
+            } else if (rel == PointValues.Relation.CELL_INSIDE_QUERY) {
+                if (hashes[i].length() == maxPrecision) {
+                    hits++;
+                } else {
+                    hits += getHashesAtLevel(hashes[i], maxPrecision);
+                }
+            }
+        }
+        return hits;
+    }
+
+    private int getHashesAtLevel(String hash, int maxPrecision) throws IOException {
+        int hits = 0;
+        String[] hashes = GeohashUtils.getSubGeohashes(hash);
+        for (int i = 0; i < hashes.length; i++) {
+            if (hashes[i].length() == maxPrecision) {
+                hits++;
+            } else {
+                hits += getHashesAtLevel(hashes[i], maxPrecision);
+            }
+        }
+        return hits;
+    }
+
+    private int getHashesAtLevel(GeometryTreeReader reader, CoordinateEncoder encoder, String hash, int maxPrecision) throws IOException {
+        int hits = 0;
+        String[] hashes = GeohashUtils.getSubGeohashes(hash);
+        for (int i =0; i < hashes.length; i++) {
+            Rectangle r = Geohash.toBoundingBox(hashes[i]);
+            Extent e = Extent.fromPoints(encoder.encodeX(r.getMinLon()), encoder.encodeY(r.getMinLat()),
+                encoder.encodeX(r.getMaxLon()), encoder.encodeY(r.getMaxLat()));
+            if (reader.intersects(e)) {
+                if (hashes[i].length() == maxPrecision) {
+                    hits++;
+                } else {
+                    hits += getHashesAtLevel(reader, encoder, hashes[i], maxPrecision);
+                }
+            }
+        }
+        return hits;
+
     }
 
 }

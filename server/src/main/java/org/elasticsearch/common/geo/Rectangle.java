@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.index.PointValues;
+
 import java.util.Objects;
 
 import static org.apache.lucene.geo.GeoUtils.orient;
@@ -70,6 +72,54 @@ public class Rectangle {
     }
 
     /** Checks if the rectangle intersects the provided triangle **/
+    public PointValues.Relation relateTriangle(int aX, int aY, boolean ab, int bX, int bY, boolean bc, int cX, int cY, boolean ca) {
+        // 1. query contains any triangle points
+        if (contains(aX, aY) || contains(bX, bY) || contains(cX, cY)) {
+            return PointValues.Relation.CELL_CROSSES_QUERY;
+        }
+
+        // compute bounding box of triangle
+        int tMinX = StrictMath.min(StrictMath.min(aX, bX), cX);
+        int tMaxX = StrictMath.max(StrictMath.max(aX, bX), cX);
+        int tMinY = StrictMath.min(StrictMath.min(aY, bY), cY);
+        int tMaxY = StrictMath.max(StrictMath.max(aY, bY), cY);
+
+        // 2. check bounding boxes are disjoint
+         if (tMaxX < minX || tMinX > maxX || tMinY > maxY || tMaxY < minY) {
+            return PointValues.Relation.CELL_OUTSIDE_QUERY;
+        }
+
+        boolean within = false;
+        if (edgeIntersectsQuery(aX, aY, bX, bY)) {
+            if (ab) {
+                return PointValues.Relation.CELL_CROSSES_QUERY;
+            }
+            within = true;
+        }
+
+        // right
+        if (edgeIntersectsQuery(bX, bY, cX, cY)) {
+            if (bc) {
+                return PointValues.Relation.CELL_CROSSES_QUERY;
+            }
+            within = true;
+        }
+
+        if (edgeIntersectsQuery(cX, cY, aX, aY)) {
+            if (ca) {
+                return PointValues.Relation.CELL_CROSSES_QUERY;
+            }
+            within = true;
+        }
+
+        if (within || pointInTriangle(tMinX, tMaxX, tMinY, tMaxY, minX, minY, aX, aY, bX, bY, cX, cY)) {
+            return PointValues.Relation.CELL_INSIDE_QUERY;
+        }
+
+        return PointValues.Relation.CELL_OUTSIDE_QUERY;
+    }
+
+    /** Checks if the rectangle intersects the provided triangle **/
     public boolean intersectsTriangle(int aX, int aY, int bX, int bY, int cX, int cY) {
         // 1. query contains any triangle points
         if (contains(aX, aY) || contains(bX, bY) || contains(cX, cY)) {
@@ -83,7 +133,7 @@ public class Rectangle {
         int tMaxY = StrictMath.max(StrictMath.max(aY, bY), cY);
 
         // 2. check bounding boxes are disjoint
-         if (tMaxX < minX || tMinX > maxX || tMinY > maxY || tMaxY < minY) {
+        if (tMaxX < minX || tMinX > maxX || tMinY > maxY || tMaxY < minY) {
             return false;
         }
 
@@ -110,14 +160,14 @@ public class Rectangle {
     /** returns true if the edge (defined by (ax, ay) (bx, by)) intersects the query */
     private boolean edgeIntersectsQuery(int ax, int ay, int bx, int by) {
         // shortcut: if edge is a point (occurs w/ Line shapes); simply check bbox w/ point
-        if (ax == bx && ay == by) {
-            return contains(ax, ay);
-        }
+        //if (ax == bx && ay == by) {
+        //    return contains(ax, ay);
+        //}
 
         // shortcut: check if either of the end points fall inside the box
-        if (contains(ax, ay) || contains(bx, by)) {
-            return true;
-        }
+        //if (contains(ax, ay) || contains(bx, by)) {
+         //   return true;
+        //}
 
         // shortcut: check bboxes of edges are disjoint
         if (boxesAreDisjoint(Math.min(ax, bx), Math.max(ax, bx), Math.min(ay, by), Math.max(ay, by),

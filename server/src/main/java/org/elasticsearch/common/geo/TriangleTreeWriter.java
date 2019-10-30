@@ -208,7 +208,6 @@ public class TriangleTreeWriter implements Writeable {
                         return ret;
                     };
                 }
-                //Collections.sort(components, comparator);
                 ArrayUtil.select(components, low, high + 1, mid, comparator);
             }
             TriangleTreeNode newNode = components[mid];
@@ -301,7 +300,9 @@ public class TriangleTreeWriter implements Writeable {
             } else {
                 metadata |= (1 << 2);
                 metadata |= (1 << 3);
-                // TODO: bits 4, 5 & 6 should be used to stored if the edge is from the polygon
+                metadata |= (component.ab) ? (1 << 4) : 0;
+                metadata |= (component.bc) ? (1 << 5) : 0;
+                metadata |= (component.ca) ? (1 << 6) : 0;
             }
             out.writeByte(metadata);
         }
@@ -390,6 +391,7 @@ public class TriangleTreeWriter implements Writeable {
 
         int minX, maxX, minY, maxY;
         int aX, aY, bX, bY, cX, cY;
+        boolean ab, bc, ca;
         TYPE type;
 
         // constructor for points
@@ -407,7 +409,7 @@ public class TriangleTreeWriter implements Writeable {
         }
 
         // generic constructor
-        TriangleTreeLeaf(int aXencoded, int aYencoded, int bXencoded, int bYencoded, int cXencoded, int cYencoded) {
+        TriangleTreeLeaf(int aXencoded, int aYencoded, boolean ab, int bXencoded, int bYencoded, boolean bc, int cXencoded, int cYencoded, boolean ca) {
             if (aXencoded == bXencoded && aYencoded == bYencoded) {
                 if (aXencoded == cXencoded && aYencoded == cYencoded) {
                     encodePoint(aYencoded, aXencoded);
@@ -418,7 +420,7 @@ public class TriangleTreeWriter implements Writeable {
             } else if (aXencoded == cXencoded && aYencoded == cYencoded) {
                 encodeLine(aYencoded, aXencoded, bYencoded, bXencoded);
             } else {
-                encodeTriangle(aXencoded, aYencoded, bXencoded, bYencoded, cXencoded, cYencoded);
+                encodeTriangle(aXencoded, aYencoded, ab, bXencoded, bYencoded, bc, cXencoded, cYencoded, ca);
             }
         }
 
@@ -452,9 +454,10 @@ public class TriangleTreeWriter implements Writeable {
             this.maxY = Math.max(aY, bY);
         }
 
-        private void encodeTriangle(int aXencoded, int aYencoded, int bXencoded, int bYencoded, int cXencoded, int cYencoded) {
+        private void encodeTriangle(int aXencoded, int aYencoded, boolean abFromShape, int bXencoded, int bYencoded, boolean bcFromShape, int cXencoded, int cYencoded, boolean caFromShape) {
 
             int aX, aY, bX, bY, cX, cY;
+            boolean ab, bc, ca;
             //change orientation if CW
             if (GeoUtils.orient(aXencoded, aYencoded, bXencoded, bYencoded, cXencoded, cYencoded) == -1) {
                 aX = cXencoded;
@@ -463,6 +466,9 @@ public class TriangleTreeWriter implements Writeable {
                 aY = cYencoded;
                 bY = bYencoded;
                 cY = aYencoded;
+                ab = bcFromShape;
+                bc = abFromShape;
+                ca = caFromShape;
             } else {
                 aX = aXencoded;
                 bX = bXencoded;
@@ -470,27 +476,38 @@ public class TriangleTreeWriter implements Writeable {
                 aY = aYencoded;
                 bY = bYencoded;
                 cY = cYencoded;
+                ab = abFromShape;
+                bc = bcFromShape;
+                ca = caFromShape;
             }
             //rotate edges and place minX at the beginning
             if (bX < aX || cX < aX) {
                 if (bX < cX) {
                     int tempX = aX;
                     int tempY = aY;
+                    boolean tempBool = ab;
                     aX = bX;
                     aY = bY;
+                    ab = bc;
                     bX = cX;
                     bY = cY;
+                    bc = ca;
                     cX = tempX;
                     cY = tempY;
+                    ca = tempBool;
                 } else if (cX < aX) {
                     int tempX = aX;
                     int tempY = aY;
+                    boolean tempBool = ab;
                     aX = cX;
                     aY = cY;
+                    ab = ca;
                     cX = bX;
                     cY = bY;
+                    ca = bc;
                     bX = tempX;
                     bY = tempY;
+                    bc = tempBool;
                 }
             } else if (aX == bX && aX == cX) {
                 //degenerated case, all points with same longitude
@@ -499,21 +516,29 @@ public class TriangleTreeWriter implements Writeable {
                     if (bY < cY) {
                         int tempX = aX;
                         int tempY = aY;
+                        boolean tempBool = ab;
                         aX = bX;
                         aY = bY;
+                        ab = bc;
                         bX = cX;
                         bY = cY;
+                        bc = ca;
                         cX = tempX;
                         cY = tempY;
+                        ca = tempBool;
                     } else if (cY < aY) {
                         int tempX = aX;
                         int tempY = aY;
+                        boolean tempBool = ab;
                         aX = cX;
                         aY = cY;
+                        ab = ca;
                         cX = bX;
                         cY = bY;
+                        ca = bc;
                         bX = tempX;
                         bY = tempY;
+                        bc = tempBool;
                     }
                 }
             }
@@ -523,6 +548,9 @@ public class TriangleTreeWriter implements Writeable {
             this.bY = bY;
             this.cX = cX;
             this.cY = cY;
+            this.ab = ab;
+            this.bc = bc;
+            this.ca = ca;
             this.minX = aX;
             this.maxX = Math.max(aX, Math.max(bX, cX));
             this.minY = Math.min(aY, Math.min(bY, cY));
@@ -542,13 +570,13 @@ public class TriangleTreeWriter implements Writeable {
             List<TriangleTreeLeaf> triangles = new ArrayList<>(2 * rectangles.length);
             for (Rectangle r : rectangles) {
                 triangles.add(new TriangleTreeLeaf(
-                    encoder.encodeX(r.getMinX()), encoder.encodeY(r.getMinY()),
-                    encoder.encodeX(r.getMaxX()), encoder.encodeY(r.getMinY()),
-                    encoder.encodeX(r.getMinX()), encoder.encodeY(r.getMaxY())));
+                    encoder.encodeX(r.getMinX()), encoder.encodeY(r.getMinY()), true,
+                    encoder.encodeX(r.getMaxX()), encoder.encodeY(r.getMinY()), false,
+                    encoder.encodeX(r.getMinX()), encoder.encodeY(r.getMaxY()), true));
                 triangles.add(new TriangleTreeLeaf(
-                    encoder.encodeX(r.getMinX()), encoder.encodeY(r.getMaxY()),
-                    encoder.encodeX(r.getMaxX()), encoder.encodeY(r.getMinY()),
-                    encoder.encodeX(r.getMaxX()), encoder.encodeY(r.getMaxY())));
+                    encoder.encodeX(r.getMinX()), encoder.encodeY(r.getMaxY()), false,
+                    encoder.encodeX(r.getMaxX()), encoder.encodeY(r.getMinY()), true,
+                    encoder.encodeX(r.getMaxX()), encoder.encodeY(r.getMaxY()), true));
             }
             return triangles;
         }
@@ -568,9 +596,9 @@ public class TriangleTreeWriter implements Writeable {
             List<Tessellator.Triangle> tessellation = Tessellator.tessellate(GeoShapeIndexer.toLucenePolygon(polygon));
             List<TriangleTreeLeaf> triangles = new ArrayList<>(tessellation.size());
             for (Tessellator.Triangle t : tessellation) {
-                triangles.add(new TriangleTreeLeaf(encoder.encodeX(t.getX(0)), encoder.encodeY(t.getY(0)),
-                    encoder.encodeX(t.getX(1)), encoder.encodeY(t.getY(1)),
-                    encoder.encodeX(t.getX(2)), encoder.encodeY(t.getY(2))));
+                triangles.add(new TriangleTreeLeaf(encoder.encodeX(t.getX(0)), encoder.encodeY(t.getY(0)), t.isEdgefromPolygon(0),
+                    encoder.encodeX(t.getX(1)), encoder.encodeY(t.getY(1)), t.isEdgefromPolygon(1),
+                    encoder.encodeX(t.getX(2)), encoder.encodeY(t.getY(2)), t.isEdgefromPolygon(2)));
             }
             return triangles;
         }

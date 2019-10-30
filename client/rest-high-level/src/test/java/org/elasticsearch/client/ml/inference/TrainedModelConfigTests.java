@@ -64,9 +64,7 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             randomBoolean() ? null :
                 Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            randomBoolean() ? null : new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomLongBetween(1, 10))
-                .collect(Collectors.toList())));
+            randomBoolean() ? null : TrainedModelInputTests.createRandomInput());
     }
 
     @Override

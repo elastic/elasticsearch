@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,9 +73,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             null, // is not parsed so should not be provided
             tags,
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomInt(10))
-                .collect(Collectors.toList())));
+            TrainedModelInputTests.createRandomInput());
     }
 
     @Override
@@ -109,9 +106,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelDefinitionTests.createRandomBuilder(randomAlphaOfLength(10)).build(),
             Collections.emptyList(),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomInt(10))
-                .collect(Collectors.toList())));
+            TrainedModelInputTests.createRandomInput());
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("definition"));

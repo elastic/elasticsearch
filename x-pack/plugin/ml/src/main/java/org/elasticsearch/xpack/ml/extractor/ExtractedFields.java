@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
+package org.elasticsearch.xpack.ml.extractor;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -57,17 +57,17 @@ public class ExtractedFields {
         return new ExtractedFields(allFields.stream().map(field -> extractionMethodDetector.detect(field)).collect(Collectors.toList()));
     }
 
-    protected static class ExtractionMethodDetector {
+    public static class ExtractionMethodDetector {
 
         private final Set<String> scriptFields;
         private final FieldCapabilitiesResponse fieldsCapabilities;
 
-        protected ExtractionMethodDetector(Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities) {
+        public ExtractionMethodDetector(Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities) {
             this.scriptFields = scriptFields;
             this.fieldsCapabilities = fieldsCapabilities;
         }
 
-        protected ExtractedField detect(String field) {
+        public ExtractedField detect(String field) {
             String internalField = field;
             ExtractedField.ExtractionMethod method = ExtractedField.ExtractionMethod.SOURCE;
             Set<String> types = getTypes(field);
@@ -107,7 +107,7 @@ public class ExtractedFields {
             return fieldCaps == null ? Collections.emptySet() : fieldCaps.keySet();
         }
 
-        protected boolean isAggregatable(String field) {
+        public boolean isAggregatable(String field) {
             Map<String, FieldCapabilities> fieldCaps = fieldsCapabilities.getField(field);
             if (fieldCaps == null || fieldCaps.isEmpty()) {
                 throw new IllegalArgumentException("cannot retrieve field [" + field + "] because it has no mappings");

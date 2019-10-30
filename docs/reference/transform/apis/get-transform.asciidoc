@@ -15,23 +15,23 @@ beta[]
 [[get-transform-request]]
 ==== {api-request-title}
 
-`GET _data_frame/transforms/<transform_id>` +
+`GET _transform/<transform_id>` +
 
-`GET _data_frame/transforms/<transform_id>,<transform_id>` +
+`GET _transform/<transform_id>,<transform_id>` +
 
-`GET _data_frame/transforms/` +
+`GET _transform/` +
 
-`GET _data_frame/transforms/_all` +
+`GET _transform/_all` +
 
-`GET _data_frame/transforms/*`
+`GET _transform/*`
 
 [[get-transform-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`monitor_data_frame_transforms` cluster privileges to use this API. The built-in
-`data_frame_transforms_user` role has these privileges. For more information,
-see <<security-privileges>> and <<built-in-roles>>.
+* If the {es} {security-features} are enabled, you must have `monitor_transform` 
+cluster privileges to use this API. The built-in `transform_user` role has these 
+privileges. For more information, see <<security-privileges>> and 
+<<built-in-roles>>.
 
 [[get-transform-desc]]
 ==== {api-description-title}
@@ -95,7 +95,7 @@ The following example retrieves information about a maximum of ten {transforms}:
 
 [source,console]
 --------------------------------------------------
-GET _data_frame/transforms?size=10
+GET _transform?size=10
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
@@ -104,7 +104,7 @@ The following example gets configuration information for the
 
 [source,console]
 --------------------------------------------------
-GET _data_frame/transforms/ecommerce_transform
+GET _transform/ecommerce_transform
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 

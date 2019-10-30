@@ -14,6 +14,8 @@ Returns information about a cluster's nodes.
 [[cat-nodes-api-query-params]]
 ==== {api-query-parms-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 `full_id`::
@@ -41,7 +43,7 @@ Valid columns are:
 
 `node.role`, `r`, `role`, `nodeRole`::
 (Default) Roles of the node. Returned values include `m` (master-eligible node),
-`d` (data node), `i` (ingest node), and `-` (coordinating node only).
+`d` (data node), `i` (ingest node), `v` (voting-only node), and `-` (coordinating node only).
 +
 For example, `mdi` indicates a master-eligible data and ingest node.
 
@@ -286,6 +288,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 

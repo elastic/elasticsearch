@@ -36,14 +36,6 @@ testClusters.integTest {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
-run {
-  // Modules who's integration is explicitly tested in integration tests
-  module project(':modules:parent-join')
-  module project(':modules:lang-painless')
-  // Whitelist reindexing from the local node so we can test reindex-from-remote.
-  setting 'reindex.remote.whitelist', '127.0.0.1:*'
-}
-
 test {
   /*
    * We have to disable setting the number of available processors as tests in the

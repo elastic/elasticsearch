@@ -227,7 +227,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        if(right().dataType().isInterval()){
+        if (right().dataType().isInterval()) {
             return right().dataType();
         }
         return DataType.DATETIME;

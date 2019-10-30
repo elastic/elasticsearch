@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
@@ -167,6 +168,7 @@ import org.elasticsearch.xpack.ml.action.TransportGetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetRecordsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportInferModelAction;
 import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.action.TransportIsolateDatafeedAction;
@@ -273,6 +275,7 @@ import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteForecastAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
@@ -741,7 +744,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestEvaluateDataFrameAction(restController),
             new RestEstimateMemoryUsageAction(restController),
             new RestGetTrainedModelsAction(restController),
-            new RestDeleteTrainedModelAction(restController)
+            new RestDeleteTrainedModelAction(restController),
+            new RestGetTrainedModelsStatsAction(restController)
         );
     }
 
@@ -816,6 +820,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(InferModelAction.INSTANCE, TransportInferModelAction.class),
                 new ActionHandler<>(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class),
                 new ActionHandler<>(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class),
+                new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),
                 usageAction,
                 infoAction);
     }

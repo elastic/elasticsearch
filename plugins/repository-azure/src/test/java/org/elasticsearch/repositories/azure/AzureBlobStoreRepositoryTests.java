@@ -199,7 +199,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                     exchange.getResponseBody().write(blob.toBytesRef().bytes, start, length);
 
                 } else if (Regex.simpleMatch("DELETE /container/*", request)) {
-                    Streams.readFully(exchange.getRequestBody());
+                    drainInputStream(exchange.getRequestBody());
                     blobs.entrySet().removeIf(blob -> blob.getKey().startsWith(exchange.getRequestURI().getPath()));
                     exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
 
@@ -251,7 +251,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         @Override
         protected void handleAsError(final HttpExchange exchange) throws IOException {
-            Streams.readFully(exchange.getRequestBody());
+            drainInputStream(exchange.getRequestBody());
             TestUtils.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
             exchange.close();
         }

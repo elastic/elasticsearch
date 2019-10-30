@@ -133,7 +133,7 @@ public class ModelLoadingService implements ClusterStateListener {
             // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
             // by a simulated pipeline
             logger.trace("[{}] not actively loading, eager loading without cache", modelId);
-            provider.getTrainedModel(modelId, ActionListener.wrap(
+            provider.getTrainedModel(modelId, true, ActionListener.wrap(
                 trainedModelConfig ->
                     modelActionListener.onResponse(new LocalModel(trainedModelConfig.getModelId(), trainedModelConfig.getDefinition())),
                 modelActionListener::onFailure
@@ -176,7 +176,7 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void loadModel(String modelId) {
-        provider.getTrainedModel(modelId, ActionListener.wrap(
+        provider.getTrainedModel(modelId, true, ActionListener.wrap(
             trainedModelConfig -> {
                 logger.debug("[{}] successfully loaded model", modelId);
                 handleLoadSuccess(modelId, trainedModelConfig);

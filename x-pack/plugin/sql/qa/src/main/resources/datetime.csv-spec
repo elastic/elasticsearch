@@ -653,8 +653,7 @@ SELECT count(*) as count, DATE_TRUNC('decade', hire_date) dt FROM test_emp GROUP
 41      | 1990-01-01 00:00:00.000Z
 ;
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/42041
-dateTruncGroupByWithInterval-Ignore
+dateTruncGroupByWithInterval
 schema::count:l|dt:ts
 SELECT count(*) as count, birth_date + DATE_TRUNC('hour', INTERVAL '1 12:43:21' DAY TO SECONDS) dt FROM test_emp GROUP BY dt ORDER BY 2 LIMIT 3;
 

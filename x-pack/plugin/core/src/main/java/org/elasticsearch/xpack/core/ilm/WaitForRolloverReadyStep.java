@@ -43,6 +43,11 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
 

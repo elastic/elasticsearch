@@ -112,20 +112,9 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         IndexFieldData<?> indexFieldData = context.getForField(fieldType);
 
         ValuesSourceConfig<VS> config;
-        if (indexFieldData instanceof IndexNumericFieldData) {
-            config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-        } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-            config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
-        } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
-            config = new ValuesSourceConfig<>(ValuesSourceType.RANGE);
-        } else {
-            if (valueType == null) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
-            } else {
-                config = new ValuesSourceConfig<>(valueType.getValuesSourceType());
-            }
-        }
-
+        ValuesSourceType valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, indexFieldData,
+            aggregationName, valueType);
+        config = new ValuesSourceConfig<>(valuesSourceType);
 
         config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
         config.missing(missing);

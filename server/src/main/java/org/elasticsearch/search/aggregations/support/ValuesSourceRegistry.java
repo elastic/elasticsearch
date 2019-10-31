@@ -18,10 +18,19 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 /*
 This is a _very_ crude prototype for the ValuesSourceRegistry which basically hard-codes everything.  The intent is to define the API
@@ -30,9 +39,20 @@ for aggregations using the registry to resolve aggregators.
 public enum ValuesSourceRegistry {
     INSTANCE {
         Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry = new HashMap<>();
+        // We use a List of Entries here to approximate an ordered map
+        Map<String, List<AbstractMap.SimpleEntry<BiFunction<MappedFieldType, IndexFieldData, Boolean>, ValuesSourceType>>> resolverRegistry
+            = new HashMap<>();
 
         @Override
-        public void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier) {
+        public void register(String aggregationName, ValuesSourceType valuesSourceType,AggregatorSupplier aggregatorSupplier,
+                             BiFunction<MappedFieldType, IndexFieldData, Boolean> resolveValuesSourceType) {
+            if (resolverRegistry.containsKey(aggregationName) == false) {
+                resolverRegistry.put(aggregationName, new ArrayList<>());
+            }
+            List<AbstractMap.SimpleEntry<BiFunction<MappedFieldType, IndexFieldData, Boolean>, ValuesSourceType>> resolverList
+                = resolverRegistry.get(aggregationName);
+            resolverList.add(new AbstractMap.SimpleEntry<>(resolveValuesSourceType, valuesSourceType));
+
             if (aggregatorRegistry.containsKey(aggregationName) == false) {
                 aggregatorRegistry.put(aggregationName, new HashMap<>());
             }
@@ -53,13 +73,50 @@ public enum ValuesSourceRegistry {
                 }
             }
             // TODO: Error message should list valid ValuesSource types
-            throw new AggregationExecutionException("ValuesSource type " + valuesSourceType.toString() + " is not supported for aggregation" +
-                aggregationName);
+            throw new AggregationExecutionException("ValuesSource type " + valuesSourceType.toString() +
+                " is not supported for aggregation" + aggregationName);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType(MappedFieldType fieldType, IndexFieldData indexFieldData, String aggregationName,
+                                                    ValueType valueType) {
+            if (resolverRegistry.containsKey(aggregationName)) {
+                List<AbstractMap.SimpleEntry<BiFunction<MappedFieldType, IndexFieldData, Boolean>, ValuesSourceType>> resolverList
+                    = resolverRegistry.get(aggregationName);
+                for (AbstractMap.SimpleEntry<BiFunction<MappedFieldType, IndexFieldData, Boolean>, ValuesSourceType> entry : resolverList) {
+                    BiFunction<MappedFieldType, IndexFieldData, Boolean> matcher = entry.getKey();
+                    if (matcher.apply(fieldType, indexFieldData)) {
+                        return entry.getValue();
+                    }
+                }
+                // TODO: Error message should list valid field types; not sure fieldType.toString() is the best choice.
+                throw new IllegalArgumentException("Field type " + fieldType.toString() + " is not supported for aggregation "
+                    + aggregationName);
+            } else {
+                // TODO: Legacy resolve logic; remove this after converting all aggregations to the new system
+                if (indexFieldData instanceof IndexNumericFieldData) {
+                    return ValuesSourceType.NUMERIC;
+                } else if (indexFieldData instanceof IndexGeoPointFieldData) {
+                    return ValuesSourceType.GEOPOINT;
+                } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
+                    return ValuesSourceType.RANGE;
+                } else {
+                    if (valueType == null) {
+                        return ValuesSourceType.BYTES;
+                    } else {
+                        return valueType.getValuesSourceType();
+                    }
+                }
+            }
         }
     };
 
-    public abstract void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier);
+    public abstract void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier,
+                                  BiFunction<MappedFieldType, IndexFieldData, Boolean> resolveValuesSourceType);
     public abstract AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName);
+    // TODO: ValueType argument is only needed for legacy logic
+    public abstract ValuesSourceType getValuesSourceType(MappedFieldType fieldType, IndexFieldData indexFieldData, String aggregationName,
+                                                         ValueType valueType);
 
     public static ValuesSourceRegistry getInstance() {return INSTANCE;}
 }

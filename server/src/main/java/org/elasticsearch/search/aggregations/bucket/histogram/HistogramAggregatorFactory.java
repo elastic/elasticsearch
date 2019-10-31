@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -70,7 +72,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                     return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
                         maxBound, rangeValueSource, formatter, context, parent, pipelineAggregators, metaData);
                 }
-            }
+            },
+            (fieldType, indexFieldData) -> fieldType instanceof RangeFieldMapper.RangeFieldType
         );
 
         ValuesSourceRegistry.getInstance().register(HistogramAggregationBuilder.NAME, ValuesSourceType.NUMERIC,
@@ -84,7 +87,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                     return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound,
                         maxBound, (ValuesSource.Numeric) valuesSource, formatter, context, parent, pipelineAggregators, metaData);
                 }
-            }
+            },
+            (fieldType, indexFieldData) -> indexFieldData instanceof IndexNumericFieldData
         );
     }
 

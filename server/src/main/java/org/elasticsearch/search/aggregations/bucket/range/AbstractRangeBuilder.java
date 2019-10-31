@@ -45,7 +45,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     protected boolean keyed = false;
 
     protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
-        super(name, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        super(name, rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
     }
 

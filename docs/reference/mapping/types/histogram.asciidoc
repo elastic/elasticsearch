@@ -10,11 +10,10 @@ A `histogram` field stores pre-aggregated numerical data represented as a histog
 are defined by a set of pairs, one being the value representing the bucket and the count of that value.
 THe values should be defined accordingly to the type of aggregation this field will be used for.
 
-These histograms cannot be used for searching except with <<query-dsl-exists-query, exists query>>.
-It can be used for aggregations, in particular <<search-aggregations-metrics-percentile-aggregation, percentiles>>
+Histograms can be used for aggregations, in particular <<search-aggregations-metrics-percentile-aggregation, percentiles>>
 and <<search-aggregations-metrics-percentile-rank-aggregation, percentile ranks>> aggregations are supported.
 
-You index a histogram by defining two arrays, one containing the `values` for the histogram and the other containing
+Histograms are indexed by defining two arrays, one containing the `values` (or buckets) for the histogram and the other containing
 the `counts` for such values. Those two arrays must have the same length.
 
 [source,console]
@@ -50,7 +49,6 @@ PUT my_index/_doc/2
       "counts" : [8, 17, 8, 7, 6, 2] <2>
    }
 }
-
 --------------------------------------------------
 
 <1> Values for each bucket. Values in the array are treated as doubles and must be given in
@@ -66,7 +64,7 @@ NOTE: `histogram` fields with null field are ignored. Fields with empty `values`
 arrays are treated as null.
 
 NOTE: `rank_feature` fields do not support querying or sorting. They may
-only be used within <<query-dsl-exists-query, `exists query`>> queries.
+only be used within <<query-dsl-exists-query, exists>> queries.
 
 Internally, each document's histogram is encoded as a binary
 doc value. Its size in bytes is at most `12 * numValues`,

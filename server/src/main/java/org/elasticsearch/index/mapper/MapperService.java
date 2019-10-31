@@ -347,8 +347,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (onlyUpdateIfNeeded) {
                 DocumentMapper existingMapper = documentMapper(mappingMetaData.type());
                 if (existingMapper == null || mappingMetaData.source().equals(existingMapper.mappingSource()) == false) {
-                    logger.info("he "+mappingMetaData.source());
-                    logger.info("he2 "+(existingMapper== null || existingMapper.mappingSource() == null ? "null" : existingMapper.mappingSource()));
                     map.put(mappingMetaData.type(), mappingMetaData.source());
                 }
             } else {

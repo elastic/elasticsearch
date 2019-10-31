@@ -98,7 +98,7 @@ dependencies {
   compile "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
-  
+
   // utilities
   compile project(":libs:elasticsearch-cli")
   compile 'com.carrotsearch:hppc:0.8.1'

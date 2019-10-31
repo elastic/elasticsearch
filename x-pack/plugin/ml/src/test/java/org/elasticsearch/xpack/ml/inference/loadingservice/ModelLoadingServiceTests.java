@@ -147,6 +147,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2, model3));
 
+        // Should have been loaded from the cluster change event
+        // Verify that we have at least loaded all three so that evictions occur in the following loop
+        assertBusy(() -> {
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(true), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(true), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
+        });
+
         String[] modelIds = new String[]{model1, model2, model3};
         for(int i = 0; i < 10; i++) {
             // Only reference models 1 and 2, so that cache is only invalidated once for model3 (after initial load)

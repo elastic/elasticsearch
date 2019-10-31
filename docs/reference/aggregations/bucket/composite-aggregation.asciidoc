@@ -514,8 +514,8 @@ PUT twitter
 {
     "settings" : {
         "index" : {
-            "sort.field" : ["username", "timestamp"], <1>
-            "sort.order" : ["asc", "desc"] <2>
+            "sort.field" : ["username", "timestamp"],   <1>
+            "sort.order" : ["asc", "desc"]              <2>
         }
     },
     "mappings": {
@@ -532,7 +532,7 @@ PUT twitter
 }
 --------------------------------------------------
 
-<1> This index is sorted by `username` first then by `date`
+<1> This index is sorted by `username` first then by `timestamp`.
 <2> ... in ascending order for the `username` field and in descending order for the `timestamp` field.
 
 .. could be used to optimize these composite aggregations:
@@ -546,13 +546,14 @@ GET /_search
         "my_buckets": {
             "composite" : {
                 "sources" : [
-                    { "user_name": { "terms" : { "field": "user_name" } } } <1>
+                    { "user_name": { "terms" : { "field": "user_name" } } }     <1>
                 ]
             }
         }
      }
 }
 --------------------------------------------------
+
 <1> `user_name` is a prefix of the index sort and the order matches (`asc`).
 
 [source,console]
@@ -564,14 +565,15 @@ GET /_search
         "my_buckets": {
             "composite" : {
                 "sources" : [
-                    { "user_name": { "terms" : { "field": "user_name" } } } <1>
-                     { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } } <2>
+                    { "user_name": { "terms" : { "field": "user_name" } } }, <1>
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } } <2>
                 ]
             }
         }
      }
 }
 --------------------------------------------------
+
 <1> `user_name` is a prefix of the index sort and the order matches (`asc`).
 <2> `timestamp` matches also the prefix and the order matches (`desc`).
 
@@ -589,8 +591,8 @@ GET /_search
         "my_buckets": {
             "composite" : {
                 "sources" : [
-                    { "user_name": { "terms" : { "field": "user_name" } } }
-                     { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } }
+                    { "user_name": { "terms" : { "field": "user_name" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } }
                 ]
             }
         }

@@ -1,0 +1,89 @@
+[role="xpack"]
+[testenv="basic"]
+[[histogram]]
+=== Histogram datatype
+++++
+<titleabbrev>Histogram</titleabbrev>
+++++
+
+A `histogram` field stores pre-aggregated numerical data represented as a histogram. These histograms
+are defined by a set of pairs, one being the value representing the bucket and the count of that value.
+THe values should be defined accordingly to the type of aggregation this field will be used for.
+
+These histograms cannot be used for searching except with <<query-dsl-exists-query, exists query>>.
+It can be used for aggregations, in particular <<search-aggregations-metrics-percentile-aggregation, percentiles>>
+and <<search-aggregations-metrics-percentile-rank-aggregation, percentile ranks>> aggregations are supported.
+
+You index a histogram by defining two arrays, one containing the `values` for the histogram and the other containing
+the `counts` for such values. Those two arrays must have the same length.
+
+[source,console]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "my_histogram": {
+        "type": "histogram",
+      },
+      "my_text" : {
+        "type" : "keyword"
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/1
+{
+  "my_text" : "histogram_1",
+  "my_histogram" : {
+      "values" : [0.1, 0.2, 0.3, 0.4, 0.5], <1>
+      "counts" : [3, 7, 23, 12, 6] <2>
+   }
+}
+
+PUT my_index/_doc/2
+{
+  "my_text" : "histogram_2",
+  "my_histogram" : {
+      "values" : [0.1, 0.25, 0.35, 0.4, 0.45, 0.5], <1>
+      "counts" : [8, 17, 8, 7, 6, 2] <2>
+   }
+}
+
+--------------------------------------------------
+
+<1> Values for each bucket. Values in the array are treated as doubles and must be given in
+increasing order. In case if TDDigest histograms this value represents the mean value.
+In case of HDR histograms this represents the value iterated to.
+<2> Count for each bucket. Values in the arrays are treated as integers and must be positive or zero.
+negative values will be rejected. The relation between a bucket and a count is given by the position in the array.
+
+NOTE: `histogram` fields only support single-valued fields. Multi-valued fields
+will be rejected.
+
+NOTE: `histogram` fields with null field are ignored. Fields with empty `values` and `counts`
+arrays are treated as null.
+
+NOTE: `rank_feature` fields do not support querying or sorting. They may
+only be used within <<query-dsl-exists-query, `exists query`>> queries.
+
+Internally, each document's histogram is encoded as a binary
+doc value. Its size in bytes is at most `12 * numValues`,
+where `numValues` is the length of the provided arrays.
+
+[[mapping-types-histogram-building-histogram]]
+==== Building a histogram
+
+When using a histogram as part of an aggregation, the accuracy of the results will depend on how the
+histogram was constructed. It is important to consider the percentiles aggregation mode that will be used
+in order to build it. Some possibilities are:
+
+- For the <<search-aggregations-metrics-percentile-aggregation, T-Digest>> mode, histograms
+can be built by using the mean value of the centroids and the centroid's count. If the algorithm has already
+started to approximate the percentiles, this inaccuracy is carried over in the histogram.
+
+- For the https://github.com/HdrHistogram/HdrHistogram[HDR Histogram] (High Dynamic Range Histogram) method, histograms
+can be created by using the recorded values and the count at that value. This implementation maintains a fixed worse-case
+percentage error (specified as a number of significant digits), therefore the value used when generating the histogram
+would be the maximum accuracy you can achieve at aggregation time.

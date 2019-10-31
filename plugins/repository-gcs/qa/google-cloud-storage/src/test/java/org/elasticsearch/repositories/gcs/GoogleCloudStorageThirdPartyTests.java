@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,21 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(GoogleCloudStoragePlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+
+        if (Strings.isNullOrEmpty(System.getProperty("test.google.endpoint")) == false) {
+            builder.put("gcs.client.default.endpoint", System.getProperty("test.google.endpoint"));
+        }
+
+        if (Strings.isNullOrEmpty(System.getProperty("test.google.tokenURI")) == false) {
+            builder.put("gcs.client.default.token_uri", System.getProperty("test.google.tokenURI"));
+        }
+
+        return builder.build();
     }
 
     @Override

@@ -51,12 +51,6 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         }
     }
 
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        // In order to avoid monitoring from failing exporting docs to monitor index.
-        return true;
-    }
-
     private void setupGenericLifecycleTest(boolean deletePipeilne) throws Exception {
         // Create source index:
         createSourceIndex("my-source-index");

@@ -67,6 +67,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         + "}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48684")
     public void testIngestStats() throws Exception {
         NodeStats nodeStats = createNodeStats();
 

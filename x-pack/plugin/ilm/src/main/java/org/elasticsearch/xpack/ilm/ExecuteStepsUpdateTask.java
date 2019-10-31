@@ -192,7 +192,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
         logger.error("policy [{}] for index [{}] failed on cluster state step [{}]. Moving to ERROR step", policy, index.getName(),
             currentStepKey);
         MoveToErrorStepUpdateTask moveToErrorStepUpdateTask = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause,
-            nowSupplier);
+            nowSupplier, policyStepsRegistry::getStep);
         return moveToErrorStepUpdateTask.execute(state);
     }
 }

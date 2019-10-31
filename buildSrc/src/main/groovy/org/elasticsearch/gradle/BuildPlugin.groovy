@@ -22,7 +22,6 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
 import com.github.jengelman.gradle.plugins.shadow.ShadowJavaPlugin
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
@@ -41,13 +40,10 @@ import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
-import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
-import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
@@ -330,11 +326,6 @@ class BuildPlugin implements Plugin<Project> {
         return javaVersions.find { it.version == version }.javaHome.absolutePath
     }
 
-    /** Return the configuration name used for finding transitive deps of the given dependency. */
-    private static String transitiveDepConfigName(String groupId, String artifactId, String version) {
-        return "_transitive_${groupId}_${artifactId}_${version}"
-    }
-
     /**
      * Makes dependencies non-transitive.
      *
@@ -361,11 +352,6 @@ class BuildPlugin implements Plugin<Project> {
         }
         // fail on any conflicting dependency versions
         project.configurations.all({ Configuration configuration ->
-            if (configuration.name.startsWith('_transitive_')) {
-                // don't force transitive configurations to not conflict with themselves, since
-                // we just have them to find *what* transitive deps exist
-                return
-            }
             if (configuration.name.endsWith('Fixture')) {
                 // just a self contained test-fixture configuration, likely transitive and hellacious
                 return
@@ -380,14 +366,6 @@ class BuildPlugin implements Plugin<Project> {
             if (dep instanceof ModuleDependency && !(dep instanceof ProjectDependency)
                     && dep.group.startsWith('org.elasticsearch') == false) {
                 dep.transitive = false
-
-                // also create a configuration just for this dependency version, so that later
-                // we can determine which transitive dependencies it has
-                String depConfig = transitiveDepConfigName(dep.group, dep.name, dep.version)
-                if (project.configurations.findByName(depConfig) == null) {
-                    project.configurations.create(depConfig)
-                    project.dependencies.add(depConfig, "${dep.group}:${dep.name}:${dep.version}")
-                }
             }
         }
 
@@ -457,77 +435,6 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    /**
-     * Returns a closure which can be used with a MavenPom for fixing problems with gradle generated poms.
-     *
-     * <ul>
-     *     <li>Remove transitive dependencies. We currently exclude all artifacts explicitly instead of using wildcards
-     *         as Ivy incorrectly translates POMs with * excludes to Ivy XML with * excludes which results in the main artifact
-     *         being excluded as well (see https://issues.apache.org/jira/browse/IVY-1531). Note that Gradle 2.14+ automatically
-     *         translates non-transitive dependencies to * excludes. We should revisit this when upgrading Gradle.</li>
-     *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)</li>
-     * </ul>
-     */
-    @CompileDynamic
-    private static Closure fixupDependencies(Project project) {
-        return { XmlProvider xml ->
-            // first find if we have dependencies at all, and grab the node
-            NodeList depsNodes = xml.asNode().get('dependencies')
-            if (depsNodes.isEmpty()) {
-                return
-            }
-
-            // check each dependency for any transitive deps
-            for (Node depNode : depsNodes.get(0).children()) {
-                String groupId = depNode.get('groupId').get(0).text()
-                String artifactId = depNode.get('artifactId').get(0).text()
-                String version = depNode.get('version').get(0).text()
-
-                // fix deps incorrectly marked as runtime back to compile time deps
-                // see https://discuss.gradle.org/t/maven-publish-plugin-generated-pom-making-dependency-scope-runtime/7494/4
-                boolean isCompileDep = project.configurations.compile.allDependencies.find { dep ->
-                    dep.name == depNode.artifactId.text()
-                }
-                if (depNode.scope.text() == 'runtime' && isCompileDep) {
-                    depNode.scope*.value = 'compile'
-                }
-
-                // remove any exclusions added by gradle, they contain wildcards and systems like ivy have bugs with wildcards
-                // see https://github.com/elastic/elasticsearch/issues/24490
-                NodeList exclusionsNode = depNode.get('exclusions')
-                if (exclusionsNode.size() > 0) {
-                    depNode.remove(exclusionsNode.get(0))
-                }
-
-                // collect the transitive deps now that we know what this dependency is
-                String depConfig = transitiveDepConfigName(groupId, artifactId, version)
-                Configuration configuration = project.configurations.findByName(depConfig)
-                if (configuration == null) {
-                    continue // we did not make this dep non-transitive
-                }
-                Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
-                if (artifacts.size() <= 1) {
-                    // this dep has no transitive deps (or the only artifact is itself)
-                    continue
-                }
-
-                // we now know we have something to exclude, so add exclusions for all artifacts except the main one
-                Node exclusions = depNode.appendNode('exclusions')
-                for (ResolvedArtifact artifact : artifacts) {
-                    ModuleVersionIdentifier moduleVersionIdentifier = artifact.moduleVersion.id;
-                    String depGroupId = moduleVersionIdentifier.group
-                    String depArtifactId = moduleVersionIdentifier.name
-                    // add exclusions for all artifacts except the main one
-                    if (depGroupId != groupId || depArtifactId != artifactId) {
-                        Node exclusion = exclusions.appendNode('exclusion')
-                        exclusion.appendNode('groupId', depGroupId)
-                        exclusion.appendNode('artifactId', depArtifactId)
-                    }
-                }
-            }
-        }
-    }
-
     /**Configuration generation of maven poms. */
     static void configurePomGeneration(Project project) {
         project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
@@ -544,11 +451,6 @@ class BuildPlugin implements Plugin<Project> {
             } as Action<GenerateMavenPom>)
 
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
-
-            project.extensions.getByType(PublishingExtension).publications.all { MavenPublication publication -> // we only deal with maven
-                // add exclusions to the pom directly, for each of the transitive deps of this project's deps
-                publication.pom.withXml(fixupDependencies(project))
-            }
 
             project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
                 MavenPublication publication = publishing.publications.maybeCreate('shadow', MavenPublication)

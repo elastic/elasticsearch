@@ -34,7 +34,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     static final ParseField COLUMNAR = new ParseField("columnar");
     static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField("field_multi_value_leniency");
     static final ParseField INDEX_INCLUDE_FROZEN = new ParseField("index_include_frozen");
-    static final ParseField BINARY_COMMUNICATION = new ParseField("binary");
+    static final ParseField BINARY_COMMUNICATION = new ParseField("binary_format");
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
@@ -50,8 +50,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
      * binary parameter).
      * See {@code SqlTranslateRequest.toXContent}
      */
-    private Boolean columnar = Boolean.FALSE;
-    private Boolean binaryCommunication = null;
+    private Boolean columnar = Protocol.COLUMNAR;
+    private Boolean binaryCommunication = Protocol.BINARY_COMMUNICATION;
 
     private boolean fieldMultiValueLeniency = Protocol.FIELD_MULTI_VALUE_LENIENCY;
     private boolean indexIncludeFrozen = Protocol.INDEX_INCLUDE_FROZEN;

@@ -104,7 +104,7 @@ public class HttpClientRequestTests extends ESTestCase {
         Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
         
         assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase(Mode.CLI.toString()));
-        assertEquals(isBinary, reqContent.get("binary"));
+        assertEquals(isBinary, reqContent.get("binary_format"));
         assertEquals(Boolean.FALSE, reqContent.get("columnar"));
         assertEquals(fetchSize, reqContent.get("fetch_size"));
         assertEquals(query, reqContent.get("query"));
@@ -115,7 +115,7 @@ public class HttpClientRequestTests extends ESTestCase {
         prepareMockResponse();
         try {
             // we don't care what the cursor is, because the ES node that will actually handle the request (as in running an ES search)
-            // will not see/have access to the "binary" response, which is the concern of the first node getting the request
+            // will not see/have access to the "binary_format" response, which is the concern of the first node getting the request
             httpClient.nextPage("");
         } catch (SQLException e) {
             logger.info("Ignored SQLException", e);
@@ -129,7 +129,7 @@ public class HttpClientRequestTests extends ESTestCase {
         reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
         
         assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase(Mode.CLI.toString()));
-        assertEquals(isBinary, reqContent.get("binary"));
+        assertEquals(isBinary, reqContent.get("binary_format"));
         assertEquals("90000ms", reqContent.get("request_timeout"));
         assertEquals("45000ms", reqContent.get("page_timeout"));
     }
@@ -174,7 +174,7 @@ public class HttpClientRequestTests extends ESTestCase {
         Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
         
         assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase(mode.toString()));
-        assertEquals(isBinary, reqContent.get("binary"));
+        assertEquals(isBinary, reqContent.get("binary_format"));
         assertEquals(query, reqContent.get("query"));
         assertEquals("Z", reqContent.get("time_zone"));
     }

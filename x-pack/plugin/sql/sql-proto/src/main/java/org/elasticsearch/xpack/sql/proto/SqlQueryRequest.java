@@ -213,7 +213,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             builder.field("index_include_frozen", indexIncludeFrozen);
         }
         if (binaryCommunication != null) {
-            builder.field("binary", binaryCommunication);
+            builder.field("binary_format", binaryCommunication);
         }
         if (cursor != null) {
             builder.field("cursor", cursor);

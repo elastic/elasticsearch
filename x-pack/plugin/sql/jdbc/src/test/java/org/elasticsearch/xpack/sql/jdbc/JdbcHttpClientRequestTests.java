@@ -99,7 +99,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
         Map<String, Object> reqContent = XContentHelper.convertToMap(bytesRef, false, xContentType).v2();
         
         assertTrue(((String) reqContent.get("mode")).equalsIgnoreCase("jdbc"));
-        assertEquals(isBinary, reqContent.get("binary"));
+        assertEquals(isBinary, reqContent.get("binary_format"));
     }
     
     private void prepareMockResponse() {

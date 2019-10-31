@@ -34,7 +34,7 @@ public class ConnectionConfiguration {
     private static final String PROPERTIES_VALIDATION_DEFAULT = "true";
     
     // Binary communication
-    public static final String BINARY_COMMUNICATION = "binary";
+    public static final String BINARY_COMMUNICATION = "binary.format";
     private static final String BINARY_COMMUNICATION_DEFAULT = "true";
 
     // Timeouts

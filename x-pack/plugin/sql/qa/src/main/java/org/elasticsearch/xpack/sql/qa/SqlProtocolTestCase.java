@@ -256,7 +256,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         if (randomBoolean()) {
             // set it explicitly or leave the default (null) as is
             requestContent = new StringBuilder(requestContent)
-                    .insert(requestContent.length() - 1, ",\"binary\":" + binaryCommunication).toString();
+                    .insert(requestContent.length() - 1, ",\"binary_format\":" + binaryCommunication).toString();
             binaryCommunication = ((Mode.isDriver(m) || m == Mode.CLI) && binaryCommunication == true);
         } else {
             binaryCommunication = Mode.isDriver(m) || m == Mode.CLI;

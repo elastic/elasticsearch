@@ -8,7 +8,9 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -148,22 +150,16 @@ public class BuildParams {
          * Resets any existing values from previous initializations.
          */
         public void reset() {
-            BuildParams.compilerJavaHome = null;
-            BuildParams.runtimeJavaHome = null;
-            BuildParams.isRuntimeJavaHomeSet = null;
-            BuildParams.javaVersions = null;
-            BuildParams.minimumCompilerVersion = null;
-            BuildParams.minimumRuntimeVersion = null;
-            BuildParams.gradleJavaVersion = null;
-            BuildParams.compilerJavaVersion = null;
-            BuildParams.runtimeJavaVersion = null;
-            BuildParams.inFipsJvm = null;
-            BuildParams.gitRevision = null;
-            BuildParams.buildDate = null;
-            BuildParams.testSeed = null;
-            BuildParams.isCi = null;
-            BuildParams.isInternal = null;
-            BuildParams.defaultParallel = null;
+            Arrays.stream(BuildParams.class.getDeclaredFields())
+                .filter(f -> Modifier.isStatic(f.getModifiers()))
+                .filter(f -> f.getType() != MutableBuildParams.class)
+                .forEach(f -> {
+                    try {
+                        f.set(null, null);
+                    } catch (IllegalAccessException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
         }
 
         public void setCompilerJavaHome(File compilerJavaHome) {

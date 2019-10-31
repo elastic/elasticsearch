@@ -27,8 +27,7 @@ To use {metricbeat}:
 --
 include::configuring-metricbeat.asciidoc[tag=enable-collection]
 
-For more information about these settings, see
-<<monitoring-settings>>.
+For more information about these settings, see <<monitoring-settings>>.
 --
 
 . Disable the default collection of {es} monitoring metrics.
@@ -78,7 +77,7 @@ output.elasticsearch:
 <1> Replace `MONITORING_ELASTICSEARCH_URL` with the appropriate URL for {esms-init},
 which was provided by the Elastic support team.
 <2> The Elastic support team creates this user in {esms-init} and grants it the
-{stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
+<<built-in-roles,`remote_monitoring_agent` built-in role>>. 
 <3> Replace `MONITORING_AGENT_PASSWORD` with the value provided to you by the
 Elastic support team.
 // end::metricbeat-config[]
@@ -111,7 +110,7 @@ To use {metricbeat}:
 . Disable the default collection of {kib} monitoring metrics. +
 +
 --
-//include::{kib-repo-dir}/user/monitoring/monitoring-metricbeat.asciidoc[tag=disable-kibana-collection]
+// include::{kib-repo-dir}/user/monitoring/monitoring-metricbeat.asciidoc[tag=disable-kibana-collection]
 Add the following setting in the {kib} configuration file (`kibana.yml`): 
 
 [source,yaml]
@@ -147,7 +146,8 @@ metricbeat modules enable kibana-xpack
 
 For more information, see 
 {metricbeat-ref}/configuration-metricbeat.html[Specify which modules to run] and 
-{metricbeat-ref}/metricbeat-module-kibana.html[{kib} module].
+{metricbeat-ref}/metricbeat-module-kibana.html[{kib} module]. 
+
 --
 
 . Configure the {kib} {xpack} module in {metricbeat}. +
@@ -180,7 +180,7 @@ If the Elastic {security-features} are enabled, you must also provide a user
 ID and password so that {metricbeat} can collect metrics successfully: 
 
 .. Create a user on the production cluster that has the 
-`remote_monitoring_collector` {ref}/built-in-roles.html[built-in role]. 
+`remote_monitoring_collector` <<built-in-roles,built-in role>>. 
 Alternatively, use the `remote_monitoring_user` 
 <<built-in-users,built-in user>>.
 
@@ -291,7 +291,7 @@ metricbeat modules enable beat-xpack
 
 For more information, see 
 {metricbeat-ref}/configuration-metricbeat.html[Specify which modules to run] and 
-{metricbeat-ref}/metricbeat-module-beat.html[beat module]. 
+{metricbeat-ref}/metricbeat-module-beat.html[beat module].
 --
 
 . Configure the `beat-xpack` module in {metricbeat}. +
@@ -337,9 +337,9 @@ If the Elastic {security-features} are enabled, you must also provide a user
 ID and password so that {metricbeat} can collect metrics successfully: 
 
 .. Create a user on the production cluster that has the 
-`remote_monitoring_collector` {ref}/built-in-roles.html[built-in role]. 
+`remote_monitoring_collector` <<built-in-roles,built-in role>>. 
 Alternatively, if it's available in your environment, use the
-`remote_monitoring_user` {ref}/built-in-users.html[built-in user].
+`remote_monitoring_user` <<built-in-users,built-in user>>.
 
 .. Add the `username` and `password` settings to the beat module configuration 
 file.
@@ -373,7 +373,7 @@ include::esms.asciidoc[tag=metricbeat-config]
 +
 --
 Open {kib} in your web browser. Use the {kib} URL and the administrator user ID
-that was provided to you by the Elastic support team. View the 
+that was provided to you by the Elastic support team.
 {kibana-ref}/beats-page.html[{beats} metrics] on the *Stack Monitoring* page.
 
 If you do not see your metrics yet, see

@@ -291,5 +291,4 @@ public class MetaStateService {
         writeManifestAndCleanup(reason, manifest);
         cleanupGlobalState(generation);
     }
-
 }

@@ -103,7 +103,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
 
         assertThat(target.get("name"), is("Chrome"));
-        assertThat(target.get("version"), is("33.0.1750"));
+        assertThat(target.get("version"), is("33.0.1750.149"));
 
         Map<String, String> os = new HashMap<>();
         os.put("name", "Mac OS X");

@@ -54,7 +54,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     public MissingAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, ValuesSourceType.ANY, targetValueType);
+        super(name, targetValueType);
     }
 
     protected MissingAggregationBuilder(MissingAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

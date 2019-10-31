@@ -134,7 +134,7 @@ public class AutoDateHistogramAggregationBuilder
 
     /** Create a new builder with the given name. */
     public AutoDateHistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.DATE);
+        super(name, ValueType.DATE);
     }
 
     /** Read from a stream, for internal use only. */

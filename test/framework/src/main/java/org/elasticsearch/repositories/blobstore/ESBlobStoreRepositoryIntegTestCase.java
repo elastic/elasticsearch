@@ -125,7 +125,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     logger.info("--> delete {} random documents from {}", deleteCount, index);
                     for (int i = 0; i < deleteCount; i++) {
                         int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(index, index, Integer.toString(doc)).get();
+                        client().prepareDelete(index, Integer.toString(doc)).get();
                     }
                     client().admin().indices().prepareRefresh(index).get();
                 }
@@ -174,7 +174,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                     logger.info("--> delete {} random documents from {}", deleteCount, indexName);
                     for (int j = 0; j < deleteCount; j++) {
                         int doc = randomIntBetween(0, docCount - 1);
-                        client().prepareDelete(indexName, indexName, Integer.toString(doc)).get();
+                        client().prepareDelete(indexName, Integer.toString(doc)).get();
                     }
                     client().admin().indices().prepareRefresh(indexName).get();
                 }
@@ -222,9 +222,9 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 20; i++) {
-            index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
-            index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
-            index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
+            indexDoc("test-idx-1", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-2", Integer.toString(i), "foo", "baz" + i);
+            indexDoc("test-idx-3", Integer.toString(i), "foo", "baz" + i);
         }
         refresh();
 
@@ -235,9 +235,9 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         logger.info("--> indexing more data");
         for (int i = 20; i < 40; i++) {
-            index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
-            index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
-            index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
+            indexDoc("test-idx-1", Integer.toString(i), "foo", "bar" + i);
+            indexDoc("test-idx-2", Integer.toString(i), "foo", "baz" + i);
+            indexDoc("test-idx-3", Integer.toString(i), "foo", "baz" + i);
         }
 
         logger.info("--> take another snapshot with only 2 of the 3 indices");
@@ -275,7 +275,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     protected void addRandomDocuments(String name, int numDocs) throws ExecutionException, InterruptedException {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders[i] = client().prepareIndex(name, name, Integer.toString(i))
+            indexRequestBuilders[i] = client().prepareIndex(name).setId(Integer.toString(i))
                 .setRouting(randomAlphaOfLength(randomIntBetween(1, 10))).setSource("field", "value");
         }
         indexRandom(true, indexRequestBuilders);

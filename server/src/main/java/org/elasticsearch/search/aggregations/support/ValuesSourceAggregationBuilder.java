@@ -41,7 +41,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             extends ValuesSourceAggregationBuilder<VS, AB> {
 
         protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-            super(name, valuesSourceType, targetValueType);
+            super(name, targetValueType);
         }
 
         protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -74,7 +74,6 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
     }
 
-    private final ValuesSourceType valuesSourceType;
     private final ValueType targetValueType;
     private String field = null;
     private Script script = null;
@@ -84,19 +83,14 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private ZoneId timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
-    protected ValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    protected ValuesSourceAggregationBuilder(String name, ValueType targetValueType) {
         super(name);
-        if (valuesSourceType == null) {
-            throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
-        }
-        this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
     }
 
     protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<VS, AB> clone,
                                              Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
-        this.valuesSourceType = clone.valuesSourceType;
         this.targetValueType = clone.targetValueType;
         this.field = clone.field;
         this.valueType = clone.valueType;
@@ -116,7 +110,6 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
             throws IOException {
         super(in);
-        this.valuesSourceType = valuesSourceType;
         if (serializeTargetValueType(in.getVersion())) {
             this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
         } else {
@@ -133,7 +126,6 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         super(in);
         // TODO: Can we get rid of this constructor and always use the three value version? Does this assert provide any value?
         assert serializeTargetValueType(in.getVersion()) : "Wrong read constructor called for subclass that serializes its targetValueType";
-        this.valuesSourceType = valuesSourceType;
         this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
         read(in);
     }
@@ -377,7 +369,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), field, format, missing, script,
-            targetValueType, timeZone, valueType, valuesSourceType);
+            targetValueType, timeZone, valueType);
     }
 
     @Override
@@ -386,8 +378,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
-        return Objects.equals(valuesSourceType, other.valuesSourceType)
-            && Objects.equals(field, other.field)
+        return Objects.equals(field, other.field)
             && Objects.equals(format, other.format)
             && Objects.equals(missing, other.missing)
             && Objects.equals(script, other.script)

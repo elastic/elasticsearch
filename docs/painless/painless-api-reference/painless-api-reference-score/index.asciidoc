@@ -10,8 +10,8 @@ The following specialized API is available in the Score context.
 ==== Static Methods
 The following methods are directly callable without a class/instance qualifier. Note parameters denoted by a (*) are treated as read-only values.
 
-* double cosineSimilarity(List *, VectorScriptDocValues.DenseVectorScriptDocValues)
-* double cosineSimilaritySparse(Map *, VectorScriptDocValues.SparseVectorScriptDocValues)
+* double cosineSimilarity(List *, String)
+* double cosineSimilaritySparse(Map *, String)
 * double decayDateExp(String *, String *, String *, double *, JodaCompatibleZonedDateTime)
 * double decayDateGauss(String *, String *, String *, double *, JodaCompatibleZonedDateTime)
 * double decayDateLinear(String *, String *, String *, double *, JodaCompatibleZonedDateTime)
@@ -21,8 +21,8 @@ The following methods are directly callable without a class/instance qualifier. 
 * double decayNumericExp(double *, double *, double *, double *, double)
 * double decayNumericGauss(double *, double *, double *, double *, double)
 * double decayNumericLinear(double *, double *, double *, double *, double)
-* double dotProduct(List, VectorScriptDocValues.DenseVectorScriptDocValues)
-* double dotProductSparse(Map *, VectorScriptDocValues.SparseVectorScriptDocValues)
+* double dotProduct(List, String)
+* double dotProductSparse(Map *, String)
 * double randomScore(int *)
 * double randomScore(int *, String *)
 * double saturation(double, double)

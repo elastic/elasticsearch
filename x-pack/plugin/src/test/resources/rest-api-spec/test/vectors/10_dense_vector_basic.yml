@@ -52,7 +52,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "dotProduct(params.query_vector, doc['my_dense_vector'])"
+                source: "dotProduct(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
 
@@ -82,7 +82,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                source: "cosineSimilarity(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
 

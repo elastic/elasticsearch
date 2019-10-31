@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.util.ArrayList;

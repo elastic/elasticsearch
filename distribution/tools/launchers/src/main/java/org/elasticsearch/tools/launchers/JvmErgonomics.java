@@ -72,12 +72,20 @@ final class JvmErgonomics {
             }
         }
         final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);
-        if (maxDirectMemorySize == 0) {
+
+        if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
+            Launchers.errPrintln("Warning: with JDK 8 on Windows, Elasticsearch may be unable to derive correct");
+            Launchers.errPrintln("  ergonomic settings due to a JDK issue (JDK-8074459). Please use a newer");
+            Launchers.errPrintln("  version of Java.");
+        }
+
+        if (maxDirectMemorySize == 0 && userDefinedJvmOptions.stream().noneMatch(s -> s.startsWith("-XX:MaxDirectMemorySize"))) {
+
             if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
-                Launchers.errPrintln("Warning: with JDK 8 on Windows, Elasticsearch may miscalculate MaxDirectMemorySize");
-                Launchers.errPrintln("  due to a JDK issue (JDK-8074459).");
-                Launchers.errPrintln("  Please use a newer version of Java or set MaxDirectMemorySize explicitly");
+                Launchers.errPrintln("Warning: MaxDirectMemorySize may have been miscalculated due to JDK-8074459.");
+                Launchers.errPrintln("  Please use a newer version of Java or set MaxDirectMemorySize explicitly.");
             }
+
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
         }
         return ergonomicChoices;

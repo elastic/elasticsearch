@@ -119,9 +119,9 @@ public class ExportersTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> Exporter.INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSetting(prefix + setting).get(settings));
-        assertThat(e, hasToString(containsString("Failed to parse value [" + value + "] for setting [" + prefix + setting)));
-        assertThat(e.getCause(), instanceOf(SettingsException.class));
-        assertThat(e.getCause(), hasToString(containsString("invalid index name time format: [" + value + "]")));
+        assertThat(e, hasToString(containsString("Invalid format: [" + value + "]: Unknown pattern letter: j")));
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause(), hasToString(containsString("Unknown pattern letter: j")));
     }
 
     public void testExporterIndexPattern() {

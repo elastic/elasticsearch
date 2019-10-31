@@ -102,26 +102,14 @@ public abstract class Exporter implements AutoCloseable {
     /**
      * Every {@code Exporter} allows users to use a different index time format.
      */
-    static final Setting.AffixSetting<String> INDEX_NAME_TIME_FORMAT_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
-                    key -> Setting.simpleString(
-                        key,
-                        Exporter.INDEX_FORMAT,
-                        new Setting.Validator<String>() {
-                            @Override
-                            public void validate(String value) {
-                                try {
-                                    if (value != null) {
-                                        DateFormatter.forPattern(value).withZone(ZoneOffset.UTC);
-                                    }
-                                } catch (RuntimeException e) {
-                                    throw new SettingsException("[" + INDEX_NAME_TIME_FORMAT_SETTING.getKey() +
-                                        "] invalid index name time format: [" + value + "]", e);
-                                }
-                            }
-                        },
-                        Property.Dynamic,
-                        Property.NodeScope));
+    static final Setting.AffixSetting<DateFormatter> INDEX_NAME_TIME_FORMAT_SETTING =
+                Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
+                        key -> new Setting<DateFormatter>(
+                                key,
+                                Exporter.INDEX_FORMAT,
+                                DateFormatter::forPattern,
+                                Property.Dynamic,
+                                Property.NodeScope));
 
     private static final String INDEX_FORMAT = "yyyy.MM.dd";
 
@@ -167,14 +155,8 @@ public abstract class Exporter implements AutoCloseable {
     protected abstract void doClose();
 
     protected static DateFormatter dateTimeFormatter(final Config config) {
-        Setting<String> setting = INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSettingForNamespace(config.name);
-        String format = setting.exists(config.settings()) ? setting.get(config.settings()) : INDEX_FORMAT;
-        try {
-            return DateFormatter.forPattern(format).withZone(ZoneOffset.UTC);
-        } catch (IllegalArgumentException e) {
-            throw new SettingsException("[" + INDEX_NAME_TIME_FORMAT_SETTING.getKey() + "] invalid index name time format: ["
-                    + format + "]", e);
-        }
+        Setting<DateFormatter> setting = INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSettingForNamespace(config.name);
+        return setting.get(config.settings());
     }
 
     public static List<Setting.AffixSetting<?>> getSettings() {

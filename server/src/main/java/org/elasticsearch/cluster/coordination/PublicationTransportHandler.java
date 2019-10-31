@@ -425,8 +425,8 @@ public class PublicationTransportHandler {
                         throw e;
                     }
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
-//                    logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}] {}",
-//                        incomingState.version(), incomingState.stateUUID(), request.bytes().length(), incomingState);
+                    logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
+                        incomingState.version(), incomingState.stateUUID(), request.bytes().length());
                     final PublishWithJoinResponse response = acceptState(incomingState);
                     lastSeenClusterState.compareAndSet(lastSeen, incomingState);
                     return response;

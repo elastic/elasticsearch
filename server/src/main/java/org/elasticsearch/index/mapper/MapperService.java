@@ -270,10 +270,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (currentIndexMetaData.getMappingVersion() == newIndexMetaData.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
                 assert updatedEntries.isEmpty() : updatedEntries;
-                /*
-                      if(!updatedEntries.isEmpty())
-                logger.info("updated entries not empty" + updatedEntries);
-                 */
 
                 MappingMetaData defaultMapping = newIndexMetaData.defaultMapping();
                 if (defaultMapping != null) {

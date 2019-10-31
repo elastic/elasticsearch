@@ -105,8 +105,6 @@ public class MetaDataMappingService {
      * and generate a single cluster change event out of all of those.
      */
     ClusterState executeRefresh(final ClusterState currentState, final List<RefreshTask> allTasks) throws Exception {
-//        logger.info("refresh "+currentState +" "+allTasks);
-
         // break down to tasks per index, so we can optimize the on demand index service creation
         // to only happen for the duration of a single index processing of its respective events
         Map<String, List<RefreshTask>> tasksPerIndex = new HashMap<>();
@@ -156,7 +154,6 @@ public class MetaDataMappingService {
             IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
             try {
                 boolean indexDirty = refreshIndexMapping(indexService, builder);
-                logger.info("refresh indexDirty "+indexDirty);
 
                 if (indexDirty) {
                     mdBuilder.put(builder);
@@ -185,8 +182,6 @@ public class MetaDataMappingService {
                                                        mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
                 if (mapper != null) {
                     final String type = mapper.type();
-                    logger.info("refreshIndexMapping "+mapper.mappingSource() +" "+builder.mapping(type).source());
-
                     if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
                         updatedTypes.add(type);
                     }

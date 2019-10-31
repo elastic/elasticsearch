@@ -396,8 +396,8 @@ public class PublishClusterStateAction {
                     Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
                     incomingState = diff.apply(lastSeenClusterState);
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
-//                    logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}] {}",
-//                        incomingState.version(), incomingState.stateUUID(), request.bytes().length(), incomingState);
+                    logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
+                        incomingState.version(), incomingState.stateUUID(), request.bytes().length());
                 } else {
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");

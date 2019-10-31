@@ -500,13 +500,9 @@ GET /_search
 
 ==== Early termination
 
-The `composite` aggregation can early terminate the collection under some circumstances:
-
-  * If the primary source extracts values from a numeric or a keyword field and the query matches all documents (`match_all` query).
-  * If the value sources are a prefix or match entirely the <<index-modules-index-sorting,index sort>> specification.
-
 For optimal performance the <<index-modules-index-sorting,index sort>> should be set on the index so that it matches
-parts or fully the source order in the composite aggregation. For instance the following index sort:
+parts or fully the source order in the composite aggregation.
+For instance the following index sort:
 
 [source,console]
 --------------------------------------------------
@@ -607,6 +603,10 @@ If the order of sources do not matter for your use case you can follow these sim
   * Put the fields with the highest cardinality first.
   * Make sure that the order of the field matches the order of the index sort.
   * Put multi-valued fields last since they cannot be used for early termination.
+
+WARNING: <<index-modules-index-sorting,index sort>> can slowdown indexing, it is very important to test index sorting
+with your specific use case and dataset to ensure that it matches your requirement. If it doesn't note that `composite`
+aggregations will also try to early terminate on non-sorted indices if the query matches all document (`match_all` query).
 
 ==== Sub-aggregations
 

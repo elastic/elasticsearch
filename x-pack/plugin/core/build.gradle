@@ -95,9 +95,6 @@ forbiddenApisMain {
     signaturesFiles += files('forbidden/hasher-signatures.txt')
 }
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-
 licenseHeaders {
   approvedLicenses << 'BCrypt (BSD-like)'
   additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'

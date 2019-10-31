@@ -46,6 +46,7 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField DEFINITION = new ParseField("definition");
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
+    public static final ParseField INPUT = new ParseField("input");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
             true,
@@ -64,6 +65,7 @@ public class TrainedModelConfig implements ToXContentObject {
             DEFINITION);
         PARSER.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
+        PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> TrainedModelInput.fromXContent(p), INPUT);
     }
 
     public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
@@ -78,6 +80,7 @@ public class TrainedModelConfig implements ToXContentObject {
     private final TrainedModelDefinition definition;
     private final List<String> tags;
     private final Map<String, Object> metadata;
+    private final TrainedModelInput input;
 
     TrainedModelConfig(String modelId,
                        String createdBy,
@@ -86,7 +89,8 @@ public class TrainedModelConfig implements ToXContentObject {
                        Instant createTime,
                        TrainedModelDefinition definition,
                        List<String> tags,
-                       Map<String, Object> metadata) {
+                       Map<String, Object> metadata,
+                       TrainedModelInput input) {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
@@ -95,6 +99,7 @@ public class TrainedModelConfig implements ToXContentObject {
         this.description = description;
         this.tags = tags == null ? null : Collections.unmodifiableList(tags);
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
+        this.input = input;
     }
 
     public String getModelId() {
@@ -129,6 +134,10 @@ public class TrainedModelConfig implements ToXContentObject {
         return definition;
     }
 
+    public TrainedModelInput getInput() {
+        return input;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -160,6 +169,9 @@ public class TrainedModelConfig implements ToXContentObject {
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
         }
+        if (input != null) {
+            builder.field(INPUT.getPreferredName(), input);
+        }
         builder.endObject();
         return builder;
     }
@@ -181,6 +193,7 @@ public class TrainedModelConfig implements ToXContentObject {
             Objects.equals(createTime, that.createTime) &&
             Objects.equals(definition, that.definition) &&
             Objects.equals(tags, that.tags) &&
+            Objects.equals(input, that.input) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -193,7 +206,8 @@ public class TrainedModelConfig implements ToXContentObject {
             definition,
             description,
             tags,
-            metadata);
+            metadata,
+            input);
     }
 
 
@@ -207,6 +221,7 @@ public class TrainedModelConfig implements ToXContentObject {
         private Map<String, Object> metadata;
         private List<String> tags;
         private TrainedModelDefinition definition;
+        private TrainedModelInput input;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -257,6 +272,11 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setInput(TrainedModelInput input) {
+            this.input = input;
+            return this;
+        }
+
         public TrainedModelConfig build() {
             return new TrainedModelConfig(
                 modelId,
@@ -266,7 +286,9 @@ public class TrainedModelConfig implements ToXContentObject {
                 createTime,
                 definition,
                 tags,
-                metadata);
+                metadata,
+                input);
         }
     }
+
 }

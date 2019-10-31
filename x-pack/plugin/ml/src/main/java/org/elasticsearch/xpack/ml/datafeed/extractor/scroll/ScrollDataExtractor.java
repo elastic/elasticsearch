@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

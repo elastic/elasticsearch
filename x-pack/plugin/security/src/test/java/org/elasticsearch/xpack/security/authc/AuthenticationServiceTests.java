@@ -197,7 +197,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        when(client.prepareIndex(any(String.class), any(String.class), any(String.class)))
+        when(client.prepareIndex(any(String.class)))
             .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.prepareUpdate(any(String.class), any(String.class)))
             .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));

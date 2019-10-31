@@ -3,6 +3,24 @@ Elasticsearch documentation build process.
 
 See: https://github.com/elastic/docs
 
+=== Backporting doc fixes
+
+* Doc bug fixes and enhancements to existing content should be made against master 
+and backported as far as the current version. Backporting doc changes to earlier minor versions
+that are out of maintenance is often complicated due to content restructuring and is not required.
+
+* Backport important fixes such as security updates that have a direct customer impact to all affected versions. 
+
+* Avoid backporting doc changes across major versions unless it’s an important fix or 
+the change is related to upgrading from the last minor version of the previous major.
+
+* Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions]. 
+
+* Doc PRs opened against released (non-EOL) versions can be merged to that version, 
+applied to master, and backported to the current version (where applicable).  
+
+=== Snippet testing
+
 Snippets marked with `[source,console]` are automatically annotated with
 "VIEW IN CONSOLE" and "COPY AS CURL" in the documentation and are automatically
 tested by the command `./gradlew -pdocs check`. To test just the docs from a

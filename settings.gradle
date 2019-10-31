@@ -54,6 +54,7 @@ List projects = [
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:old-elasticsearch',
+  'test:fixtures:azure-fixture',
   'test:logger-usage'
 ]
 

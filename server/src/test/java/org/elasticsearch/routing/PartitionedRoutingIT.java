@@ -190,7 +190,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 String id = routingValue + "_" + String.valueOf(k);
                 routingToDocumentIds.get(routingValue).add(id);
 
-                client().prepareIndex(index, "type", id)
+                client().prepareIndex(index).setId(id)
                     .setRouting(routingValue)
                     .setSource("foo", "bar")
                     .get();

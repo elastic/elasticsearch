@@ -6,6 +6,7 @@
  */
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'com.github.johnrengelman.shadow'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
 
@@ -46,37 +47,10 @@ dependencyLicenses {
     ignoreSha 'sql-client'
 }
 
-/*
- * Bundle all dependencies into the main jar and mark it as executable it
- * can be easily shipped around and used.
- */
-jar {
-    dependsOn configurations.runtimeClasspath
-    from({
-        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
-    }) {
-        // We don't need the META-INF from the things we bundle. For now.
-        exclude 'META-INF/*'
-    }
+shadowJar {
     manifest {
         attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
     }
-}
-
-/*
- * Build a jar that doesn't include the dependencies bundled that we can
- * include with QA tests along side Elasticsearch without breaking
- * jarhell.
- */
-configurations {
-    nodeps
-}
-task nodepsJar(type: Jar) {
-    appendix 'nodeps'
-    from sourceSets.main.output
-}
-artifacts  {
-    nodeps nodepsJar
 }
 
 forbiddenApisMain {
@@ -87,13 +61,13 @@ forbiddenApisMain {
 
 task runcli {
     description = 'Run the CLI and connect to elasticsearch running on 9200'
-    dependsOn 'assemble'
+    dependsOn shadowJar
     doLast {
         List command = [new File(project.runtimeJavaHome, 'bin/java').absolutePath]
         if ('true'.equals(System.getProperty('debug', 'false'))) {
         command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
         }
-        command += ['-jar', jar.archivePath.absolutePath]
+        command += ['-jar', shadowJar.archivePath.absolutePath]
         logger.info("running the cli with: ${command}")
 
         new ProcessBuilder(command)
@@ -103,13 +77,4 @@ task runcli {
             .start()
             .waitFor()
     }
-}
-
-// Use the jar for testing so we can get the proper version information
-test {
-    classpath -= compileJava.outputs.files
-    classpath -= configurations.compile
-    classpath -= configurations.runtime
-    classpath += jar.outputs.files
-    dependsOn jar
 }

@@ -154,15 +154,15 @@ void addBuildDockerImage(final boolean oss, final boolean ubi) {
     List<String> tags
     if (oss) {
       tags = [ 
-        "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}",
-        "elasticsearch-oss:test${ubi ? '-ubi7' : ''}"
+        "docker.elastic.co/elasticsearch/elasticsearch-oss${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "elasticsearch-oss${ubi ? '-ubi7' : ''}:test"
       ]
     } else {
       tags = [
-        "elasticsearch:${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}",
-        "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}",
-        "elasticsearch:test${ubi ? '-ubi7' : ''}",
+        "elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}-full:${VersionProperties.elasticsearch}",
+        "elasticsearch${ubi ? '-ubi7' : ''}:test",
       ]
     }
     executable 'docker'
@@ -204,7 +204,7 @@ subprojects { Project subProject ->
 
     def exportTaskName = taskName("export", oss, ubi, "DockerImage")
     def buildTaskName = taskName("build", oss, ubi, "DockerImage")
-    def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}.docker.tar"
+    def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
       executable 'docker'

@@ -215,7 +215,7 @@ public class HttpExporter extends Exporter {
                             final Set<String> names = settings.names();
                             for (String name : names) {
                                 final String fullSetting = key + "." + name;
-                                if (HttpExporter.BLACKLISTED_HEADERS.stream().anyMatch(name::equalsIgnoreCase)) {
+                                if (HttpExporter.BLACKLISTED_HEADERS.contains(name)) {
                                     throw new SettingsException("header cannot be overwritten via [" + fullSetting + "]");
                                 }
                                 final List<String> values = settings.getAsList(name);

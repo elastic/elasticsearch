@@ -58,9 +58,10 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         return field -> !field.isEmpty();
     }
 
-    public static TrainedModelDefinition.Builder createRandomBuilder() {
+    public static TrainedModelDefinition.Builder createRandomBuilder(String modelId) {
         int numberOfProcessors = randomIntBetween(1, 10);
         return new TrainedModelDefinition.Builder()
+            .setModelId(modelId)
             .setPreProcessors(
                 randomBoolean() ? null :
                     Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(),
@@ -68,22 +69,11 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
                         TargetMeanEncodingTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
-            .setInput(new TrainedModelDefinition.Input(Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomLongBetween(1, 10))
-                .collect(Collectors.toList())))
             .setTrainedModel(randomFrom(TreeTests.createRandom()));
     }
 
     private static final String ENSEMBLE_MODEL = "" +
         "{\n" +
-        "  \"input\": {\n" +
-        "    \"field_names\": [\n" +
-        "      \"col1\",\n" +
-        "      \"col2\",\n" +
-        "      \"col3\",\n" +
-        "      \"col4\"\n" +
-        "    ]\n" +
-        "  },\n" +
         "  \"preprocessors\": [\n" +
         "    {\n" +
         "      \"one_hot_encoding\": {\n" +
@@ -203,14 +193,6 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         "}";
     private static final String TREE_MODEL = "" +
         "{\n" +
-        "  \"input\": {\n" +
-        "    \"field_names\": [\n" +
-        "      \"col1\",\n" +
-        "      \"col2\",\n" +
-        "      \"col3\",\n" +
-        "      \"col4\"\n" +
-        "    ]\n" +
-        "  },\n" +
         "  \"preprocessors\": [\n" +
         "    {\n" +
         "      \"one_hot_encoding\": {\n" +
@@ -293,7 +275,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
 
     @Override
     protected TrainedModelDefinition createTestInstance() {
-        return createRandomBuilder().build();
+        return createRandomBuilder(null).build();
     }
 
     @Override

@@ -60,15 +60,19 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
+    private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
+    private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
+    private static final String IS_AUTO_RETRYABLE_ERROR_FIELD = "is_auto_retryable_error";
+
     private String index;
     private String policy;
-
-    private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
 
     @Before
     public void refreshIndex() {
@@ -77,7 +81,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public static void updatePolicy(String indexName, String policy) throws IOException {
-
         Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
         final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policy + "\" }",
                 ContentType.APPLICATION_JSON);
@@ -292,7 +295,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+        );
+
         // create policy
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
         // update policy on index
@@ -833,10 +838,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(goodIndex, Settings.builder()
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
         createIndexWithSettingsNoAlias(errorIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
         createIndexWithSettingsNoAlias(nonexistantPolicyIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(3,10))));
@@ -854,26 +861,65 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(onlyManagedResponse, allOf(hasKey(goodIndex), hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
             assertThat(onlyManagedResponse, not(hasKey(unmanagedIndex)));
 
-            Map<String, Map<String, Object>> onlyErrorsResponse = explain(index + "*", true, randomBoolean());
+            Map<String, Map<String, Object>> onlyErrorsResponse = explain(index + "*", true, true);
             assertNotNull(onlyErrorsResponse);
             assertThat(onlyErrorsResponse, allOf(hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
             assertThat(onlyErrorsResponse, allOf(not(hasKey(goodIndex)), not(hasKey(unmanagedIndex))));
         });
     }
 
+    public void testExplainIndexContainsAutomaticRetriesInformation() throws Exception {
+        createFullPolicy(TimeValue.ZERO);
+
+        // create index without alias so the rollover action fails and is retried
+        createIndexWithSettingsNoAlias(index, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+
+        assertBusy(() -> {
+            Map<String, Object> explainIndex = explainIndex(index);
+            assertThat((Integer) explainIndex.get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1));
+            assertThat(explainIndex.get(IS_AUTO_RETRYABLE_ERROR_FIELD), is(true));
+        });
+    }
+
+    public void testILMRolloverRetriesOnReadOnlyBlock() throws Exception {
+        String firstIndex = index + "-000001";
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null));
+
+        // create the index as readonly and associate the ILM policy to it
+        createIndexWithSettings(
+            firstIndex,
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+                .put("index.blocks.read_only", true),
+            true
+        );
+
+        // wait for ILM to start retrying the step
+        assertBusy(() -> assertThat((Integer) explainIndex(firstIndex).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)));
+
+        // remove the read only block
+        Request allowWritesOnIndexSettingUpdate = new Request("PUT", firstIndex + "/_settings");
+        allowWritesOnIndexSettingUpdate.setJsonEntity("{" +
+            "  \"index\": {\n" +
+            "     \"blocks.read_only\" : \"false\" \n" +
+            "  }\n" +
+            "}");
+        client().performRequest(allowWritesOnIndexSettingUpdate);
+
+        // index is not readonly so the ILM should complete successfully
+        assertBusy(() -> assertThat(getStepKeyForIndex(firstIndex), equalTo(TerminalPolicyStep.KEY)));
+    }
+
    public void testILMRolloverOnManuallyRolledIndex() throws Exception {
        String originalIndex = index + "-000001";
        String secondIndex = index + "-000002";
        String thirdIndex = index + "-000003";
-
-       // Configure ILM to run every second
-       Request updateLifecylePollSetting = new Request("PUT", "_cluster/settings");
-       updateLifecylePollSetting.setJsonEntity("{" +
-           "  \"transient\": {\n" +
-                "\"indices.lifecycle.poll_interval\" : \"1s\" \n" +
-           "  }\n" +
-           "}");
-       client().performRequest(updateLifecylePollSetting);
 
        // Set up a policy with rollover
        createNewSingletonPolicy("hot", new RolloverAction(null, null, 2L));

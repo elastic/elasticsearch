@@ -1,9 +1,11 @@
 package org.elasticsearch.gradle.tool;
 
-import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.GradleException;
+import org.gradle.api.Project;
+import org.gradle.process.ExecResult;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.List;
 import java.util.Locale;
@@ -39,7 +41,7 @@ public class DockerUtils {
      * Searches for a functional Docker installation, and returns information about the search.
      * @return the results of the search.
      */
-    private static DockerAvailability getDockerAvailability() throws Exception {
+    private static DockerAvailability getDockerAvailability(Project project) {
         String dockerPath = null;
         Result lastResult = null;
         Version version = null;
@@ -52,7 +54,7 @@ public class DockerUtils {
             dockerPath = dockerBinary.get();
 
             // Since we use a multi-stage Docker build, check the Docker version since 17.05
-            lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
+            lastResult = runCommand(project, dockerPath, "version", "--format", "{{.Server.Version}}");
 
             if (lastResult.isSuccess() == true) {
                 version = Version.fromString(lastResult.stdout.trim(), Version.Mode.RELAXED);
@@ -61,7 +63,7 @@ public class DockerUtils {
 
                 if (isVersionHighEnough == true) {
                     // Check that we can execute a privileged command
-                    lastResult = runCommand(dockerPath, "images");
+                    lastResult = runCommand(project, dockerPath, "images");
                 }
             }
         }
@@ -72,7 +74,7 @@ public class DockerUtils {
     }
 
     /**
-     * An immutable class that represents the results of a Docker search from {@link #getDockerAvailability()}}.
+     * An immutable class that represents the results of a Docker search from {@link #getDockerAvailability(Project)}}.
      */
     private static class DockerAvailability {
         /**
@@ -119,17 +121,12 @@ public class DockerUtils {
     /**
      * Given a list of tasks that requires Docker, check whether Docker is available, otherwise
      * throw an exception.
+     * @param project a Gradle project
      * @param tasks the tasks that require Docker
      * @throws GradleException if Docker is not available. The exception message gives the reason.
      */
-    public static void assertDockerIsAvailable(List<String> tasks) {
-        DockerAvailability availability = null;
-
-        try {
-            availability = getDockerAvailability();
-        } catch (Exception e) {
-            throwDockerRequiredException("Something went wrong while checking Docker's availability", e);
-        }
+    public static void assertDockerIsAvailable(Project project, List<String> tasks) {
+        DockerAvailability availability = getDockerAvailability(project);
 
         if (availability.isAvailable == true) {
             return;
@@ -199,22 +196,23 @@ public class DockerUtils {
      * while running the command, or the process was killed after reaching the 10s timeout,
      * then the exit code will be -1.
      */
-    private static Result runCommand(String... args) throws Exception {
+    private static Result runCommand(Project project, String... args) {
         if (args.length == 0) {
             throw new IllegalArgumentException("Cannot execute with no command");
         }
 
-        final ProcessBuilder command = new ProcessBuilder().command(args);
-        final Process process = command.start();
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
 
-        process.waitFor();
+        final ExecResult execResult = project.exec(spec -> {
+            // javac advises casting to Object to specify the varargs method,
+            // and silences a warning.
+            spec.setCommandLine((Object) args);
+            spec.setStandardOutput(stdout);
+            spec.setErrorOutput(stderr);
+        });
 
-        String stdout = IOUtils.toString(process.getInputStream());
-        String stderr = IOUtils.toString(process.getErrorStream());
-
-        process.destroy();
-
-        return new Result(process.exitValue(), stdout, stderr);
+        return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
     }
 
     /**

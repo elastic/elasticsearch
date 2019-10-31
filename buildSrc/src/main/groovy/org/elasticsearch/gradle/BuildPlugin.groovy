@@ -208,7 +208,7 @@ class BuildPlugin implements Plugin<Project> {
                 final List<String> tasks = taskGraph.allTasks.intersect(ext.get('requiresDocker') as List<Task>).collect { "  ${it.path}".toString()}
 
                 if (tasks.isEmpty() == false) {
-                    assertDockerIsAvailable(tasks)
+                    assertDockerIsAvailable(task.project, tasks)
                 }
             }
         }

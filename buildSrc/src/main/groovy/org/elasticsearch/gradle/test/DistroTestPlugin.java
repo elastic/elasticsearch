@@ -89,6 +89,8 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        final boolean runDockerTests = shouldRunDockerTests(project);
+
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
         project.getPluginManager().apply(BuildPlugin.class);
 
@@ -100,12 +102,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         Provider<Directory> upgradeDir = project.getLayout().getBuildDirectory().dir("packaging/upgrade");
         Provider<Directory> pluginsDir = project.getLayout().getBuildDirectory().dir("packaging/plugins");
 
-        List<ElasticsearchDistribution> distributions = configureDistributions(project, upgradeVersion);
+        List<ElasticsearchDistribution> distributions = configureDistributions(project, upgradeVersion, runDockerTests);
         TaskProvider<Copy> copyDistributionsTask = configureCopyDistributionsTask(project, distributionsDir);
         TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
         TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
-
-        final boolean runDockerTests = shouldRunDockerTests(project);
 
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
@@ -342,7 +342,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             });
     }
 
-    private List<ElasticsearchDistribution> configureDistributions(Project project, Version upgradeVersion) {
+    private List<ElasticsearchDistribution> configureDistributions(Project project, Version upgradeVersion, boolean runDockerTests) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
@@ -351,7 +351,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     // All our Docker images include a bundled JDK so it doesn't make sense to test without one
-                    boolean skip = type == Type.DOCKER && bundledJdk == false;
+                    boolean skip = type == Type.DOCKER && runDockerTests == false && bundledJdk == false;
 
                     if (skip == false) {
                         addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
@@ -511,10 +511,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                     logger.info("Linux OS id [" + id + "] is " + (shouldExclude ? "" : "not ") + "present in the exclude list");
 
                     return shouldExclude == false;
-                } else {
-                    logger.warn("/etc/os-release does not exist!");
                 }
 
+                logger.warn("/etc/os-release does not exist!");
                 return false;
 
             default:

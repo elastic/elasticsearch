@@ -49,7 +49,7 @@ final class VectorDVAtomicFieldData implements AtomicFieldData {
     public ScriptDocValues<BytesRef> getScriptValues() {
         try {
             final BinaryDocValues values = DocValues.getBinary(reader, field);
-            return new VectorScriptDocValues.DenseVectorScriptDocValues(values);
+            return new DenseVectorScriptDocValues(values);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for vector field!", e);
         }

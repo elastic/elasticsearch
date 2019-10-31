@@ -33,8 +33,7 @@ The following classes are available grouped by their respective packages. Click 
 ==== org.elasticsearch.index.query
 <<painless-api-reference-score-org-elasticsearch-index-query, Expand details for org.elasticsearch.index.query>>
 
-* <<painless-api-reference-score-VectorScriptDocValues, VectorScriptDocValues>>
-* <<painless-api-reference-score-VectorScriptDocValues-DenseVectorScriptDocValues, VectorScriptDocValues.DenseVectorScriptDocValues>>
+* <<painless-api-reference-score-DenseVectorScriptDocValues, DenseVectorScriptDocValues>>
 
 include::packages.asciidoc[]
 

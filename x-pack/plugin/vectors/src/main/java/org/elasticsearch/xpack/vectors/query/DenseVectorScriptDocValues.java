@@ -13,15 +13,12 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
 
-/**
- * VectorScriptDocValues represents docValues for dense and sparse vector fields
- */
-public abstract class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
+public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
     private final BinaryDocValues in;
     private BytesRef value;
 
-    VectorScriptDocValues(BinaryDocValues in) {
+    DenseVectorScriptDocValues(BinaryDocValues in) {
         this.in = in;
     }
 
@@ -50,13 +47,6 @@ public abstract class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
             return 0;
         } else {
             return 1;
-        }
-    }
-
-    // not final, as it needs to be extended by Mockito for tests
-    public static class DenseVectorScriptDocValues extends VectorScriptDocValues {
-        public DenseVectorScriptDocValues(BinaryDocValues in) {
-            super(in);
         }
     }
 }

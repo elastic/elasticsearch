@@ -3,9 +3,7 @@
 # or more contributor license agreements. Licensed under the Elastic License;
 # you may not use this file except in compliance with the Elastic License.
 #
-class org.elasticsearch.xpack.vectors.query.VectorScriptDocValues {
-}
-class org.elasticsearch.xpack.vectors.query.VectorScriptDocValues$DenseVectorScriptDocValues {
+class org.elasticsearch.xpack.vectors.query.DenseVectorScriptDocValues {
 }
 class org.elasticsearch.script.ScoreScript @no_import {
 }

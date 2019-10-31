@@ -12,7 +12,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
-import org.elasticsearch.xpack.vectors.query.VectorScriptDocValues.DenseVectorScriptDocValues;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -23,7 +22,7 @@ public class ScoreScriptUtils {
     public static class DenseVectorFunction {
         final ScoreScript scoreScript;
         final float[] queryVector;
-        final VectorScriptDocValues.DenseVectorScriptDocValues docValues;
+        final DenseVectorScriptDocValues docValues;
 
         public DenseVectorFunction(ScoreScript scoreScript,
                                    List<Number> queryVector,

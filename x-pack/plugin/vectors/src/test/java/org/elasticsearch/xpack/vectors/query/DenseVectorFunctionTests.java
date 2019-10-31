@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilarity;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProduct;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1Norm;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L2Norm;
-import org.elasticsearch.xpack.vectors.query.VectorScriptDocValues.DenseVectorScriptDocValues;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -40,7 +39,7 @@ public class DenseVectorFunctionTests extends ESTestCase {
         invalidQueryVector = Arrays.asList(0.5, 111.3);
     }
 
-    public void testDenseVectorFunctions() {
+    public void testVectorFunctions() {
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BytesRef encodedDocVector = mockEncodeDenseVector(docVector, indexVersion);
             DenseVectorScriptDocValues docValues = mock(DenseVectorScriptDocValues.class);

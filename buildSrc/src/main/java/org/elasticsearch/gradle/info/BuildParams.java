@@ -17,7 +17,6 @@ import java.util.function.Consumer;
 import static java.util.Objects.requireNonNull;
 
 public class BuildParams {
-    private static MutableBuildParams MUTABLE_BUILD_PARAMS = new MutableBuildParams();
     private static File compilerJavaHome;
     private static File runtimeJavaHome;
     private static Boolean isRuntimeJavaHomeSet;
@@ -44,7 +43,7 @@ public class BuildParams {
      * @param initializer Build parameter initializer
      */
     public static void init(Consumer<MutableBuildParams> initializer) {
-        initializer.accept(MUTABLE_BUILD_PARAMS);
+        initializer.accept(MutableBuildParams.INSTANCE);
     }
 
     public static File getCompilerJavaHome() {
@@ -144,6 +143,8 @@ public class BuildParams {
     }
 
     public static class MutableBuildParams {
+        private static MutableBuildParams INSTANCE = new MutableBuildParams();
+
         private MutableBuildParams() { }
 
         /**
@@ -152,7 +153,6 @@ public class BuildParams {
         public void reset() {
             Arrays.stream(BuildParams.class.getDeclaredFields())
                 .filter(f -> Modifier.isStatic(f.getModifiers()))
-                .filter(f -> f.getType() != MutableBuildParams.class)
                 .forEach(f -> {
                     try {
                         f.set(null, null);

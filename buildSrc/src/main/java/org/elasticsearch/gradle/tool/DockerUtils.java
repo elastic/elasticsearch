@@ -39,7 +39,7 @@ public class DockerUtils {
      * Searches for a functional Docker installation, and returns information about the search.
      * @return the results of the search.
      */
-    public static DockerAvailability getDockerAvailability() throws Exception {
+    private static DockerAvailability getDockerAvailability() throws Exception {
         String dockerPath = null;
         Result lastResult = null;
         Version version = null;
@@ -74,7 +74,7 @@ public class DockerUtils {
     /**
      * An immutable class that represents the results of a Docker search from {@link #getDockerAvailability()}}.
      */
-    public static class DockerAvailability {
+    private static class DockerAvailability {
         /**
          * Indicates whether Docker is available and meets the required criteria.
          * True if, and only if, Docker is:
@@ -85,12 +85,12 @@ public class DockerUtils {
          *     <li>Can execute a command that requires privileges</li>
          * </ul>
          */
-        public final boolean isAvailable;
+        final boolean isAvailable;
 
         /**
          * True if the installed Docker version is &gt;= 17.05
          */
-        public final boolean isVersionHighEnough;
+        final boolean isVersionHighEnough;
 
         /**
          * The path to the Docker CLI, or null
@@ -105,9 +105,9 @@ public class DockerUtils {
         /**
          * Information about the last command executes while probing Docker, or null.
          */
-        public final Result lastCommand;
+        final Result lastCommand;
 
-        public DockerAvailability(boolean isAvailable, boolean isVersionHighEnough, String path, Version version, Result lastCommand) {
+        DockerAvailability(boolean isAvailable, boolean isVersionHighEnough, String path, Version version, Result lastCommand) {
             this.isAvailable = isAvailable;
             this.isVersionHighEnough = isVersionHighEnough;
             this.path = path;
@@ -221,9 +221,9 @@ public class DockerUtils {
      * This class models the result of running a command. It captures the exit code, standard output and standard error.
      */
     private static class Result {
-        public final int exitCode;
-        public final String stdout;
-        public final String stderr;
+        final int exitCode;
+        final String stdout;
+        final String stderr;
 
         Result(int exitCode, String stdout, String stderr) {
             this.exitCode = exitCode;
@@ -231,7 +231,7 @@ public class DockerUtils {
             this.stderr = stderr;
         }
 
-        public boolean isSuccess() {
+        boolean isSuccess() {
             return exitCode == 0;
         }
 

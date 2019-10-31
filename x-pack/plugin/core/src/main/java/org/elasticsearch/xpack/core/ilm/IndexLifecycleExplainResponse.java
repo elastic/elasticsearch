@@ -174,7 +174,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             stepTime = in.readOptionalLong();
             stepInfo = in.readOptionalBytesReference();
             phaseExecutionInfo = in.readOptionalWriteable(PhaseExecutionInfo::new);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
                 isAutoRetryableError = in.readOptionalBoolean();
                 failedStepRetryCount = in.readOptionalVInt();
             } else {
@@ -214,7 +214,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalLong(stepTime);
             out.writeOptionalBytesReference(stepInfo);
             out.writeOptionalWriteable(phaseExecutionInfo);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
                 out.writeOptionalBoolean(isAutoRetryableError);
                 out.writeOptionalVInt(failedStepRetryCount);
             }

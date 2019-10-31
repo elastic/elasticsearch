@@ -154,7 +154,6 @@ public class MetaDataMappingService {
             IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
             try {
                 boolean indexDirty = refreshIndexMapping(indexService, builder);
-
                 if (indexDirty) {
                     mdBuilder.put(builder);
                     dirty = true;

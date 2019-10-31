@@ -95,7 +95,7 @@ public class QueryTranslatorTests extends ESTestCase {
     private LogicalPlan plan(String sql) {
         return analyzer.analyze(parser.createStatement(sql), true);
     }
-    
+
     private PhysicalPlan optimizeAndPlan(String sql) {
         return  planner.plan(optimizer.optimize(plan(sql)), true);
     }
@@ -191,7 +191,7 @@ public class QueryTranslatorTests extends ESTestCase {
         WildcardQuery qsq = ((WildcardQuery) qt.query);
         assertEquals("some.string.typical", qsq.field());
     }
-    
+
     public void testRLikeOnInexact() {
         LogicalPlan p = plan("SELECT * FROM test WHERE some.string RLIKE '.*a.*'");
         assertTrue(p instanceof Project);
@@ -203,7 +203,7 @@ public class QueryTranslatorTests extends ESTestCase {
         RegexQuery qsq = ((RegexQuery) qt.query);
         assertEquals("some.string.typical", qsq.field());
     }
-    
+
     public void testLikeConstructsNotSupported() {
         LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) like '%a%'");
         assertTrue(p instanceof Project);
@@ -213,7 +213,7 @@ public class QueryTranslatorTests extends ESTestCase {
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LIKE", ex.getMessage());
     }
-    
+
     public void testRLikeConstructsNotSupported() {
         LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) RLIKE '.*a.*'");
         assertTrue(p instanceof Project);
@@ -223,13 +223,13 @@ public class QueryTranslatorTests extends ESTestCase {
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for RLIKE", ex.getMessage());
     }
-    
+
     public void testDifferentLikeAndNotLikePatterns() {
         LogicalPlan p = plan("SELECT keyword k FROM test WHERE k LIKE 'X%' AND k NOT LIKE 'Y%'");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
-        
+
         Expression condition = ((Filter) p).condition();
         QueryTranslation qt = QueryTranslator.toQuery(condition, false);
         assertEquals(BoolQuery.class, qt.query.getClass());
@@ -237,18 +237,18 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(bq.isAnd());
         assertTrue(bq.left() instanceof WildcardQuery);
         assertTrue(bq.right() instanceof NotQuery);
-        
+
         NotQuery nq = (NotQuery) bq.right();
         assertTrue(nq.child() instanceof WildcardQuery);
         WildcardQuery lqsq = (WildcardQuery) bq.left();
         WildcardQuery rqsq = (WildcardQuery) nq.child();
-        
+
         assertEquals("X*", lqsq.query());
         assertEquals("keyword", lqsq.field());
         assertEquals("Y*", rqsq.query());
         assertEquals("keyword", rqsq.field());
     }
-    
+
     public void testRLikePatterns() {
         String[] patterns = new String[] {"(...)+", "abab(ab)?", "(ab){1,2}", "(ab){3}", "aabb|bbaa", "a+b+|b+a+", "aa(cc|bb)",
                 "a{4,6}b{4,6}", ".{3}.{3}", "aaa*bbb*", "a+.+", "a.c.e", "[^abc\\-]"};
@@ -256,13 +256,13 @@ public class QueryTranslatorTests extends ESTestCase {
             assertDifferentRLikeAndNotRLikePatterns(randomFrom(patterns), randomFrom(patterns));
         }
     }
-    
+
     private void assertDifferentRLikeAndNotRLikePatterns(String firstPattern, String secondPattern) {
         LogicalPlan p = plan("SELECT keyword k FROM test WHERE k RLIKE '" + firstPattern + "' AND k NOT RLIKE '" + secondPattern + "'");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
-        
+
         Expression condition = ((Filter) p).condition();
         QueryTranslation qt = QueryTranslator.toQuery(condition, false);
         assertEquals(BoolQuery.class, qt.query.getClass());
@@ -270,12 +270,12 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(bq.isAnd());
         assertTrue(bq.left() instanceof RegexQuery);
         assertTrue(bq.right() instanceof NotQuery);
-        
+
         NotQuery nq = (NotQuery) bq.right();
         assertTrue(nq.child() instanceof RegexQuery);
         RegexQuery lqsq = (RegexQuery) bq.left();
         RegexQuery rqsq = (RegexQuery) nq.child();
-        
+
         assertEquals(firstPattern, lqsq.regex());
         assertEquals("keyword", lqsq.field());
         assertEquals(secondPattern, rqsq.regex());
@@ -501,7 +501,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
     }
-    
+
     public void testTranslateRoundWithOneParameter() {
         LogicalPlan p = plan("SELECT ROUND(YEAR(date)) FROM test GROUP BY ROUND(YEAR(date))");
 
@@ -522,16 +522,16 @@ public class QueryTranslatorTests extends ESTestCase {
             scriptTemplate.toString());
         assertEquals("[{v=date}, {v=Z}, {v=YEAR}, {v=null}]", scriptTemplate.params().toString());
     }
-    
+
     public void testTranslateRoundWithTwoParameters() {
         LogicalPlan p = plan("SELECT ROUND(YEAR(date), -2) FROM test GROUP BY ROUND(YEAR(date), -2)");
-        
+
         assertTrue(p instanceof Aggregate);
         assertEquals(1, ((Aggregate) p).groupings().size());
         assertEquals(1, ((Aggregate) p).aggregates().size());
         assertTrue(((Aggregate) p).groupings().get(0) instanceof Round);
         assertTrue(((Aggregate) p).aggregates().get(0) instanceof Round);
-        
+
         Round groupingRound = (Round) ((Aggregate) p).groupings().get(0);
         assertEquals(2, groupingRound.children().size());
         assertTrue(groupingRound.children().get(1) instanceof Literal);
@@ -662,7 +662,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
         }
     }
-    
+
     public void testCountAndCountDistinctFolding() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -670,7 +670,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("dkey{a->"));
         assertThat(ee.output().get(1).toString(), startsWith("key{a->"));
-        
+
         Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
         assertEquals(2, subAggs.size());
         assertTrue(subAggs.toArray()[0] instanceof CardinalityAggregationBuilder);
@@ -678,15 +678,15 @@ public class QueryTranslatorTests extends ESTestCase {
 
         CardinalityAggregationBuilder cardinalityKeyword = (CardinalityAggregationBuilder) subAggs.toArray()[0];
         assertEquals("keyword", cardinalityKeyword.field());
-        
+
         FilterAggregationBuilder existsKeyword = (FilterAggregationBuilder) subAggs.toArray()[1];
         assertTrue(existsKeyword.getFilter() instanceof ExistsQueryBuilder);
         assertEquals("keyword", ((ExistsQueryBuilder) existsKeyword.getFilter()).fieldName());
-        
+
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("{\"filter\":{\"exists\":{\"field\":\"keyword\",\"boost\":1.0}}}}}}"));
     }
-    
+
     public void testAllCountVariantsWithHavingGenerateCorrectAggregations() {
         PhysicalPlan p = optimizeAndPlan("SELECT AVG(int), COUNT(keyword) ln, COUNT(distinct keyword) dln, COUNT(some.dotted.field) fn,"
                 + "COUNT(distinct some.dotted.field) dfn, COUNT(*) ccc FROM test GROUP BY bool "
@@ -700,7 +700,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(ee.output().get(3).toString(), startsWith("fn{a->"));
         assertThat(ee.output().get(4).toString(), startsWith("dfn{a->"));
         assertThat(ee.output().get(5).toString(), startsWith("ccc{a->"));
-        
+
         Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
         assertEquals(5, subAggs.size());
         assertTrue(subAggs.toArray()[0] instanceof AvgAggregationBuilder);
@@ -708,21 +708,21 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(subAggs.toArray()[2] instanceof CardinalityAggregationBuilder);
         assertTrue(subAggs.toArray()[3] instanceof FilterAggregationBuilder);
         assertTrue(subAggs.toArray()[4] instanceof CardinalityAggregationBuilder);
-        
+
         AvgAggregationBuilder avgInt = (AvgAggregationBuilder) subAggs.toArray()[0];
         assertEquals("int", avgInt.field());
-        
+
         FilterAggregationBuilder existsKeyword = (FilterAggregationBuilder) subAggs.toArray()[1];
         assertTrue(existsKeyword.getFilter() instanceof ExistsQueryBuilder);
         assertEquals("keyword", ((ExistsQueryBuilder) existsKeyword.getFilter()).fieldName());
-        
+
         CardinalityAggregationBuilder cardinalityKeyword = (CardinalityAggregationBuilder) subAggs.toArray()[2];
         assertEquals("keyword", cardinalityKeyword.field());
-        
+
         FilterAggregationBuilder existsDottedField = (FilterAggregationBuilder) subAggs.toArray()[3];
         assertTrue(existsDottedField.getFilter() instanceof ExistsQueryBuilder);
         assertEquals("some.dotted.field", ((ExistsQueryBuilder) existsDottedField.getFilter()).fieldName());
-        
+
         CardinalityAggregationBuilder cardinalityDottedField = (CardinalityAggregationBuilder) subAggs.toArray()[4];
         assertEquals("some.dotted.field", cardinalityDottedField.field());
 
@@ -748,6 +748,256 @@ public class QueryTranslatorTests extends ESTestCase {
                         +   "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a5,params.v5))))\","
                         + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
                         + "\"gap_policy\":\"skip\"}}}}}"));
+    }
+
+    public void testGroupByCastScalar() {
+        PhysicalPlan p = optimizeAndPlan("SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) FROM test " +
+            "GROUP BY CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) ORDER BY CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) NULLS FIRST");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT)", p.output().get(0).qualifiedName());
+        assertEquals(DataType.LONG, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+    public void testGroupByCastScalarWithAlias() {
+        PhysicalPlan p = optimizeAndPlan("SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) as \"cast\"  FROM test " +
+            "GROUP BY \"cast\" ORDER BY \"cast\" NULLS FIRST");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("cast", p.output().get(0).qualifiedName());
+        assertEquals(DataType.LONG, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+    public void testGroupByCastScalarWithNumericRef() {
+        PhysicalPlan p = optimizeAndPlan("SELECT CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) FROM test " +
+            "GROUP BY 1 ORDER BY 1 NULLS FIRST");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT)", p.output().get(0).qualifiedName());
+        assertEquals(DataType.LONG, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+    public void testGroupByConvertScalar() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) FROM test " +
+                "GROUP BY CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) ORDER BY CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) " +
+                "NULLS FIRST");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT)", p.output().get(0).qualifiedName());
+            assertEquals(DataType.LONG, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                    "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT EXTRACT(HOUR FROM CONVERT(date, SQL_TIMESTAMP)) FROM test GROUP BY " +
+                "EXTRACT(HOUR FROM CONVERT(date, SQL_TIMESTAMP))");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("EXTRACT(HOUR FROM CONVERT(date, SQL_TIMESTAMP))", p.output().get(0).qualifiedName());
+            assertEquals(DataType.INTEGER, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
+                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
+                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"HOUR_OF_DAY\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+    }
+
+    public void testGroupByConvertScalarWithAlias() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) as \"convert\" FROM test " +
+                "GROUP BY \"convert\" ORDER BY \"convert\" NULLS FIRST");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("convert", p.output().get(0).qualifiedName());
+            assertEquals(DataType.LONG, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                    "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT EXTRACT(MINUTE FROM CONVERT(date, SQL_TIMESTAMP)) x FROM test GROUP BY x");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("x", p.output().get(0).qualifiedName());
+            assertEquals(DataType.INTEGER, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
+                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
+                    "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"MINUTE_OF_HOUR\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+    }
+
+    public void testGroupByConvertScalarWithNumericRef() {
+        PhysicalPlan p = optimizeAndPlan("SELECT CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) FROM test " +
+            "GROUP BY 1 ORDER BY 1 NULLS FIRST");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT)", p.output().get(0).qualifiedName());
+        assertEquals(DataType.LONG, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+    public void testGroupByConstantScalar() {
+        PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test WHERE PI() * int > 5.0 GROUP BY PI() * int " +
+            "ORDER BY PI() * int LIMIT 10");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("PI() * int", p.output().get(0).qualifiedName());
+        assertEquals(DataType.DOUBLE, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
+        );
+    }
+
+
+    public void testGroupByConstantScalarWithAlias() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT PI() * int AS \"value\"  FROM test GROUP BY \"value\" ORDER BY \"value\" LIMIT 10");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("value", p.output().get(0).qualifiedName());
+            assertEquals(DataType.DOUBLE, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))" +
+                    "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("select (3 < int) as multi_language, count(*) from test group by multi_language");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(2, p.output().size());
+            assertEquals("multi_language", p.output().get(0).qualifiedName());
+            assertEquals(DataType.BOOLEAN, p.output().get(0).dataType());
+            assertEquals("count(*)", p.output().get(1).qualifiedName());
+            assertEquals(DataType.LONG, p.output().get(1).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+    }
+
+
+    public void testGroupByConstantScalarWithNumericRef() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test GROUP BY 1 ORDER BY 1 LIMIT 10");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("PI() * int", p.output().get(0).qualifiedName());
+            assertEquals(DataType.DOUBLE, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))" +
+                    "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
+                    "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test GROUP BY 1");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("PI() * int", p.output().get(0).qualifiedName());
+            assertEquals(DataType.DOUBLE, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT date + 1 * INTERVAL '1' DAY FROM test GROUP BY 1");
+            assertEquals(EsQueryExec.class, p.getClass());
+            assertEquals(1, p.output().size());
+            assertEquals("date + 1 * INTERVAL '1' DAY", p.output().get(0).qualifiedName());
+            assertEquals(DataType.DATETIME, p.output().get(0).dataType());
+            assertThat(
+                ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
+                    .replaceAll("\\s+", ""),
+                endsWith("{\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0)," +
+                    "InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"PT24H\",\"v2\":\"INTERVAL_DAY\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
+            );
+        }
+    }
+
+    public void testOrderByWithCastWithMissingRefs() {
+        PhysicalPlan p = optimizeAndPlan("SELECT keyword FROM test ORDER BY CAST(int AS LONG), date LIMIT 5");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("test.keyword", p.output().get(0).qualifiedName());
+        assertEquals(DataType.KEYWORD, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeSortNumeric(" +
+                "InternalSqlScriptUtils.cast(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":\"LONG\"}},\"type\":\"number\",\"order\":\"asc\"}}," +
+                "{\"date\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}"));
     }
 
     public void testTopHitsAggregationWithOneArg() {

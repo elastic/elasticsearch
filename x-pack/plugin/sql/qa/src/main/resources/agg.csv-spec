@@ -244,6 +244,194 @@ TRUNCATE(YEAR("birth_date"), -2)
 null
 1900
 ;
+// Fails for H2
+groupByCastScalarWithNumericRef
+SELECT CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT) FROM test_emp GROUP BY 1 ORDER BY 1 NULLS FIRST;
+
+CAST(ABS(EXTRACT(YEAR FROM "birth_date")) AS BIGINT):l
+------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConvertScalar
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) FROM test_emp GROUP BY CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) ORDER BY CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) NULLS FIRST;
+
+
+CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT):l
+-----------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+
+groupByConvertScalarWithAlias
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) as "convert" FROM test_emp GROUP BY "convert" ORDER BY "convert" NULLS FIRST;
+
+convert:l
+---------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConvertScalarWithNumericRef
+SELECT CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT) FROM test_emp GROUP BY 1 ORDER BY 1 NULLS FIRST;
+
+CONVERT(ABS(EXTRACT(YEAR FROM "birth_date")), SQL_BIGINT):l
+-----------------------------------------------------------
+null
+1952
+1953
+1954
+1955
+1956
+1957
+1958
+1959
+1960
+1961
+1962
+1963
+1964
+1965
+;
+
+groupByConstantScalar
+SELECT PI() * emp_no FROM test_emp GROUP BY PI() * emp_no ORDER BY PI() * emp_no LIMIT 10;
+
+PI() * emp_no:d
+---------------
+31419.06812855152
+31422.209721205112
+31425.3513138587
+31428.49290651229
+31431.63449916588
+31434.77609181947
+31437.91768447306
+31441.05927712665
+31444.200869780238
+31447.34246243383
+;
+
+groupByConstantScalarWithOrderByDesc
+SELECT PI() * emp_no FROM test_emp GROUP BY PI() * emp_no ORDER BY PI() * emp_no DESC LIMIT 10;
+
+PI() * emp_no:d
+-------
+31730.08580125691
+31726.94420860332
+31723.80261594973
+31720.66102329614
+31717.51943064255
+31714.377837988963
+31711.23624533537
+31708.094652681782
+31704.95306002819
+31701.811467374602
+;
+
+groupByConstantScalarWithAlias
+SELECT PI() * emp_no AS "value" FROM test_emp GROUP BY value ORDER BY value LIMIT 10;
+
+value:d
+------------------
+31419.06812855152
+31422.209721205112
+31425.3513138587
+31428.49290651229
+31431.63449916588
+31434.77609181947
+31437.91768447306
+31441.05927712665
+31444.200869780238
+31447.34246243383
+;
+
+groupByConstantScalarWithNumericRef
+SELECT PI() * emp_no FROM test_emp GROUP BY 1 ORDER BY 1 DESC LIMIT 10;
+
+PI() * emp_no:d
+------------------
+31730.08580125691
+31726.94420860332
+31723.80261594973
+31720.66102329614
+31717.51943064255
+31714.377837988963
+31711.23624533537
+31708.094652681782
+31704.95306002819
+31701.811467374602
+;
+
+groupByFieldAndConstantScalarWithMultipleOrderBy
+SELECT gender, emp_no % 3 + PI() FROM test_emp GROUP BY gender, emp_no % 3 + PI() ORDER BY gender, emp_no % 3 + PI() DESC LIMIT 8;
+
+gender:s    |emp_no % 3 + PI():d
+------------+------------------
+null        |5.141592653589793
+null        |4.141592653589793
+null        |3.141592653589793
+F           |5.141592653589793
+F           |4.141592653589793
+F           |3.141592653589793
+M           |5.141592653589793
+M           |4.141592653589793
+;
+
+groupByFieldAndConstantScalarWithAliasWithOrderByDesc
+SELECT gender, emp_no % 3 + PI() as p FROM test_emp GROUP BY gender, emp_no % 3 + PI() ORDER BY gender DESC, p DESC LIMIT 8;
+
+gender:s    |p:d
+------------+------------------
+M           |5.141592653589793
+M           |4.141592653589793
+M           |3.141592653589793
+F           |5.141592653589793
+F           |4.141592653589793
+F           |3.141592653589793
+null        |5.141592653589793
+null        |4.141592653589793
+;
 
 //
 // Grouping functions

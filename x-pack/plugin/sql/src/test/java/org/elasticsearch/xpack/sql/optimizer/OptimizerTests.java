@@ -236,7 +236,7 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(result instanceof Project);
         List<? extends NamedExpression> projections = ((Project) result).projections();
         assertEquals(2, projections.size());
-        assertSame(projections.get(0), projections.get(1));
+        assertEquals(projections.get(0), projections.get(1));
     }
 
     public void testCombineProjections() {

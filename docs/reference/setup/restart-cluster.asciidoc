@@ -1,7 +1,7 @@
 [[restart-cluster]]
 == Restart a cluster
  
-There might be situations when you want to perform a full-cluster restart which 
+There may be situations where you want to perform a full-cluster restart, which 
 means you shut down and restart all the nodes in the cluster. The following 
 description guides you through the process step by step.
 

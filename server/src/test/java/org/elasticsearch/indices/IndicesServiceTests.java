@@ -404,6 +404,28 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(clusterService.state().getMetaData().index(alias));
     }
 
+    public void testDanglingIndicesWithLaterVersion() throws Exception {
+        final String indexNameLater = "test-idxnewer";
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final ClusterState originalState = clusterService.state();
+
+        //import an index with minor version incremented by one over cluster master version, it should be ignored
+        final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
+        final Settings idxSettingsLater = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
+                                                                Version.fromId(Version.CURRENT.id + 10000))
+                                                            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                                                            .build();
+        final IndexMetaData indexMetaDataLater = new IndexMetaData.Builder(indexNameLater)
+                                                             .settings(idxSettingsLater)
+                                                             .numberOfShards(1)
+                                                             .numberOfReplicas(0)
+                                                             .build();
+        CountDownLatch latch = new CountDownLatch(1);
+        dangling.allocateDangled(Arrays.asList(indexMetaDataLater), ActionListener.wrap(latch::countDown));
+        latch.await();
+        assertThat(clusterService.state(), equalTo(originalState));
+    }
+
     /**
      * This test checks an edge case where, if a node had an index (lets call it A with UUID 1), then
      * deleted it (so a tombstone entry for A will exist in the cluster state), then created

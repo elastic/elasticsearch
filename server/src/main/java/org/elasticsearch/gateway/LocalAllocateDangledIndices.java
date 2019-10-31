@@ -117,6 +117,13 @@ public class LocalAllocateDangledIndices {
                                 minIndexCompatibilityVersion);
                             continue;
                         }
+                        if (currentState.nodes().getMinNodeVersion().before(indexMetaData.getCreationVersion())) {
+                            logger.warn("ignoring dangled index [{}] on node [{}]" +
+                                " since its created version [{}] is later than the oldest versioned node in the cluster [{}]",
+                                indexMetaData.getIndex(), request.fromNode, indexMetaData.getCreationVersion(),
+                                currentState.getNodes().getMasterNode().getVersion());
+                            continue;
+                        }
                         if (currentState.metaData().hasIndex(indexMetaData.getIndex().getName())) {
                             continue;
                         }

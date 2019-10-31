@@ -1,8 +1,6 @@
 [[release-notes-7.4.2]]
 == {es} version 7.4.2
 
-coming[7.4.2]
-
 [float]
 [[bug-7.4.2]]
 === Bug fixes

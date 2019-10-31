@@ -68,7 +68,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
             List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
             for (int j = 0; j < processorsSize; j++) {
                 String processorName = in.readString();
-                String processorType = null;
+                String processorType = "_NOT_AVAILABLE";
                 if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
                     processorType = in.readString();
                 }

@@ -24,7 +24,7 @@ public class DockerUtils {
 
     /**
      * Searches the entries in {@link #DOCKER_BINARIES} for the Docker CLI. This method does
-     * not check whether the Docker installation appears usable, see {@link #getDockerAvailability()}
+     * not check whether the Docker installation appears usable, see {@link #getDockerAvailability(Project)}
      * instead.
      *
      * @return the path to a CLI, if available.

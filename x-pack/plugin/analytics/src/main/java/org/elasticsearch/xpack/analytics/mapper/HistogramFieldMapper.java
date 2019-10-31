@@ -443,13 +443,11 @@ public class HistogramFieldMapper extends FieldMapper {
             }
 
         } catch (Exception ex) {
-            if (ignoreMalformed.value()) {
-                return;
+            if (ignoreMalformed.value() == false) {
+                throw new MapperParsingException("failed to parse field [{}] of type [{}]",
+                    ex, fieldType().name(), fieldType().typeName());
             }
-            throw new MapperParsingException("failed to parse field [{}] of type [{}]",
-                ex, fieldType().name(), fieldType().typeName());
         }
-
         context.path().remove();
     }
 

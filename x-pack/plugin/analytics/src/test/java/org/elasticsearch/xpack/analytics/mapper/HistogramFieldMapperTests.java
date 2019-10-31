@@ -136,6 +136,26 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause().getMessage(), containsString("expected field called [counts]"));
     }
 
+    public void testIgnoreMalformed() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
+            .field("ignore_malformed", true);
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("pre_aggregated").startObject()
+                .field("values", new double[] {2, 2})
+                .endObject()
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+    }
+
     public void testMissingFieldValues() throws Exception {
         ensureGreen();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")

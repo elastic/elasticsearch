@@ -152,6 +152,7 @@ public abstract class Terminal {
     }
 
     public void flush() {
+        this.getWriter().flush();
         this.getErrorWriter().flush();
     }
 

@@ -59,7 +59,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         with binFiles(distributionType, oss, jdk)
       }
       if (jdk) {
-        into("darwin".equals(platform) ? 'jdk.app' : 'jdk')
+        into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
           with jdkFiles(project, platform)
         }
       }

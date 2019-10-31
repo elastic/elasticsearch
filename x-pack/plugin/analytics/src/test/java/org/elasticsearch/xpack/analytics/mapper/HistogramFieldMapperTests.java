@@ -87,17 +87,33 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        SourceToParse source = new SourceToParse("test", "1",
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("pre_aggregated").startObject()
                 .field("values", new double[] {})
                 .field("counts", new int[] {})
                 .endObject()
                 .endObject()),
-            XContentType.JSON);
+            XContentType.JSON));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("arrays for values and counts cannot be empty"));
+        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+    }
+
+    public void testNullValue() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().nullField("pre_aggregated")
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
     }
 
     public void testMissingFieldCounts() throws Exception {

@@ -355,6 +355,10 @@ public class HistogramFieldMapper extends FieldMapper {
             DoubleArrayList values = null;
             IntArrayList counts = null;
             XContentParser.Token token = context.parser().currentToken();
+            if (token == XContentParser.Token.VALUE_NULL) {
+                context.path().remove();
+                return;
+            }
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
             token = context.parser().nextToken();
@@ -415,8 +419,8 @@ public class HistogramFieldMapper extends FieldMapper {
                     "[" + COUNTS_FIELD.getPreferredName() +"] but got [" + values.size() + " != " + counts.size() +"]");
             }
             if (values.size() == 0) {
-                throw new MapperParsingException("error parsing field ["
-                    + name() + "], arrays for values and counts cannot be empty");
+                context.path().remove();
+                return;
             }
             if (fieldType().hasDocValues()) {
                 BytesStreamOutput streamOutput = new BytesStreamOutput();

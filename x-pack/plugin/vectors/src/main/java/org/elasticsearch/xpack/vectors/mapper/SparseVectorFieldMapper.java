@@ -8,18 +8,13 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -27,14 +22,10 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A {@link FieldMapper} for indexing a sparse vector of floats.
@@ -80,7 +71,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+                throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
                 throw new IllegalArgumentException(ERROR_MESSAGE);
             } else {

@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import java.nio.ByteBuffer;
 
 public final class VectorEncoderDecoder {
-    static final byte INT_BYTES = 4;
+    public static final byte INT_BYTES = 4;
 
     private VectorEncoderDecoder() { }
 

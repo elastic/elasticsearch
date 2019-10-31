@@ -162,6 +162,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         Engine.GetResult get = indexShard.get(new Engine.Get(realtime, readFromTranslog, id, uidTerm)
             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
+        assert get.isFromTranslog() == false || readFromTranslog : "should only read from translog if explicitly enabled";
         if (get.exists() == false) {
             get.close();
         }
@@ -223,12 +224,22 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         if (!fetchSourceContext.fetchSource()) {
             source = null;
-        } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
+        }
+
+        if (source != null && get.isFromTranslog()) {
+            // reapply source filters from mapping (possibly also nulling the source)
+            try {
+                source = docMapper.sourceMapper().applyFilters(source, null);
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to reapply filters for [" + id + "] after reading from translog", e);
+            }
+        }
+
+        if (source != null && (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0)) {
             Map<String, Object> sourceAsMap;
-            XContentType sourceContentType = null;
             // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
             Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
-            sourceContentType = typeMapTuple.v1();
+            XContentType sourceContentType = typeMapTuple.v1();
             sourceAsMap = typeMapTuple.v2();
             sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
             try {

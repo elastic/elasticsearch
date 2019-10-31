@@ -462,10 +462,19 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Returns whether to preserve ILM Policies of this test. Defaults to not
-     * preserviing them. Only runs at all if xpack is installed on the cluster
+     * preserving them. Only runs at all if xpack is installed on the cluster
      * being tested.
      */
     protected boolean preserveILMPoliciesUponCompletion() {
+        return false;
+    }
+
+    /**
+     * Returns whether to preserve SLM Policies of this test. Defaults to not
+     * preserving them. Only runs at all if xpack is installed on the cluster
+     * being tested.
+     */
+    protected boolean preserveSLMPoliciesUponCompletion() {
         return false;
     }
 
@@ -485,8 +494,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             waitForPendingRollupTasks();
         }
 
-        // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
-        deleteAllSLMPolicies();
+        if (preserveSLMPoliciesUponCompletion() == false) {
+            // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
+            deleteAllSLMPolicies();
+        }
 
         SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
         if (waitForAllSnapshotsWiped()) {

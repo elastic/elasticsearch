@@ -279,9 +279,9 @@ public class SecurityIndexManager implements ClusterStateListener {
         Set<Version> versions = new HashSet<>();
         IndexMetaData indexMetaData = resolveConcreteIndex(aliasName, clusterState.metaData());
         if (indexMetaData != null) {
-            for (Object object : indexMetaData.getMappings().values().toArray()) {
-                MappingMetaData mappingMetaData = (MappingMetaData) object;
-                versions.add(readMappingVersion(aliasName, mappingMetaData, logger));
+            MappingMetaData mmd = indexMetaData.mapping();
+            if (mmd != null) {
+                versions.add(readMappingVersion(aliasName, mmd, logger));
             }
         }
         return versions;

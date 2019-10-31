@@ -30,6 +30,11 @@
       "realm_name":{
         "type":"string",
         "description":"realm name of the user who created this API key to be retrieved"
+      },
+      "owner": {
+        "type":"boolean",
+        "default": false,
+        "description":"flag to query API keys owned by the currently authenticated user"
       }
     }
   }

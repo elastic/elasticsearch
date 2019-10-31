@@ -19,6 +19,7 @@
 
 
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 
 import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
@@ -48,7 +49,7 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
 task azureStorageFixture(type: AntFixture) {
     dependsOn testClasses
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    executable = new File(project.runtimeJavaHome, 'bin/java')
+    executable = "${BuildParams.runtimeJavaHome}/bin/java"
     args 'org.elasticsearch.repositories.azure.AzureStorageFixture', baseDir, azureContainer
 }
 
@@ -82,7 +83,7 @@ testClusters.integTest {
         // in a hacky way to change the protocol and endpoint. We must fix that.
         setting 'azure.client.integration_test.endpoint_suffix',
                 { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${azureStorageFixture.addressAndPort }" }, IGNORE_VALUE
-        String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
+        String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
         setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
     }
 }

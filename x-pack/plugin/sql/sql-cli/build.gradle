@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
  * group and it'd be super confusing for it to just be called "cli" there.
@@ -63,7 +65,7 @@ task runcli {
     description = 'Run the CLI and connect to elasticsearch running on 9200'
     dependsOn shadowJar
     doLast {
-        List command = [new File(project.runtimeJavaHome, 'bin/java').absolutePath]
+        List command = ["${BuildParams.runtimeJavaHome}/bin/java"]
         if ('true'.equals(System.getProperty('debug', 'false'))) {
         command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
         }

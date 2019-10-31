@@ -1,7 +1,8 @@
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin 
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -25,9 +26,9 @@ ext.expansions = { oss, local ->
   final String classifier = 'linux-x86_64'            
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
-    'build_date'          : project.ext.buildDate,
+    'build_date'          : BuildParams.buildDate,
     'elasticsearch'       : elasticsearch,
-    'git_revision'        : project.ext.gitRevision,
+    'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
     'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch

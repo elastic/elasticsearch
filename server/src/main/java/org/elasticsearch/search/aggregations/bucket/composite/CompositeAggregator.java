@@ -191,7 +191,7 @@ final class CompositeAggregator extends BucketsAggregator {
     }
 
     /**
-     * Returns the {@link Sort} prefix that that is eligible to index sort
+     * Returns the {@link Sort} prefix that is eligible to index sort
      * optimization and null if index sort is not applicable.
      */
     private Sort buildIndexSortPrefix(LeafReaderContext context) throws IOException {

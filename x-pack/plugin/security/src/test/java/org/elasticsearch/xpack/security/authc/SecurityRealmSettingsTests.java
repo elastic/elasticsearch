@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -128,7 +127,6 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
     }
 
     public void testClusterStarted() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44942", Constants.WINDOWS);
         final AuthenticateRequest request = new AuthenticateRequest();
         request.username(nodeClientUsername());
         final AuthenticateResponse authenticate = client().execute(AuthenticateAction.INSTANCE, request).actionGet(10, TimeUnit.SECONDS);

@@ -316,18 +316,13 @@ public class InternalEngine extends Engine {
     private static final class ExternalReaderManager extends ReferenceManager<ElasticsearchDirectoryReader> {
         private final BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener;
         private final ElasticsearchReaderManager internalReaderManager;
+        private boolean isWarmedUp; //guarded by refreshLock
 
         ExternalReaderManager(ElasticsearchReaderManager internalReaderManager,
                               BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener) throws IOException {
             this.refreshListener = refreshListener;
             this.internalReaderManager = internalReaderManager;
-            ElasticsearchDirectoryReader acquire = internalReaderManager.acquire();
-            try {
-                incrementAndNotify(acquire, null);
-                current = acquire;
-            } finally {
-                internalReaderManager.release(acquire);
-            }
+            this.current = internalReaderManager.acquire(); // steal the reference without warming up
         }
 
         @Override
@@ -336,26 +331,25 @@ public class InternalEngine extends Engine {
             // it's a save operation since we acquire the reader which incs it's reference but then down the road
             // steal it by calling incRef on the "stolen" reader
             internalReaderManager.maybeRefreshBlocking();
-            ElasticsearchDirectoryReader acquire = internalReaderManager.acquire();
-            try {
-                if (acquire == referenceToRefresh) {
-                    // nothing has changed - both ref managers share the same instance so we can use reference equality
-                    return null;
-                } else {
-                    incrementAndNotify(acquire, referenceToRefresh);
-                    return acquire;
+            final ElasticsearchDirectoryReader newReader = internalReaderManager.acquire();
+            if (isWarmedUp == false || newReader != referenceToRefresh) {
+                boolean success = false;
+                try {
+                    refreshListener.accept(newReader, isWarmedUp ? referenceToRefresh : null);
+                    isWarmedUp = true;
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        internalReaderManager.release(newReader);
+                    }
                 }
-            } finally {
-                internalReaderManager.release(acquire);
             }
-        }
-
-        private void incrementAndNotify(ElasticsearchDirectoryReader reader,
-                                            ElasticsearchDirectoryReader previousReader) throws IOException {
-            reader.incRef(); // steal the reference
-            try (Closeable c = reader::decRef) {
-                refreshListener.accept(reader, previousReader);
-                reader.incRef(); // double inc-ref if we were successful
+            // nothing has changed - both ref managers share the same instance so we can use reference equality
+            if (referenceToRefresh == newReader) {
+                internalReaderManager.release(newReader);
+                return null;
+            } else {
+                return newReader; // steal the reference
             }
         }
 
@@ -370,7 +364,24 @@ public class InternalEngine extends Engine {
         }
 
         @Override
-        protected void decRef(ElasticsearchDirectoryReader reference) throws IOException { reference.decRef(); }
+        protected void decRef(ElasticsearchDirectoryReader reference) throws IOException {
+            reference.decRef();
+        }
+    }
+
+    @Override
+    final boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
+        if (scope == SearcherScope.EXTERNAL) {
+            switch (source) {
+                // we can access segment_stats while a shard is still in the recovering state.
+                case "segments":
+                case "segments_stats":
+                    break;
+                default:
+                    assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
+            }
+        }
+        return true;
     }
 
     @Override

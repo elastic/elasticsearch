@@ -154,15 +154,15 @@ void addBuildDockerImage(final boolean oss, final boolean ubi) {
     List<String> tags
     if (oss) {
       tags = [ 
-        "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}",
-        "elasticsearch-oss:test${ubi ? '-ubi7' : ''}"
+        "docker.elastic.co/elasticsearch/elasticsearch-oss${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "elasticsearch-oss${ubi ? '-ubi7' : ''}:test"
       ]
     } else {
       tags = [
-        "elasticsearch:${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}",
-        "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}${ubi ? '-ubi7' : ''}",
-        "elasticsearch:test${ubi ? '-ubi7' : ''}",
+        "elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}-full:${VersionProperties.elasticsearch}",
+        "elasticsearch${ubi ? '-ubi7' : ''}:test",
       ]
     }
     executable 'docker'

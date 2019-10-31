@@ -111,9 +111,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
         nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
-        systemProperty 'tests.rest.blacklist', [
-                'mixed_cluster/70_ilm/Test Set Policy On Index'
-        ].join(',')
     }
 
     tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
@@ -136,8 +133,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
                 'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
                 'mixed_cluster/80_data_frame_jobs_crud/Test put batch data frame transforms on mixed cluster',
                 'mixed_cluster/80_data_frame_jobs_crud/Test put continuous data frame transform on mixed cluster',
-                'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
-                'mixed_cluster/70_ilm/Test Set Policy On Index'
+                'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster'
         ].join(',')
     }
 
@@ -152,9 +148,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.suite', 'mixed_cluster'
         systemProperty 'tests.first_round', 'false'
         systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-        systemProperty 'tests.rest.blacklist', [
-                'mixed_cluster/70_ilm/Test Set Policy On Index'
-        ].join(',')
     }
 
     tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
@@ -167,9 +160,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
         systemProperty 'tests.rest.suite', 'upgraded_cluster'
         systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-        systemProperty 'tests.rest.blacklist', [
-                'mixed_cluster/70_ilm/Test Set Policy On Index'
-        ].join(',')
     }
 
     tasks.register("${baseName}#bwcTest") {

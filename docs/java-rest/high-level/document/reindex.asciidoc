@@ -122,7 +122,7 @@ include-tagged::{doc-tests-file}[{api}-request-remote]
 <1> set remote elastic cluster
 
 +{request}+ also helps in automatically parallelizing using `sliced-scroll` to
-slice on `_uid`. Use `setSlices` to specify the number of slices to use.
+slice on `_id`. Use `setSlices` to specify the number of slices to use.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

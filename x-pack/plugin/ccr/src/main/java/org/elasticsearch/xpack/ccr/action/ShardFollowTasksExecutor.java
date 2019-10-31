@@ -143,14 +143,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                 CcrRequests.getIndexMetadata(remoteClient, leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
                     indexMetaData -> {
-                        if (indexMetaData.getMappings().isEmpty()) {
+                        if (indexMetaData.mapping() == null) {
                             assert indexMetaData.getMappingVersion() == 1;
                             handler.accept(indexMetaData.getMappingVersion());
                             return;
                         }
-                        assert indexMetaData.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
-                            indexMetaData.getMappings().size() + "]";
-                        MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
+                        MappingMetaData mappingMetaData = indexMetaData.mapping();
                         PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
                         followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
                             putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),

@@ -22,6 +22,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,12 +49,6 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
                 }
             }
         }
-    }
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        // In order to avoid monitoring from failing exporting docs to monitor index.
-        return true;
     }
 
     private void setupGenericLifecycleTest(boolean deletePipeilne) throws Exception {
@@ -106,7 +101,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testBasicFlow() throws Exception {
         setupGenericLifecycleTest(true);
-//        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
     }
 
     public void testImmutablePolicy() throws IOException {

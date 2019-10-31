@@ -67,7 +67,7 @@ public abstract class NamedExpression extends Expression {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, synthetic);
+        return Objects.hash(super.hashCode(), name, synthetic);
     }
 
     @Override
@@ -81,7 +81,6 @@ public abstract class NamedExpression extends Expression {
 
         NamedExpression other = (NamedExpression) obj;
         return Objects.equals(synthetic, other.synthetic)
-                && Objects.equals(id, other.id)
                 /*
                  * It is important that the line below be `name`
                  * and not `name()` because subclasses might override

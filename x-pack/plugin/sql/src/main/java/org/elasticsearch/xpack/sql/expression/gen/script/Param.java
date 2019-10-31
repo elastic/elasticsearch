@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.expression.gen.script;
 
+import java.util.Objects;
+
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 abstract class Param<T> {
@@ -23,5 +25,25 @@ abstract class Param<T> {
     @Override
     public String toString() {
         return format(null, "{{}={}}", prefix(), value);
+    }
+
+
+    @Override
+    public int hashCode() {
+        if (this.value == null) {
+            return Objects.hashCode(null);
+        }
+        return this.value.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if ((obj instanceof  Param) == false) {
+            return false;
+        }
+        if (this.value == null) {
+            return ((Param)obj).value == null;
+        }
+        return this.value.equals(((Param)obj).value);
     }
 }

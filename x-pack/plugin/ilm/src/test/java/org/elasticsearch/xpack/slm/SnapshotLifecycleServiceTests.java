@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -133,6 +134,13 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             // Since the service is stopped, jobs should have been cancelled
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
 
+            // No jobs should be scheduled when service is closed
+            state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats()));
+            sls.close();
+            sls.onMaster();
+            sls.clusterChanged(new ClusterChangedEvent("1", state, emptyState));
+            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
+
             threadPool.shutdownNow();
         }
     }
@@ -141,7 +149,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
      * Test new policies getting scheduled correctly, updated policies also being scheduled,
      * and deleted policies having their schedules cancelled.
      */
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/44997")
+    @TestIssueLogging(value = "org.elasticsearch.xpack.slm:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/44997")
     public void testPolicyCRUD() throws Exception {
         ClockMock clock = new ClockMock();
         final AtomicInteger triggerCount = new AtomicInteger(0);
@@ -311,7 +319,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
         @Override
         public void triggered(SchedulerEngine.Event event) {
-            logger.info("--> fake snapshot task triggered");
+            logger.info("--> fake snapshot task triggered: {}", event);
             onTriggered.accept(event);
         }
     }

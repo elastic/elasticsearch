@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
@@ -23,6 +24,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -33,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -113,12 +116,15 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             enrichKeys.add(randomAlphaOfLength(10));
         }
-        return new EnrichPolicy(MATCH_TYPE, null, List.of(randomAlphaOfLength(10)), randomAlphaOfLength(10), enrichKeys);
+        String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        return new EnrichPolicy(MATCH_TYPE, null, List.of(sourceIndex), randomAlphaOfLength(10), enrichKeys);
     }
 
     private void addPolicy(String policyName, EnrichPolicy policy) throws InterruptedException {
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        createSourceIndices(client(), policy);
         doSyncronously((clusterService, exceptionConsumer) ->
-            EnrichStore.putPolicy(policyName, policy, clusterService, exceptionConsumer));
+            EnrichStore.putPolicy(policyName, policy, clusterService, resolver, exceptionConsumer));
     }
 
     private void removePolicy(String policyName) throws InterruptedException {

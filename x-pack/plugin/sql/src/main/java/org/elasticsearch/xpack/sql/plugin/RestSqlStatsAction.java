@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,13 +17,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSqlStatsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlStatsAction.class));
-
     protected RestSqlStatsAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, Protocol.SQL_STATS_REST_ENDPOINT, this,
-                GET, Protocol.SQL_STATS_DEPRECATED_REST_ENDPOINT, deprecationLogger);
+        controller.registerHandler(GET, Protocol.SQL_STATS_REST_ENDPOINT, this);
     }
 
     @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -296,6 +297,24 @@ public class DiskThresholdSettings {
 
     public TimeValue getRerouteInterval() {
         return rerouteInterval;
+    }
+
+    String describeLowThreshold() {
+        return freeBytesThresholdLow.equals(ByteSizeValue.ZERO)
+            ? Strings.format1Decimals(100.0 - freeDiskThresholdLow, "%")
+            : freeBytesThresholdLow.toString();
+    }
+
+    String describeHighThreshold() {
+        return freeBytesThresholdHigh.equals(ByteSizeValue.ZERO)
+            ? Strings.format1Decimals(100.0 - freeDiskThresholdHigh, "%")
+            : freeBytesThresholdHigh.toString();
+    }
+
+    String describeFloodStageThreshold() {
+        return freeBytesThresholdFloodStage.equals(ByteSizeValue.ZERO)
+            ? Strings.format1Decimals(100.0 - freeDiskThresholdFloodStage, "%")
+            : freeBytesThresholdFloodStage.toString();
     }
 
     /**

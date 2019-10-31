@@ -538,6 +538,14 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
     }
 
+    public Set<ScriptContextInfo> getContextInfos() {
+        Set<ScriptContextInfo> infos = new HashSet<ScriptContextInfo>(contexts.size());
+        for (ScriptContext<?> context : contexts.values()) {
+            infos.add(new ScriptContextInfo(context.name, context.instanceClazz));
+        }
+        return infos;
+    }
+
     public ScriptStats stats() {
         return scriptMetrics.stats();
     }

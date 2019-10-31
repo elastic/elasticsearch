@@ -805,11 +805,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
             new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, version, index);
         final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, recoverySource);
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repository.restoreShard(shard.store(),
-            snapshot.getSnapshotId(), version,
+            snapshot.getSnapshotId(),
             indexId,
             shard.shardId(),
-            shard.recoveryState());
+            shard.recoveryState(),
+            future);
+        future.actionGet();
     }
 
     /**
@@ -822,12 +825,13 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                    final Repository repository) throws IOException {
         final Index index = shard.shardId().getIndex();
         final IndexId indexId = new IndexId(index.getName(), index.getUUID());
-        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
+        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
+            repository.getRepositoryData().shardGenerations().getShardGen(indexId, shard.shardId().getId()));
         final PlainActionFuture<String> future = PlainActionFuture.newFuture();
         final String shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
-                indexCommitRef.getIndexCommit(), snapshotStatus, future);
+                indexCommitRef.getIndexCommit(), snapshotStatus, true, future);
             shardGen = future.actionGet();
         }
 

@@ -81,6 +81,9 @@ public class AnalyticsProcessManager {
                 return;
             }
 
+            // First we refresh the dest index to ensure data is searchable
+            refreshDest(config);
+
             ProcessContext processContext = new ProcessContext(config.getId());
             if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
                 finishHandler.accept(ExceptionsHelper.serverError("[" + processContext.id
@@ -147,10 +150,12 @@ public class AnalyticsProcessManager {
             refreshDest(config);
             LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
-            String errorMsg = new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage())
-                .getFormattedMessage();
-            LOGGER.error(errorMsg, e);
-            processContextByAllocation.get(task.getAllocationId()).setFailureReason(errorMsg);
+            if (task.isStopping() == false) {
+                String errorMsg = new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage())
+                    .getFormattedMessage();
+                LOGGER.error(errorMsg, e);
+                processContextByAllocation.get(task.getAllocationId()).setFailureReason(errorMsg);
+            }
         } finally {
             closeProcess(task);
 
@@ -361,7 +366,7 @@ public class AnalyticsProcessManager {
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
             resultProcessor = new AnalyticsResultProcessor(config, dataFrameRowsJoiner, this::isProcessKilled, task.getProgressTracker(),
-                trainedModelProvider, auditor);
+                trainedModelProvider, auditor, dataExtractor.getFieldNames());
             return true;
         }
 

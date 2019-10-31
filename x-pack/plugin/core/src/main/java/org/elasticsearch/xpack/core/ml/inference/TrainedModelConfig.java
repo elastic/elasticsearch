@@ -42,6 +42,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField DEFINITION = new ParseField("definition");
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
+    public static final ParseField INPUT = new ParseField("input");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -61,10 +62,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             ObjectParser.ValueType.VALUE);
         parser.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         parser.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
-        parser.declareObject(TrainedModelConfig.Builder::setDefinition,
-            (p, c) -> TrainedModelDefinition.fromXContent(p, ignoreUnknownFields),
-            DEFINITION);
         parser.declareString((trainedModelConfig, s) -> {}, InferenceIndexConstants.DOC_TYPE);
+        parser.declareObject(TrainedModelConfig.Builder::setInput,
+            (p, c) -> TrainedModelInput.fromXContent(p, ignoreUnknownFields),
+            INPUT);
         return parser;
     }
 
@@ -79,10 +80,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final Instant createTime;
     private final List<String> tags;
     private final Map<String, Object> metadata;
+    private final TrainedModelInput input;
 
-    // TODO how to reference and store large models that will not be executed in Java???
-    // Potentially allow this to be null and have an {index: indexName, doc: model_doc_id} or something
-    // TODO Should this be lazily parsed when loading via the index???
     private final TrainedModelDefinition definition;
 
     TrainedModelConfig(String modelId,
@@ -92,7 +91,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        Instant createTime,
                        TrainedModelDefinition definition,
                        List<String> tags,
-                       Map<String, Object> metadata) {
+                       Map<String, Object> metadata,
+                       TrainedModelInput input) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
@@ -101,6 +101,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.description = description;
         this.tags = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(tags, TAGS));
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
+        this.input = ExceptionsHelper.requireNonNull(input, INPUT);
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -112,6 +113,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         definition = in.readOptionalWriteable(TrainedModelDefinition::new);
         tags = Collections.unmodifiableList(in.readList(StreamInput::readString));
         metadata = in.readMap();
+        input = new TrainedModelInput(in);
     }
 
     public String getModelId() {
@@ -147,6 +149,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return definition;
     }
 
+    public TrainedModelInput getInput() {
+        return input;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -161,6 +167,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(definition);
         out.writeCollection(tags, StreamOutput::writeString);
         out.writeMap(metadata);
+        input.writeTo(out);
     }
 
     @Override
@@ -173,7 +180,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
-        if (definition != null) {
+
+        // We don't store the definition in the same document as the configuration
+        if ((params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) && definition != null) {
             builder.field(DEFINITION.getPreferredName(), definition);
         }
         builder.field(TAGS.getPreferredName(), tags);
@@ -183,6 +192,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
         }
+        builder.field(INPUT.getPreferredName(), input);
         builder.endObject();
         return builder;
     }
@@ -204,6 +214,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             Objects.equals(createTime, that.createTime) &&
             Objects.equals(definition, that.definition) &&
             Objects.equals(tags, that.tags) &&
+            Objects.equals(input, that.input) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -216,7 +227,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             definition,
             description,
             tags,
-            metadata);
+            metadata,
+            input);
     }
 
     public static class Builder {
@@ -228,6 +240,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Instant createTime;
         private List<String> tags = Collections.emptyList();
         private Map<String, Object> metadata;
+        private TrainedModelInput input;
         private TrainedModelDefinition definition;
 
         public Builder setModelId(String modelId) {
@@ -279,9 +292,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setInput(TrainedModelInput input) {
+            this.input = input;
+            return this;
+        }
+
         // TODO move to REST level instead of here in the builder
         public void validate() {
-            // We require a definition to be available until we support other means of supplying the definition
+            // We require a definition to be available here even though it will be stored in a different doc
             ExceptionsHelper.requireNonNull(definition, DEFINITION);
             ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
 
@@ -320,7 +338,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 createTime == null ? Instant.now() : createTime,
                 definition,
                 tags,
-                metadata);
+                metadata,
+                input);
         }
     }
+
 }

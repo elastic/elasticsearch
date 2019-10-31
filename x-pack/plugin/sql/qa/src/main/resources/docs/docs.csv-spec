@@ -2677,7 +2677,7 @@ SELECT DATETRUNC('quarters', CAST('2019-09-04' AS DATE)) AS quarter;
 
 truncateIntervalCenturies
 // tag::truncateIntervalCenturies
-SELECT DATETRUNC('centuries', INTERVAL '199-5' YEAR TO MONTH) AS centuries;
+SELECT DATE_TRUNC('centuries', INTERVAL '199-5' YEAR TO MONTH) AS centuries;
 
       centuries
 ------------------
@@ -2685,14 +2685,24 @@ SELECT DATETRUNC('centuries', INTERVAL '199-5' YEAR TO MONTH) AS centuries;
 // end::truncateIntervalCenturies
 ;
 
-truncateIntervalHours
-// tag::truncateIntervalHours
-SELECT DATETRUNC('hour', INTERVAL '17 22:13:12' DAY TO SECONDS) AS hour;
+truncateIntervalHour
+// tag::truncateIntervalHour
+SELECT DATE_TRUNC('hours', INTERVAL '17 22:13:12' DAY TO SECONDS) AS hour;
 
       hour
 ------------------
 +17 22:00:00.0
-// end::truncateIntervalHours
+// end::truncateIntervalHour
+;
+
+truncateIntervalDay
+// tag::truncateIntervalDay
+SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
+
+      day
+------------------
++19 00:00:00.0
+// end::truncateIntervalDay
 ;
 
 constantDayOfWeek

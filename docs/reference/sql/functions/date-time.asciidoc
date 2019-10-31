@@ -526,7 +526,7 @@ DATE_TRUNC(
 
 Truncate the date/datetime/interval to the specified unit by setting all fields that are less significant than the specified
 one to zero (or one, for day, day of week and month). If any of the two arguments is `null` a `null` is returned.
-If first argument is `week` and second argument is interval, `interval units week not supported because months usually have have fractional weeks` is returned.
+If first argument is `week` and second argument is an interval, an error is thrown since week unit for intervals is not supported because months usually have fractional weeks.
 
 [cols="^,^"]
 |===
@@ -576,6 +576,21 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateDecades]
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateQuarter]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalCenturies]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalHour]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalDay]
 --------------------------------------------------
 
 [[sql-functions-datetime-day]]

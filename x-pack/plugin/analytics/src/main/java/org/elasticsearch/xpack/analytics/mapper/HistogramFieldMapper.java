@@ -368,10 +368,19 @@ public class HistogramFieldMapper extends FieldMapper {
                     ensureExpectedToken(XContentParser.Token.START_ARRAY, token, context.parser()::getTokenLocation);
                     values = new DoubleArrayList();
                     token = context.parser().nextToken();
+                    double previousVal = -Double.MAX_VALUE;
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
                         ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
-                        values.add(context.parser().doubleValue());
+                        double val = context.parser().doubleValue();
+                        if (val < previousVal) {
+                            // values must be in increasing order
+                            throw new MapperParsingException("error parsing field ["
+                                + name() + "], ["+ COUNTS_FIELD + "] values must be in increasing order, got [" + val +
+                                "] but previous value was [" + previousVal +"]");
+                        }
+                        values.add(val);
+                        previousVal = val;
                         token = context.parser().nextToken();
                     }
                 } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {

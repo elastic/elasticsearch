@@ -288,6 +288,28 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause().getMessage(), containsString(" out of range of int"));
     }
 
+    public void testValuesNotInOrder() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        SourceToParse source = new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("pre_aggregated").startObject()
+                .field("counts", new long[] {2, 8, 4})
+                .field("values", new double[] {2 ,3 ,2})
+                .endObject()
+                .endObject()),
+            XContentType.JSON);
+
+        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString(" values must be in increasing order, " +
+            "got [2.0] but previous value was [3.0]"));
+    }
+
     public void testFieldNotObject() throws Exception {
         ensureGreen();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")

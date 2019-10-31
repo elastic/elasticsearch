@@ -32,8 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

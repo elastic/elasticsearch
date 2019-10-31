@@ -17,6 +17,7 @@ import org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin;
 
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -102,7 +103,7 @@ public class GCSCleanupTests extends AbstractCleanupTests {
 
     public void testNoCredentials() {
         expectThrows(() ->
-                        executeCommand(false, Map.of("base64_credentials", "")),
+                        executeCommand(false, Collections.singletonMap("base64_credentials", "")),
                 "base64_credentials option is required for cleaning up GCS repository");
     }
 

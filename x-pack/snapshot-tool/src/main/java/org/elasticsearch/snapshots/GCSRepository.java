@@ -171,7 +171,7 @@ public class GCSRepository extends AbstractRepository {
         final StorageBatch batch = storage.batch();
         for (BlobId blob : blobIdsToDelete) {
             batch.delete(blob).notify(
-                    new BatchResult.Callback<>() {
+                    new BatchResult.Callback<Boolean, StorageException>() {
                         @Override
                         public void success(Boolean result) {
                         }

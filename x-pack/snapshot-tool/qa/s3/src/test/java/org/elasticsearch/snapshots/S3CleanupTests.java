@@ -18,7 +18,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 
+import java.util.HashMap;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -111,26 +113,34 @@ public class S3CleanupTests extends AbstractCleanupTests {
     }
 
     public void testNoRegionNoEndpoint() {
+        Map<String, String> args = new HashMap<>();
+        args.put("region", "");
+        args.put("endpoint", "");
+
         expectThrows(() ->
-                        executeCommand(false, Map.of("region", "", "endpoint", "")),
+                        executeCommand(false, args),
                 "region or endpoint option is required for cleaning up S3 repository");
     }
 
     public void testRegionAndEndpointSpecified() {
+        Map<String, String> args = new HashMap<>();
+        args.put("region", "test_region");
+        args.put("endpoint", "test_endpoint");
+
         expectThrows(() ->
-                        executeCommand(false, Map.of("region", "test_region", "endpoint", "test_endpoint")),
+                        executeCommand(false, args),
                 "you must not specify both region and endpoint");
     }
 
     public void testNoAccessKey() {
         expectThrows(() ->
-                        executeCommand(false, Map.of("access_key", "")),
+                        executeCommand(false, Collections.singletonMap("access_key", "")),
                 "access_key option is required for cleaning up S3 repository");
     }
 
     public void testNoSecretKey() {
         expectThrows(() ->
-                        executeCommand(false, Map.of("secret_key", "")),
+                        executeCommand(false, Collections.singletonMap("secret_key", "")),
                 "secret_key option is required for cleaning up S3 repository");
     }
 }

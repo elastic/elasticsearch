@@ -207,8 +207,6 @@ public class TermVectorsFilter {
             while (termsEnum.next() != null) {
                 BytesRef termBytesRef = termsEnum.term();
                 boolean foundTerm = topLevelTermsEnum.seekExact(termBytesRef);
-                assert foundTerm : "Term: " + termBytesRef.utf8ToString() + " not found!";
-
                 Term term = new Term(fieldName, termBytesRef);
 
                 // remove noise words
@@ -218,8 +216,8 @@ public class TermVectorsFilter {
                 }
 
                 // now call on docFreq
-                long docFreq = getTermStatistics(topLevelTermsEnum, term).docFreq();
-                if (!isAccepted(docFreq)) {
+                long docFreq = foundTerm ? getTermStatistics(topLevelTermsEnum, term).docFreq() : 1;
+                if (isAccepted(docFreq) == false) {
                     continue;
                 }
 

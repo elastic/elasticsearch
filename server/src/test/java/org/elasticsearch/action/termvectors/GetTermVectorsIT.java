@@ -1075,6 +1075,56 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         }
     }
 
+    public void testArtificialWithUnknownTerms() throws IOException {
+        Settings.Builder settings = Settings.builder()
+            .put(indexSettings())
+            .put("index.number_of_shards", 1)
+            .put("index.analysis.analyzer", "standard");
+        assertAcked(prepareCreate("test")
+            .setSettings(settings)
+            .addMapping("type1", "field1", "type=text"));
+        ensureGreen();
+
+        client().prepareIndex().setIndex("test")
+            .setId("0")
+            .setSource("field1", "some text")
+            .get();
+        refresh("test");
+
+        // add some filtering
+        TermVectorsRequest.FilterSettings filterSettings = new TermVectorsRequest.FilterSettings();
+        filterSettings.minWordLength = 3;
+        TermVectorsResponse resp = client().prepareTermVectors()
+            .setIndex("test")
+            .setDoc(jsonBuilder()
+                .startObject()
+                .field("field1", "another text or so")
+                .endObject())
+            .setFieldStatistics(true)
+            .setTermStatistics(true)
+            .setFilterSettings(filterSettings)
+            .get();
+        assertThat(resp.isExists(), equalTo(true));
+
+        Terms terms = resp.getFields().terms("field1");
+        assertEquals(2, terms.getSumDocFreq());
+        assertEquals(2, terms.getSumTotalTermFreq());
+        TermsEnum termsEnum = terms.iterator();
+        while (termsEnum.next() != null) {
+            String term = termsEnum.term().utf8ToString();
+            switch (term) {
+                case "another":
+                    assertEquals(0, termsEnum.docFreq());
+                    break;
+                case "text":
+                    assertEquals(1, termsEnum.docFreq());
+                    break;
+                default:
+                    throw new AssertionError("unknown term:" + term);
+            }
+        }
+    }
+
     private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {
         final TermsEnum termsEnum = terms.iterator();
         List<String> bestTerms = new ArrayList<>();

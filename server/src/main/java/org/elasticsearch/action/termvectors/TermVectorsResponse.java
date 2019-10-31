@@ -240,8 +240,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         // boolean that says if these values actually were requested.
         // However, we can assume that they were not if the statistic values are
         // <= 0.
-        assert (((termIter.docFreq() > 0) && (termIter.totalTermFreq() > 0)) ||
-            ((termIter.docFreq() == -1) && (termIter.totalTermFreq() == -1)));
+        assert (((termIter.docFreq() >= 0) && (termIter.totalTermFreq() >= 0)) ||
+            ((termIter.docFreq() == 0) && (termIter.totalTermFreq() == 0)));
         int docFreq = termIter.docFreq();
         if (docFreq > 0) {
             builder.field(FieldStrings.DOC_FREQ, docFreq);

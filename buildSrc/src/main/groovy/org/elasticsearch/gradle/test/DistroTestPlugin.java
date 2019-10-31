@@ -351,7 +351,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     // All our Docker images include a bundled JDK so it doesn't make sense to test without one
-                    boolean skip = type == Type.DOCKER && runDockerTests == false && bundledJdk == false;
+                    boolean skip = type == Type.DOCKER && (runDockerTests == false || bundledJdk == false);
 
                     if (skip == false) {
                         addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);

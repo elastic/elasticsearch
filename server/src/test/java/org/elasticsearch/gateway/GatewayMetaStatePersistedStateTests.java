@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
@@ -95,7 +96,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             long currentTerm = gateway.getCurrentTerm();
             assertThat(currentTerm, equalTo(Manifest.empty().getCurrentTerm()));
         } finally {
-            close(gateway);
+            IOUtils.close(gateway);
         }
     }
 
@@ -111,7 +112,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 assertThat(gateway.getCurrentTerm(), equalTo(currentTerm));
             }
         } finally {
-            close(gateway);
+            IOUtils.close(gateway);
         }
     }
 
@@ -182,7 +183,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 assertClusterStateEqual(state, lastAcceptedState);
             }
         } finally {
-            close(gateway);
+            IOUtils.close(gateway);
         }
     }
 
@@ -211,7 +212,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             gateway = maybeNew(gateway);
             assertThat(gateway.getLastAcceptedState().metaData().index(indexName), equalTo(newIndexMetaData));
         } finally {
-            close(gateway);
+            IOUtils.close(gateway);
         }
     }
 
@@ -231,7 +232,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             assertThat(gateway.getCurrentTerm(), equalTo(currentTerm));
             assertThat(gateway.getLastAcceptedState().coordinationMetaData().term(), equalTo(term));
         } finally {
-            close(gateway);
+            IOUtils.close(gateway);
         }
     }
 
@@ -269,13 +270,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             gateway = maybeNew(gateway);
             assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());
         } finally {
-            close(gateway);
+            IOUtils.close(gateway);
         }
     }
 
-    private static void close(CoordinationState.PersistedState gateway) throws IOException {
-        if (gateway != null) {
-            gateway.close();
-        }
-    }
 }

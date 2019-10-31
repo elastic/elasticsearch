@@ -1,3 +1,13 @@
+[[release-notes-7.4.2]]
+== {es} version 7.4.2
+
+[float]
+[[bug-7.4.2]]
+=== Bug fixes
+
+Transform::
+* Prevent assignment if any node is older than 7.4 {pull}48055[#48055] (issue: {issue}48019[#48019])
+
 [[release-notes-7.4.1]]
 == {es} version 7.4.1
 
@@ -89,7 +99,6 @@ Store::
 * Allow truncation of clean translog {pull}47866[#47866]
 
 Transform::
-* Prevent assignment if any node is older than 7.4 {pull}48055[#48055] (issue: {issue}48019[#48019])
 * Fix bwc serialization with 7.3 {pull}48021[#48021]
 
 

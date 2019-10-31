@@ -65,7 +65,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
-                .setTrainedModel(buildClassification(true)))
+                .setTrainedModel(buildClassification(true))
+                .setModelId(modelId1))
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
             .build();
@@ -73,7 +74,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
             .setDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
-                .setTrainedModel(buildRegression()))
+                .setTrainedModel(buildRegression())
+                .setModelId(modelId2))
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
             .build();

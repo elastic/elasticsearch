@@ -41,7 +41,11 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         if (Strings.isNullOrEmpty(modelId)) {
             modelId = MetaData.ALL;
         }
-        GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(modelId);
+        boolean includeModelDefinition = restRequest.paramAsBoolean(
+            GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION.getPreferredName(),
+            false
+        );
+        GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(modelId, includeModelDefinition);
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                 restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));

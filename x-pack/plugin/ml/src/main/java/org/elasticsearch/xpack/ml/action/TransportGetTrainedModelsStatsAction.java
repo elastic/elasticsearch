@@ -11,37 +11,23 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -63,17 +49,20 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     private final Client client;
     private final ClusterService clusterService;
     private final IngestService ingestService;
+    private final TrainedModelProvider trainedModelProvider;
 
     @Inject
     public TransportGetTrainedModelsStatsAction(TransportService transportService,
                                                 ActionFilters actionFilters,
                                                 ClusterService clusterService,
                                                 IngestService ingestService,
+                                                TrainedModelProvider trainedModelProvider,
                                                 Client client) {
         super(GetTrainedModelsStatsAction.NAME, transportService, actionFilters, GetTrainedModelsStatsAction.Request::new);
         this.client = client;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
+        this.trainedModelProvider = trainedModelProvider;
     }
 
     @Override
@@ -105,7 +94,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             listener::onFailure
         );
 
-        expandIds(request, idsListener);
+        trainedModelProvider.expandIds(request.getResourceId(), request.isAllowNoResources(), request.getPageParams(), idsListener);
     }
 
     static Map<String, IngestStats> inferenceIngestStatsByPipelineId(NodesStatsResponse response,
@@ -122,91 +111,6 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         });
 
         return ingestStatsMap;
-    }
-
-
-    private void expandIds(GetTrainedModelsStatsAction.Request request, ActionListener<Tuple<Long, Set<String>>> idsListener) {
-        String[] tokens = Strings.tokenizeToStringArray(request.getResourceId(), ",");
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .sort(SortBuilders.fieldSort(request.getResourceIdField())
-                // If there are no resources, there might be no mapping for the id field.
-                // This makes sure we don't get an error if that happens.
-                .unmappedType("long"))
-            .query(buildQuery(tokens, request.getResourceIdField()));
-        if (request.getPageParams() != null) {
-            sourceBuilder.from(request.getPageParams().getFrom())
-                .size(request.getPageParams().getSize());
-        }
-        sourceBuilder.trackTotalHits(true)
-            // we only care about the item id's, there is no need to load large model definitions.
-            .fetchSource(TrainedModelConfig.MODEL_ID.getPreferredName(), null);
-
-        IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
-        SearchRequest searchRequest = new SearchRequest(InferenceIndexConstants.INDEX_PATTERN)
-            .indicesOptions(IndicesOptions.fromOptions(true,
-                indicesOptions.allowNoIndices(),
-                indicesOptions.expandWildcardsOpen(),
-                indicesOptions.expandWildcardsClosed(),
-                indicesOptions))
-            .source(sourceBuilder);
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            ML_ORIGIN,
-            searchRequest,
-            ActionListener.<SearchResponse>wrap(
-                response -> {
-                    Set<String> foundResourceIds = new LinkedHashSet<>();
-                    long totalHitCount = response.getHits().getTotalHits().value;
-                    for (SearchHit hit : response.getHits().getHits()) {
-                        Map<String, Object> docSource = hit.getSourceAsMap();
-                        if (docSource == null) {
-                            continue;
-                        }
-                        Object idValue = docSource.get(TrainedModelConfig.MODEL_ID.getPreferredName());
-                        if (idValue instanceof String) {
-                            foundResourceIds.add(idValue.toString());
-                        }
-                    }
-                    ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, request.isAllowNoResources());
-                    requiredMatches.filterMatchedIds(foundResourceIds);
-                    if (requiredMatches.hasUnmatchedIds()) {
-                        idsListener.onFailure(ExceptionsHelper.missingTrainedModel(requiredMatches.unmatchedIdsString()));
-                    } else {
-                        idsListener.onResponse(Tuple.tuple(totalHitCount, foundResourceIds));
-                    }
-                },
-                idsListener::onFailure
-            ),
-            client::search);
-
-    }
-
-    private QueryBuilder buildQuery(String[] tokens, String resourceIdField) {
-        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelConfig.NAME));
-
-        if (Strings.isAllOrWildcard(tokens)) {
-            return boolQuery;
-        }
-        // If the resourceId is not _all or *, we should see if it is a comma delimited string with wild-cards
-        // e.g. id1,id2*,id3
-        BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
-        List<String> terms = new ArrayList<>();
-        for (String token : tokens) {
-            if (Regex.isSimpleMatchPattern(token)) {
-                shouldQueries.should(QueryBuilders.wildcardQuery(resourceIdField, token));
-            } else {
-                terms.add(token);
-            }
-        }
-        if (terms.isEmpty() == false) {
-            shouldQueries.should(QueryBuilders.termsQuery(resourceIdField, terms));
-        }
-
-        if (shouldQueries.should().isEmpty() == false) {
-            boolQuery.filter(shouldQueries);
-        }
-        return boolQuery;
     }
 
     static String[] ingestNodes(final ClusterState clusterState) {

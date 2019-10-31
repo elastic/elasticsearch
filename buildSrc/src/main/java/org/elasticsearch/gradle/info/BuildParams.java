@@ -163,6 +163,7 @@ public class BuildParams {
             BuildParams.testSeed = null;
             BuildParams.isCi = null;
             BuildParams.isInternal = null;
+            BuildParams.defaultParallel = null;
         }
 
         public void setCompilerJavaHome(File compilerJavaHome) {
@@ -217,8 +218,8 @@ public class BuildParams {
             BuildParams.testSeed = requireNonNull(testSeed);
         }
 
-        public void setIsCi(Boolean isCi) {
-            BuildParams.isCi = requireNonNull(isCi);
+        public void setIsCi(boolean isCi) {
+            BuildParams.isCi = isCi;
         }
 
         public void setIsInternal(Boolean isInternal) {

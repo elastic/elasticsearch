@@ -518,10 +518,14 @@ public class OpenIdConnectAuthenticator {
             if (RestStatus.OK != responseStatus) {
                 final String json = EntityUtils.toString(entity, encoding);
                 LOGGER.warn("Received Token Response from OP with status [{}] and content [{}]", responseStatus, json);
-                final TokenErrorResponse tokenErrorResponse = TokenErrorResponse.parse(JSONObjectUtils.parse(json));
-                tokensListener.onFailure(
-                    new ElasticsearchSecurityException("Failed to exchange code for Id Token. Code=[{}], Description=[{}]",
-                        tokenErrorResponse.getErrorObject().getCode(), tokenErrorResponse.getErrorObject().getDescription()));
+                if (RestStatus.BAD_REQUEST == responseStatus) {
+                    final TokenErrorResponse tokenErrorResponse = TokenErrorResponse.parse(JSONObjectUtils.parse(json));
+                    tokensListener.onFailure(
+                        new ElasticsearchSecurityException("Failed to exchange code for Id Token. Code=[{}], Description=[{}]",
+                            tokenErrorResponse.getErrorObject().getCode(), tokenErrorResponse.getErrorObject().getDescription()));
+                } else {
+                    tokensListener.onFailure(new ElasticsearchSecurityException("Failed to exchange code for Id Token"));
+                }
             } else {
                 final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(
                     JSONObjectUtils.parse(EntityUtils.toString(entity, encoding)));

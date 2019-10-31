@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -12,6 +13,8 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
@@ -22,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodin
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,27 +35,21 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 
 public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<TrainedModelDefinition> {
 
-    private boolean lenient;
-
-    @Before
-    public void chooseStrictOrLenient() {
-        lenient = randomBoolean();
-    }
-
     @Override
     protected TrainedModelDefinition doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelDefinition.fromXContent(parser, lenient).build();
+        return TrainedModelDefinition.fromXContent(parser, true).build();
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return lenient;
+        return true;
     }
 
     @Override
@@ -63,7 +59,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
 
     @Override
     protected ToXContent.Params getToXContentParams() {
-        return lenient ? ToXContent.EMPTY_PARAMS : new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true"));
+        return new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true"));
     }
 
     @Override
@@ -286,9 +282,27 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         assertThat(definition.getTrainedModel().getClass(), equalTo(Tree.class));
     }
 
+    public void testStrictParser() throws IOException {
+        TrainedModelDefinition.Builder builder = createRandomBuilder("asdf");
+        BytesReference reference = XContentHelper.toXContent(builder.build(),
+            XContentType.JSON,
+            new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true")),
+            false);
+
+        XContentParser parser = XContentHelper.createParser(xContentRegistry(),
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            reference,
+            XContentType.JSON);
+
+        XContentParseException exception = expectThrows(XContentParseException.class,
+            () -> TrainedModelDefinition.fromXContent(parser, false));
+
+        assertThat(exception.getMessage(), containsString("[trained_model_definition] unknown field [doc_type]"));
+    }
+
     @Override
     protected TrainedModelDefinition createTestInstance() {
-        return createRandomBuilder(lenient ? null : randomAlphaOfLength(10)).build();
+        return createRandomBuilder(randomAlphaOfLength(10)).build();
     }
 
     @Override

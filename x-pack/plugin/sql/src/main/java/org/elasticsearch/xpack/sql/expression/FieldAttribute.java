@@ -103,11 +103,6 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    protected Expression canonicalize() {
-        return new FieldAttribute(source(), null, "<none>", field, null, Nullability.TRUE, id(), false);
-    }
-
-    @Override
     protected Attribute clone(Source source, String name, DataType type, String qualifier,
             Nullability nullability, ExpressionId id, boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;

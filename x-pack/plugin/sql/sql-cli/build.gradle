@@ -27,7 +27,7 @@ dependencies {
     compile xpackProject('plugin:sql:sql-client')
     compile xpackProject('plugin:sql:sql-action')    
     compile project(":libs:elasticsearch-cli")
-
+    compile project(':libs:elasticsearch-x-content')
     runtime "org.elasticsearch:jna:${versions.jna}"
     testCompile project(":test:framework")
 }

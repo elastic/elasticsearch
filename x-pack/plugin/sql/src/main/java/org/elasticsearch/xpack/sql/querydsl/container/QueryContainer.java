@@ -38,6 +38,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -70,7 +71,7 @@ public class QueryContainer {
     private final List<Tuple<FieldExtraction, ExpressionId>> fields;
 
     // aliases (maps an alias to its actual resolved attribute)
-    private final AttributeMap<Attribute> aliases;
+    private final Map<ExpressionId, Attribute> aliases;
 
     // pseudo functions (like count) - that are 'extracted' from other aggs
     private final Map<String, GroupByKey> pseudoFunctions;
@@ -96,7 +97,7 @@ public class QueryContainer {
             Aggs aggs,
             List<Tuple<FieldExtraction,
             ExpressionId>> fields,
-            AttributeMap<Attribute> aliases,
+            Map<ExpressionId, Attribute> aliases,
             Map<String, GroupByKey> pseudoFunctions,
             AttributeMap<Pipe> scalarFunctions,
             Set<Sort> sort,
@@ -106,7 +107,7 @@ public class QueryContainer {
         this.query = query;
         this.aggs = aggs == null ? Aggs.EMPTY : aggs;
         this.fields = fields == null || fields.isEmpty() ? emptyList() : fields;
-        this.aliases = aliases == null || aliases.isEmpty() ? AttributeMap.emptyAttributeMap() : aliases;
+        this.aliases = aliases == null || aliases.isEmpty() ? Collections.emptyMap() : aliases;
         this.pseudoFunctions = pseudoFunctions == null || pseudoFunctions.isEmpty() ? emptyMap() : pseudoFunctions;
         this.scalarFunctions = scalarFunctions == null || scalarFunctions.isEmpty() ? AttributeMap.emptyAttributeMap() : scalarFunctions;
         this.sort = sort == null || sort.isEmpty() ? emptySet() : sort;
@@ -130,14 +131,14 @@ public class QueryContainer {
         boolean aggSort = false;
         for (Sort s : sort) {
             Tuple<Integer, Comparator> tuple = new Tuple<>(Integer.valueOf(-1), null);
-            
+
             if (s instanceof AttributeSort) {
                 AttributeSort as = (AttributeSort) s;
                 // find the relevant column of each aggregate function
                 if (as.attribute() instanceof AggregateFunctionAttribute) {
                     aggSort = true;
                     AggregateFunctionAttribute afa = (AggregateFunctionAttribute) as.attribute();
-                    afa = (AggregateFunctionAttribute) aliases.getOrDefault(afa, afa);
+                    afa = (AggregateFunctionAttribute) aliases.getOrDefault(afa.innerId(), afa);
                     int atIndex = -1;
                     for (int i = 0; i < fields.size(); i++) {
                         Tuple<FieldExtraction, ExpressionId> field = fields.get(i);
@@ -159,7 +160,7 @@ public class QueryContainer {
             }
             sortingColumns.add(tuple);
         }
-        
+
         if (customSort == null) {
             customSort = Boolean.valueOf(aggSort);
         }
@@ -175,7 +176,7 @@ public class QueryContainer {
     public BitSet columnMask(List<Attribute> columns) {
         BitSet mask = new BitSet(fields.size());
         for (Attribute column : columns) {
-            Attribute alias = aliases.get(column);
+            Attribute alias = aliases.get(column.id());
             // find the column index
             int index = -1;
 
@@ -213,7 +214,7 @@ public class QueryContainer {
         return fields;
     }
 
-    public AttributeMap<Attribute> aliases() {
+    public Map<ExpressionId, Attribute> aliases() {
         return aliases;
     }
 
@@ -257,7 +258,7 @@ public class QueryContainer {
         return new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
     }
 
-    public QueryContainer withAliases(AttributeMap<Attribute> a) {
+    public QueryContainer withAliases(Map<ExpressionId, Attribute> a) {
         return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
     }
 
@@ -295,7 +296,7 @@ public class QueryContainer {
     }
 
     private String aliasName(Attribute attr) {
-        return aliases.getOrDefault(attr, attr).name();
+        return aliases.getOrDefault(attr.id(), attr).name();
     }
 
     //
@@ -305,7 +306,7 @@ public class QueryContainer {
         FieldAttribute actualField = fieldAttr;
         FieldAttribute rootField = fieldAttr;
         StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-        
+
         // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
         // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
         // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
@@ -379,7 +380,7 @@ public class QueryContainer {
 
     // replace function/operators's input with references
     private Tuple<QueryContainer, FieldExtraction> resolvedTreeComputingRef(ScalarFunctionAttribute ta) {
-        Attribute attribute = aliases.getOrDefault(ta, ta);
+        Attribute attribute = aliases.getOrDefault(ta.id(), ta);
         Pipe proc = scalarFunctions.get(attribute);
 
         // check the attribute itself
@@ -401,7 +402,7 @@ public class QueryContainer {
 
             @Override
             public FieldExtraction resolve(Attribute attribute) {
-                Attribute attr = aliases.getOrDefault(attribute, attribute);
+                Attribute attr = aliases.getOrDefault(attribute.id(), attribute);
                 Tuple<QueryContainer, FieldExtraction> ref = container.toReference(attr);
                 container = ref.v1();
                 return ref.v2();
@@ -468,8 +469,8 @@ public class QueryContainer {
         return with(aggs.addGroups(values));
     }
 
-    public GroupByKey findGroupForAgg(String aggId) {
-        return aggs.findGroupForAgg(aggId);
+    public GroupByKey findGroupForAgg(Attribute attr) {
+        return aggs.findGroupForAgg(attr);
     }
 
     public QueryContainer updateGroup(GroupByKey group) {

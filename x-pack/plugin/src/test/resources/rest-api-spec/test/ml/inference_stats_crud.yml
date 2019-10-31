@@ -207,10 +207,12 @@ setup:
         failed: 0
         processors:
           - inference:
-              count: 0
-              time_in_millis: 0
-              current: 0
-              failed: 0
+              type: inference
+              stats:
+                count: 0
+                time_in_millis: 0
+                current: 0
+                failed: 0
 
   - match:
       trained_model_stats.0.ingest.pipelines.regression-model-pipeline-1:
@@ -220,7 +222,9 @@ setup:
         failed: 0
         processors:
           - inference:
-              count: 0
-              time_in_millis: 0
-              current: 0
-              failed: 0
+              type: inference
+              stats:
+                count: 0
+                time_in_millis: 0
+                current: 0
+                failed: 0

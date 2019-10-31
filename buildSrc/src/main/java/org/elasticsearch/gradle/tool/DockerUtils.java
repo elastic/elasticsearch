@@ -205,9 +205,8 @@ public class DockerUtils {
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
 
         final ExecResult execResult = project.exec(spec -> {
-            // javac advises casting to Object to specify the varargs method,
-            // and silences a warning.
-            spec.setCommandLine((Object) args);
+            // The redundant cast is to silence a compiler warning.
+            spec.setCommandLine((Object[]) args);
             spec.setStandardOutput(stdout);
             spec.setErrorOutput(stderr);
         });

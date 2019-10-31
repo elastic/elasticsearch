@@ -9,17 +9,20 @@ import org.elasticsearch.search.SearchHit;
 
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
 
 public class TimeField extends AbstractField {
 
     static final String TYPE = "date";
+
+    private static final Set<String> TYPES = Collections.singleton(TYPE);
 
     private static final String EPOCH_MILLIS_FORMAT = "epoch_millis";
 
     private final Method method;
 
     public TimeField(String name, Method method) {
-        super(name, Collections.singleton(TYPE));
+        super(name, TYPES);
         if (method == Method.SOURCE) {
             throw new IllegalArgumentException("time field [" + name + "] cannot be extracted from source");
         }

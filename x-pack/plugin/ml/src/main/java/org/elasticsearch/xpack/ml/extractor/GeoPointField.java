@@ -9,13 +9,16 @@ import org.elasticsearch.search.SearchHit;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Set;
 
 public class GeoPointField extends DocValueField {
 
     static final String TYPE = "geo_point";
 
+    private static final Set<String> TYPES = Collections.singleton(TYPE);
+
     public GeoPointField(String name) {
-        super(name, Collections.singleton(TYPE));
+        super(name, TYPES);
     }
 
     @Override

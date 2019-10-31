@@ -19,15 +19,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public class GeoShapeField extends SourceField {
 
     static final String TYPE = "geo_shape";
 
+    private static final Set<String> TYPES = Collections.singleton(TYPE);
+
     private static final WellKnownText wkt = new WellKnownText(true, new StandardValidator(true));
 
     public GeoShapeField(String name) {
-        super(name, Collections.singleton(TYPE));
+        super(name, TYPES);
     }
 
     @Override

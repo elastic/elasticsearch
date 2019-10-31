@@ -155,11 +155,13 @@ public class ExtractedFields {
      */
     private static final class BooleanMapper<T> extends DocValueField {
 
+        private static final Set<String> TYPES = Collections.singleton(BooleanFieldMapper.CONTENT_TYPE);
+
         private final T trueValue;
         private final T falseValue;
 
         BooleanMapper(ExtractedField field, T trueValue, T falseValue) {
-            super(field.getName(), Collections.singleton(BooleanFieldMapper.CONTENT_TYPE));
+            super(field.getName(), TYPES);
             if (field.getMethod() != Method.DOC_VALUE || field.getTypes().contains(BooleanFieldMapper.CONTENT_TYPE) == false) {
                 throw new IllegalArgumentException("cannot apply boolean mapping to field [" + field.getName() + "]");
             }

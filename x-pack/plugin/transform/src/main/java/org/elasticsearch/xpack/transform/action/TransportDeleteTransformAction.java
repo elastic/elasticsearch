@@ -92,7 +92,7 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
                 executeAsyncWithOrigin(client,
                     TRANSFORM_ORIGIN,
                     StopTransformAction.INSTANCE,
-                    new StopTransformAction.Request(request.getId(), true, true, null, true),
+                    new StopTransformAction.Request(request.getId(), true, true, null, true, false),
                     ActionListener.wrap(
                         r -> stopTransformActionListener.onResponse(null),
                         stopTransformActionListener::onFailure));

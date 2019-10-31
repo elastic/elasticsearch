@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  */
 public class SnapshotLifecycleService implements LocalNodeMasterListener, Closeable, ClusterStateListener {
 
-    private static final Logger logger = LogManager.getLogger(SnapshotLifecycleMetadata.class);
+    private static final Logger logger = LogManager.getLogger(SnapshotLifecycleService.class);
     private static final String JOB_PATTERN_SUFFIX = "-\\d+$";
 
     private final SchedulerEngine scheduler;

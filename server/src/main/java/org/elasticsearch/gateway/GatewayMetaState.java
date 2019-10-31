@@ -47,6 +47,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -63,7 +64,7 @@ import java.util.function.UnaryOperator;
  * ClusterState#metaData()} because it might be stale or incomplete. Master-eligible nodes must perform an election to find a complete and
  * non-stale state, and master-ineligible nodes receive the real cluster state from the elected master after joining the cluster.
  */
-public class GatewayMetaState {
+public class GatewayMetaState implements Closeable {
     private static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
 
     // Set by calling start()
@@ -81,49 +82,46 @@ public class GatewayMetaState {
 
     public void start(Settings settings, TransportService transportService, ClusterService clusterService,
                       MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                      MetaDataUpgrader metaDataUpgrader) {
+                      MetaDataUpgrader metaDataUpgrader, LucenePersistedStateFactory lucenePersistedStateFactory) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
 
-        final Tuple<Manifest, ClusterState> manifestClusterStateTuple;
-        try {
-            upgradeMetaData(settings, metaStateService, metaDataIndexUpgradeService, metaDataUpgrader);
-            manifestClusterStateTuple = loadStateAndManifest(ClusterName.CLUSTER_NAME_SETTING.get(settings), metaStateService);
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to load metadata", e);
+        if (DiscoveryNode.isMasterNode(settings)) {
+            try {
+                persistedState.set(lucenePersistedStateFactory.loadPersistedState((version, metadata) ->
+                    prepareInitialClusterState(transportService, clusterService,
+                        ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+                            .version(version)
+                            .metaData(upgradeMetaDataForMasterEligibleNode(metadata, metaDataIndexUpgradeService, metaDataUpgrader))
+                            .build())));
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to load metadata", e);
+            }
         }
 
-        final IncrementalClusterStateWriter incrementalClusterStateWriter
-            = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,
+        if (DiscoveryNode.isDataNode(settings)) {
+            final Tuple<Manifest, ClusterState> manifestClusterStateTuple;
+            try {
+                upgradeMetaData(settings, metaStateService, metaDataIndexUpgradeService, metaDataUpgrader);
+                manifestClusterStateTuple = loadStateAndManifest(ClusterName.CLUSTER_NAME_SETTING.get(settings), metaStateService);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to load metadata", e);
+            }
+
+            final IncrementalClusterStateWriter incrementalClusterStateWriter
+                = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,
                 manifestClusterStateTuple.v1(),
                 prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()),
                 transportService.getThreadPool()::relativeTimeInMillis);
-        if (DiscoveryNode.isMasterNode(settings) == false) {
-            if (DiscoveryNode.isDataNode(settings)) {
-                // Master-eligible nodes persist index metadata for all indices regardless of whether they hold any shards or not. It's
-                // vitally important to the safety of the cluster coordination system that master-eligible nodes persist this metadata when
-                // _accepting_ the cluster state (i.e. before it is committed). This persistence happens on the generic threadpool.
-                //
-                // In contrast, master-ineligible data nodes only persist the index metadata for shards that they hold. When all shards of
-                // an index are moved off such a node the IndicesStore is responsible for removing the corresponding index directory,
-                // including the metadata, and does so on the cluster applier thread.
-                //
-                // This presents a problem: if a shard is unassigned from a node and then reassigned back to it again then there is a race
-                // between the IndicesStore deleting the index folder and the CoordinationState concurrently trying to write the updated
-                // metadata into it. We could probably solve this with careful synchronization, but in fact there is no need.  The persisted
-                // state on master-ineligible data nodes is mostly ignored - it's only there to support dangling index imports, which is
-                // inherently unsafe anyway. Thus we can safely delay metadata writes on master-ineligible data nodes until applying the
-                // cluster state, which is what this does:
-                clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
-            }
 
-            // Master-ineligible nodes do not need to persist the cluster state when accepting it because they are not in the voting
-            // configuration, so it's ok if they have a stale or incomplete cluster state when restarted. We track the latest cluster state
-            // in memory instead.
-            persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));
-        } else {
-            // Master-ineligible nodes must persist the cluster state when accepting it because they must reload the (complete, fresh)
-            // last-accepted cluster state when restarted.
-            persistedState.set(new GatewayPersistedState(incrementalClusterStateWriter));
+            clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
+
+            if (DiscoveryNode.isMasterNode(settings) == false) {
+                persistedState.set(
+                    new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));
+            }
+        } else if (DiscoveryNode.isMasterNode(settings) == false) {
+            persistedState.set(
+                new InMemoryPersistedState(0L, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build()));
         }
     }
 
@@ -137,6 +135,13 @@ public class GatewayMetaState {
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(clusterState);
+    }
+
+    // exposed so it can be overridden by tests
+    MetaData upgradeMetaDataForMasterEligibleNode(MetaData metaData,
+                                                  MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                                                  MetaDataUpgrader metaDataUpgrader) {
+        return upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
     }
 
     // exposed so it can be overridden by tests
@@ -250,6 +255,14 @@ public class GatewayMetaState {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public void close() throws IOException {
+        final PersistedState persistedState = this.persistedState.get();
+        if (persistedState != null) {
+            persistedState.close();
+        }
     }
 
 

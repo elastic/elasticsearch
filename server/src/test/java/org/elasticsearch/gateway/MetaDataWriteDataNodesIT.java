@@ -21,10 +21,11 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -190,8 +191,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
     }
 
     private ImmutableOpenMap<String, IndexMetaData> getIndicesMetaDataOnNode(String nodeName) {
-        GatewayMetaState nodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
-        MetaData nodeMetaData = nodeMetaState.getMetaData();
-        return nodeMetaData.getIndices();
+        final Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, nodeName);
+        return coordinator.getApplierState().getMetaData().getIndices();
     }
 }

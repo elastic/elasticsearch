@@ -4,8 +4,8 @@
 <titleabbrev>Conditional</titleabbrev>
 ++++
 
-Applies a set of token filters to tokens that match one or more conditions
-defined in a predicate script.
+Applies a set of token filters to tokens that match conditions in a provided
+predicate script.
 
 This filter uses Lucene's
 https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/ConditionalTokenFilter.html[ConditionalTokenFilter].
@@ -14,8 +14,9 @@ https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache
 ==== Example
 
 The following <<indices-analyze,analyze API>> request uses the `condition`
-filter to convert tokens with fewer than 5 characters in `THE QUICK BROWN FOX`
-to lowercase.
+filter to match tokens with fewer than 5 characters in `THE QUICK BROWN FOX`.
+It then applies the <<analysis-lowercase-tokenfilter,`lowercase`>> filter to
+those matching tokens, converting them to lowercase.
 
 [source,console]
 --------------------------------------------------
@@ -87,11 +88,10 @@ The filter produces the following tokens:
 +
 --
 (Required, array of token filters)
-Array of token filters. If a token matches the predicate script in the
-`script` parameter, these filters are applied to the token.
+Array of token filters. If a token matches the predicate script in the `script`
+parameter, these filters are applied to the token in the order provided.
 
-These filters can include custom token filters defined in the index mapping. The
-filters are applied in the order provided.
+These filters can include custom token filters defined in the index mapping.
 --
 
 `script`::
@@ -99,7 +99,7 @@ filters are applied in the order provided.
 --
 (Required, <<modules-scripting-using,script object>>)
 Predicate script used to apply token filters. If a token
-matches this function, the filters in the `filter` parameter are applied to the
+matches this script, the filters in the `filter` parameter are applied to the
 token.
 
 Only inline scripts are supported. For valid parameters, see

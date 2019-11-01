@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -57,7 +59,7 @@ if (!isEclipse && !isIdea) {
 
   forbiddenApisJava9 {
     doFirst {
-      if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
         targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
       }
     }
@@ -301,7 +303,7 @@ thirdPartyAudit.ignoreMissingClasses (
 )
 
 rootProject.globalInfo.ready {
-  if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
     thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
   }
 }

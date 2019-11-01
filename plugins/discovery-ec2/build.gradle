@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -110,7 +112,7 @@ thirdPartyAudit.ignoreMissingClasses (
 )
 
 rootProject.globalInfo.ready {
-  if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
     thirdPartyAudit.ignoreMissingClasses(
             'javax.xml.bind.DatatypeConverter',
             'javax.xml.bind.JAXBContext'

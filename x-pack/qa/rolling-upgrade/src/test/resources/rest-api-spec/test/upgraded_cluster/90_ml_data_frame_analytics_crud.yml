@@ -38,7 +38,8 @@
   - match: { data_frame_analytics.0.source.index: ["bwc_ml_regression_job_source"] }
   - match: { data_frame_analytics.0.source.query: {"term": { "user": "Kimchy" }} }
   - match: { data_frame_analytics.0.dest.index: "old_cluster_regression_job_results" }
-  - match: { data_frame_analytics.0.analysis: {"regression":{ "dependent_variable": "foo", "training_percent": 100.0 }} }
+  - match: { data_frame_analytics.0.analysis.regression.dependent_variable: "foo" }
+  - match: { data_frame_analytics.0.analysis.regression.training_percent: 100.0 }
 
 ---
 "Get old cluster regression job stats":
@@ -52,7 +53,9 @@
 
 ---
 "Get mixed cluster outlier_detection job":
-
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
+      version: all
   - do:
       ml.get_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"
@@ -71,7 +74,9 @@
 
 ---
 "Get mixed cluster outlier_detection job stats":
-
+  - skip:
+      reason: "Waiting for backport of https://github.com/elastic/elasticsearch/pull/47935"
+      version: all
   - do:
       ml.get_data_frame_analytics_stats:
         id: "mixed_cluster_outlier_detection_job"

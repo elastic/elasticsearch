@@ -92,9 +92,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        client().prepareIndex(dateMathExp1, "type", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp2, "type", "2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp3, "type", "3").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
         refresh();
 
         SearchResponse searchResponse = dateSensitiveGet(client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3));
@@ -130,15 +130,15 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
 
-        DeleteResponse deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp1, "type", "1"));
+        DeleteResponse deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp1, "1"));
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("1"));
 
-        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp2, "type", "2"));
+        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp2, "2"));
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("2"));
 
-        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp3, "type", "3"));
+        deleteResponse = dateSensitiveGet(client().prepareDelete(dateMathExp3, "3"));
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("3"));
     }
@@ -151,9 +151,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        client().prepareIndex(dateMathExp1, "type", "1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp2, "type", "2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex(dateMathExp3, "type", "3").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp1).setId("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp2).setId("2").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
         refresh();
 
         SearchResponse searchResponse = dateSensitiveGet(client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3));

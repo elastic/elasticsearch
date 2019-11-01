@@ -1040,7 +1040,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         INGEST_PROCESSOR_EXCEPTION(
                 org.elasticsearch.ingest.IngestProcessorException.class,
                 org.elasticsearch.ingest.IngestProcessorException::new,
-            157,
+                157,
                 Version.V_7_5_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;

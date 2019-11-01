@@ -11,11 +11,9 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -24,9 +22,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -264,13 +262,13 @@ public class ExtractedFieldsDetector {
         List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
         for (ExtractedField field : extractedFields.getAllFields()) {
             if (isBoolean(field.getTypes())) {
-                if (config.getAnalysis().getAllowedCategoricalTypes(field.getAlias()).contains(BooleanFieldMapper.CONTENT_TYPE)) {
+                if (config.getAnalysis().getAllowedCategoricalTypes(field.getName()).contains(BooleanFieldMapper.CONTENT_TYPE)) {
                     // We convert boolean field to string if it is a categorical dependent variable
-                    adjusted.add(new BooleanMapper<>(field, Boolean.TRUE.toString(), Boolean.FALSE.toString()));
+                    adjusted.add(ExtractedFields.applyBooleanMapping(field, Boolean.TRUE.toString(), Boolean.FALSE.toString()));
                 } else {
                     // We convert boolean fields to integers with values 0, 1 as this is the preferred
                     // way to consume such features in the analytics process.
-                    adjusted.add(new BooleanMapper<>(field, 1, 0));
+                    adjusted.add(ExtractedFields.applyBooleanMapping(field, 1, 0));
                 }
             } else {
                 adjusted.add(field);
@@ -281,34 +279,5 @@ public class ExtractedFieldsDetector {
 
     private static boolean isBoolean(Set<String> types) {
         return types.size() == 1 && types.contains(BooleanFieldMapper.CONTENT_TYPE);
-    }
-
-    /**
-     * {@link BooleanMapper} makes boolean field behave as a field of different type.
-     */
-    private static final class BooleanMapper<T> extends ExtractedField {
-
-        private final T trueValue;
-        private final T falseValue;
-
-        BooleanMapper(ExtractedField field, T trueValue, T falseValue) {
-            super(field.getAlias(), field.getName(), Collections.singleton(BooleanFieldMapper.CONTENT_TYPE), ExtractionMethod.DOC_VALUE);
-            this.trueValue = trueValue;
-            this.falseValue = falseValue;
-        }
-
-        @Override
-        public Object[] value(SearchHit hit) {
-            DocumentField keyValue = hit.field(name);
-            if (keyValue != null) {
-                return keyValue.getValues().stream().map(v -> Boolean.TRUE.equals(v) ? trueValue : falseValue).toArray();
-            }
-            return new Object[0];
-        }
-
-        @Override
-        public boolean supportsFromSource() {
-            return false;
-        }
     }
 }

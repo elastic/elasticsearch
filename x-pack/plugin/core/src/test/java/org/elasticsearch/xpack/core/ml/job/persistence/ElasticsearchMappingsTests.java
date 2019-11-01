@@ -254,15 +254,14 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         verifyNoMoreInteractions(client);
 
         PutMappingRequest request = requestCaptor.getValue();
-        assertThat(request.type(), equalTo("_doc"));
         assertThat(request.indices(), equalTo(new String[] { "index-name" }));
         assertThat(request.source(), equalTo("{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}"));
     }
 
-    private static XContentBuilder fakeMapping(String mappingType) throws IOException {
+    private static XContentBuilder fakeMapping() throws IOException {
         return jsonBuilder()
             .startObject()
-                .startObject(mappingType)
+                .startObject("_doc")
                     .startObject(ElasticsearchMappings.PROPERTIES)
                         .startObject("some-field")
                             .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.LONG)
@@ -310,7 +309,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(ElasticsearchMappings.resultsMapping("_doc"));
+        return collectFieldNames(ElasticsearchMappings.resultsMapping());
     }
 
     private Set<String> collectConfigDocFieldNames() throws IOException {

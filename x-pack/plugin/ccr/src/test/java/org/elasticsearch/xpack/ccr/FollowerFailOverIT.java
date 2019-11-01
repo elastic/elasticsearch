@@ -270,7 +270,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 }
             }
         });
-        leaderCluster.client().admin().indices().preparePutMapping().setType("doc")
+        leaderCluster.client().admin().indices().preparePutMapping()
             .setSource("balance", "type=long").setTimeout(TimeValue.ZERO).get();
         try {
             // Make sure the mapping is ready on the shard before we execute the index request; otherwise the index request

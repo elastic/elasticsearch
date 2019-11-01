@@ -398,7 +398,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     .admin()
                     .indices()
                     .preparePutMapping(leaderIndex)
-                    .setType("doc")
                     .setSource("{\"properties\":{\"k\":{\"type\":\"long\"}}}", XContentType.JSON)
                     .execute(ActionListener.wrap(latch::countDown));
             }

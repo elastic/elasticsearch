@@ -52,7 +52,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.join.aggregations.Children;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -114,24 +113,19 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     @Before
     public void indexDocuments() throws IOException {
         {
-            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/type/1");
-            doc1.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
             doc1.setJsonEntity("{\"type\":\"type1\", \"num\":10, \"num2\":50}");
             client().performRequest(doc1);
-            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/type/2");
-            doc2.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/_doc/2");
             doc2.setJsonEntity("{\"type\":\"type1\", \"num\":20, \"num2\":40}");
             client().performRequest(doc2);
-            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/type/3");
-            doc3.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/_doc/3");
             doc3.setJsonEntity("{\"type\":\"type1\", \"num\":50, \"num2\":35}");
             client().performRequest(doc3);
-            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/type/4");
-            doc4.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/_doc/4");
             doc4.setJsonEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}");
             client().performRequest(doc4);
-            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/type/5");
-            doc5.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/_doc/5");
             doc5.setJsonEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}");
             client().performRequest(doc5);
         }
@@ -892,14 +886,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchTemplateRequest.setRequest(new SearchRequest("index"));
 
         searchTemplateRequest.setScriptType(ScriptType.INLINE);
-        searchTemplateRequest.setScript(
-            "{" +
-            "  \"query\": {" +
-            "    \"match\": {" +
-            "      \"num\": {{number}}" +
-            "    }" +
-            "  }" +
-            "}");
+        searchTemplateRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
@@ -947,14 +934,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
 
         searchTemplateRequest.setScriptType(ScriptType.INLINE);
-        searchTemplateRequest.setScript(
-            "{" +
-            "  \"query\": {" +
-            "    \"match\": {" +
-            "      \"num\": {{number}}" +
-            "    }" +
-            "  }" +
-            "}");
+        searchTemplateRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
@@ -991,14 +971,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest goodRequest = new SearchTemplateRequest();
         goodRequest.setRequest(new SearchRequest("index"));
         goodRequest.setScriptType(ScriptType.INLINE);
-        goodRequest.setScript(
-            "{" +
-            "  \"query\": {" +
-            "    \"match\": {" +
-            "      \"num\": {{number}}" +
-            "    }" +
-            "  }" +
-            "}");
+        goodRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
         goodRequest.setScriptParams(scriptParams);
@@ -1050,14 +1023,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest badRequest1 = new SearchTemplateRequest();
         badRequest1.setRequest(new SearchRequest("index"));
         badRequest1.setScriptType(ScriptType.INLINE);
-        badRequest1.setScript(
-                "{" +
-                        "  \"query\": {" +
-                        "    \"match\": {" +
-                        "      \"num\": {{number}}" +
-                        "    }" +
-                        "  }" +
-                        "}");
+        badRequest1.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", "BAD NUMBER");
         badRequest1.setScriptParams(scriptParams);

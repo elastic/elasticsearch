@@ -39,7 +39,7 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
 
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) { // TODO randomize the size and the params in here?
-            builders.add(client().prepareIndex("idx", "type", String.valueOf(i)).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setId(String.valueOf(i)).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i+1)
                     .startArray("values").value(i+2).value(i+3).endArray()
@@ -58,7 +58,7 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", String.valueOf(i)).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId(String.valueOf(i)).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i*2)
                     .endObject()));

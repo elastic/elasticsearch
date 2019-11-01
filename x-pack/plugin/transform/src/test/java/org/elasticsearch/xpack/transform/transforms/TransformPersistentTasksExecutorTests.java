@@ -86,8 +86,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "past-data-node-1",
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
-                Version.V_7_4_0))
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    Version.V_7_4_0
                 )
             )
             .add(
@@ -95,7 +95,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "current-data-node-with-2-tasks",
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                     Version.CURRENT
                 )
             )
@@ -104,7 +104,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "non-data-node-1",
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
                     Version.CURRENT
                 )
             )
@@ -113,7 +113,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "current-data-node-with-1-tasks",
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                     Version.CURRENT
                 )
             );
@@ -156,35 +156,50 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metaData, routingTable);
-        PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
-            .addTask("transform-task-1",
+        PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData
+            .builder()
+            .addTask(
+                "transform-task-1",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-1", Version.CURRENT, null),
-                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-task", ""));
+                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-task", "")
+            );
 
         PersistentTasksCustomMetaData pTasks = pTasksBuilder.build();
 
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, pTasks);
 
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("old-data-node-1",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
-                Version.V_7_2_0))
-            .add(new DiscoveryNode("current-data-node-with-1-task",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
-                Version.CURRENT))
-            .add(new DiscoveryNode("non-data-node-1",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT));
+        DiscoveryNodes.Builder nodes = DiscoveryNodes
+            .builder()
+            .add(
+                new DiscoveryNode(
+                    "old-data-node-1",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    Version.V_7_2_0
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "current-data-node-with-1-task",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "non-data-node-1",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                    Version.CURRENT
+                )
+            );
 
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
-            .nodes(nodes);
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).nodes(nodes);
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
 
@@ -192,41 +207,57 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
         TransformConfigManager transformsConfigManager = new TransformConfigManager(client, xContentRegistry());
-        TransformCheckpointService transformCheckpointService = new TransformCheckpointService(client,
-            transformsConfigManager, mockAuditor);
-        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
-            Collections.singleton(TransformTask.NUM_FAILURE_RETRIES_SETTING));
+        TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
+            client,
+            transformsConfigManager,
+            mockAuditor
+        );
+        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
         when(clusterService.state()).thenReturn(TransformInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
-        TransformPersistentTasksExecutor executor = new TransformPersistentTasksExecutor(client,
+        TransformPersistentTasksExecutor executor = new TransformPersistentTasksExecutor(
+            client,
             transformsConfigManager,
-            transformCheckpointService, mock(SchedulerEngine.class),
+            transformCheckpointService,
+            mock(SchedulerEngine.class),
             new TransformAuditor(client, ""),
             mock(ThreadPool.class),
             clusterService,
-            Settings.EMPTY);
+            Settings.EMPTY
+        );
 
         // old-data-node-1 prevents assignment
         assertNull(executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null), cs).getExecutorNode());
 
         // remove the old 7.2 node
-        nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("current-data-node-with-1-task",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
-                Version.CURRENT))
-            .add(new DiscoveryNode("non-data-node-1",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT));
+        nodes = DiscoveryNodes
+            .builder()
+            .add(
+                new DiscoveryNode(
+                    "current-data-node-with-1-task",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "non-data-node-1",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                    Version.CURRENT
+                )
+            );
         csBuilder.nodes(nodes);
         cs = csBuilder.build();
 
-        assertThat(executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
-            equalTo("current-data-node-with-1-task"));
+        assertThat(
+            executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
+            equalTo("current-data-node-with-1-task")
+        );
     }
 
     public void testVerifyIndicesPrimaryShardsAreActive() {

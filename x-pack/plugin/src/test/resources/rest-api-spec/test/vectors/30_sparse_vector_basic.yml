@@ -8,7 +8,6 @@ setup:
       warnings:
         - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       indices.create:
-        include_type_name: false
         index: test-index
         body:
           settings:

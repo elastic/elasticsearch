@@ -413,7 +413,7 @@ public class IngestService implements ClusterStateApplier {
             processorMetrics.forEach(t -> {
                 Processor processor = t.v1();
                 IngestMetric processorMetric = t.v2();
-                statsBuilder.addProcessorMetrics(id, getProcessorName(processor), processorMetric);
+                statsBuilder.addProcessorMetrics(id, getProcessorName(processor), processor.getType(), processorMetric);
             });
         });
         return statsBuilder.build();

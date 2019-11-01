@@ -26,9 +26,9 @@ public class VersionParityTests extends WebServerTestCase {
 
     public void testExceptionThrownOnIncompatibleVersions() throws IOException, SQLException {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT));
-        prepareRequest(version);
+        prepareResponse(version);
         
-        String url = JdbcConfiguration.URL_PREFIX + webServer().getHostName() + ":" + webServer().getPort();
+        String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
         SQLException ex = expectThrows(SQLException.class, () -> new JdbcHttpClient(JdbcConfiguration.create(url, null, 0)));
         assertEquals("This version of the JDBC driver is only compatible with Elasticsearch version "
                 + org.elasticsearch.xpack.sql.client.Version.CURRENT.toString()
@@ -36,7 +36,7 @@ public class VersionParityTests extends WebServerTestCase {
     }
     
     public void testNoExceptionThrownForCompatibleVersions() throws IOException {
-        prepareRequest(null);
+        prepareResponse(null);
         
         String url = JdbcConfiguration.URL_PREFIX + webServerAddress();
         try {
@@ -46,7 +46,7 @@ public class VersionParityTests extends WebServerTestCase {
         }
     }
     
-    void prepareRequest(Version version) throws IOException {
+    void prepareResponse(Version version) throws IOException {
         MainResponse response = version == null ? createCurrentVersionMainResponse() : createMainResponse(version);        
         webServer().enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json").setBody(
                 XContentHelper.toXContent(response, XContentType.JSON, false).utf8ToString()));

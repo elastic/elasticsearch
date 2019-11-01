@@ -62,7 +62,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("index1"));
         assertAcked(client().admin().indices().prepareCreate("filtered"));
         assertAcked(client().admin().indices().preparePutMapping("index1", "filtered")
-                .setType("_doc").setSource(TEST_ITEM, XContentType.JSON));
+                .setSource(TEST_ITEM, XContentType.JSON));
     }
 
     public void testGetMappings() {

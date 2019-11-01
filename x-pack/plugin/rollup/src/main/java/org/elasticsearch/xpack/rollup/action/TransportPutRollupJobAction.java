@@ -255,7 +255,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             Map<String, Object> newMapping = mappings.getSourceAsMap();
             newMapping.put("_meta", metadata);
             PutMappingRequest request = new PutMappingRequest(indexName);
-            request.type(RollupField.TYPE_NAME);
             request.source(newMapping);
             client.execute(PutMappingAction.INSTANCE, request,
                     ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService),

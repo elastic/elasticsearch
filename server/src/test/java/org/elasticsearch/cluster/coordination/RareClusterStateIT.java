@@ -233,7 +233,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // Add a new mapping...
         ActionFuture<AcknowledgedResponse> putMappingResponse =
                 executeAndCancelCommittedPublication(client().admin().indices().preparePutMapping("index")
-                .setType("type").setSource("field", "type=long"));
+                .setSource("field", "type=long"));
 
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
@@ -322,7 +322,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         disruption.startDisrupting();
         final ActionFuture<AcknowledgedResponse> putMappingResponse =
                 executeAndCancelCommittedPublication(client().admin().indices().preparePutMapping("index")
-                .setType("type").setSource("field", "type=long"));
+                .setSource("field", "type=long"));
 
         final Index index = resolveIndex("index");
         // Wait for mappings to be available on master

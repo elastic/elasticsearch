@@ -200,7 +200,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
             final PutMappingRequest request = new PutMappingRequest();
             request.indices("test");
-            request.type("type");
             request.source("field", "type=text");
             client().admin().indices().putMapping(request).actionGet();
             assertThat(clusterService.state().metaData().index("test").getMappingVersion(), Matchers.equalTo(1 + previousVersion));
@@ -210,7 +209,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
             final PutMappingRequest request = new PutMappingRequest();
             request.indices("test");
-            request.type("type");
             request.source("field", "type=text");
             client().admin().indices().putMapping(request).actionGet();
             // the version should be unchanged after putting the same mapping again

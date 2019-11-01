@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,7 +39,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     public TransportSqlTranslateAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                        ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
                                        SqlLicenseChecker sqlLicenseChecker) {
-        super(SqlTranslateAction.NAME, transportService, actionFilters, (Writeable.Reader<SqlTranslateRequest>) SqlTranslateRequest::new);
+        super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
                 new SecurityContext(settings, threadPool.getThreadContext()) : null;

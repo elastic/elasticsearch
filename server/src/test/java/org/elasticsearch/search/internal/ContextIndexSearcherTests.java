@@ -35,15 +35,20 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
@@ -107,16 +112,24 @@ public class ContextIndexSearcherTests extends ESTestCase {
         iw.close();
         DirectoryReader directoryReader = DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(directoryReader);
-        Weight weight = searcher.createWeight(new TermQuery(new Term("field2", "value1")),
-            org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
+        Weight weight = searcher.createWeight(
+            new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("field2", "value1"))), 3f),
+            ScoreMode.COMPLETE, 1f);
 
         LeafReaderContext leaf = directoryReader.leaves().get(0);
 
         CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {
+            Scorable scorer;
+            @Override
+            public void setScorer(Scorable scorer) throws IOException {
+                this.scorer = scorer;
+            }
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assertThat(doc, equalTo(0));
+                assertThat(scorer.score(), equalTo(3f));
             }
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
@@ -129,7 +142,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
             }
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
-
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
@@ -232,6 +244,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         // make sure scorers are created only once, see #1725
         assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
+
+        TopDocs topDocs = searcher.search(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("foo", "bar"))), 3f), 1);
+        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.scoreDocs.length);
+        assertEquals(3f, topDocs.scoreDocs[0].score, 0);
+
         IOUtils.close(reader, w, dir);
     }
 

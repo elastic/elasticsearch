@@ -14,12 +14,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,10 +31,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 public class TransportUpdateDatafeedAction extends
@@ -91,69 +87,14 @@ public class TransportUpdateDatafeedAction extends
             return;
         }
 
-        String datafeedId = request.getUpdate().getId();
-
-        CheckedConsumer<BulkByScrollResponse, Exception> updateConsumer =
-            unused -> {
-                datafeedConfigProvider.updateDatefeedConfig(
-                    datafeedId,
-                    request.getUpdate(),
-                    headers,
-                    jobConfigProvider::validateDatafeedJob,
-                    ActionListener.wrap(
-                        updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                        listener::onFailure));
-            };
-
-        CheckedConsumer<Boolean, Exception> deleteTimingStatsAndUpdateConsumer =
-            unused -> {
-                datafeedConfigProvider.getDatafeedConfig(
-                    datafeedId,
-                    ActionListener.wrap(
-                        datafeedConfigBuilder -> {
-                            String jobId = datafeedConfigBuilder.build().getJobId();
-                            if (jobId.equals(request.getUpdate().getJobId())) {
-                                // Datafeed's jobId didn't change, no point in deleting datafeed timing stats.
-                                updateConsumer.accept(null);
-                            } else {
-                                JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
-                                jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(updateConsumer, listener::onFailure));
-                            }
-                        },
-                        listener::onFailure));
-            };
-
-
-        if (request.getUpdate().getJobId() != null) {
-            checkJobDoesNotHaveADifferentDatafeed(
-                request.getUpdate().getJobId(), datafeedId, ActionListener.wrap(deleteTimingStatsAndUpdateConsumer, listener::onFailure));
-        } else {
-            updateConsumer.accept(null);
-        }
-    }
-
-    /*
-     * This is a check against changing the datafeed's jobId and that job
-     * already having a datafeed.
-     * The job the updated datafeed refers to should have no datafeed or
-     * if it does have a datafeed it must be the one we are updating
-     */
-    private void checkJobDoesNotHaveADifferentDatafeed(String jobId, String datafeedId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
-                datafeedIds -> {
-                    if (datafeedIds.isEmpty()) {
-                        // Ok the job does not have a datafeed
-                        listener.onResponse(Boolean.TRUE);
-                    } else if (datafeedIds.size() == 1 && datafeedIds.contains(datafeedId)) {
-                        // Ok the job has the datafeed being updated
-                        listener.onResponse(Boolean.TRUE);
-                    } else {
-                        listener.onFailure(ExceptionsHelper.conflictStatusException("A datafeed [" + datafeedIds.iterator().next()
-                                + "] already exists for job [" + jobId + "]"));
-                    }
-                },
-                listener::onFailure
-        ));
+        datafeedConfigProvider.updateDatefeedConfig(
+            request.getUpdate().getId(),
+            request.getUpdate(),
+            headers,
+            jobConfigProvider::validateDatafeedJob,
+            ActionListener.wrap(
+                updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
+                listener::onFailure));
     }
 
     @Override

@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Defines an evaluation
@@ -24,14 +28,53 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
     String getName();
 
     /**
-     * Builds the search required to collect data to compute the evaluation result
+     * Returns the list of metrics to evaluate
+     * @return list of metrics to evaluate
      */
-    SearchSourceBuilder buildSearch();
+    List<? extends EvaluationMetric> getMetrics();
 
     /**
-     * Computes the evaluation result
-     * @param searchResponse The search response required to compute the result
-     * @param listener A listener of the results
+     * Builds the search required to collect data to compute the evaluation result
+     * @param userProvidedQueryBuilder User-provided query that must be respected when collecting data
      */
-    void evaluate(SearchResponse searchResponse, ActionListener<List<EvaluationMetricResult>> listener);
+    SearchSourceBuilder buildSearch(QueryBuilder userProvidedQueryBuilder);
+
+    /**
+     * Builds the search that verifies existence of required fields and applies user-provided query
+     * @param requiredFields fields that must exist
+     * @param userProvidedQueryBuilder user-provided query
+     */
+    default SearchSourceBuilder newSearchSourceBuilder(List<String> requiredFields, QueryBuilder userProvidedQueryBuilder) {
+        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+        for (String requiredField : requiredFields) {
+            boolQuery.filter(QueryBuilders.existsQuery(requiredField));
+        }
+        boolQuery.filter(userProvidedQueryBuilder);
+        return new SearchSourceBuilder().size(0).query(boolQuery);
+    }
+
+    /**
+     * Processes {@link SearchResponse} from the search action
+     * @param searchResponse response from the search action
+     */
+    void process(SearchResponse searchResponse);
+
+    /**
+     * @return true iff all the metrics have their results computed
+     */
+    default boolean hasAllResults() {
+        return getMetrics().stream().map(EvaluationMetric::getResult).allMatch(Optional::isPresent);
+    }
+
+    /**
+     * Returns the list of evaluation results
+     * @return list of evaluation results
+     */
+    default List<EvaluationMetricResult> getResults() {
+        return getMetrics().stream()
+            .map(EvaluationMetric::getResult)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+    }
 }

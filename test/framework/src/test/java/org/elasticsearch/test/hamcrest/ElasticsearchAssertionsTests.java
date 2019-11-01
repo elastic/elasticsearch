@@ -122,7 +122,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             AssertionError error = expectThrows(AssertionError.class,
                     () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
                             builder.contentType()));
-            assertThat(error.getMessage(), containsString("f2: expected [value2] but was [differentValue2]"));
+            assertThat(error.getMessage(), containsString("f2: expected String [value2] but was String [differentValue2]"));
         }
         {
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -155,7 +155,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             AssertionError error = expectThrows(AssertionError.class,
                     () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
                             builder.contentType()));
-            assertThat(error.getMessage(), containsString("2: expected [three] but was [four]"));
+            assertThat(error.getMessage(), containsString("2: expected String [three] but was String [four]"));
         }
         {
             XContentBuilder builder = JsonXContent.contentBuilder();

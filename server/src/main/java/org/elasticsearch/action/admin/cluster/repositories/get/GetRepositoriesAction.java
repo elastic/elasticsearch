@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Get repositories action
@@ -31,12 +30,8 @@ public class GetRepositoriesAction extends ActionType<GetRepositoriesResponse> {
     public static final String NAME = "cluster:admin/repository/get";
 
     private GetRepositoriesAction() {
-        super(NAME);
+        super(NAME, GetRepositoriesResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<GetRepositoriesResponse> getResponseReader() {
-        return GetRepositoriesResponse::new;
-    }
 }
 

@@ -58,10 +58,11 @@ public final class MigrationClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getDeprecationInfoAsync(DeprecationInfoRequest request, RequestOptions options,
-                                        ActionListener<DeprecationInfoResponse> listener)  {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, MigrationRequestConverters::getDeprecationInfo, options,
+    public Cancellable getDeprecationInfoAsync(DeprecationInfoRequest request, RequestOptions options,
+                                               ActionListener<DeprecationInfoResponse> listener)  {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, MigrationRequestConverters::getDeprecationInfo, options,
             DeprecationInfoResponse::fromXContent, listener, Collections.emptySet());
     }
 }

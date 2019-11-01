@@ -1,10 +1,10 @@
-[[search-request-docvalue-fields]]
-=== Doc value Fields
+[[request-body-search-docvalue-fields]]
+==== Doc value Fields
 
 Allows to return the <<doc-values,doc value>> representation of a field for each hit, for
 example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -23,7 +23,7 @@ GET /_search
     ]
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> the name of the field
 <2> an object notation is supported as well
 <3> the object notation allows to specify a custom format
@@ -32,7 +32,7 @@ Doc value fields can work on fields that have doc-values enabled, regardless of 
 
 `*` can be used as a wild card, for example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -47,7 +47,7 @@ GET /_search
     ]
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Match all fields ending with `field`
 <2> Format to be applied to all matching fields.
 
@@ -55,7 +55,7 @@ Note that if the fields parameter specifies fields without docvalues it will try
 causing the terms for that field to be loaded to memory (cached), which will result in more memory consumption.
 
 [float]
-==== Custom formats
+====== Custom formats
 
 While most fields do not support custom formats, some of them do:
 
@@ -70,4 +70,4 @@ with the configured `date` format, etc.
 NOTE: On its own, `docvalue_fields` cannot be used to load fields in nested
 objects -- if a field contains a nested object in its path, then no data will
 be returned for that docvalue field. To access nested fields, `docvalue_fields`
-must be used within an <<search-request-inner-hits, `inner_hits`>> block.
+must be used within an <<request-body-search-inner-hits, `inner_hits`>> block.

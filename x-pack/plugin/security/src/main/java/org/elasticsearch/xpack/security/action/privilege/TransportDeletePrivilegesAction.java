@@ -30,7 +30,7 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
     @Inject
     public TransportDeletePrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
                                            TransportService transportService) {
-        super(DeletePrivilegesAction.NAME, transportService, DeletePrivilegesRequest::new, actionFilters);
+        super(DeletePrivilegesAction.NAME, transportService, actionFilters, DeletePrivilegesRequest::new);
         this.privilegeStore = privilegeStore;
     }
 

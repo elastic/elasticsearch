@@ -40,7 +40,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     public TransportSamlAuthenticateAction(ThreadPool threadPool, TransportService transportService,
                                            ActionFilters actionFilters, AuthenticationService authenticationService,
                                            TokenService tokenService) {
-        super(SamlAuthenticateAction.NAME, transportService, SamlAuthenticateRequest::new, actionFilters);
+        super(SamlAuthenticateAction.NAME, transportService, actionFilters, SamlAuthenticateRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
@@ -48,7 +48,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
 
     @Override
     protected void doExecute(Task task, SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
-        final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds());
+        final SamlToken saml = new SamlToken(request.getSaml(), request.getValidRequestIds(), request.getRealm());
         logger.trace("Attempting to authenticate SamlToken [{}]", saml);
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);

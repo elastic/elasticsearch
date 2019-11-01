@@ -27,6 +27,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 import com.amazonaws.util.DateUtils;
+import com.amazonaws.util.IOUtils;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
@@ -75,6 +76,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
     /** Request handlers for the requests made by the S3 client **/
     private final PathTrie<RequestHandler> handlers;
 
+    private final boolean disableChunkedEncoding;
     /**
      * Creates a {@link AmazonS3Fixture}
      */
@@ -92,6 +94,8 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
             randomAsciiAlphanumOfLength(random, 10), randomAsciiAlphanumOfLength(random, 10));
 
         this.handlers = defaultHandlers(buckets, ec2Bucket, ecsBucket);
+
+        this.disableChunkedEncoding = Boolean.parseBoolean(prop(properties, "s3Fixture.disableChunkedEncoding"));
     }
 
     private static String nonAuthPath(Request request) {
@@ -216,13 +220,16 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
 
                 final String destObjectName = objectName(request.getParameters());
 
-                // This is a chunked upload request. We should have the header "Content-Encoding : aws-chunked,gzip"
-                // to detect it but it seems that the AWS SDK does not follow the S3 guidelines here.
-                //
-                // See https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-streaming.html
-                //
                 String headerDecodedContentLength = request.getHeader("X-amz-decoded-content-length");
                 if (headerDecodedContentLength != null) {
+                    if (disableChunkedEncoding) {
+                        return newInternalError(request.getId(), "Something is wrong with this PUT request");
+                    }
+                    // This is a chunked upload request. We should have the header "Content-Encoding : aws-chunked,gzip"
+                    // to detect it but it seems that the AWS SDK does not follow the S3 guidelines here.
+                    //
+                    // See https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-streaming.html
+                    //
                     int contentLength = Integer.valueOf(headerDecodedContentLength);
 
                     // Chunked requests have a payload like this:
@@ -246,9 +253,18 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                         destBucket.objects.put(destObjectName, bytes);
                         return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
                     }
-                }
+                } else {
+                    if (disableChunkedEncoding == false) {
+                        return newInternalError(request.getId(), "Something is wrong with this PUT request");
+                    }
+                    // Read from body directly
+                    try (BufferedInputStream inputStream = new BufferedInputStream(new ByteArrayInputStream(request.getBody()))) {
+                        byte[] bytes = IOUtils.toByteArray(inputStream);
 
-                return newInternalError(request.getId(), "Something is wrong with this PUT request");
+                        destBucket.objects.put(destObjectName, bytes);
+                        return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+                    }
+                }
             })
         );
 

@@ -27,6 +27,9 @@ setup:
             properties:
               field:
                 type: text
+              phrase_field:
+                type: text
+                index_phrases: true
 
   - do:
       index:
@@ -204,3 +207,26 @@ setup:
   - match: { hits.hits.2._id: "1" }
   - match: { hits.hits.3._id: "8" }
   - match: { hits.hits.4._id: "2" }
+
+---
+"index_phrases":
+
+  - do:
+      index:
+        index: test
+        id: 9
+        body:
+          phrase_field: "bar baz"
+        refresh: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              phrase_field:
+                query: bar baz
+                analyzer: lower_graph_syns
+  - match: { hits.total: 1 }
+

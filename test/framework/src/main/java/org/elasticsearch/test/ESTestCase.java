@@ -64,7 +64,6 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -846,6 +845,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        // In case you've forgotten your high-school studies, log10(x) / log10(y) == log y(x)
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
         long sum = 0;
@@ -873,14 +873,34 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    public static boolean awaitBusy(BooleanSupplier breakSupplier) throws InterruptedException {
-        return awaitBusy(breakSupplier, 10, TimeUnit.SECONDS);
+    /**
+     * Periodically execute the supplied function until it returns true, or a timeout
+     * is reached. This version uses a timeout of 10 seconds. If at all possible,
+     * use {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
+     *
+     * @param breakSupplier determines whether to return immediately or continue waiting.
+     * @return the last value returned by <code>breakSupplier</code>
+     * @throws InterruptedException if any sleep calls were interrupted.
+     */
+    public static boolean waitUntil(BooleanSupplier breakSupplier) throws InterruptedException {
+        return waitUntil(breakSupplier, 10, TimeUnit.SECONDS);
     }
 
     // After 1s, we stop growing the sleep interval exponentially and just sleep 1s until maxWaitTime
     private static final long AWAIT_BUSY_THRESHOLD = 1000L;
 
-    public static boolean awaitBusy(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) throws InterruptedException {
+    /**
+     * Periodically execute the supplied function until it returns true, or until the
+     * specified maximum wait time has elapsed. If at all possible, use
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
+     *
+     * @param breakSupplier determines whether to return immediately or continue waiting.
+     * @param maxWaitTime the maximum amount of time to wait
+     * @param unit the unit of tie for <code>maxWaitTime</code>
+     * @return the last value returned by <code>breakSupplier</code>
+     * @throws InterruptedException if any sleep calls were interrupted.
+     */
+    public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) throws InterruptedException {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long timeInMillis = 1;
         long sum = 0;
@@ -924,7 +944,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // because some code is buggy when it comes to multiple nio.2 filesystems
         // (e.g. FileSystemUtils, and likely some tests)
         try {
-            return PathUtils.get(getClass().getResource(relativePath).toURI());
+            return PathUtils.get(getClass().getResource(relativePath).toURI()).toAbsolutePath().normalize();
         } catch (Exception e) {
             throw new RuntimeException("resource not found: " + relativePath, e);
         }
@@ -1140,18 +1160,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
     }
 
-    /**
-     * Create a copy of an original {@link Streamable} object by running it through a {@link BytesStreamOutput} and
-     * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
-     * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
-     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
-     */
-    public static <T extends Streamable> T copyStreamable(T original, NamedWriteableRegistry namedWriteableRegistry,
-                                                          Supplier<T> supplier, Version version) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out),
-                Streamable.newWriteableReader(supplier), version);
-    }
-
     protected static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
                                       Writeable.Reader<T> reader, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -1327,5 +1335,30 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static boolean inFipsJvm() {
         return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
+    }
+
+    /**
+     * Returns a unique port range for this JVM starting from the computed base port
+     */
+    public static String getPortRange() {
+        return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
+    }
+
+    protected static int getBasePort() {
+        // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
+        // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
+        // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
+        // a different default port range per JVM unless the incoming settings override it
+        // use a non-default base port otherwise some cluster in this JVM might reuse a port
+
+        // We rely on Gradle implementation details here, the worker IDs are long values incremented by one  for the
+        // lifespan of the daemon this means that they can get larger than the allowed port range.
+        // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
+        // This is safe as long as we have fewer than 224 Gradle workers running in parallel
+        // See also: https://github.com/elastic/elasticsearch/issues/44134
+        final String workerId = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
+        final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
+        assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
+        return 10300 + (startAt * 100);
     }
 }

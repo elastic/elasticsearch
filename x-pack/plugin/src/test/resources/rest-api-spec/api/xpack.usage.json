@@ -1,18 +1,24 @@
 {
-  "xpack.usage": {
-    "documentation": "Retrieve information about xpack features usage",
-    "stability": "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": [ "/_xpack/usage" ],
-      "parts": {},
-      "params": {
-        "master_timeout": {
-          "type": "time",
-          "description": "Specify timeout for watch write operation"
-        }
-      }
+  "xpack.usage":{
+    "documentation":{
+      "url":"Retrieve information about xpack features usage"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/usage",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for watch write operation"
+      }
+    }
   }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -25,9 +26,11 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -208,7 +211,9 @@ public class JobResultsPersisterTests extends ESTestCase {
         Client client = mockClient(bulkRequestCaptor);
 
         JobResultsPersister persister = new JobResultsPersister(client);
-        TimingStats timingStats = new TimingStats("foo", 7, 1.0, 2.0, 1.23, 7.89);
+        TimingStats timingStats =
+            new TimingStats(
+                "foo", 7, 1.0, 2.0, 1.23, 7.89, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
         persister.bulkPersisterBuilder(JOB_ID).persistTimingStats(timingStats).executeRequest();
 
         verify(client, times(1)).bulk(bulkRequestCaptor.capture());
@@ -221,12 +226,17 @@ public class JobResultsPersisterTests extends ESTestCase {
             indexRequest.sourceAsMap(),
             equalTo(
                 Map.of(
+                    "result_type", "timing_stats",
                     "job_id", "foo",
                     "bucket_count", 7,
                     "minimum_bucket_processing_time_ms", 1.0,
                     "maximum_bucket_processing_time_ms", 2.0,
                     "average_bucket_processing_time_ms", 1.23,
-                    "exponential_average_bucket_processing_time_ms", 7.89)));
+                    "exponential_average_bucket_processing_time_ms", 7.89,
+                    "exponential_average_calculation_context", Map.of(
+                        "incremental_metric_value_ms", 600.0,
+                        "previous_exponential_average_ms", 60.0,
+                        "latest_timestamp", 123456789))));
 
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);
@@ -240,13 +250,15 @@ public class JobResultsPersisterTests extends ESTestCase {
                 // Take the listener passed to client::index as 2nd argument
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
                 // Handle the response on the listener
-                listener.onResponse(new IndexResponse(null, null, null, 0, 0, 0, false));
+                listener.onResponse(new IndexResponse(new ShardId("test", "test", 0), "test", 0, 0, 0, false));
                 return null;
             })
             .when(client).index(any(), any(ActionListener.class));
 
         JobResultsPersister persister = new JobResultsPersister(client);
-        DatafeedTimingStats timingStats = new DatafeedTimingStats("foo", 6, 66, 666.0);
+        DatafeedTimingStats timingStats =
+            new DatafeedTimingStats(
+                "foo", 6, 66, 666.0, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
         persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
 
         ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
@@ -259,10 +271,15 @@ public class JobResultsPersisterTests extends ESTestCase {
             indexRequest.sourceAsMap(),
             equalTo(
                 Map.of(
+                    "result_type", "datafeed_timing_stats",
                     "job_id", "foo",
                     "search_count", 6,
                     "bucket_count", 66,
-                    "total_search_time_ms", 666.0)));
+                    "total_search_time_ms", 666.0,
+                    "exponential_average_calculation_context", Map.of(
+                        "incremental_metric_value_ms", 600.0,
+                        "previous_exponential_average_ms", 60.0,
+                        "latest_timestamp", 123456789))));
 
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);

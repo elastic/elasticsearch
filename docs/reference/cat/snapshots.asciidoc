@@ -1,21 +1,125 @@
 [[cat-snapshots]]
-== cat snapshots
+=== cat snapshots API
+++++
+<titleabbrev>cat snapshots</titleabbrev>
+++++
 
-The `snapshots` command shows all snapshots that belong to a specific repository
-or multiple repositories.
-To find a list of available repositories to query, the command `/_cat/repositories` can be used.
-Querying the snapshots of a repository named `repo1` then looks as follows.
+Returns information about the <<modules-snapshots,snapshots>> stored in one or
+more repositories. A snapshot is a backup of an index or running {es} cluster.
 
-[source,js]
+
+[[cat-snapshots-api-request]]
+==== {api-request-title}
+
+`GET /_cat/snapshots/<repository>`
+
+`GET /_cat/snapshots`
+
+
+[[cat-snapshots-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
++
+--
+(Optional, string) Comma-separated list of snapshot repositories used to limit
+the request. Accepts wildcard expressions. `_all` returns all repositories.
+
+If any repository fails during the request, {es} returns an error.
+--
+
+
+[[cat-snapshots-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+--
+If you do not specify which columns to include, the API returns the default
+columns in the order listed below. If you explicitly specify one or more
+columns, it only returns the specified columns.
+
+Valid columns are:
+
+`id`, `snapshot`::
+(Default) ID of the snapshot, such as `snap1`.
+
+`repository`, `re`, `repo`::
+(Default) Name of the repository, such as `repo1`.
+
+`status`, `s`::
+(Default) State of the snapshot process. Returned values are:
++
+* `FAILED`: The snapshot process failed.
+* `INCOMPATIBLE`: The snapshot process is incompatible with the current cluster
+version.
+* `IN_PROGRESS`: The snapshot process started but has not completed.
+* `PARTIAL`: The snapshot process completed with a partial success.
+* `SUCCESS`: The snapshot process completed with a full success.
+
+`start_epoch`, `ste`, `startEpoch`::
+(Default) https://en.wikipedia.org/wiki/Unix_time[Unix `epoch` time] at which
+the snapshot process started.
+
+`start_time`, `sti`, `startTime`::
+(Default) `HH:MM:SS` time at which the snapshot process started.
+
+`end_epoch`, `ete`, `endEpoch`::
+(Default) https://en.wikipedia.org/wiki/Unix_time[Unix `epoch` time] at which
+the snapshot process ended.
+
+`end_time`, `eti`, `endTime`::
+(Default) `HH:MM:SS` time at which the snapshot process ended.
+
+`duration`, `dur`::
+(Default) Time it took the snapshot process to complete in <<time-units,time
+units>>.
+
+`indices`, `i`::
+(Default) Number of indices in the snapshot.
+
+`successful_shards`, `ss`::
+(Default) Number of successful shards in the snapshot.
+
+`failed_shards`, `fs`::
+(Default) Number of failed shards in the snapshot.
+
+`total_shards`, `ts`::
+(Default) Total number of shards in the snapshot.
+
+`reason, `r`::
+Reason for any snapshot failures.
+--
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+`ignore_unavailable`::
+(Optional, boolean) If `true`, the response does not include information from
+unavailable snapshots. Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-snapshots-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 GET /_cat/snapshots/repo1?v&s=id
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT \/_snapshot\/repo1\/snap1?wait_for_completion=true\n/]
 // TEST[s/^/PUT \/_snapshot\/repo1\/snap2?wait_for_completion=true\n/]
 // TEST[s/^/PUT \/_snapshot\/repo1\n{"type": "fs", "settings": {"location": "repo\/1"}}\n/]
 
-Which looks like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -29,21 +133,3 @@ snap2  repo1      SUCCESS 1445634298  23:04:58   1445634672 23:11:12     6.2m   
 // TESTRESPONSE[s/2                10             0           10/\\d+ \\d+ \\d+ \\d+/]
 // TESTRESPONSE[non_json]
 
-Each snapshot contains information about when it was started and stopped.
-Start and stop timestamps are available in two formats.
-The `HH:MM:SS` output is simply for quick human consumption.
-The epoch time retains more information, including date, and is machine sortable if the snapshot process spans days.
-
-It is also possible to get the list of snapshots from multiple repositories.
-Here are some examples:
-
-[source,js]
---------------------------------------------------
-GET /_cat/snapshots/_all
-GET /_cat/snapshots/repo1,repo2
-GET /_cat/snapshots/repo*
---------------------------------------------------
-// CONSOLE
-// TEST[skip:no repo2]
-
-Please note that if one of the repositories fails during the request you will get an exception instead of the table.

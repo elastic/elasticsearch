@@ -1,0 +1,14 @@
+{
+  "enrich.stats": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-stats.html",
+    "stability" : "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_enrich/_stats",
+          "methods": [ "GET" ]
+        }
+      ]
+    }
+  }
+}

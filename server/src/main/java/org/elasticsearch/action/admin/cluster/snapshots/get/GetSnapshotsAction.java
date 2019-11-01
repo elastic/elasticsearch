@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Get snapshots action
@@ -31,12 +30,8 @@ public class GetSnapshotsAction extends ActionType<GetSnapshotsResponse> {
     public static final String NAME = "cluster:admin/snapshot/get";
 
     private GetSnapshotsAction() {
-        super(NAME);
+        super(NAME, GetSnapshotsResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<GetSnapshotsResponse> getResponseReader() {
-        return GetSnapshotsResponse::new;
-    }
 }
 

@@ -6,10 +6,7 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
@@ -22,22 +19,14 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestDeleteWatchAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestDeleteWatchAction.class));
-
-    public RestDeleteWatchAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, "/_watcher/watch/{id}", this,
-            DELETE, "/_xpack/watcher/watch/{id}", deprecationLogger);
+    public RestDeleteWatchAction(RestController controller) {
+        controller.registerHandler(DELETE, "/_watcher/watch/{id}", this);
     }
 
     @Override
@@ -46,7 +35,7 @@ public class RestDeleteWatchAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) {
         DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest(request.param("id"));
         return channel -> client.execute(DeleteWatchAction.INSTANCE, deleteWatchRequest, new RestBuilderListener<>(channel) {
             @Override

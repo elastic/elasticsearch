@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -27,19 +24,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * REST action for translating SQL queries into ES requests
  */
 public class RestSqlTranslateAction extends BaseRestHandler {
-    
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlTranslateAction.class));
-    
-    public RestSqlTranslateAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                GET, Protocol.SQL_TRANSLATE_REST_ENDPOINT, this,
-                GET, Protocol.SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT, deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, Protocol.SQL_TRANSLATE_REST_ENDPOINT, this,
-                POST, Protocol.SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT, deprecationLogger);
+
+    public RestSqlTranslateAction(RestController controller) {
+        controller.registerHandler(GET, Protocol.SQL_TRANSLATE_REST_ENDPOINT, this);
+        controller.registerHandler(POST, Protocol.SQL_TRANSLATE_REST_ENDPOINT, this);
     }
 
     @Override
@@ -49,7 +37,7 @@ public class RestSqlTranslateAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlTranslateRequest.fromXContent(parser);
         }
-        
+
         return channel -> client.executeLocally(SqlTranslateAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
     }
 

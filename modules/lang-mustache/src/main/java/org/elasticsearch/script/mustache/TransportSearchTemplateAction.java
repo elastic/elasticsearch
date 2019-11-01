@@ -54,7 +54,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     @Inject
     public TransportSearchTemplateAction(TransportService transportService, ActionFilters actionFilters,
                                          ScriptService scriptService, NamedXContentRegistry xContentRegistry, NodeClient client) {
-        super(SearchTemplateAction.NAME, transportService, SearchTemplateRequest::new, actionFilters);
+        super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

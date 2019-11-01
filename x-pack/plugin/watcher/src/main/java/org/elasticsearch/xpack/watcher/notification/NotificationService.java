@@ -95,7 +95,7 @@ public abstract class NotificationService<Account> {
         final Settings completeSettings = completeSettingsBuilder.build();
         // obtain account names and create accounts
         final Set<String> accountNames = getAccountNames(completeSettings);
-        this.accounts = createAccounts(completeSettings, accountNames, this::createAccount);
+        this.accounts = createAccounts(completeSettings, accountNames, (name, accountSettings) -> createAccount(name, accountSettings));
         this.defaultAccount = findDefaultAccountOrNull(completeSettings, this.accounts);
     }
 

@@ -40,12 +40,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/stop";
 
     private StopDataFrameAnalyticsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StopDataFrameAnalyticsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

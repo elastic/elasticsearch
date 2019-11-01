@@ -35,6 +35,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.sql.rowset.serial.SerialException;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 
 /**
@@ -52,7 +53,7 @@ public class JreHttpUrlConnection implements Closeable {
             + "?error_trace] and method [POST], allowed:";
 
     public static <R> R http(String path, String query, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
-        final URI uriPath = cfg.baseUri().resolve(path);  // update path if needed
+        final URI uriPath = appendSegmentToPath(cfg.baseUri(), path);  // update path if needed
         final String uriQuery = query == null ? uriPath.getQuery() : query; // update query if needed
         final URL url;
         try {
@@ -140,10 +141,18 @@ public class JreHttpUrlConnection implements Closeable {
             CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
             String requestMethod
     ) throws ClientException {
+        return request(doc, parser, requestMethod, "application/json");
+    }
+
+    public <R> ResponseOrException<R> request(
+            CheckedConsumer<OutputStream, IOException> doc,
+            CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
+            String requestMethod, String contentTypeHeader
+    ) throws ClientException {
         try {
             con.setRequestMethod(requestMethod);
             con.setDoOutput(true);
-            con.setRequestProperty("Content-Type", "application/json");
+            con.setRequestProperty("Content-Type", contentTypeHeader);
             con.setRequestProperty("Accept", "application/json");
             if (doc != null) {
                 try (OutputStream out = con.getOutputStream()) {

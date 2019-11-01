@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -36,8 +35,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Cat API class to display information about snapshot repositories
  */
 public class RestRepositoriesAction extends AbstractCatAction {
-    public RestRepositoriesAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestRepositoriesAction(RestController controller) {
         controller.registerHandler(GET, "/_cat/repositories", this);
     }
 

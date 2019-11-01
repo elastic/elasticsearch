@@ -30,12 +30,7 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast";
 
     private ForecastJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, ForecastJobAction.Response::new);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {

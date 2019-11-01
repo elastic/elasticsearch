@@ -274,14 +274,5 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
                         LinkedHashMap::new));
     }
 
-    /**
-     * A utility method to convert a retention lease collection to a map from retention lease ID to retention lease.
-     *
-     * @param retentionLeases the retention lease collection
-     * @return the map from retention lease ID to retention lease
-     */
-    static Map<String, RetentionLease> toMap(final RetentionLeases retentionLeases) {
-        return retentionLeases.leases;
-    }
-
 }
+

@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Register repository action
@@ -32,12 +31,8 @@ public class PutRepositoryAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/repository/put";
 
     private PutRepositoryAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
-    }
 }
 

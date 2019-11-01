@@ -1,20 +1,50 @@
 [[cat-plugins]]
-== cat plugins
+=== cat plugins API
+++++
+<titleabbrev>cat plugins</titleabbrev>
+++++
 
-The `plugins` command provides a view per node of running plugins. This information *spans nodes*.
+Returns a list of plugins running on each node of a cluster.
 
-[source,js]
+
+[[cat-plugins-tasks-api-request]]
+==== {api-request-title}
+
+`GET /_cat/plugins`
+
+
+[[cat-plugins-tasks-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-plugins-api-example]]
+==== {api-examples-title}
+
+[source,console]
 ------------------------------------------------------------------------------
 GET /_cat/plugins?v&s=component&h=name,component,version,description
 ------------------------------------------------------------------------------
-// CONSOLE
 
-Might look like:
+The API returns the following response:
 
 ["source","txt",subs="attributes,callouts"]
 ------------------------------------------------------------------------------
 name    component               version   description
-U7321H6 analysis-icu            {version_qualified} The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.
+U7321H6 analysis-icu            {version_qualified} The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.
 U7321H6 analysis-kuromoji       {version_qualified} The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
 U7321H6 analysis-nori           {version_qualified} The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.
 U7321H6 analysis-phonetic       {version_qualified} The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.
@@ -32,5 +62,3 @@ U7321H6 store-smb               {version_qualified} The Store SMB plugin adds su
 U7321H6 transport-nio           {version_qualified} The nio transport.
 ------------------------------------------------------------------------------
 // TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ non_json]
-
-We can tell quickly how many plugins per node we have and which versions.

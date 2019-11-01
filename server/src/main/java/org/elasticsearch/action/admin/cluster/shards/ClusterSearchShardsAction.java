@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class ClusterSearchShardsAction extends ActionType<ClusterSearchShardsResponse> {
 
@@ -28,11 +27,6 @@ public class ClusterSearchShardsAction extends ActionType<ClusterSearchShardsRes
     public static final String NAME = "indices:admin/shards/search_shards";
 
     private ClusterSearchShardsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<ClusterSearchShardsResponse> getResponseReader() {
-        return ClusterSearchShardsResponse::new;
+        super(NAME, ClusterSearchShardsResponse::new);
     }
 }

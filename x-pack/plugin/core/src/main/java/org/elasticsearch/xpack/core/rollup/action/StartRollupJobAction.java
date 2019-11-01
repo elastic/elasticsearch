@@ -30,12 +30,7 @@ public class StartRollupJobAction extends ActionType<StartRollupJobAction.Respon
     public static final String NAME = "cluster:admin/xpack/rollup/start";
 
     private StartRollupJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StartRollupJobAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

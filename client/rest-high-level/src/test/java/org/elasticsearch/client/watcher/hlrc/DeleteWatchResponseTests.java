@@ -21,6 +21,7 @@ package org.elasticsearch.client.watcher.hlrc;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.watcher.DeleteWatchResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -30,7 +31,7 @@ public class DeleteWatchResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse, DeleteWatchResponse> {
 
     @Override
-    protected org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse createServerTestInstance() {
+    protected org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse createServerTestInstance(XContentType xContentType) {
         String id = randomAlphaOfLength(10);
         long version = randomLongBetween(1, 10);
         boolean found = randomBoolean();

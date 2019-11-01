@@ -57,12 +57,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
     private static final String TIMING_STATS = "timing_stats";
 
     private GetJobsStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetJobsStatsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {

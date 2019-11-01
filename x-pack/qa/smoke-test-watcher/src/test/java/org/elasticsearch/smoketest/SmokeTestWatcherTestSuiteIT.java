@@ -21,6 +21,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -93,7 +94,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override

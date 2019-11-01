@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -43,8 +42,8 @@ public class RestIndicesStatsActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         UsageService usageService = new UsageService();
-        action = new RestIndicesStatsAction(Settings.EMPTY,
-                new RestController(Collections.emptySet(), null, null, null, usageService));
+        action = new RestIndicesStatsAction(
+            new RestController(Collections.emptySet(), null, null, null, usageService));
     }
 
     public void testUnrecognizedMetric() throws IOException {

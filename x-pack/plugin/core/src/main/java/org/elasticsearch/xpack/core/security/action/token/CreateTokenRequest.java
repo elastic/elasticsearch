@@ -68,6 +68,16 @@ public final class CreateTokenRequest extends ActionRequest {
     private String scope;
     private String refreshToken;
 
+    public CreateTokenRequest(StreamInput in) throws IOException {
+        super(in);
+        grantType = in.readString();
+        username = in.readOptionalString();
+        password = in.readOptionalSecureString();
+        refreshToken = in.readOptionalString();
+        scope = in.readOptionalString();
+        kerberosTicket = in.readOptionalSecureString();
+    }
+
     public CreateTokenRequest() {}
 
     public CreateTokenRequest(String grantType, @Nullable String username, @Nullable SecureString password,
@@ -212,16 +222,4 @@ public final class CreateTokenRequest extends ActionRequest {
         out.writeOptionalString(scope);
         out.writeOptionalSecureString(kerberosTicket);
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        grantType = in.readString();
-        username = in.readOptionalString();
-        password = in.readOptionalSecureString();
-        refreshToken = in.readOptionalString();
-        scope = in.readOptionalString();
-        kerberosTicket = in.readOptionalSecureString();
-    }
-
 }

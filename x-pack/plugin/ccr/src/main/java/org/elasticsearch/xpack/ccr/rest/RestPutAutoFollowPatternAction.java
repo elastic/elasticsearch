@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +19,7 @@ import static org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction
 
 public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
-    public RestPutAutoFollowPatternAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutAutoFollowPatternAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_ccr/auto_follow/{name}", this);
     }
 
@@ -36,7 +34,7 @@ public class RestPutAutoFollowPatternAction extends BaseRestHandler {
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
-    static Request createRequest(RestRequest restRequest) throws IOException {
+    private static Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
             return Request.fromXContent(parser, restRequest.param("name"));
         }

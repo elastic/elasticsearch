@@ -316,7 +316,8 @@ public class HttpClient implements Closeable {
         return HttpProxy.NO_PROXY;
     }
 
-    private Tuple<HttpHost, URI> createURI(HttpRequest request) {
+    // for testing
+    static Tuple<HttpHost, URI> createURI(HttpRequest request) {
         try {
             List<NameValuePair> qparams = new ArrayList<>(request.params.size());
             request.params.forEach((k, v) -> qparams.add(new BasicNameValuePair(k, v)));
@@ -327,9 +328,20 @@ public class HttpClient implements Closeable {
                 unescapedPathParts = Collections.emptyList();
             } else {
                 final String[] pathParts = request.path.split("/");
+                final boolean isPathEndsWithSlash = request.path.endsWith("/");
                 unescapedPathParts = new ArrayList<>(pathParts.length);
-                for (String part : pathParts) {
-                    unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8.name()));
+                for (int i = 0; i < pathParts.length; i++) {
+                    String part = pathParts[i];
+                    boolean isLast = i == pathParts.length - 1;
+                    if (Strings.isEmpty(part) == false) {
+                        unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8.name()));
+                        // if the passed URL ends with a slash, adding an empty string to the
+                        // unescaped paths will ensure the slash will be added back
+                        boolean appendSlash = isPathEndsWithSlash && isLast;
+                        if (appendSlash) {
+                            unescapedPathParts.add("");
+                        }
+                    }
                 }
             }
 

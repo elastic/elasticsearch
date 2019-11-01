@@ -22,13 +22,13 @@ package org.elasticsearch.cluster.service;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-public class PendingClusterTask implements Streamable {
+public class PendingClusterTask implements Writeable {
 
     private long insertOrder;
     private Priority priority;
@@ -36,7 +36,12 @@ public class PendingClusterTask implements Streamable {
     private long timeInQueue;
     private boolean executing;
 
-    public PendingClusterTask() {
+    public PendingClusterTask(StreamInput in) throws IOException {
+        insertOrder = in.readVLong();
+        priority = Priority.readFrom(in);
+        source = in.readText();
+        timeInQueue = in.readLong();
+        executing = in.readBoolean();
     }
 
     public PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue, boolean executing) {
@@ -71,15 +76,6 @@ public class PendingClusterTask implements Streamable {
 
     public boolean isExecuting() {
         return executing;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        insertOrder = in.readVLong();
-        priority = Priority.readFrom(in);
-        source = in.readText();
-        timeInQueue = in.readLong();
-        executing = in.readBoolean();
     }
 
     @Override

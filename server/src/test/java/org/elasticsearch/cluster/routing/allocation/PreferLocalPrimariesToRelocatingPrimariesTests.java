@@ -74,8 +74,8 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         clusterState = strategy.reroute(clusterState, "reroute");
 
 
-        while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()) {
-            clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        while (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty() == false) {
+            clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         }
 
         logger.info("remove one of the nodes and apply filter to move everything from another node");

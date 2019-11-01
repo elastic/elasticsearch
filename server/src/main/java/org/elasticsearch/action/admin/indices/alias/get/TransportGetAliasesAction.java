@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -29,14 +29,16 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-public class TransportGetAliasesAction extends StreamableTransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
+public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
 
     @Inject
     public TransportGetAliasesAction(TransportService transportService, ClusterService clusterService,
@@ -59,8 +61,8 @@ public class TransportGetAliasesAction extends StreamableTransportMasterNodeRead
     }
 
     @Override
-    protected GetAliasesResponse newResponse() {
-        return new GetAliasesResponse();
+    protected GetAliasesResponse read(StreamInput in) throws IOException {
+        return new GetAliasesResponse(in);
     }
 
     @Override

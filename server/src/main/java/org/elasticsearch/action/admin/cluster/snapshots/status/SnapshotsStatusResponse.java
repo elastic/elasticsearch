@@ -42,7 +42,14 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
 
     private List<SnapshotStatus> snapshots = Collections.emptyList();
 
-    SnapshotsStatusResponse() {
+    public SnapshotsStatusResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        List<SnapshotStatus> builder = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            builder.add(new SnapshotStatus(in));
+        }
+        snapshots = Collections.unmodifiableList(builder);
     }
 
     SnapshotsStatusResponse(List<SnapshotStatus> snapshots) {
@@ -56,17 +63,6 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
      */
     public List<SnapshotStatus> getSnapshots() {
         return snapshots;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        List<SnapshotStatus> builder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            builder.add(SnapshotStatus.readSnapshotStatus(in));
-        }
-        snapshots = Collections.unmodifiableList(builder);
     }
 
     @Override

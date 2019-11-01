@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class EmailMessageIdTests extends ESTestCase {
 
@@ -56,7 +58,7 @@ public class EmailMessageIdTests extends ESTestCase {
         Set<Setting<?>> registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registeredSettings.addAll(EmailService.getSettings());
         ClusterSettings clusterSettings = new ClusterSettings(settings, registeredSettings);
-        emailService = new EmailService(settings, null, clusterSettings);
+        emailService = new EmailService(settings, null, mock(SSLService.class), clusterSettings);
         EmailTemplate emailTemplate = EmailTemplate.builder().from("from@example.org").to("to@example.org")
                 .subject("subject").textBody("body").build();
         emailAction = new EmailAction(emailTemplate, null, null, null, null, null);

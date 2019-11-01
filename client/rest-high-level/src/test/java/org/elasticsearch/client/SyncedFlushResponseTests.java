@@ -191,7 +191,7 @@ public class SyncedFlushResponseTests extends ESTestCase {
                             );
                         } else {
                             successful++;
-                            shardResponses.put(shardRouting, new SyncedFlushService.ShardSyncedFlushResponse());
+                            shardResponses.put(shardRouting, new SyncedFlushService.ShardSyncedFlushResponse((String) null));
                         }
                     }
                     shardsResults.add(new ShardsSyncedFlushResult(shardId, "_sync_id_" + shard, replicas + 1, shardResponses));

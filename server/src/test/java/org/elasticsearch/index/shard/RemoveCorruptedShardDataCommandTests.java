@@ -23,6 +23,11 @@ import joptsimple.OptionSet;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,6 +38,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -52,10 +59,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand.TRUNCATE_CLEAN_TRANSLOG_FLAG;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -102,9 +112,26 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataDir);
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+
+        // Adding rollover info to IndexMetaData to check that NamedXContentRegistry is properly configured
+        Condition rolloverCondition;
+
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                rolloverCondition = new MaxDocsCondition(randomNonNegativeLong());
+                break;
+            case 1:
+                rolloverCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+                break;
+            default:
+                rolloverCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
+                break;
+        }
+
         final IndexMetaData.Builder metaData = IndexMetaData.builder(routing.getIndexName())
             .settings(settings)
             .primaryTerm(0, randomIntBetween(1, 100))
+            .putRolloverInfo(new RolloverInfo("test", Collections.singletonList(rolloverCondition), randomNonNegativeLong()))
             .putMapping("_doc", "{ \"properties\": {} }");
         indexMetaData = metaData.build();
 
@@ -346,6 +373,39 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final OptionSet options2 = parser.parse("--dir", indexPath.toAbsolutePath().toString());
         command.findAndProcessShardPath(options2, environment,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
+    }
+
+    public void testFailsOnCleanIndex() throws Exception {
+        indexDocs(indexShard, true);
+        closeShards(indexShard);
+
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        final MockTerminal t = new MockTerminal();
+        final OptionParser parser = command.getParser();
+
+        final OptionSet options = parser.parse("-d", translogPath.toString());
+        t.setVerbosity(Terminal.Verbosity.VERBOSE);
+        assertThat(expectThrows(ElasticsearchException.class, () -> command.execute(t, options, environment)).getMessage(),
+            allOf(containsString("Shard does not seem to be corrupted"), containsString("--" + TRUNCATE_CLEAN_TRANSLOG_FLAG)));
+        assertThat(t.getOutput(), containsString("Lucene index is clean"));
+        assertThat(t.getOutput(), containsString("Translog is clean"));
+    }
+
+    public void testTruncatesCleanTranslogIfRequested() throws Exception {
+        indexDocs(indexShard, true);
+        closeShards(indexShard);
+
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        final MockTerminal t = new MockTerminal();
+        final OptionParser parser = command.getParser();
+
+        final OptionSet options = parser.parse("-d", translogPath.toString(), "--" + TRUNCATE_CLEAN_TRANSLOG_FLAG);
+        t.addTextInput("y");
+        t.setVerbosity(Terminal.Verbosity.VERBOSE);
+        command.execute(t, options, environment);
+        assertThat(t.getOutput(), containsString("Lucene index is clean"));
+        assertThat(t.getOutput(), containsString("Translog was not analysed and will be truncated"));
+        assertThat(t.getOutput(), containsString("Creating new empty translog"));
     }
 
     public void testCleanWithCorruptionMarker() throws Exception {

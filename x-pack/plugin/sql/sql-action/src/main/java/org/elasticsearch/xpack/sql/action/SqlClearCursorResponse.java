@@ -30,7 +30,9 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
         this.succeeded = succeeded;
     }
 
-    SqlClearCursorResponse() {
+    SqlClearCursorResponse(StreamInput in) throws IOException {
+        super(in);
+        succeeded = in.readBoolean();
     }
 
     /**
@@ -56,12 +58,6 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
         builder.field(SUCCEEDED.getPreferredName(), succeeded);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        succeeded = in.readBoolean();
     }
 
     @Override

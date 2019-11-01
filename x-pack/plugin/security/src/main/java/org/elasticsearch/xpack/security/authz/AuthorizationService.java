@@ -54,7 +54,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -92,6 +93,8 @@ public class AuthorizationService {
     public static final String AUTHORIZATION_INFO_KEY = "_authz_info";
     private static final AuthorizationInfo SYSTEM_AUTHZ_INFO =
         () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { SystemUser.ROLE_NAME });
+    private static final String IMPLIED_INDEX_ACTION = IndexAction.NAME + ":op_type/index";
+    private static final String IMPLIED_CREATE_ACTION = IndexAction.NAME + ":op_type/create";
 
     private static final Logger logger = LogManager.getLogger(AuthorizationService.class);
 
@@ -231,7 +234,7 @@ public class AuthorizationService {
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
         final AuthorizationEngine authzEngine = getAuthorizationEngine(authentication);
-        if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
+        if (ClusterPrivilegeResolver.isClusterAction(action)) {
             final ActionListener<AuthorizationResult> clusterAuthzListener =
                 wrapPreservingContext(new AuthorizationResultListener<>(result -> {
                         putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
@@ -535,8 +538,9 @@ public class AuthorizationService {
         final DocWriteRequest<?> docWriteRequest = item.request();
         switch (docWriteRequest.opType()) {
             case INDEX:
+                return IMPLIED_INDEX_ACTION;
             case CREATE:
-                return IndexAction.NAME;
+                return IMPLIED_CREATE_ACTION;
             case UPDATE:
                 return UpdateAction.NAME;
             case DELETE:
@@ -571,6 +575,14 @@ public class AuthorizationService {
                     authentication.getUser().principal());
             return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", cause, action, authUser.principal(),
                     authentication.getUser().principal());
+        }
+        // check for authentication by API key
+        if (authentication.getAuthenticatedBy().getType().equals(ApiKeyService.API_KEY_REALM_TYPE)) {
+            final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+            assert apiKeyId != null : "api key id must be present in the metadata";
+            logger.debug("action [{}] is unauthorized for API key id [{}] of user [{}]", action, apiKeyId, authUser.principal());
+            return authorizationError("action [{}] is unauthorized for API key id [{}] of user [{}]", cause, action, apiKeyId,
+                authUser.principal());
         }
         logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal());
         return authorizationError("action [{}] is unauthorized for user [{}]", cause, action, authUser.principal());

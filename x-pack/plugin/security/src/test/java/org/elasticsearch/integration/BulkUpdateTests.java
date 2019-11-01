@@ -41,8 +41,8 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
 
     public void testThatBulkUpdateDoesNotLoseFields() {
         assertEquals(DocWriteResponse.Result.CREATED,
-                client().prepareIndex("index1", "type").setSource("{\"test\": \"test\"}", XContentType.JSON).setId("1").get().getResult());
-        GetResponse getResponse = client().prepareGet("index1", "type", "1").get();
+                client().prepareIndex("index1").setSource("{\"test\": \"test\"}", XContentType.JSON).setId("1").get().getResult());
+        GetResponse getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
 
         if (randomBoolean()) {
@@ -50,9 +50,9 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         // update with a new field
-        assertEquals(DocWriteResponse.Result.UPDATED, client().prepareUpdate("index1", "type", "1")
+        assertEquals(DocWriteResponse.Result.UPDATED, client().prepareUpdate("index1", "1")
                 .setDoc("{\"not test\": \"not test\"}", XContentType.JSON).get().getResult());
-        getResponse = client().prepareGet("index1", "type", "1").get();
+        getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
         assertEquals("not test", getResponse.getSource().get("not test"));
 
@@ -61,17 +61,17 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         flushAndRefresh();
 
         // do it in a bulk
-        BulkResponse response = client().prepareBulk().add(client().prepareUpdate("index1", "type", "1")
+        BulkResponse response = client().prepareBulk().add(client().prepareUpdate("index1", "1")
                 .setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON)).get();
         assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
-        getResponse = client().prepareGet("index1", "type", "1").get();
+        getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
         assertEquals("not test", getResponse.getSource().get("not test"));
         assertEquals("bulk updated", getResponse.getSource().get("bulk updated"));
     }
 
     public void testThatBulkUpdateDoesNotLoseFieldsHttp() throws IOException {
-        final String path = "/index1/type/1";
+        final String path = "/index1/_doc/1";
         final RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                 new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
@@ -91,7 +91,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         //update with new field
-        Request updateRequest = new Request("POST", path + "/_update");
+        Request updateRequest = new Request("POST", "/index1/_update/1");
         updateRequest.setOptions(options);
         updateRequest.setJsonEntity("{\"doc\": {\"not test\": \"not test\"}}");
         getRestClient().performRequest(updateRequest);
@@ -107,7 +107,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.setOptions(options);
         bulkRequest.setJsonEntity(
-                "{\"update\": {\"_index\": \"index1\", \"_type\": \"type\", \"_id\": \"1\"}}\n" +
+                "{\"update\": {\"_index\": \"index1\", \"_id\": \"1\"}}\n" +
                 "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n");
         getRestClient().performRequest(bulkRequest);
 

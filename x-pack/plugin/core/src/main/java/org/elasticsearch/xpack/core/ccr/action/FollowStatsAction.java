@@ -36,12 +36,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
     public static final FollowStatsAction INSTANCE = new FollowStatsAction();
 
     private FollowStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<StatsResponses> getResponseReader() {
-        return StatsResponses::new;
+        super(NAME, FollowStatsAction.StatsResponses::new);
     }
 
     public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {

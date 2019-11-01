@@ -23,7 +23,6 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -49,11 +48,13 @@ import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.core.BroadcastResponse;
+import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.Before;
 
@@ -110,7 +111,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
         assertThat(putFollowResponse.isIndexFollowingStarted(), is(true));
 
-        IndexRequest indexRequest = new IndexRequest("leader", "_doc")
+        IndexRequest indexRequest = new IndexRequest("leader")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .source("{}", XContentType.JSON);
         highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
@@ -260,7 +261,9 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardStats.get(0);
             final Map<?, ?> retentionLeasesStats = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
             final List<?> leases = (List<?>) retentionLeasesStats.get("leases");
-            assertThat(leases, empty());
+            for (final Object lease : leases) {
+                assertThat(((Map<?, ?>) lease).get("source"), equalTo(ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+            }
         }
     }
 

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class OpenIdConnectLogoutAction extends ActionType<OpenIdConnectLogoutResponse> {
 
@@ -14,11 +13,6 @@ public class OpenIdConnectLogoutAction extends ActionType<OpenIdConnectLogoutRes
     public static final String NAME = "cluster:admin/xpack/security/oidc/logout";
 
     private OpenIdConnectLogoutAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<OpenIdConnectLogoutResponse> getResponseReader() {
-        return OpenIdConnectLogoutResponse::new;
+        super(NAME, OpenIdConnectLogoutResponse::new);
     }
 }

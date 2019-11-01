@@ -23,7 +23,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -185,7 +184,7 @@ public class ContextIndexSearcher extends IndexSearcher {
                 continue;
             }
             Bits liveDocs = ctx.reader().getLiveDocs();
-            BitSet liveDocsBitSet = getSparseBitSetOrNull(ctx.reader().getLiveDocs());
+            BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
             if (liveDocsBitSet == null) {
                 BulkScorer bulkScorer = weight.bulkScorer(ctx);
                 if (bulkScorer != null) {
@@ -226,7 +225,8 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs,
-                                            LeafCollector collector, Runnable checkCancelled) throws IOException {
+                                         LeafCollector collector, Runnable checkCancelled) throws IOException {
+        collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:
         DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(Arrays.asList(new BitSetIterator(acceptDocs,
@@ -243,15 +243,15 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     @Override
-    public TermStatistics termStatistics(Term term, TermStates context) throws IOException {
+    public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
-            return super.termStatistics(term, context);
+            return super.termStatistics(term, docFreq, totalTermFreq);
         }
         TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
         if (termStatistics == null) {
             // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
-            return super.termStatistics(term, context);
+            return super.termStatistics(term, docFreq, totalTermFreq);
         }
         return termStatistics;
     }

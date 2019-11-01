@@ -46,20 +46,15 @@ public class MonitoringBulkDoc implements Writeable {
         this.xContentType = Objects.requireNonNull(xContentType);
     }
 
-    /**
-     * Read from a stream.
-     */
-    public static MonitoringBulkDoc readFrom(StreamInput in) throws IOException {
-        final MonitoredSystem system = MonitoredSystem.fromSystem(in.readOptionalString());
-        final long timestamp = in.readVLong();
+    public MonitoringBulkDoc (StreamInput in) throws IOException {
+        this.system = MonitoredSystem.fromSystem(in.readOptionalString());
+        this.timestamp = in.readVLong();
 
-        final String type = in.readOptionalString();
-        final String id = in.readOptionalString();
-        final BytesReference source = in.readBytesReference();
-        final XContentType xContentType = (source != BytesArray.EMPTY) ? in.readEnum(XContentType.class) : XContentType.JSON;
-        long interval = in.readVLong();
-
-        return new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
+        this.type = in.readOptionalString();
+        this.id = in.readOptionalString();
+        this.source = in.readBytesReference();
+        this.xContentType = (source != BytesArray.EMPTY) ? in.readEnum(XContentType.class) : XContentType.JSON;
+        this.intervalMillis = in.readVLong();
     }
 
     @Override

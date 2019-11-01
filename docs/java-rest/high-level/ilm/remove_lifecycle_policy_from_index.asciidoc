@@ -3,7 +3,7 @@
 :request: RemoveIndexLifecyclePolicyRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Remove Policy from Index API
 

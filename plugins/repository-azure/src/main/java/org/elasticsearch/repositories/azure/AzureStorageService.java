@@ -24,11 +24,13 @@ import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
+import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
+import com.microsoft.azure.storage.blob.BlobRequestOptions;
 import com.microsoft.azure.storage.blob.CloudBlob;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
@@ -42,6 +44,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -72,7 +75,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 
 public class AzureStorageService {
-    
+
     private static final Logger logger = LogManager.getLogger(AzureStorageService.class);
 
     public static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
@@ -109,7 +112,7 @@ public class AzureStorageService {
         }
     }
 
-    private static CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
+    private CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
         final CloudBlobClient client = createClient(azureStorageSettings);
         // Set timeout option if the user sets cloud.azure.storage.timeout or
         // cloud.azure.storage.xxx.timeout (it's negative by default)
@@ -121,10 +124,14 @@ public class AzureStorageService {
             client.getDefaultRequestOptions().setTimeoutIntervalInMs((int) timeout);
         }
         // We define a default exponential retry policy
-        client.getDefaultRequestOptions()
-                .setRetryPolicyFactory(new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
+        client.getDefaultRequestOptions().setRetryPolicyFactory(createRetryPolicy(azureStorageSettings));
         client.getDefaultRequestOptions().setLocationMode(azureStorageSettings.getLocationMode());
         return client;
+    }
+
+    // non-static, package private for testing
+    RetryPolicyFactory createRetryPolicy(final AzureStorageSettings azureStorageSettings) {
+        return new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries());
     }
 
     private static CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
@@ -192,13 +199,15 @@ public class AzureStorageService {
         });
     }
 
-    void deleteBlobDirectory(String account, String container, String path, Executor executor)
+    DeleteResult deleteBlobDirectory(String account, String container, String path, Executor executor)
             throws URISyntaxException, StorageException, IOException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final Collection<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
         final AtomicLong outstanding = new AtomicLong(1L);
         final PlainActionFuture<Void> result = PlainActionFuture.newFuture();
+        final AtomicLong blobsDeleted = new AtomicLong();
+        final AtomicLong bytesDeleted = new AtomicLong();
         SocketAccess.doPrivilegedVoidException(() -> {
             for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
@@ -208,7 +217,17 @@ public class AzureStorageService {
                 executor.execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
+                        final long len;
+                        if (blobItem instanceof CloudBlob) {
+                            len = ((CloudBlob) blobItem).getProperties().getLength();
+                        } else {
+                            len = -1L;
+                        }
                         deleteBlob(account, container, blobPath);
+                        blobsDeleted.incrementAndGet();
+                        if (len >= 0) {
+                            bytesDeleted.addAndGet(len);
+                        }
                     }
 
                     @Override
@@ -234,6 +253,7 @@ public class AzureStorageService {
             exceptions.forEach(ex::addSuppressed);
             throw ex;
         }
+        return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
     public InputStream getInputStream(String account, String container, String blob)
@@ -247,7 +267,7 @@ public class AzureStorageService {
     }
 
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, String container, String keyPath, String prefix)
-        throws URISyntaxException, StorageException {
+            throws URISyntaxException, StorageException, IOException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
         // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
@@ -275,7 +295,7 @@ public class AzureStorageService {
         return Map.copyOf(blobsBuilder);
     }
 
-    public Set<String> children(String account, String container, BlobPath path) throws URISyntaxException, StorageException {
+    public Set<String> children(String account, String container, BlobPath path) throws URISyntaxException, StorageException, IOException {
         final var blobsBuilder = new HashSet<String>();
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -299,8 +319,9 @@ public class AzureStorageService {
     }
 
     public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,
-                          boolean failIfAlreadyExists)
-        throws URISyntaxException, StorageException, FileAlreadyExistsException {
+                          boolean failIfAlreadyExists) throws URISyntaxException, StorageException, IOException {
+        assert inputStream.markSupported()
+            : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -309,7 +330,7 @@ public class AzureStorageService {
             final AccessCondition accessCondition =
                 failIfAlreadyExists ? AccessCondition.generateIfNotExistsCondition() : AccessCondition.generateEmptyCondition();
             SocketAccess.doPrivilegedVoidException(() ->
-                blob.upload(inputStream, blobSize, accessCondition, null, client.v2().get()));
+                blob.upload(inputStream, blobSize, accessCondition, getBlobRequestOptionsForWriteBlob(), client.v2().get()));
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
                 StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
@@ -318,6 +339,11 @@ public class AzureStorageService {
             throw se;
         }
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
+    }
+
+    // package private for testing
+    BlobRequestOptions getBlobRequestOptionsForWriteBlob() {
+        return null;
     }
 
     static InputStream giveSocketPermissionsToStream(final InputStream stream) {

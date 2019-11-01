@@ -107,7 +107,7 @@ import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
  * {@link RoutingTable.Builder#addAsRestore(IndexMetaData, SnapshotRecoverySource)} method.
  * <p>
  * Individual shards are getting restored as part of normal recovery process in
- * {@link IndexShard#restoreFromRepository(Repository)} )}
+ * {@link IndexShard#restoreFromRepository} )}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
  * at the {@link ShardRouting#recoverySource()} property.
  * <p>
@@ -266,16 +266,14 @@ public class RestoreService implements ClusterStateApplier {
                                 // Index doesn't exist - create it and start recovery
                                 // Make sure that the index we are about to create has a validate name
                                 MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
-                                createIndexService.validateIndexSettings(renamedIndexName,
-                                                                        snapshotIndexMetaData.getSettings(),
-                                                                        currentState,
-                                                                        false);
+                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), false);
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
                                                                                     .state(IndexMetaData.State.OPEN)
                                                                                     .index(renamedIndexName);
                                 indexMdBuilder.settings(Settings.builder()
                                                                 .put(snapshotIndexMetaData.getSettings())
                                                                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
+                                MetaDataCreateIndexService.checkShardLimit(snapshotIndexMetaData.getSettings(), currentState);
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();

@@ -22,12 +22,7 @@ public class KillProcessAction extends ActionType<KillProcessAction.Response> {
     public static final String NAME = "cluster:internal/xpack/ml/job/kill/process";
 
     private KillProcessAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, KillProcessAction.Response::new);
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response> {

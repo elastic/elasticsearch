@@ -52,7 +52,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -105,11 +105,11 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      * <p>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
+    @TestIssueLogging(value = "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
         "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
-        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
-    // TestLogging for https://github.com/elastic/elasticsearch/issues/41068
+        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/41068")
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
@@ -160,7 +160,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 id = Integer.toString(idGenerator.incrementAndGet());
                                 int shard = Math.floorMod(Murmur3HashFunction.hash(id), numPrimaries);
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test", "type", id)
+                                IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test").setId(id)
                                     .setSource(Map.of(randomFrom(fieldNames), randomNonNegativeLong()), XContentType.JSON)
                                     .setTimeout(timeout);
 
@@ -239,7 +239,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
                             for (String id : ackedDocs.keySet()) {
                                 assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
-                                    client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                                    client(node).prepareGet("test", id).setPreference("_local").get().isExists());
                             }
                         } catch (AssertionError | NoShardAvailableActionException e) {
                             throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
@@ -293,12 +293,12 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
 
 
-        IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test", "type").setSource("field", "value")
+        IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value")
             .get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
-        GetResponse getResponse = internalCluster().client(notIsolatedNode).prepareGet("test", "type", indexResponse.getId())
+        GetResponse getResponse = internalCluster().client(notIsolatedNode).prepareGet("test", indexResponse.getId())
             .setPreference("_local")
             .get();
         assertThat(getResponse.isExists(), is(true));
@@ -312,7 +312,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         for (String node : nodes) {
             logger.info("Verifying if document exists after isolating node[{}] via node[{}]", isolatedNode, node);
-            getResponse = internalCluster().client(node).prepareGet("test", "type", indexResponse.getId())
+            getResponse = internalCluster().client(node).prepareGet("test", indexResponse.getId())
                 .setPreference("_local")
                 .get();
             assertThat(getResponse.isExists(), is(true));
@@ -476,7 +476,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
                     try {
-                        IndexResponse response = client().prepareIndex(index, "_doc", id)
+                        IndexResponse response = client().prepareIndex(index).setId(id)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON).get();
                         assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
                         logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
@@ -507,4 +507,5 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 ackedDocs, everyItem(isIn(docs)));
         }
     }
+
 }

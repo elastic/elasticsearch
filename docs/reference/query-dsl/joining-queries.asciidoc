@@ -6,13 +6,11 @@ prohibitively expensive.  Instead, Elasticsearch offers two forms of join
 which are designed to scale horizontally.
 
 <<query-dsl-nested-query,`nested` query>>::
-
 Documents may contain fields of type <<nested,`nested`>>. These
 fields are used to index arrays of objects, where each object can be queried
 (with the `nested` query) as an independent document.
 
 <<query-dsl-has-child-query,`has_child`>> and <<query-dsl-has-parent-query,`has_parent`>> queries::
-
 A <<parent-join,`join` field relationship>> can exist between
 documents within a single index. The `has_child` query returns parent
 documents whose child documents match the specified query, while the

@@ -177,7 +177,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         store = indexShard.storeStats();
                         break;
                     case Indexing:
-                        indexing = indexShard.indexingStats(flags.types());
+                        indexing = indexShard.indexingStats();
                         break;
                     case Get:
                         get = indexShard.getStats();
@@ -248,22 +248,22 @@ public class CommonStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalStreamable(docs);
-        out.writeOptionalStreamable(store);
-        out.writeOptionalStreamable(indexing);
-        out.writeOptionalStreamable(get);
+        out.writeOptionalWriteable(docs);
+        out.writeOptionalWriteable(store);
+        out.writeOptionalWriteable(indexing);
+        out.writeOptionalWriteable(get);
         out.writeOptionalWriteable(search);
-        out.writeOptionalStreamable(merge);
-        out.writeOptionalStreamable(refresh);
-        out.writeOptionalStreamable(flush);
-        out.writeOptionalStreamable(warmer);
-        out.writeOptionalStreamable(queryCache);
-        out.writeOptionalStreamable(fieldData);
-        out.writeOptionalStreamable(completion);
-        out.writeOptionalStreamable(segments);
-        out.writeOptionalStreamable(translog);
-        out.writeOptionalStreamable(requestCache);
-        out.writeOptionalStreamable(recoveryStats);
+        out.writeOptionalWriteable(merge);
+        out.writeOptionalWriteable(refresh);
+        out.writeOptionalWriteable(flush);
+        out.writeOptionalWriteable(warmer);
+        out.writeOptionalWriteable(queryCache);
+        out.writeOptionalWriteable(fieldData);
+        out.writeOptionalWriteable(completion);
+        out.writeOptionalWriteable(segments);
+        out.writeOptionalWriteable(translog);
+        out.writeOptionalWriteable(requestCache);
+        out.writeOptionalWriteable(recoveryStats);
     }
 
     public void add(CommonStats stats) {

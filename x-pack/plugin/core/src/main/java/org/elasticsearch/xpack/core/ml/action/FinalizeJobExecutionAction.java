@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -23,12 +22,7 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:internal/xpack/ml/job/finalize_job_execution";
 
     private FinalizeJobExecutionAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -49,11 +43,6 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
 
         public String[] getJobIds() {
             return jobIds;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

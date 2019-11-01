@@ -1,5 +1,8 @@
 [[keyword]]
 === Keyword datatype
+++++
+<titleabbrev>Keyword</titleabbrev>
+++++
 
 A field to index structured content such as email addresses, hostnames, status
 codes, zip codes or tags.
@@ -13,7 +16,7 @@ descriptions, it is likely that you should rather use a <<text,`text`>> field.
 
 Below is an example of a mapping for a keyword field:
 
-[source,js]
+[source,console]
 --------------------------------
 PUT my_index
 {
@@ -26,7 +29,6 @@ PUT my_index
   }
 }
 --------------------------------
-// CONSOLE
 
 [[keyword-params]]
 ==== Parameters for keyword fields

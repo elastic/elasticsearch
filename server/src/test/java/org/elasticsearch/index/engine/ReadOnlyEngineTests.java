@@ -79,7 +79,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
-                        engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
+                        engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
                     }
                     if (rarely()) {
                         engine.flush();
@@ -250,7 +250,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         try (Store store = createStore()) {
             final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-
+            final boolean softDeletesEnabled = config.getIndexSettings().isSoftDeleteEnabled();
             final int numDocs = frequently() ? scaledRandomIntBetween(10, 200) : 0;
             int uncommittedDocs = 0;
 
@@ -259,16 +259,17 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
                         System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+                    globalCheckpoint.set(i);
                     if (rarely()) {
                         engine.flush();
                         uncommittedDocs = 0;
                     } else {
                         uncommittedDocs += 1;
                     }
-                    globalCheckpoint.set(i);
                 }
 
-                assertThat(engine.getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
+                assertThat(engine.getTranslogStats().estimatedNumberOfOperations(),
+                    equalTo(softDeletesEnabled ? uncommittedDocs : numDocs));
                 assertThat(engine.getTranslogStats().getUncommittedOperations(), equalTo(uncommittedDocs));
                 assertThat(engine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
                 assertThat(engine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
@@ -278,7 +279,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
 
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity())) {
-                assertThat(readOnlyEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(numDocs));
+                assertThat(readOnlyEngine.getTranslogStats().estimatedNumberOfOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
                 assertThat(readOnlyEngine.getTranslogStats().getUncommittedOperations(), equalTo(0));
                 assertThat(readOnlyEngine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
                 assertThat(readOnlyEngine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));

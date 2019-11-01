@@ -18,7 +18,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -36,8 +35,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     @Inject
     public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
-        super(GetRollupCapsAction.NAME, transportService, GetRollupCapsAction.Request::new, actionFilters
-        );
+        super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new);
         this.clusterService = clusterService;
     }
 
@@ -90,7 +88,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
             return Optional.empty();
         }
 
-        MappingMetaData rollupMapping = indexMetaData.getMappings().get(RollupField.TYPE_NAME);
+        MappingMetaData rollupMapping = indexMetaData.mapping();
         if (rollupMapping == null) {
             return Optional.empty();
         }

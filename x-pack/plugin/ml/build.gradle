@@ -13,7 +13,7 @@ esplugin {
 repositories {
     ivy {
         name "ml-cpp"
-        url "https://prelert-artifacts.s3.amazonaws.com"
+        url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
         metadataSources {
             // no repository metadata, look directly for the artifact
             artifact()
@@ -50,9 +50,6 @@ dependencies {
     compileOnly project(':modules:lang-painless:spi')
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 

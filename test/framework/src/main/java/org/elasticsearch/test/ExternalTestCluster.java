@@ -38,6 +38,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
@@ -88,6 +89,7 @@ public final class ExternalTestCluster extends TestCluster {
             .put("node.ingest", false)
             .put("node.name", EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
             .put("cluster.name", clusterName)
+            .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
             .putList("discovery.seed_hosts",
                 Arrays.stream(transportAddresses).map(TransportAddress::toString).collect(Collectors.toList()));
         if (Environment.PATH_HOME_SETTING.exists(additionalSettings) == false) {

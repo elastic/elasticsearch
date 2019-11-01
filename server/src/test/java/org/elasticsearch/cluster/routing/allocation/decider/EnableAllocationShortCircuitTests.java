@@ -75,9 +75,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
         while (clusterState.getRoutingNodes().hasUnassignedShards()
                || clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty() == false) {
-            clusterState = allocationService.applyStartedShards(clusterState,
-                clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING));
-            clusterState = allocationService.reroute(clusterState, "reroute");
+            clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         }
 
         return clusterState;

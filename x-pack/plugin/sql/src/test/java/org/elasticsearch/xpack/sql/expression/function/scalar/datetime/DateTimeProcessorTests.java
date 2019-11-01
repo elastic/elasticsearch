@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 
@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Da
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<DateTimeProcessor> {
+public class DateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<DateTimeProcessor> {
 
     public static DateTimeProcessor randomDateTimeProcessor() {
         return new DateTimeProcessor(randomFrom(DateTimeExtractor.values()), randomZone());
@@ -31,6 +31,11 @@ public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<Date
     @Override
     protected Reader<DateTimeProcessor> instanceReader() {
         return DateTimeProcessor::new;
+    }
+
+    @Override
+    protected ZoneId instanceZoneId(DateTimeProcessor instance) {
+        return instance.zoneId();
     }
 
     @Override

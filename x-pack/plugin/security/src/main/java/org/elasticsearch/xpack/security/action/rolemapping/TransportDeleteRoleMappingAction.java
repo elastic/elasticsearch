@@ -24,7 +24,7 @@ public class TransportDeleteRoleMappingAction
     @Inject
     public TransportDeleteRoleMappingAction(ActionFilters actionFilters, TransportService transportService,
                                             NativeRoleMappingStore roleMappingStore) {
-        super(DeleteRoleMappingAction.NAME, transportService, DeleteRoleMappingRequest::new, actionFilters);
+        super(DeleteRoleMappingAction.NAME, transportService, actionFilters, DeleteRoleMappingRequest::new);
         this.roleMappingStore = roleMappingStore;
     }
 

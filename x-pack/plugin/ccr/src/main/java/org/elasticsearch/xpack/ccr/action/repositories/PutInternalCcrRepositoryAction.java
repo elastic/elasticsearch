@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -27,12 +26,7 @@ public class PutInternalCcrRepositoryAction extends ActionType<PutInternalCcrRep
     public static final String NAME = "internal:admin/ccr/internal_repository/put";
 
     private PutInternalCcrRepositoryAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<PutInternalCcrRepositoryResponse> getResponseReader() {
-        return PutInternalCcrRepositoryResponse::new;
+        super(NAME, PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse::new);
     }
 
     public static class TransportPutInternalRepositoryAction

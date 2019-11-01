@@ -23,22 +23,21 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
@@ -49,94 +48,101 @@ import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 /**
- * This class is responsible for storing/retrieving metadata to/from disk.
- * When instance of this class is created, constructor ensures that this version is compatible with state stored on disk and performs
- * state upgrade if necessary. Also it checks that atomic move is supported on the filesystem level, because it's a must for metadata
- * store algorithm.
- * Please note that the state being loaded when constructing the instance of this class is NOT the state that will be used as a
- * {@link ClusterState#metaData()}. Instead when node is starting up, it calls {@link #getMetaData()} method and if this node is
- * elected as master, it requests metaData from other master eligible nodes. After that, master node performs re-conciliation on the
- * gathered results, re-creates {@link ClusterState} and broadcasts this state to other nodes in the cluster.
+ * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
+ *
+ * When started, ensures that this version is compatible with the state stored on disk, and performs a state upgrade if necessary. Note that
+ * the state being loaded when constructing the instance of this class is not necessarily the state that will be used as {@link
+ * ClusterState#metaData()} because it might be stale or incomplete. Master-eligible nodes must perform an election to find a complete and
+ * non-stale state, and master-ineligible nodes receive the real cluster state from the elected master after joining the cluster.
  */
-public class GatewayMetaState implements ClusterStateApplier, CoordinationState.PersistedState {
-    protected static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
+public class GatewayMetaState {
+    private static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
 
-    private final MetaStateService metaStateService;
-    private final Settings settings;
-    private final ClusterService clusterService;
-    private final TransportService transportService;
+    // Set by calling start()
+    private final SetOnce<PersistedState> persistedState = new SetOnce<>();
 
-    //there is a single thread executing updateClusterState calls, hence no volatile modifier
-    protected Manifest previousManifest;
-    protected ClusterState previousClusterState;
-    protected boolean incrementalWrite;
-
-    public GatewayMetaState(Settings settings, MetaStateService metaStateService,
-                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader,
-                            TransportService transportService, ClusterService clusterService) throws IOException {
-        this.settings = settings;
-        this.metaStateService = metaStateService;
-        this.transportService = transportService;
-        this.clusterService = clusterService;
-
-        upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
-        initializeClusterState(ClusterName.CLUSTER_NAME_SETTING.get(settings));
-        incrementalWrite = false;
+    public PersistedState getPersistedState() {
+        final PersistedState persistedState = this.persistedState.get();
+        assert persistedState != null : "not started";
+        return persistedState;
     }
 
-    public PersistedState getPersistedState(Settings settings, ClusterApplierService clusterApplierService) {
-        applyClusterStateUpdaters();
-        if (DiscoveryNode.isMasterNode(settings) == false) {
-            // use Zen1 way of writing cluster state for non-master-eligible nodes
-            // this avoids concurrent manipulating of IndexMetadata with IndicesStore
-            clusterApplierService.addLowPriorityApplier(this);
-            return new InMemoryPersistedState(getCurrentTerm(), getLastAcceptedState());
+    public MetaData getMetaData() {
+        return getPersistedState().getLastAcceptedState().metaData();
+    }
+
+    public void start(Settings settings, TransportService transportService, ClusterService clusterService,
+                      MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                      MetaDataUpgrader metaDataUpgrader) {
+        assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
+
+        final Tuple<Manifest, ClusterState> manifestClusterStateTuple;
+        try {
+            upgradeMetaData(settings, metaStateService, metaDataIndexUpgradeService, metaDataUpgrader);
+            manifestClusterStateTuple = loadStateAndManifest(ClusterName.CLUSTER_NAME_SETTING.get(settings), metaStateService);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to load metadata", e);
         }
-        return this;
+
+        final IncrementalClusterStateWriter incrementalClusterStateWriter
+            = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,
+                manifestClusterStateTuple.v1(),
+                prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()),
+                transportService.getThreadPool()::relativeTimeInMillis);
+        if (DiscoveryNode.isMasterNode(settings) == false) {
+            if (DiscoveryNode.isDataNode(settings)) {
+                // Master-eligible nodes persist index metadata for all indices regardless of whether they hold any shards or not. It's
+                // vitally important to the safety of the cluster coordination system that master-eligible nodes persist this metadata when
+                // _accepting_ the cluster state (i.e. before it is committed). This persistence happens on the generic threadpool.
+                //
+                // In contrast, master-ineligible data nodes only persist the index metadata for shards that they hold. When all shards of
+                // an index are moved off such a node the IndicesStore is responsible for removing the corresponding index directory,
+                // including the metadata, and does so on the cluster applier thread.
+                //
+                // This presents a problem: if a shard is unassigned from a node and then reassigned back to it again then there is a race
+                // between the IndicesStore deleting the index folder and the CoordinationState concurrently trying to write the updated
+                // metadata into it. We could probably solve this with careful synchronization, but in fact there is no need.  The persisted
+                // state on master-ineligible data nodes is mostly ignored - it's only there to support dangling index imports, which is
+                // inherently unsafe anyway. Thus we can safely delay metadata writes on master-ineligible data nodes until applying the
+                // cluster state, which is what this does:
+                clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
+            }
+
+            // Master-ineligible nodes do not need to persist the cluster state when accepting it because they are not in the voting
+            // configuration, so it's ok if they have a stale or incomplete cluster state when restarted. We track the latest cluster state
+            // in memory instead.
+            persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));
+        } else {
+            // Master-ineligible nodes must persist the cluster state when accepting it because they must reload the (complete, fresh)
+            // last-accepted cluster state when restarted.
+            persistedState.set(new GatewayPersistedState(incrementalClusterStateWriter));
+        }
     }
 
-    private void initializeClusterState(ClusterName clusterName) throws IOException {
-        long startNS = System.nanoTime();
-        Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
-        previousManifest = manifestAndMetaData.v1();
-
-        final MetaData metaData = manifestAndMetaData.v2();
-
-        previousClusterState = ClusterState.builder(clusterName)
-                .version(previousManifest.getClusterStateVersion())
-                .metaData(metaData).build();
-
-        logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
-    }
-
-    public void applyClusterStateUpdaters() {
-        assert previousClusterState.nodes().getLocalNode() == null : "applyClusterStateUpdaters must only be called once";
+    // exposed so it can be overridden by tests
+    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
+        assert clusterState.nodes().getLocalNode() == null : "prepareInitialClusterState must only be called once";
         assert transportService.getLocalNode() != null : "transport service is not yet started";
-
-        previousClusterState = Function.<ClusterState>identity()
+        return Function.<ClusterState>identity()
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
             .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode()))
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
-            .apply(previousClusterState);
+            .apply(clusterState);
     }
 
-    protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
-            throws IOException {
-        if (isMasterOrDataNode()) {
+    // exposed so it can be overridden by tests
+    void upgradeMetaData(Settings settings, MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                         MetaDataUpgrader metaDataUpgrader) throws IOException {
+        if (isMasterOrDataNode(settings)) {
             try {
                 final Tuple<Manifest, MetaData> metaStateAndData = metaStateService.loadFullState();
                 final Manifest manifest = metaStateAndData.v1();
@@ -149,7 +155,8 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
                 // if there is manifest file, it means metadata is properly persisted to all data paths
                 // if there is no manifest file (upgrade from 6.x to 7.x) metadata might be missing on some data paths,
                 // but anyway we will re-write it as soon as we receive first ClusterState
-                final AtomicClusterStateWriter writer = new AtomicClusterStateWriter(metaStateService, manifest);
+                final IncrementalClusterStateWriter.AtomicClusterStateWriter writer
+                    = new IncrementalClusterStateWriter.AtomicClusterStateWriter(metaStateService, manifest);
                 final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
 
                 final long globalStateGeneration;
@@ -177,235 +184,29 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         }
     }
 
-    private boolean isMasterOrDataNode() {
+    private static Tuple<Manifest,ClusterState> loadStateAndManifest(ClusterName clusterName,
+                                                                     MetaStateService metaStateService) throws IOException {
+        final long startNS = System.nanoTime();
+        final Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+        final Manifest manifest = manifestAndMetaData.v1();
+
+        final ClusterState clusterState = ClusterState.builder(clusterName)
+            .version(manifest.getClusterStateVersion())
+            .metaData(manifestAndMetaData.v2()).build();
+
+        logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
+
+        return Tuple.tuple(manifest, clusterState);
+    }
+
+    private static boolean isMasterOrDataNode(Settings settings) {
         return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
-    }
-
-    public MetaData getMetaData() {
-        return previousClusterState.metaData();
-    }
-
-    @Override
-    public void applyClusterState(ClusterChangedEvent event) {
-        if (isMasterOrDataNode() == false) {
-            return;
-        }
-
-        if (event.state().blocks().disableStatePersistence()) {
-            incrementalWrite = false;
-            return;
-        }
-
-        try {
-            // Hack: This is to ensure that non-master-eligible Zen2 nodes always store a current term
-            // that's higher than the last accepted term.
-            // TODO: can we get rid of this hack?
-            if (event.state().term() > getCurrentTerm()) {
-                innerSetCurrentTerm(event.state().term());
-            }
-
-            updateClusterState(event.state(), event.previousState());
-            incrementalWrite = true;
-        } catch (WriteStateException e) {
-            logger.warn("Exception occurred when storing new meta data", e);
-        }
-    }
-
-    @Override
-    public long getCurrentTerm() {
-        return previousManifest.getCurrentTerm();
-    }
-
-    @Override
-    public ClusterState getLastAcceptedState() {
-        assert previousClusterState.nodes().getLocalNode() != null : "Cluster state is not fully built yet";
-        return previousClusterState;
-    }
-
-    @Override
-    public void setCurrentTerm(long currentTerm) {
-        try {
-            innerSetCurrentTerm(currentTerm);
-        } catch (WriteStateException e) {
-            logger.error(new ParameterizedMessage("Failed to set current term to {}", currentTerm), e);
-            e.rethrowAsErrorOrUncheckedException();
-        }
-    }
-
-    private void innerSetCurrentTerm(long currentTerm) throws WriteStateException {
-        Manifest manifest = new Manifest(currentTerm, previousManifest.getClusterStateVersion(), previousManifest.getGlobalGeneration(),
-            new HashMap<>(previousManifest.getIndexGenerations()));
-        metaStateService.writeManifestAndCleanup("current term changed", manifest);
-        previousManifest = manifest;
-    }
-
-    @Override
-    public void setLastAcceptedState(ClusterState clusterState) {
-        try {
-            incrementalWrite = previousClusterState.term() == clusterState.term();
-            updateClusterState(clusterState, previousClusterState);
-        } catch (WriteStateException e) {
-            logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
-            e.rethrowAsErrorOrUncheckedException();
-        }
-    }
-
-    /**
-     * This class is used to write changed global {@link MetaData}, {@link IndexMetaData} and {@link Manifest} to disk.
-     * This class delegates <code>write*</code> calls to corresponding write calls in {@link MetaStateService} and
-     * additionally it keeps track of cleanup actions to be performed if transaction succeeds or fails.
-     */
-    static class AtomicClusterStateWriter {
-        private static final String FINISHED_MSG = "AtomicClusterStateWriter is finished";
-        private final List<Runnable> commitCleanupActions;
-        private final List<Runnable> rollbackCleanupActions;
-        private final Manifest previousManifest;
-        private final MetaStateService metaStateService;
-        private boolean finished;
-
-        AtomicClusterStateWriter(MetaStateService metaStateService, Manifest previousManifest) {
-            this.metaStateService = metaStateService;
-            assert previousManifest != null;
-            this.previousManifest = previousManifest;
-            this.commitCleanupActions = new ArrayList<>();
-            this.rollbackCleanupActions = new ArrayList<>();
-            this.finished = false;
-        }
-
-        long writeGlobalState(String reason, MetaData metaData) throws WriteStateException {
-            assert finished == false : FINISHED_MSG;
-            try {
-                rollbackCleanupActions.add(() -> metaStateService.cleanupGlobalState(previousManifest.getGlobalGeneration()));
-                long generation = metaStateService.writeGlobalState(reason, metaData);
-                commitCleanupActions.add(() -> metaStateService.cleanupGlobalState(generation));
-                return generation;
-            } catch (WriteStateException e) {
-                rollback();
-                throw e;
-            }
-        }
-
-        long writeIndex(String reason, IndexMetaData metaData) throws WriteStateException {
-            assert finished == false : FINISHED_MSG;
-            try {
-                Index index = metaData.getIndex();
-                Long previousGeneration = previousManifest.getIndexGenerations().get(index);
-                if (previousGeneration != null) {
-                    // we prefer not to clean-up index metadata in case of rollback,
-                    // if it's not referenced by previous manifest file
-                    // not to break dangling indices functionality
-                    rollbackCleanupActions.add(() -> metaStateService.cleanupIndex(index, previousGeneration));
-                }
-                long generation = metaStateService.writeIndex(reason, metaData);
-                commitCleanupActions.add(() -> metaStateService.cleanupIndex(index, generation));
-                return generation;
-            } catch (WriteStateException e) {
-                rollback();
-                throw e;
-            }
-        }
-
-        void writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
-            assert finished == false : FINISHED_MSG;
-            try {
-                metaStateService.writeManifestAndCleanup(reason, manifest);
-                commitCleanupActions.forEach(Runnable::run);
-                finished = true;
-            } catch (WriteStateException e) {
-                // if Manifest write results in dirty WriteStateException it's not safe to remove
-                // new metadata files, because if Manifest was actually written to disk and its deletion
-                // fails it will reference these new metadata files.
-                // In the future, we might decide to add more fine grained check to understand if after
-                // WriteStateException Manifest deletion has actually failed.
-                if (e.isDirty() == false) {
-                    rollback();
-                }
-                throw e;
-            }
-        }
-
-        void rollback() {
-            rollbackCleanupActions.forEach(Runnable::run);
-            finished = true;
-        }
-    }
-
-    /**
-     * Updates manifest and meta data on disk.
-     *
-     * @param newState new {@link ClusterState}
-     * @param previousState previous {@link ClusterState}
-     *
-     * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.
-     */
-    private void updateClusterState(ClusterState newState, ClusterState previousState)
-            throws WriteStateException {
-        MetaData newMetaData = newState.metaData();
-
-        final AtomicClusterStateWriter writer = new AtomicClusterStateWriter(metaStateService, previousManifest);
-        long globalStateGeneration = writeGlobalState(writer, newMetaData);
-        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, newState, previousState);
-        Manifest manifest = new Manifest(previousManifest.getCurrentTerm(), newState.version(), globalStateGeneration, indexGenerations);
-        writeManifest(writer, manifest);
-
-        previousManifest = manifest;
-        previousClusterState = newState;
-    }
-
-    private void writeManifest(AtomicClusterStateWriter writer, Manifest manifest) throws WriteStateException {
-        if (manifest.equals(previousManifest) == false) {
-            writer.writeManifestAndCleanup("changed", manifest);
-        }
-    }
-
-    private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer, ClusterState newState, ClusterState previousState)
-            throws WriteStateException {
-        Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
-        Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());
-
-        Map<Index, Long> newIndices = new HashMap<>();
-
-        MetaData previousMetaData = incrementalWrite ? previousState.metaData() : null;
-        Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previouslyWrittenIndices, relevantIndices, previousMetaData,
-                newState.metaData());
-
-        for (IndexMetaDataAction action : actions) {
-            long generation = action.execute(writer);
-            newIndices.put(action.getIndex(), generation);
-        }
-
-        return newIndices;
-    }
-
-    private long writeGlobalState(AtomicClusterStateWriter writer, MetaData newMetaData)
-            throws WriteStateException {
-        if (incrementalWrite == false || MetaData.isGlobalStateEquals(previousClusterState.metaData(), newMetaData) == false) {
-            return writer.writeGlobalState("changed", newMetaData);
-        }
-        return previousManifest.getGlobalGeneration();
-    }
-
-    public static Set<Index> getRelevantIndices(ClusterState state, ClusterState previousState, Set<Index> previouslyWrittenIndices) {
-        Set<Index> relevantIndices;
-        if (isDataOnlyNode(state)) {
-            relevantIndices = getRelevantIndicesOnDataOnlyNode(state, previousState, previouslyWrittenIndices);
-        } else if (state.nodes().getLocalNode().isMasterNode()) {
-            relevantIndices = getRelevantIndicesForMasterEligibleNode(state);
-        } else {
-            relevantIndices = Collections.emptySet();
-        }
-        return relevantIndices;
-    }
-
-    private static boolean isDataOnlyNode(ClusterState state) {
-        return state.nodes().getLocalNode().isMasterNode() == false && state.nodes().getLocalNode().isDataNode();
     }
 
     /**
      * Elasticsearch 2.0 removed several deprecated features and as well as support for Lucene 3.x. This method calls
      * {@link MetaDataIndexUpgradeService} to makes sure that indices are compatible with the current version. The
      * MetaDataIndexUpgradeService might also update obsolete settings if needed.
-     * Allows upgrading global custom meta data via {@link MetaDataUpgrader#customMetaDataUpgraders}
      *
      * @return input <code>metaData</code> if no upgrade is needed or an upgraded metaData
      */
@@ -421,11 +222,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
             changed |= indexMetaData != newMetaData;
             upgradedMetaData.put(newMetaData, false);
         }
-        // upgrade global custom meta data
-        if (applyPluginUpgraders(metaData.getCustoms(), metaDataUpgrader.customMetaDataUpgraders,
-                upgradedMetaData::removeCustom, upgradedMetaData::putCustom)) {
-            changed = true;
-        }
         // upgrade current templates
         if (applyPluginUpgraders(metaData.getTemplates(), metaDataUpgrader.indexTemplateMetaDataUpgraders,
                 upgradedMetaData::removeTemplate, (s, indexTemplateMetaData) -> upgradedMetaData.put(indexTemplateMetaData))) {
@@ -434,21 +230,21 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         return changed ? upgradedMetaData.build() : metaData;
     }
 
-    private static <Data> boolean applyPluginUpgraders(ImmutableOpenMap<String, Data> existingData,
-                                                       UnaryOperator<Map<String, Data>> upgrader,
-                                                       Consumer<String> removeData,
-                                                       BiConsumer<String, Data> putData) {
+    private static boolean applyPluginUpgraders(ImmutableOpenMap<String, IndexTemplateMetaData> existingData,
+                                                UnaryOperator<Map<String, IndexTemplateMetaData>> upgrader,
+                                                Consumer<String> removeData,
+                                                BiConsumer<String, IndexTemplateMetaData> putData) {
         // collect current data
-        Map<String, Data> existingMap = new HashMap<>();
-        for (ObjectObjectCursor<String, Data> customCursor : existingData) {
+        Map<String, IndexTemplateMetaData> existingMap = new HashMap<>();
+        for (ObjectObjectCursor<String, IndexTemplateMetaData> customCursor : existingData) {
             existingMap.put(customCursor.key, customCursor.value);
         }
         // upgrade global custom meta data
-        Map<String, Data> upgradedCustoms = upgrader.apply(existingMap);
+        Map<String, IndexTemplateMetaData> upgradedCustoms = upgrader.apply(existingMap);
         if (upgradedCustoms.equals(existingMap) == false) {
             // remove all data first so a plugin can remove custom metadata or templates if needed
             existingMap.keySet().forEach(removeData);
-            for (Map.Entry<String, Data> upgradedCustomEntry : upgradedCustoms.entrySet()) {
+            for (Map.Entry<String, IndexTemplateMetaData> upgradedCustomEntry : upgradedCustoms.entrySet()) {
                 putData.accept(upgradedCustomEntry.getKey(), upgradedCustomEntry.getValue());
             }
             return true;
@@ -456,160 +252,81 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         return false;
     }
 
-    /**
-     * Returns list of {@link IndexMetaDataAction} for each relevant index.
-     * For each relevant index there are 3 options:
-     * <ol>
-     * <li>
-     * {@link KeepPreviousGeneration} - index metadata is already stored to disk and index metadata version is not changed, no
-     * action is required.
-     * </li>
-     * <li>
-     * {@link WriteNewIndexMetaData} - there is no index metadata on disk and index metadata for this index should be written.
-     * </li>
-     * <li>
-     * {@link WriteChangedIndexMetaData} - index metadata is already on disk, but index metadata version has changed. Updated
-     * index metadata should be written to disk.
-     * </li>
-     * </ol>
-     *
-     * @param previouslyWrittenIndices A list of indices for which the state was already written before
-     * @param relevantIndices          The list of indices for which state should potentially be written
-     * @param previousMetaData         The last meta data we know of
-     * @param newMetaData              The new metadata
-     * @return list of {@link IndexMetaDataAction} for each relevant index.
-     */
-    public static List<IndexMetaDataAction> resolveIndexMetaDataActions(Map<Index, Long> previouslyWrittenIndices,
-                                                                        Set<Index> relevantIndices,
-                                                                        MetaData previousMetaData,
-                                                                        MetaData newMetaData) {
-        List<IndexMetaDataAction> actions = new ArrayList<>();
-        for (Index index : relevantIndices) {
-            IndexMetaData newIndexMetaData = newMetaData.getIndexSafe(index);
-            IndexMetaData previousIndexMetaData = previousMetaData == null ? null : previousMetaData.index(index);
 
-            if (previouslyWrittenIndices.containsKey(index) == false || previousIndexMetaData == null) {
-                actions.add(new WriteNewIndexMetaData(newIndexMetaData));
-            } else if (previousIndexMetaData.getVersion() != newIndexMetaData.getVersion()) {
-                actions.add(new WriteChangedIndexMetaData(previousIndexMetaData, newIndexMetaData));
-            } else {
-                actions.add(new KeepPreviousGeneration(index, previouslyWrittenIndices.get(index)));
+    private static class GatewayClusterApplier implements ClusterStateApplier {
+
+        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
+
+        private GatewayClusterApplier(IncrementalClusterStateWriter incrementalClusterStateWriter) {
+            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
+        }
+
+        @Override
+        public void applyClusterState(ClusterChangedEvent event) {
+            if (event.state().blocks().disableStatePersistence()) {
+                incrementalClusterStateWriter.setIncrementalWrite(false);
+                return;
+            }
+
+            try {
+                // Hack: This is to ensure that non-master-eligible Zen2 nodes always store a current term
+                // that's higher than the last accepted term.
+                // TODO: can we get rid of this hack?
+                if (event.state().term() > incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm()) {
+                    incrementalClusterStateWriter.setCurrentTerm(event.state().term());
+                }
+
+                incrementalClusterStateWriter.updateClusterState(event.state());
+                incrementalClusterStateWriter.setIncrementalWrite(true);
+            } catch (WriteStateException e) {
+                logger.warn("Exception occurred when storing new meta data", e);
             }
         }
-        return actions;
+
     }
 
-    private static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state, ClusterState previousState, Set<Index>
-            previouslyWrittenIndices) {
-        RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
-        if (newRoutingNode == null) {
-            throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
+    private static class GatewayPersistedState implements PersistedState {
+
+        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
+
+        GatewayPersistedState(IncrementalClusterStateWriter incrementalClusterStateWriter) {
+            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
         }
-        Set<Index> indices = new HashSet<>();
-        for (ShardRouting routing : newRoutingNode) {
-            indices.add(routing.index());
+
+        @Override
+        public long getCurrentTerm() {
+            return incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm();
         }
-        // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if
-        // we have it written on disk previously
-        for (IndexMetaData indexMetaData : state.metaData()) {
-            boolean isOrWasClosed = indexMetaData.getState().equals(IndexMetaData.State.CLOSE);
-            // if the index is open we might still have to write the state if it just transitioned from closed to open
-            // so we have to check for that as well.
-            IndexMetaData previousMetaData = previousState.metaData().index(indexMetaData.getIndex());
-            if (previousMetaData != null) {
-                isOrWasClosed = isOrWasClosed || previousMetaData.getState().equals(IndexMetaData.State.CLOSE);
+
+        @Override
+        public ClusterState getLastAcceptedState() {
+            final ClusterState previousClusterState = incrementalClusterStateWriter.getPreviousClusterState();
+            assert previousClusterState.nodes().getLocalNode() != null : "Cluster state is not fully built yet";
+            return previousClusterState;
+        }
+
+        @Override
+        public void setCurrentTerm(long currentTerm) {
+            try {
+                incrementalClusterStateWriter.setCurrentTerm(currentTerm);
+            } catch (WriteStateException e) {
+                logger.error(new ParameterizedMessage("Failed to set current term to {}", currentTerm), e);
+                e.rethrowAsErrorOrUncheckedException();
             }
-            if (previouslyWrittenIndices.contains(indexMetaData.getIndex()) && isOrWasClosed) {
-                indices.add(indexMetaData.getIndex());
+        }
+
+        @Override
+        public void setLastAcceptedState(ClusterState clusterState) {
+            try {
+                incrementalClusterStateWriter.setIncrementalWrite(
+                    incrementalClusterStateWriter.getPreviousClusterState().term() == clusterState.term());
+                incrementalClusterStateWriter.updateClusterState(clusterState);
+            } catch (WriteStateException e) {
+                logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
+                e.rethrowAsErrorOrUncheckedException();
             }
         }
-        return indices;
+
     }
 
-    private static Set<Index> getRelevantIndicesForMasterEligibleNode(ClusterState state) {
-        Set<Index> relevantIndices = new HashSet<>();
-        // we have to iterate over the metadata to make sure we also capture closed indices
-        for (IndexMetaData indexMetaData : state.metaData()) {
-            relevantIndices.add(indexMetaData.getIndex());
-        }
-        return relevantIndices;
-    }
-
-    /**
-     * Action to perform with index metadata.
-     */
-    public interface IndexMetaDataAction {
-        /**
-         * @return index for index metadata.
-         */
-        Index getIndex();
-
-        /**
-         * Executes this action using provided {@link AtomicClusterStateWriter}.
-         *
-         * @return new index metadata state generation, to be used in manifest file.
-         * @throws WriteStateException if exception occurs.
-         */
-        long execute(AtomicClusterStateWriter writer) throws WriteStateException;
-    }
-
-    public static class KeepPreviousGeneration implements IndexMetaDataAction {
-        private final Index index;
-        private final long generation;
-
-        KeepPreviousGeneration(Index index, long generation) {
-            this.index = index;
-            this.generation = generation;
-        }
-
-        @Override
-        public Index getIndex() {
-            return index;
-        }
-
-        @Override
-        public long execute(AtomicClusterStateWriter writer) {
-            return generation;
-        }
-    }
-
-    public static class WriteNewIndexMetaData implements IndexMetaDataAction {
-        private final IndexMetaData indexMetaData;
-
-        WriteNewIndexMetaData(IndexMetaData indexMetaData) {
-            this.indexMetaData = indexMetaData;
-        }
-
-        @Override
-        public Index getIndex() {
-            return indexMetaData.getIndex();
-        }
-
-        @Override
-        public long execute(AtomicClusterStateWriter writer) throws WriteStateException {
-            return writer.writeIndex("freshly created", indexMetaData);
-        }
-    }
-
-    public static class WriteChangedIndexMetaData implements IndexMetaDataAction {
-        private final IndexMetaData newIndexMetaData;
-        private final IndexMetaData oldIndexMetaData;
-
-        WriteChangedIndexMetaData(IndexMetaData oldIndexMetaData, IndexMetaData newIndexMetaData) {
-            this.oldIndexMetaData = oldIndexMetaData;
-            this.newIndexMetaData = newIndexMetaData;
-        }
-
-        @Override
-        public Index getIndex() {
-            return newIndexMetaData.getIndex();
-        }
-
-        @Override
-        public long execute(AtomicClusterStateWriter writer) throws WriteStateException {
-            return writer.writeIndex(
-                    "version changed from [" + oldIndexMetaData.getVersion() + "] to [" + newIndexMetaData.getVersion() + "]",
-                    newIndexMetaData);
-        }
-    }
 }

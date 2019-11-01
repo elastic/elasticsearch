@@ -76,6 +76,7 @@ public class RealmsTests extends ESTestCase {
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.ALL);
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
+        when(reservedRealm.name()).thenReturn("reserved");
     }
 
     public void testWithSettings() throws Exception {
@@ -168,6 +169,20 @@ public class RealmsTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("multiple [file] realms are configured"));
         }
+    }
+
+    public void testWithSettingsWithMultipleRealmsWithSameName() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.authc.realms.file.realm_1.order", 0)
+            .put("xpack.security.authc.realms.native.realm_1.order", 1)
+            .put("xpack.security.authc.realms.kerberos.realm_1.order", 2)
+            .put("path.home", createTempDir())
+            .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->{
+            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        });
+        assertThat(e.getMessage(), containsString("Found multiple realms configured with the same name"));
     }
 
     public void testWithEmptySettings() throws Exception {

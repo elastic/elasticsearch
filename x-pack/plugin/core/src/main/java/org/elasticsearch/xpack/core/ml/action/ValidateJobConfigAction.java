@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -29,12 +28,7 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/validate";
 
     protected ValidateJobConfigAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
@@ -78,6 +72,11 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
             this.job = job;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            job = new Job(in);
+        }
+
         public Job getJob() {
             return job;
         }
@@ -91,12 +90,6 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             job.writeTo(out);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            job = new Job(in);
         }
 
         @Override

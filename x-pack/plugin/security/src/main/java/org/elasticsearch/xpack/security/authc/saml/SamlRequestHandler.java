@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedFunction;
@@ -44,6 +44,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
+import javax.xml.parsers.DocumentBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.security.PrivilegedActionException;
@@ -58,8 +59,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
-import javax.xml.parsers.DocumentBuilder;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
@@ -219,11 +218,11 @@ public class SamlRequestHandler {
 
     protected void checkIssuer(Issuer issuer, XMLObject parent) {
         if (issuer == null) {
-            throw samlException("Element {} ({}) has no issuer, but expected {}",
+            throw samlException("Element {} ({}) has no issuer, but expected [{}]",
                     parent.getElementQName(), text(parent, 16), idp.getEntityId());
         }
         if (idp.getEntityId().equals(issuer.getValue()) == false) {
-            throw samlException("SAML Issuer {} does not match expected value {}", issuer.getValue(), idp.getEntityId());
+            throw samlException("SAML Issuer [{}] does not match expected value [{}]", issuer.getValue(), idp.getEntityId());
         }
     }
 
@@ -260,18 +259,31 @@ public class SamlRequestHandler {
             Object[] args = new Object[] { element.getTagName(), type.getName(), object == null ? "<null>" : object.getClass().getName() };
             throw samlException("SAML object [{}] is incorrect type. Expected [{}] but was [{}]", args);
         } catch (UnmarshallingException e) {
-            throw samlException("Failed to unmarshall SAML content [{}", e, element.getTagName());
+            throw samlException("Failed to unmarshall SAML content [{}]", e, element.getTagName());
         }
     }
 
     protected String text(XMLObject xml, int length) {
+        return text(xml, length, 0);
+    }
+
+    protected static String text(XMLObject xml, int prefixLength, int suffixLength) {
         final Element dom = xml.getDOM();
         if (dom == null) {
             return null;
         }
         final String text = dom.getTextContent().trim();
-        if (text.length() >= length) {
-            return Strings.cleanTruncate(text, length) + "...";
+        final int totalLength = prefixLength + suffixLength;
+        if (text.length() > totalLength) {
+            final String prefix = Strings.cleanTruncate(text, prefixLength) + "...";
+            if (suffixLength == 0) {
+                return prefix;
+            }
+            int suffixIndex = text.length() - suffixLength;
+            if (Character.isHighSurrogate(text.charAt(suffixIndex))) {
+                suffixIndex++;
+            }
+            return prefix + text.substring(suffixIndex);
         } else {
             return text;
         }

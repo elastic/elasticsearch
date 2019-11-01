@@ -43,7 +43,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
     public TransportMonitoringBulkAction(ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters, Exporters exportService,
                                          MonitoringService monitoringService) {
-        super(MonitoringBulkAction.NAME, transportService, MonitoringBulkRequest::new, actionFilters);
+        super(MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.exportService = exportService;

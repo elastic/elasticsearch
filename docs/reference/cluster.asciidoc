@@ -1,10 +1,8 @@
 [[cluster]]
-= Cluster APIs
+== Cluster APIs
 
-[partintro]
---
 ["float",id="cluster-nodes"]
-== Node specification
+=== Node specification
 
 Some cluster-level APIs may operate on a subset of the nodes which can be
 specified with _node filters_. For example, the <<tasks,Task Management>>,
@@ -54,7 +52,7 @@ is not supported in the {oss-dist}.
 Here are some examples of the use of node filters with the
 <<cluster-nodes-info,Nodes Info>> APIs.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # If no filters are given, the default is to select all nodes
 GET /_nodes
@@ -80,35 +78,33 @@ GET /_nodes/rack:2
 GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 --------------------------------------------------
-// CONSOLE
---
+
+include::cluster/allocation-explain.asciidoc[]
+
+include::cluster/get-settings.asciidoc[]
 
 include::cluster/health.asciidoc[]
+
+include::cluster/reroute.asciidoc[]
 
 include::cluster/state.asciidoc[]
 
 include::cluster/stats.asciidoc[]
 
-include::cluster/pending.asciidoc[]
-
-include::cluster/reroute.asciidoc[]
-
 include::cluster/update-settings.asciidoc[]
 
-include::cluster/get-settings.asciidoc[]
+include::cluster/nodes-usage.asciidoc[]
 
-include::cluster/nodes-stats.asciidoc[]
+include::cluster/nodes-hot-threads.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]
 
-include::cluster/nodes-usage.asciidoc[]
+include::cluster/nodes-stats.asciidoc[]
+
+include::cluster/pending.asciidoc[]
 
 include::cluster/remote-info.asciidoc[]
 
 include::cluster/tasks.asciidoc[]
-
-include::cluster/nodes-hot-threads.asciidoc[]
-
-include::cluster/allocation-explain.asciidoc[]
 
 include::cluster/voting-exclusions.asciidoc[]

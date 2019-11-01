@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.upgrade.actions;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -26,18 +26,13 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.upgrade.IndexUpgradeServiceFields.UPGRADE_INDEX_OPTIONS;
 
-public class IndexUpgradeAction extends StreamableResponseActionType<BulkByScrollResponse> {
+public class IndexUpgradeAction extends ActionType<BulkByScrollResponse> {
 
     public static final IndexUpgradeAction INSTANCE = new IndexUpgradeAction();
     public static final String NAME = "cluster:admin/xpack/upgrade";
 
     private IndexUpgradeAction() {
-        super(NAME);
-    }
-
-    @Override
-    public BulkByScrollResponse newResponse() {
-        return new BulkByScrollResponse();
+        super(NAME, BulkByScrollResponse::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest {
@@ -111,11 +106,6 @@ public class IndexUpgradeAction extends StreamableResponseActionType<BulkByScrol
                 validationException = addValidationError("index is missing", validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

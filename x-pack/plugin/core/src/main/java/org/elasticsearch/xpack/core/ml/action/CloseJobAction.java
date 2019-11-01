@@ -32,12 +32,7 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/close";
 
     private CloseJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, CloseJobAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

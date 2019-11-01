@@ -168,12 +168,13 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     // Determine if the request connection should be closed on completion.
     private boolean isCloseConnection() {
-        final boolean http10 = isHttp10();
-        return CLOSE.equalsIgnoreCase(request.header(CONNECTION)) || (http10 && !KEEP_ALIVE.equalsIgnoreCase(request.header(CONNECTION)));
-    }
-
-    // Determine if the request protocol version is HTTP 1.0
-    private boolean isHttp10() {
-        return request.getHttpRequest().protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
+        try {
+            final boolean http10 = request.getHttpRequest().protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
+            return CLOSE.equalsIgnoreCase(request.header(CONNECTION))
+                || (http10 && !KEEP_ALIVE.equalsIgnoreCase(request.header(CONNECTION)));
+        } catch (Exception e) {
+            // In case we fail to parse the http protocol version out of the request we always close the connection
+            return true;
+        }
     }
 }

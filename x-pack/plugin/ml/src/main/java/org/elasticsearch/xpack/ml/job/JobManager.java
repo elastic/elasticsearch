@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ public class JobManager {
     private final JobResultsProvider jobResultsProvider;
     private final JobResultsPersister jobResultsPersister;
     private final ClusterService clusterService;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final Client client;
     private final ThreadPool threadPool;
     private final UpdateJobProcessNotifier updateJobProcessNotifier;
@@ -104,8 +104,9 @@ public class JobManager {
      * Create a JobManager
      */
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
-                      JobResultsPersister jobResultsPersister, ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
-                      Client client, UpdateJobProcessNotifier updateJobProcessNotifier, NamedXContentRegistry xContentRegistry) {
+                      JobResultsPersister jobResultsPersister, ClusterService clusterService, AnomalyDetectionAuditor auditor,
+                      ThreadPool threadPool, Client client, UpdateJobProcessNotifier updateJobProcessNotifier,
+                      NamedXContentRegistry xContentRegistry) {
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
@@ -141,7 +142,7 @@ public class JobManager {
         jobConfigProvider.getJob(jobId, ActionListener.wrap(
                 r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
                 e -> {
-                    if (e instanceof ResourceNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                         // Try to get the job from the cluster state
                         getJobFromClusterState(jobId, jobListener);
                     } else {
@@ -271,7 +272,7 @@ public class JobManager {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof IllegalArgumentException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IllegalArgumentException) {
                     // the underlying error differs depending on which way around the clashing fields are seen
                     Matcher matcher = Pattern.compile("(?:mapper|Can't merge a non object mapping) \\[(.*)\\] (?:of different type, " +
                             "current_type \\[.*\\], merged_type|with an object mapping) \\[.*\\]").matcher(e.getMessage());

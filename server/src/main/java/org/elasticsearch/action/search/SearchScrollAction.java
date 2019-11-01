@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class SearchScrollAction extends ActionType<SearchResponse> {
 
@@ -28,11 +27,7 @@ public class SearchScrollAction extends ActionType<SearchResponse> {
     public static final String NAME = "indices:data/read/scroll";
 
     private SearchScrollAction() {
-        super(NAME);
+        super(NAME, SearchResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<SearchResponse> getResponseReader() {
-        return SearchResponse::new;
-    }
 }

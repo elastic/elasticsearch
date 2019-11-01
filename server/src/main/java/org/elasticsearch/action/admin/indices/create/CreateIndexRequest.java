@@ -39,7 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -47,8 +46,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -69,7 +66,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
-public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest, ToXContentObject {
+public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
 
     public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");
@@ -100,7 +97,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
-            aliases.add(Alias.read(in));
+            aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
     }
@@ -233,16 +230,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param xContentType the content type of the mapping source
      */
     private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
-        if (mappings.containsKey(type)) {
-            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
-        }
         Objects.requireNonNull(xContentType);
-        try {
-            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert to json", e);
-        }
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+        return mapping(type, mappingAsMap);
     }
 
     /**
@@ -278,9 +268,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
         }
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return mapping(type, builder);
+            mappings.put(type, Strings.toString(builder));
+            return this;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -393,6 +384,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
+                if (entry.getValue() instanceof Map == false) {
+                    throw new ElasticsearchParseException("key [settings] must be an object");
+                }
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
@@ -466,32 +460,4 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         waitForActiveShards.writeTo(out);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SETTINGS.getPreferredName());
-        settings.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject(MAPPINGS.getPreferredName());
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            try (InputStream stream = new BytesArray(entry.getValue()).streamInput()) {
-                builder.rawField(entry.getKey(), stream, XContentType.JSON);
-            }
-        }
-        builder.endObject();
-
-        builder.startObject(ALIASES.getPreferredName());
-        for (Alias alias : aliases) {
-            alias.toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
-    }
 }

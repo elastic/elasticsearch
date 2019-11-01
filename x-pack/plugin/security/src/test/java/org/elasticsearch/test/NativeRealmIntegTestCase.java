@@ -11,7 +11,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
@@ -66,6 +68,16 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         Set<String> templates = Sets.newHashSet(super.excludeTemplates());
         templates.add(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7); // don't remove the security index template
         return templates;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        // we are randomly running a large number of nodes in these tests so we limit the number of worker threads
+        // since the default of 2 * CPU count might use up too much direct memory for thread-local direct buffers for each node's
+        // transport threads
+        builder.put(Netty4Transport.WORKER_COUNT.getKey(), random().nextInt(3) + 1);
+        return builder.build();
     }
 
     private SecureString reservedPassword = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;

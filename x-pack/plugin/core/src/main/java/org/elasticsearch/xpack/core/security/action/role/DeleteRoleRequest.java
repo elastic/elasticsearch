@@ -23,6 +23,12 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public DeleteRoleRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public DeleteRoleRequest() {
     }
 
@@ -52,13 +58,6 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
 
     public String name() {
         return name;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
-        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

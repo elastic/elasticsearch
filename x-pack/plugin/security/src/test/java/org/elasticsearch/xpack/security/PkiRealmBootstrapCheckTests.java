@@ -89,6 +89,17 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
         assertFalse(runCheck(settings, env).isFailure());
     }
 
+    public void testBootstrapCheckWithDelegationEnabled() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.security.authc.realms.pki.test_pki.enabled", true)
+                .put("xpack.security.authc.realms.pki.test_pki.delegation.enabled", true)
+                .put("xpack.security.transport.ssl.client_authentication", "none")
+                .put("path.home", createTempDir())
+                .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        assertFalse(runCheck(settings, env).isFailure());
+    }
+
     public void testBootstrapCheckWithClosedSecuredSetting() throws Exception {
         final boolean expectFail = randomBoolean();
         final MockSecureSettings secureSettings = new MockSecureSettings();

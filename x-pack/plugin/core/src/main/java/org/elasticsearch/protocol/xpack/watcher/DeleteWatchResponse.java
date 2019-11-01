@@ -31,13 +31,19 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
     private long version;
     private boolean found;
 
-    public DeleteWatchResponse() {
-    }
+    public DeleteWatchResponse() {}
 
     public DeleteWatchResponse(String id, long version, boolean found) {
         this.id = id;
         this.version = version;
         this.found = found;
+    }
+
+    public DeleteWatchResponse(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        version = in.readVLong();
+        found = in.readBoolean();
     }
 
     public String getId() {
@@ -77,14 +83,6 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
     @Override
     public int hashCode() {
         return Objects.hash(id, version, found);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        version = in.readVLong();
-        found = in.readBoolean();
     }
 
     @Override

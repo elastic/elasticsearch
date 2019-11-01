@@ -22,7 +22,12 @@ public class KeywordEsField extends EsField {
     }
 
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision, boolean normalized) {
-        super(name, DataType.KEYWORD, properties, hasDocValues);
+        this(name, properties, hasDocValues, precision, normalized, false);
+    }
+    
+    public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision,
+            boolean normalized, boolean isAlias) {
+        super(name, DataType.KEYWORD, properties, hasDocValues, isAlias);
         this.precision = precision;
         this.normalized = normalized;
     }

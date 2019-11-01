@@ -1,12 +1,153 @@
 [[query-dsl-match-query]]
-=== Match Query
+=== Match query
+++++
+<titleabbrev>Match</titleabbrev>
+++++
+
+Returns documents that match a provided text, number, date or boolean value. The
+provided text is analyzed before matching.
+
+The `match` query is the standard query for performing a full-text search,
+including options for fuzzy matching.
 
 
-`match` queries accept text/numerics/dates, analyzes
-them, and constructs a query. For example:
+[[match-query-ex-request]]
+==== Example request
 
-[source,js]
+[source,console]
 --------------------------------------------------
+GET /_search
+{
+    "query": {
+        "match" : {
+            "message" : {
+                "query" : "this is a test"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+[[match-top-level-params]]
+==== Top-level parameters for `match`
+
+`<field>`::
+(Required, object) Field you wish to search.
+
+
+[[match-field-params]]
+==== Parameters for `<field>`
+`query`::
++
+--
+(Required) Text, number, boolean value or date you wish to find in the provided
+`<field>`.
+
+The `match` query <<analysis,analyzes>> any provided text before performing a
+search. This means the `match` query can search <<text,`text`>> fields for
+analyzed tokens rather than an exact term.
+--
+
+`analyzer`::
+(Optional, string) <<analysis,Analyzer>> used to convert the text in the `query`
+value into tokens. Defaults to the <<specify-index-time-analyzer,index-time
+analyzer>> mapped for the `<field>`. If no analyzer is mapped, the index's
+default analyzer is used.
+
+`auto_generate_synonyms_phrase_query`::
++
+--
+(Optional, boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
+queries are automatically created for multi-term synonyms. Defaults to `true`.
+
+See <<query-dsl-match-query-synonyms,Use synonyms with match query>> for an
+example.
+--
+
+`fuzziness`::
+(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
+for valid values and more information. See <<query-dsl-match-query-fuzziness>>
+for an example.
+
+`max_expansions`::
+(Optional, integer) Maximum number of terms to which the query will
+expand. Defaults to `50`.
+
+`prefix_length`::
+(Optional, integer) Number of beginning characters left unchanged for fuzzy
+matching. Defaults to `0`.
+
+`transpositions`::
+(Optional, boolean) If `true`, edits for fuzzy matching include
+transpositions of two adjacent characters (ab → ba). Defaults to `true`.
+
+`fuzzy_rewrite`::
++
+--
+(Optional, string) Method used to rewrite the query. See the
+<<query-dsl-multi-term-rewrite, `rewrite` parameter>> for valid values and more
+information.
+
+If the `fuzziness` parameter is not `0`, the `match` query uses a `rewrite`
+method of `top_terms_blended_freqs_${max_expansions}` by default.
+--
+
+`lenient`::
+(Optional, boolean) If `true`, format-based errors, such as providing a text
+`query` value for a <<number,numeric>> field, are ignored. Defaults to `false`.
+
+`operator`::
++
+--
+(Optional, string) Boolean logic used to interpret text in the `query` value.
+Valid values are:
+
+`OR` (Default)::
+For example, a `query` value of `capital of Hungary` is interpreted as `capital
+OR of OR Hungary`.
+
+`AND`::
+For example, a `query` value of `capital of Hungary` is interpreted as `capital
+AND of AND Hungary`.
+--
+
+`minimum_should_match`::
++
+--
+(Optional, string) Minimum number of clauses that must match for a document to
+be returned. See the <<query-dsl-minimum-should-match, `minimum_should_match`
+parameter>> for valid values and more information.
+--
+
+`zero_terms_query`::
++
+--
+(Optional, string) Indicates whether no documents are returned if the `analyzer`
+removes all tokens, such as when using a `stop` filter. Valid values are:
+
+`none` (Default)::
+No documents are returned if the `analyzer` removes all tokens.
+
+`all`::
+Returns all documents, similar to a <<query-dsl-match-all-query,`match_all`>>
+query.
+
+See <<query-dsl-match-query-zero>> for an example.
+--
+
+
+[[match-query-notes]]
+==== Notes
+
+[[query-dsl-match-query-short-ex]]
+===== Short request example
+
+You can simplify the match query syntax by combining the `<field>` and `query`
+parameters. For example:
+
+[source,console]
+----
 GET /_search
 {
     "query": {
@@ -15,27 +156,22 @@ GET /_search
         }
     }
 }
---------------------------------------------------
-// CONSOLE
-
-Note, `message` is the name of a field, you can substitute the name of
-any field instead.
+----
 
 [[query-dsl-match-query-boolean]]
-==== match
+===== How the match query works
 
 The `match` query is of type `boolean`. It means that the text
 provided is analyzed and the analysis process constructs a boolean query
-from the provided text. The `operator` flag can be set to `or` or `and`
+from the provided text. The `operator` parameter can be set to `or` or `and`
 to control the boolean clauses (defaults to `or`). The minimum number of
 optional `should` clauses to match can be set using the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 parameter.
 
-Here is an example when providing additional parameters (note the slight
-change in structure, `message` is the field name):
+Here is an example with the `operator` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -49,7 +185,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `analyzer` can be set to control which analyzer will perform the
 analysis process on the text. It defaults to the field explicit mapping
@@ -60,7 +195,7 @@ data-type mismatches,  such as trying to query a numeric field with a text
 query string. Defaults to `false`.
 
 [[query-dsl-match-query-fuzziness]]
-===== Fuzziness
+===== Fuzziness in the match query
 
 `fuzziness` allows _fuzzy matching_ based on the type of field being queried.
 See <<fuzziness>> for allowed settings.
@@ -80,7 +215,7 @@ analysis process produces multiple tokens at the same position. Under the hood
 these terms are expanded to a special synonym query that blends term frequencies,
 which does not support fuzzy expansion.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -94,7 +229,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[query-dsl-match-query-zero]]
 ===== Zero terms query
@@ -103,7 +237,7 @@ does, the default behavior is to match no documents at all. In order to
 change that the `zero_terms_query` option can be used, which accepts
 `none` (default) and `all` which corresponds to a `match_all` query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -118,7 +252,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[query-dsl-match-query-synonyms]]
 ===== Synonyms
@@ -131,7 +264,7 @@ For example, the following synonym: `"ny, new york" would produce:`
 
 It is also possible to match multi terms synonyms with conjunctions instead:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -145,7 +278,6 @@ GET /_search
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 The example above creates a boolean query:
 
@@ -154,15 +286,3 @@ The example above creates a boolean query:
 that matches documents with the term `ny` or the conjunction `new AND york`.
 By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
 
-
-.Comparison to query_string / field
-**************************************************
-
-The match family of queries does not go through a "query parsing"
-process. It does not support field name prefixes, wildcard characters,
-or other "advanced" features. For this reason, chances of it failing are
-very small / non existent, and it provides an excellent behavior when it
-comes to just analyze and run that text as a query behavior (which is
-usually what a text search box does).
-
-**************************************************

@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class ClearScrollAction extends StreamableResponseActionType<ClearScrollResponse> {
+public class ClearScrollAction extends ActionType<ClearScrollResponse> {
 
     public static final ClearScrollAction INSTANCE = new ClearScrollAction();
     public static final String NAME = "indices:data/read/scroll/clear";
 
     private ClearScrollAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ClearScrollResponse newResponse() {
-        return new ClearScrollResponse();
+        super(NAME, ClearScrollResponse::new);
     }
 }

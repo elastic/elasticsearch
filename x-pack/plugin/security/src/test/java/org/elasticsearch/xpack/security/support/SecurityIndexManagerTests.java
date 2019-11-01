@@ -49,6 +49,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -57,6 +58,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
@@ -67,6 +69,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class SecurityIndexManagerTests extends ESTestCase {
 
@@ -97,6 +101,23 @@ public class SecurityIndexManagerTests extends ESTestCase {
             }
         };
         manager = SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService);
+
+    }
+
+    public void testIndexWithFaultyMappingOnDisk() {
+        SecurityIndexManager.State state = new SecurityIndexManager.State(randomBoolean() ? Instant.now() : null, true, randomBoolean(),
+                false, null, "not_important", null, null);
+        Supplier<byte[]> mappingSourceSupplier = () -> {
+            throw new RuntimeException();
+        };
+        Runnable runnable = mock(Runnable.class);
+        manager = new SecurityIndexManager(mock(Client.class), RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+                RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT,
+                mappingSourceSupplier, state);
+        AtomicReference<Exception> exceptionConsumer = new AtomicReference<>();
+        manager.prepareIndexIfNeededThenExecute(e -> exceptionConsumer.set(e), runnable);
+        verify(runnable, never()).run();
+        assertThat(exceptionConsumer.get(), is(notNullValue()));
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {

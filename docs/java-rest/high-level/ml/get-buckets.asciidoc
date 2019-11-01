@@ -3,15 +3,16 @@
 :request: GetBucketsRequest
 :response: GetBucketsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Buckets API
+=== Get buckets API
 
-The Get Buckets API retrieves one or more bucket results.
+Retrieves one or more bucket results.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Buckets Request
+==== Get buckets request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 
@@ -19,9 +20,9 @@ A +{request}+ object gets created with an existing non-null `jobId`.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request referencing an existing `jobId`
+<1> Constructing a new request referencing an existing `jobId`.
 
-==== Optional Arguments
+==== Optional arguments
 The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -82,7 +83,7 @@ include-tagged::{doc-tests-file}[{api}-start]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get Buckets Response
+==== Get buckets response
 
 The returned +{response}+ contains the requested buckets:
 
@@ -90,5 +91,5 @@ The returned +{response}+ contains the requested buckets:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of buckets that were matched
-<2> The buckets retrieved
+<1> The count of buckets that were matched.
+<2> The buckets retrieved.

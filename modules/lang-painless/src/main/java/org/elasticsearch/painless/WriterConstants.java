@@ -21,6 +21,8 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.api.Augmentation;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
@@ -31,6 +33,7 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.time.ZonedDateTime;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
@@ -98,13 +101,18 @@ public final class WriterConstants {
     public static final Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
     public static final Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
 
+    public static final Type FUNCTION_TABLE_TYPE = Type.getType(FunctionTable.class);
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public static final Method JCZDT_TO_ZONEDDATETIME =
+            getAsmMethod(ZonedDateTime.class, "JCZDTToZonedDateTime", JodaCompatibleZonedDateTime.class);
 
     public static final Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
 
     public static final Type AUGMENTATION_TYPE = Type.getType(Augmentation.class);
 
     /**
-     * A Method instance for {@linkplain Pattern#compile}. This isn't available from PainlessLookup because we intentionally don't add it
+     * A Method instance for {@linkplain Pattern}. This isn't available from PainlessLookup because we intentionally don't add it
      * there so that the script can't create regexes without this syntax. Essentially, our static regex syntax has a monopoly on building
      * regexes because it can do it statically. This is both faster and prevents the script from doing something super slow like building a
      * regex per time it is run.
@@ -120,7 +128,7 @@ public final class WriterConstants {
             DEF_BOOTSTRAP_METHOD.getDescriptor(), false);
     public static final Type DEF_BOOTSTRAP_DELEGATE_TYPE = Type.getType(DefBootstrap.class);
     public static final Method DEF_BOOTSTRAP_DELEGATE_METHOD = getAsmMethod(CallSite.class, "bootstrap", PainlessLookup.class,
-            Map.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
+            FunctionTable.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
 
     public static final Type DEF_UTIL_TYPE = Type.getType(Def.class);
 
@@ -160,6 +168,9 @@ public final class WriterConstants {
 
     public static final Method DEF_TO_STRING_IMPLICIT = getAsmMethod(String.class, "defToStringImplicit", Object.class);
     public static final Method DEF_TO_STRING_EXPLICIT = getAsmMethod(String.class, "defToStringExplicit", Object.class);
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public static final Method DEF_TO_ZONEDDATETIME = getAsmMethod(ZonedDateTime.class, "defToZonedDateTime", Object.class);
 
     public static final Type DEF_ARRAY_LENGTH_METHOD_TYPE = Type.getMethodType(Type.INT_TYPE, Type.getType(Object.class));
 

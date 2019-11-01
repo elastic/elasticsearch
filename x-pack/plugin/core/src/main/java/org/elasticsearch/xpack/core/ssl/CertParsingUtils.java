@@ -17,6 +17,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -53,6 +54,10 @@ public class CertParsingUtils {
         return environment.configFile().resolve(path);
     }
 
+    static List<Path> resolvePaths(List<String> certPaths, Environment environment) {
+        return certPaths.stream().map(p -> environment.configFile().resolve(p)).collect(Collectors.toList());
+    }
+
     public static KeyStore readKeyStore(Path path, String type, char[] password)
             throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
         try (InputStream in = Files.newInputStream(path)) {
@@ -67,12 +72,12 @@ public class CertParsingUtils {
      * Reads the provided paths and parses them into {@link Certificate} objects
      *
      * @param certPaths   the paths to the PEM encoded certificates
-     * @param environment the environment to resolve files against. May be {@code null}
+     * @param environment the environment to resolve files against. May be not be {@code null}
      * @return an array of {@link Certificate} objects
      */
-    public static Certificate[] readCertificates(List<String> certPaths, @Nullable Environment environment)
+    public static Certificate[] readCertificates(List<String> certPaths, Environment environment)
             throws CertificateException, IOException {
-        final List<Path> resolvedPaths = certPaths.stream().map(p -> environment.configFile().resolve(p)).collect(Collectors.toList());
+        final List<Path> resolvedPaths = resolvePaths(certPaths, environment);
         return readCertificates(resolvedPaths);
     }
 
@@ -274,5 +279,21 @@ public class CertParsingUtils {
             }
         }
         throw new IllegalStateException("failed to find a X509ExtendedTrustManager");
+    }
+
+    /**
+     * Checks that the {@code X509Certificate} array is ordered, such that the end-entity certificate is first and it is followed by any
+     * certificate authorities'. The check validates that the {@code issuer} of every certificate is the {@code subject} of the certificate
+     * in the next array position. No other certificate attributes are checked.
+     */
+    public static boolean isOrderedCertificateChain(List<X509Certificate> chain) {
+        for (int i = 1; i < chain.size(); i++) {
+            X509Certificate cert = chain.get(i - 1);
+            X509Certificate issuer = chain.get(i);
+            if (false == cert.getIssuerX500Principal().equals(issuer.getSubjectX500Principal())) {
+                return false;
+            }
+        }
+        return true;
     }
 }

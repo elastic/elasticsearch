@@ -1,8 +1,11 @@
 [[query-dsl-boosting-query]]
-=== Boosting Query
+=== Boosting query
+++++
+<titleabbrev>Boosting</titleabbrev>
+++++
 
 Returns documents matching a `positive` query while reducing the
-<<query-filter-context, relevance score>> of documents that also match a
+<<relevance-scores,relevance score>> of documents that also match a
 `negative` query.
 
 You can use the `boosting` query to demote certain documents without
@@ -11,7 +14,7 @@ excluding them from the search results.
 [[boosting-query-ex-request]]
 ==== Example request
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -32,29 +35,29 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[boosting-top-level-params]]
 ==== Top-level parameters for `boosting`
 
-`positive` (Required)::
-Query you wish to run. Any returned documents must match this query.
+`positive`::
+(Required, query object) Query you wish to run. Any returned documents must
+match this query.
 
-`negative` (Required)::
+`negative`::
 +
 --
-Query used to decrease the <<query-filter-context, relevance score>> of matching
-documents.
+(Required, query object) Query used to decrease the <<relevance-scores,relevance
+score>> of matching documents.
 
 If a returned document matches the `positive` query and this query, the
-`boosting` query calculates the final <<query-filter-context, relevance score>>
-for the document as follows:
+`boosting` query calculates the final <<relevance-scores,relevance score>> for
+the document as follows:
 
 . Take the original relevance score from the `positive` query.
 . Multiply the score by the `negative_boost` value.
 --
 
-`negative_boost` (Required)::
-Floating point number between `0` and `1.0` used to decrease the
-<<query-filter-context, relevance scores>> of documents matching the `negative`
-query.
+`negative_boost`::
+(Required, float) Floating point number between `0` and `1.0` used to decrease
+the <<relevance-scores,relevance scores>> of documents matching the
+`negative` query.

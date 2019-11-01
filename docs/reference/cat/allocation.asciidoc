@@ -1,17 +1,55 @@
 [[cat-allocation]]
-== cat allocation
+=== cat allocation API
+++++
+<titleabbrev>cat allocation</titleabbrev>
+++++
 
-`allocation` provides a snapshot of how many shards are allocated to each data node
-and how much disk space they are using.
 
-[source,js]
+Provides a snapshot of the number of shards allocated to each data node
+and their disk space.
+
+
+[[cat-allocation-api-request]]
+==== {api-request-title}
+
+`GET /_cat/allocation/<node_id>`
+
+`GET /_cat/allocation`
+
+[[cat-allocation-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
+
+[[cat-allocation-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+[[cat-allocation-api-example]]
+==== {api-examples-title}
+
+[source,console,id=cat-allocation-example]
 --------------------------------------------------
 GET /_cat/allocation?v
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n{"settings": {"number_of_replicas": 0}}\n/]
 
-Might respond with:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -21,6 +59,4 @@ shards disk.indices disk.used disk.avail disk.total disk.percent host      ip   
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/ s/46/\\d+/]
 // TESTRESPONSE[s/CSUXak2/.+/ non_json]
 
-Here we can see that the single shard created has been allocated to the single
-node available.
-
+This response shows a single shard is allocated to the one node available.

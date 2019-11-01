@@ -27,7 +27,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
 
     @Inject
     public TransportAuthenticateAction(TransportService transportService, ActionFilters actionFilters, SecurityContext securityContext) {
-        super(AuthenticateAction.NAME, transportService, AuthenticateRequest::new, actionFilters);
+        super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new);
         this.securityContext = securityContext;
     }
 

@@ -51,10 +51,35 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
         return new OpenFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
+    public void testOpenFollowerIndexIsNoopForAlreadyOpenIndex() {
+        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .state(IndexMetaData.State.OPEN)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        Client client = Mockito.mock(Client.class);
+        OpenFollowerIndexStep step = new OpenFollowerIndexStep(randomStepKey(), randomStepKey(), client);
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+            @Override
+            public void onResponse(boolean complete) {
+                assertThat(complete, is(true));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+            }
+        });
+
+        Mockito.verifyZeroInteractions(client);
+    }
+
     public void testOpenFollowingIndex() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .state(IndexMetaData.State.CLOSE)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -95,6 +120,7 @@ public class OpenFollowerIndexStepTests extends AbstractStepTestCase<OpenFollowe
     public void testOpenFollowingIndexFailed() {
         IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .state(IndexMetaData.State.CLOSE)
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)

@@ -46,7 +46,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
 
     public void testMappingClusterStateUpdateDoesntChangeExistingIndices() throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
-        final CompressedXContent currentMapping = indexService.mapperService().documentMapper("type").mappingSource();
+        final CompressedXContent currentMapping = indexService.mapperService().documentMapper().mappingSource();
 
         final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
@@ -61,10 +61,10 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         assertTrue(result.executionResults.values().iterator().next().isSuccess());
         // the task really was a mapping update
         assertThat(
-                indexService.mapperService().documentMapper("type").mappingSource(),
-                not(equalTo(result.resultingState.metaData().index("test").getMappings().get("type").source())));
+                indexService.mapperService().documentMapper().mappingSource(),
+                not(equalTo(result.resultingState.metaData().index("test").mapping().source())));
         // since we never committed the cluster state update, the in-memory state is unchanged
-        assertThat(indexService.mapperService().documentMapper("type").mappingSource(), equalTo(currentMapping));
+        assertThat(indexService.mapperService().documentMapper().mappingSource(), equalTo(currentMapping));
     }
 
     public void testClusterStateIsNotChangedWithIdenticalMappings() throws Exception {

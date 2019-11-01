@@ -24,23 +24,25 @@ public class AnalyticsResult implements ToXContentObject {
     public static final ParseField INFERENCE_MODEL = new ParseField("inference_model");
 
     public static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new AnalyticsResult((RowResults) a[0], (Integer) a[1], (TrainedModelDefinition) a[2]));
+            a -> new AnalyticsResult((RowResults) a[0], (Integer) a[1], (TrainedModelDefinition.Builder) a[2]));
 
     static {
         PARSER.declareObject(optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
         PARSER.declareInt(optionalConstructorArg(), PROGRESS_PERCENT);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TrainedModelDefinition.STRICT_PARSER.apply(p, null).build(),
-            INFERENCE_MODEL);
+        // TODO change back to STRICT_PARSER once native side is aligned
+        PARSER.declareObject(optionalConstructorArg(), TrainedModelDefinition.LENIENT_PARSER, INFERENCE_MODEL);
     }
 
     private final RowResults rowResults;
     private final Integer progressPercent;
+    private final TrainedModelDefinition.Builder inferenceModelBuilder;
     private final TrainedModelDefinition inferenceModel;
 
-    public AnalyticsResult(RowResults rowResults, Integer progressPercent, TrainedModelDefinition inferenceModel) {
+    public AnalyticsResult(RowResults rowResults, Integer progressPercent, TrainedModelDefinition.Builder inferenceModelBuilder) {
         this.rowResults = rowResults;
         this.progressPercent = progressPercent;
-        this.inferenceModel = inferenceModel;
+        this.inferenceModelBuilder = inferenceModelBuilder;
+        this.inferenceModel = inferenceModelBuilder == null ? null : inferenceModelBuilder.build();
     }
 
     public RowResults getRowResults() {
@@ -51,8 +53,8 @@ public class AnalyticsResult implements ToXContentObject {
         return progressPercent;
     }
 
-    public TrainedModelDefinition getInferenceModel() {
-        return inferenceModel;
+    public TrainedModelDefinition.Builder getInferenceModelBuilder() {
+        return inferenceModelBuilder;
     }
 
     @Override

@@ -42,6 +42,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
@@ -1283,21 +1284,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void close(String reason, boolean flushEngine) throws IOException {
         synchronized (engineMutex) {
-            synchronized (mutex) {
-                try {
+            try {
+                synchronized (mutex) {
                     changeState(IndexShardState.CLOSED, reason);
-                } finally {
-                    final Engine engine = this.currentEngineReference.getAndSet(null);
-                    try {
-                        if (engine != null && flushEngine) {
-                            engine.flushAndClose();
-                        }
-                    } finally {
-                        // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                        // Also closing refreshListeners to prevent us from accumulating any more listeners
-                        IOUtils.close(engine, globalCheckpointListeners, refreshListeners);
-                        indexShardOperationPermits.close();
+                }
+            } finally {
+                final Engine engine = this.currentEngineReference.getAndSet(null);
+                try {
+                    if (engine != null && flushEngine) {
+                        engine.flushAndClose();
                     }
+                } finally {
+                    // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                    // Also closing refreshListeners to prevent us from accumulating any more listeners
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners);
+                    indexShardOperationPermits.close();
                 }
             }
         }
@@ -1808,12 +1809,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return storeRecovery.recoverFromStore(this);
     }
 
-    public boolean restoreFromRepository(Repository repository) {
-        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: " +
-            recoveryState.getRecoverySource();
-        StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-        return storeRecovery.recoverFromRepository(this, repository);
+    public void restoreFromRepository(Repository repository, ActionListener<Boolean> listener) {
+        try {
+            assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: " +
+                recoveryState.getRecoverySource();
+            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+            storeRecovery.recoverFromRepository(this, repository, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -2496,17 +2501,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             case SNAPSHOT:
                 markAsRecovering("from snapshot", recoveryState); // mark the shard as recovering on the cluster state thread
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) recoveryState.getRecoverySource();
-                threadPool.generic().execute(() -> {
-                    try {
-                        final Repository repository = repositoriesService.repository(recoverySource.snapshot().getRepository());
-                        if (restoreFromRepository(repository)) {
-                            recoveryListener.onRecoveryDone(recoveryState);
-                        }
-                    } catch (Exception e) {
-                        recoveryListener.onRecoveryFailure(recoveryState,
-                            new RecoveryFailedException(recoveryState, null, e), true);
-                    }
-                });
+                threadPool.generic().execute(
+                    ActionRunnable.<Boolean>wrap(ActionListener.wrap(r -> {
+                            if (r) {
+                                recoveryListener.onRecoveryDone(recoveryState);
+                            }
+                        },
+                        e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)),
+                        restoreListener -> restoreFromRepository(
+                            repositoriesService.repository(recoverySource.snapshot().getRepository()), restoreListener)));
                 break;
             case LOCAL_SHARDS:
                 final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();
@@ -2647,14 +2650,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     private DocumentMapperForType docMapper() {
-        return mapperService.documentMapperWithAutoCreate(
-            mapperService.resolveDocumentType(MapperService.SINGLE_MAPPING_NAME));
+        return mapperService.documentMapperWithAutoCreate();
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {
             assert Thread.holdsLock(mutex) == false : "warming engine under mutex";
+            assert reader != null;
             if (this.warmer != null) {
                 this.warmer.warm(reader);
             }
@@ -3309,6 +3312,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     @Override
                     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
                         synchronized (engineMutex) {
+                            if (newEngineReference.get() == null) {
+                                throw new AlreadyClosedException("engine was closed");
+                            }
                             // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
                             return newEngineReference.get().acquireLastIndexCommit(false);
                         }
@@ -3317,6 +3323,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     @Override
                     public IndexCommitRef acquireSafeIndexCommit() {
                         synchronized (engineMutex) {
+                            if (newEngineReference.get() == null) {
+                                throw new AlreadyClosedException("engine was closed");
+                            }
                             return newEngineReference.get().acquireSafeIndexCommit();
                         }
                     }
@@ -3342,6 +3351,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // TODO: add a dedicate recovery stats for the reset translog
             });
         newEngineReference.get().recoverFromTranslog(translogRunner, globalCheckpoint);
+        newEngineReference.get().refresh("reset_engine");
         synchronized (engineMutex) {
             verifyNotClosed();
             IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()));

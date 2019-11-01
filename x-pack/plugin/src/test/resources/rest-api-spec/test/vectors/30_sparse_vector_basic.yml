@@ -55,7 +55,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "dotProductSparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "dotProductSparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"2": 0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
 
@@ -87,7 +87,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"2": -0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
 

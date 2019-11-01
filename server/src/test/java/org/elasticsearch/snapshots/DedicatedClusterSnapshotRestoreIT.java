@@ -1219,6 +1219,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
         internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+
+        logger.info("-->  wait for shard snapshots to show as failed");
+        assertBusy(() -> assertThat(
+            client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").get().getSnapshots()
+                .get(0).getShardsStats().getFailedShards(), greaterThanOrEqualTo(1)), 60L, TimeUnit.SECONDS);
+
         unblockNode("test-repo", dataNode);
         disruption.stopDisrupting();
         // check that snapshot completes

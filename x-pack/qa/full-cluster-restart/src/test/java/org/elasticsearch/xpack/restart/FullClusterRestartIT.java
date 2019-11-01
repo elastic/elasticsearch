@@ -277,6 +277,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48741")
     public void testSlmPolicyAndStats() throws IOException {
         SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy("test-policy", "test-policy", "* * * 31 FEB ? *", "test-repo",
             Collections.singletonMap("indices", Collections.singletonList("*")), null);

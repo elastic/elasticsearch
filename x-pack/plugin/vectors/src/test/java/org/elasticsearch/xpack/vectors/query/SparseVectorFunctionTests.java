@@ -58,55 +58,39 @@ public class SparseVectorFunctionTests extends ESTestCase {
             when(scoreScript._getIndexVersion()).thenReturn(indexVersion);
             when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, docValues));
 
-            testDotProduct(docValues, scoreScript);
-            testCosineSimilarity(docValues, scoreScript);
-            testL1Norm(docValues, scoreScript);
-            testL2Norm(docValues, scoreScript);
+            testDotProduct(scoreScript);
+            testCosineSimilarity(scoreScript);
+            testL1Norm(scoreScript);
+            testL2Norm(scoreScript);
         }
     }
 
-    private void testDotProduct(SparseVectorScriptDocValues docValues, ScoreScript scoreScript) {
+    private void testDotProduct(ScoreScript scoreScript) {
         DotProductSparse function = new DotProductSparse(scoreScript, queryVector, field);
         double result = function.dotProductSparse();
         assertEquals("dotProductSparse result is not equal to the expected value!", 65425.624, result, 0.001);
-
-        DotProductSparse deprecatedFunction = new DotProductSparse(scoreScript, queryVector, docValues);
-        double deprecatedResult = deprecatedFunction.dotProductSparse();
-        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.624, deprecatedResult, 0.001);
-        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE, ScoreScriptUtils.DEPRECATION_MESSAGE);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
-    private void testCosineSimilarity(SparseVectorScriptDocValues docValues, ScoreScript scoreScript) {
+    private void testCosineSimilarity(ScoreScript scoreScript) {
         CosineSimilaritySparse function = new CosineSimilaritySparse(scoreScript, queryVector, field);
         double result = function.cosineSimilaritySparse();
         assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.790, result, 0.001);
-
-        CosineSimilaritySparse deprecatedFunction = new CosineSimilaritySparse(scoreScript, queryVector, docValues);
-        double deprecatedResult = deprecatedFunction.cosineSimilaritySparse();
-        assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.790, deprecatedResult, 0.001);
-        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE, ScoreScriptUtils.DEPRECATION_MESSAGE);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
-    private void testL1Norm(SparseVectorScriptDocValues docValues, ScoreScript scoreScript) {
+    private void testL1Norm(ScoreScript scoreScript) {
         L1NormSparse function = new L1NormSparse(scoreScript, queryVector, field);
         double result = function.l1normSparse();
         assertEquals("l1norm result is not equal to the expected value!", 485.184, result, 0.001);
-
-        L1NormSparse deprecatedFunction = new L1NormSparse(scoreScript, queryVector, docValues);
-        double deprecatedResult = deprecatedFunction.l1normSparse();
-        assertEquals("l1norm result is not equal to the expected value!", 485.184, deprecatedResult, 0.001);
-        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE, ScoreScriptUtils.DEPRECATION_MESSAGE);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
-    private void testL2Norm(SparseVectorScriptDocValues docValues, ScoreScript scoreScript) {
+    private void testL2Norm(ScoreScript scoreScript) {
         L2NormSparse function = new L2NormSparse(scoreScript, queryVector, field);
         double result = function.l2normSparse();
         assertEquals("L2NormSparse result is not equal to the expected value!", 301.361, result, 0.001);
-
-        L2NormSparse deprecatedFunction = new L2NormSparse(scoreScript, queryVector, docValues);
-        double deprecatedResult = deprecatedFunction.l2normSparse();
-        assertEquals("L2NormSparse result is not equal to the expected value!", 301.361, deprecatedResult, 0.001);
-        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE, ScoreScriptUtils.DEPRECATION_MESSAGE);
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testSparseVectorMissingDimensions1() {

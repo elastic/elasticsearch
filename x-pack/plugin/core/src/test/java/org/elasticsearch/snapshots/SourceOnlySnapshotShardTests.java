@@ -313,11 +313,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         rootFieldsVisitor.reset();
                         leafReader.document(i, rootFieldsVisitor);
                         rootFieldsVisitor.postProcess(targetShard.mapperService());
-                        Uid uid = rootFieldsVisitor.uid();
+                        String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                            new SourceToParse(index, uid.id(), source, XContentHelper.xContentType(source),
+                            new SourceToParse(index, id, source, XContentHelper.xContentType(source),
                                 rootFieldsVisitor.routing()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {

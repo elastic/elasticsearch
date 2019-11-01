@@ -239,12 +239,12 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
-        if (isTombstone && fields.uid() == null) {
+        if (isTombstone && fields.id() == null) {
             op = new Translog.NoOp(seqNo, primaryTerm, fields.source().utf8ToString());
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {
-            final String id = fields.uid().id();
+            final String id = fields.id();
             final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
             if (isTombstone) {
                 op = new Translog.Delete(id, uid, seqNo, primaryTerm, version);

@@ -628,7 +628,7 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion);
+            return new GetResult(searcher, docIdAndVersion, false);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
@@ -1626,21 +1626,20 @@ public abstract class Engine implements Closeable {
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
         private final Engine.Searcher searcher;
+        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
+            this.fromTranslog = fromTranslog;
         }
 
-        /**
-         * Build a non-realtime get result from the searcher.
-         */
-        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
         }
 
         public boolean exists() {
@@ -1649,6 +1648,10 @@ public abstract class Engine implements Closeable {
 
         public long version() {
             return this.version;
+        }
+
+        public boolean isFromTranslog() {
+            return fromTranslog;
         }
 
         public Engine.Searcher searcher() {

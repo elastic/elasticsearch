@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Suppress AssertingCodec because it doesn't work with {@link DocValues#unwrapSingleton} that is used in this test. */
-@LuceneTestCase.SuppressCodecs("*")
+@LuceneTestCase.SuppressCodecs("Asserting")
 public class CompositeAggregatorEarlyTerminationTests extends CompositeAggregatorTestCase {
     public void testEarlyTermination() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();

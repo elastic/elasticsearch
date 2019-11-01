@@ -11,6 +11,7 @@ performance of your {es} cluster.
 * <<monitoring-overview>>
 * <<how-monitoring-works>>
 * <<monitoring-production>>
+* <<esms>>
 * <<collecting-monitoring-data>>
 * <<configuring-metricbeat>>
 * <<configuring-filebeat>>

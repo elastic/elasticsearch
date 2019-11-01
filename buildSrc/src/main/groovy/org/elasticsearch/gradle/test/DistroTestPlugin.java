@@ -30,6 +30,7 @@ import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.JdkDownloadPlugin;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.vagrant.BatsProgressLogger;
 import org.elasticsearch.gradle.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.vagrant.VagrantExtension;
@@ -165,8 +166,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             return Version.fromString(project.getVersion().toString());
         }
 
-        ExtraPropertiesExtension rootExtraProperties = project.getRootProject().getExtensions().getByType(ExtraPropertiesExtension.class);
-        String firstPartOfSeed = rootExtraProperties.get("testSeed").toString().split(":")[0];
+        String firstPartOfSeed = BuildParams.getTestSeed().split(":")[0];
         final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16);
         BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
         final List<Version> indexCompatVersions = bwcVersions.getIndexCompatible();

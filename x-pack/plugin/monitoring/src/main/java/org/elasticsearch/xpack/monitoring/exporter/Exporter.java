@@ -15,7 +15,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;

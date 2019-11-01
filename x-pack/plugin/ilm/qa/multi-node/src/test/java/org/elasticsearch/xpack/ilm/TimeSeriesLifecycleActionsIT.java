@@ -835,6 +835,23 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         createFullPolicy(TimeValue.ZERO);
 
+        {
+            // Create a "shrink-only-policy"
+            Map<String, LifecycleAction> warmActions = new HashMap<>();
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17));
+            Map<String, Phase> phases = new HashMap<>();
+            phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
+            LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-only-policy", phases);
+            // PUT policy
+            XContentBuilder builder = jsonBuilder();
+            lifecyclePolicy.toXContent(builder, null);
+            final StringEntity entity = new StringEntity(
+                "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+            Request request = new Request("PUT", "_ilm/policy/shrink-only-policy");
+            request.setEntity(entity);
+            assertOK(client().performRequest(request));
+        }
+
         createIndexWithSettings(goodIndex, Settings.builder()
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -842,7 +859,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
         createIndexWithSettingsNoAlias(errorIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-only-policy")
         );
         createIndexWithSettingsNoAlias(nonexistantPolicyIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

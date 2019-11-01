@@ -319,7 +319,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .admin().indices().prepareGetFieldMappings("test").setFields("*").get();
 
-            Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
             assertExpectedFields(mappings.get("test"), "field1");
@@ -329,7 +329,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                     .admin().indices().prepareGetFieldMappings("test").setFields("*").get();
 
-            Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
             assertExpectedFields(mappings.get("test"), "field2");
@@ -339,7 +339,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                     .admin().indices().prepareGetFieldMappings("test").setFields("*").get();
 
-            Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
             assertExpectedFields(mappings.get("test"), "field1");
@@ -349,7 +349,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                     .admin().indices().prepareGetFieldMappings("test").setFields("*").get();
 
-            Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings =
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
             assertExpectedFields(mappings.get("test"), "field1", "field2");
@@ -423,10 +423,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
     }
 
-    private static void assertExpectedFields(Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings,
+    private static void assertExpectedFields(Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields,
                                             String... expectedFields) {
-        assertEquals(1, mappings.size());
-        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(mappings.get("type1"));
         Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
         for (String field : builtInMetaDataFields) {
             GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);

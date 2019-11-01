@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,37 +84,43 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     // TODO remove the middle `type` level of this
-    private final Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings;
+    private final Map<String, Map<String, FieldMappingMetaData>> mappings;
 
-    GetFieldMappingsResponse(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings) {
+    GetFieldMappingsResponse(Map<String, Map<String, FieldMappingMetaData>> mappings) {
         this.mappings = mappings;
     }
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        Map<String, Map<String, Map<String, FieldMappingMetaData>>> indexMapBuilder = new HashMap<>(size);
+        Map<String, Map<String, FieldMappingMetaData>> indexMapBuilder = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             String index = in.readString();
-            int typesSize = in.readVInt();
-            Map<String, Map<String, FieldMappingMetaData>> typeMapBuilder = new HashMap<>(typesSize);
-            for (int j = 0; j < typesSize; j++) {
-                String type = in.readString();
+            Map<String, FieldMappingMetaData> fieldMapBuilder = new HashMap<>();
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                int typesSize = in.readVInt();
+                assert typesSize <= 1;
+                for (int j = 0; j < typesSize; j++) {
+                    in.readString(); // type
+                    int fieldSize = in.readVInt();
+                    for (int k = 0; k < fieldSize; k++) {
+                        fieldMapBuilder.put(in.readString(), new FieldMappingMetaData(in.readString(), in.readBytesReference()));
+                    }
+                }
+            } else {
                 int fieldSize = in.readVInt();
-                Map<String, FieldMappingMetaData> fieldMapBuilder = new HashMap<>(fieldSize);
                 for (int k = 0; k < fieldSize; k++) {
                     fieldMapBuilder.put(in.readString(), new FieldMappingMetaData(in.readString(), in.readBytesReference()));
                 }
-                typeMapBuilder.put(type, unmodifiableMap(fieldMapBuilder));
             }
-            indexMapBuilder.put(index, unmodifiableMap(typeMapBuilder));
+            indexMapBuilder.put(index, unmodifiableMap(fieldMapBuilder));
         }
         mappings = unmodifiableMap(indexMapBuilder);
 
     }
 
     /** returns the retrieved field mapping. The return map keys are index, type, field (as specified in the request). */
-    public Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings() {
+    public Map<String, Map<String, FieldMappingMetaData>> mappings() {
         return mappings;
     }
 
@@ -122,32 +130,23 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
      * @param field field name as specified in the {@link GetFieldMappingsRequest}
      * @return FieldMappingMetaData for the requested field or null if not found.
      */
-    public FieldMappingMetaData fieldMappings(String index, String type, String field) {
-        Map<String, Map<String, FieldMappingMetaData>> indexMapping = mappings.get(index);
+    public FieldMappingMetaData fieldMappings(String index, String field) {
+        Map<String, FieldMappingMetaData> indexMapping = mappings.get(index);
         if (indexMapping == null) {
             return null;
         }
-        Map<String, FieldMappingMetaData> typeMapping = indexMapping.get(type);
-        if (typeMapping == null) {
-            return null;
-        }
-        return typeMapping.get(field);
+        return indexMapping.get(field);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-        for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
+        for (Map.Entry<String, Map<String, FieldMappingMetaData>> indexEntry : mappings.entrySet()) {
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
 
-            Map<String, FieldMappingMetaData> mappings = null;
-            for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
-                assert mappings == null;
-                mappings = typeEntry.getValue();
-            }
-            if (mappings != null) {
-                addFieldMappingsToBuilder(builder, params, mappings);
+            if (indexEntry.getValue() != null) {
+                addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
             }
 
             builder.endObject();
@@ -255,13 +254,22 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(mappings.size());
-        for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
+        for (Map.Entry<String, Map<String, FieldMappingMetaData>> indexEntry : mappings.entrySet()) {
             out.writeString(indexEntry.getKey());
-            out.writeVInt(indexEntry.getValue().size());
-            for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
-                out.writeString(typeEntry.getKey());
-                out.writeVInt(typeEntry.getValue().size());
-                for (Map.Entry<String, FieldMappingMetaData> fieldEntry : typeEntry.getValue().entrySet()) {
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeVInt(1);
+                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                out.writeVInt(indexEntry.getValue().size());
+                for (Map.Entry<String, FieldMappingMetaData> fieldEntry : indexEntry.getValue().entrySet()) {
+                    out.writeString(fieldEntry.getKey());
+                    FieldMappingMetaData fieldMapping = fieldEntry.getValue();
+                    out.writeString(fieldMapping.fullName());
+                    out.writeBytesReference(fieldMapping.source);
+                }
+
+            } else {
+                out.writeVInt(indexEntry.getValue().size());
+                for (Map.Entry<String, FieldMappingMetaData> fieldEntry : indexEntry.getValue().entrySet()) {
                     out.writeString(fieldEntry.getKey());
                     FieldMappingMetaData fieldMapping = fieldEntry.getValue();
                     out.writeString(fieldMapping.fullName());

@@ -65,7 +65,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         if (concreteIndices.length == 0) {
             listener.onResponse(new GetFieldMappingsResponse(emptyMap()));
         } else {
-            boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.types().length == 1 && request.fields().length == 1;
+            boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.fields().length == 1;
             for (final String index : concreteIndices) {
                 GetFieldMappingsIndexRequest shardRequest = new GetFieldMappingsIndexRequest(request, index, probablySingleFieldRequest);
 
@@ -92,7 +92,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     }
 
     private GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
-        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mergedResponses = new HashMap<>();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mergedResponses = new HashMap<>();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
             if (element instanceof GetFieldMappingsResponse) {

@@ -34,16 +34,16 @@ import java.util.Map;
 public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCase<GetFieldMappingsResponse> {
 
     public void testManualSerialization() throws IOException {
-        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
+        Map<String, Map<String, FieldMappingMetaData>> mappings = new HashMap<>();
         FieldMappingMetaData fieldMappingMetaData = new FieldMappingMetaData("my field", new BytesArray("{}"));
-        mappings.put("index", Collections.singletonMap("type", Collections.singletonMap("field", fieldMappingMetaData)));
+        mappings.put("index", Collections.singletonMap("field", fieldMappingMetaData));
         GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
             try (StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
                 GetFieldMappingsResponse serialized = new GetFieldMappingsResponse(in);
-                FieldMappingMetaData metaData = serialized.fieldMappings("index", "type", "field");
+                FieldMappingMetaData metaData = serialized.fieldMappings("index", "field");
                 assertNotNull(metaData);
                 assertEquals(new BytesArray("{}"), metaData.getSource());
             }
@@ -60,25 +60,20 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
         return GetFieldMappingsResponse::new;
     }
 
-    private Map<String, Map<String, Map<String, FieldMappingMetaData>>> randomMapping() {
-        Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
+    private Map<String, Map<String, FieldMappingMetaData>> randomMapping() {
+        Map<String, Map<String, FieldMappingMetaData>> mappings = new HashMap<>();
 
         int indices = randomInt(10);
         for(int i = 0; i < indices; i++) {
-            final Map<String, Map<String, FieldMappingMetaData>> doctypesMappings = new HashMap<>();
-            int doctypes = randomInt(10);
-            for(int j = 0; j < doctypes; j++) {
-                Map<String, FieldMappingMetaData> fieldMappings = new HashMap<>();
-                int fields = randomInt(10);
-                for(int k = 0; k < fields; k++) {
-                    final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
-                    FieldMappingMetaData metaData =
-                        new FieldMappingMetaData("my field", new BytesArray(mapping));
-                    fieldMappings.put("field" + k, metaData);
-                }
-                doctypesMappings.put("doctype" + j, fieldMappings);
+            Map<String, FieldMappingMetaData> fieldMappings = new HashMap<>();
+            int fields = randomInt(10);
+            for (int k = 0; k < fields; k++) {
+                final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
+                FieldMappingMetaData metaData =
+                    new FieldMappingMetaData("my field", new BytesArray(mapping));
+                fieldMappings.put("field" + k, metaData);
             }
-            mappings.put("index" + i, doctypesMappings);
+            mappings.put("index" + i, fieldMappings);
         }
         return mappings;
     }

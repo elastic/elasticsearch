@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -292,7 +294,7 @@ thirdPartyAudit {
 }
 
 rootProject.globalInfo.ready {
-    if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         thirdPartyAudit.ignoreMissingClasses(
                 'javax.xml.bind.JAXBContext',
                 'javax.xml.bind.JAXBElement',

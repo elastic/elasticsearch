@@ -3,6 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
+import org.elasticsearch.gradle.info.BuildParams
+
 import java.nio.file.Files
 import java.nio.file.Paths
 import org.elasticsearch.gradle.ElasticsearchDistribution
@@ -179,7 +182,7 @@ thirdPartyAudit.ignoreMissingClasses(
 )
 
 rootProject.globalInfo.ready {
-  if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
+  if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     thirdPartyAudit.ignoreJarHellWithJDK(
             'javax.xml.bind.Binder',
             'javax.xml.bind.ContextFinder$1',

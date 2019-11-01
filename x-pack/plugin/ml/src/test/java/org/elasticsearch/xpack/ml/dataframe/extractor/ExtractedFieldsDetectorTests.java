@@ -53,7 +53,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(1));
         assertThat(allFields.get(0).getName(), equalTo("some_float"));
-        assertThat(allFields.get(0).getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+        assertThat(allFields.get(0).getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
     }
 
     public void testDetect_GivenNumericFieldWithMultipleTypes() {
@@ -68,7 +68,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(1));
         assertThat(allFields.get(0).getName(), equalTo("some_number"));
-        assertThat(allFields.get(0).getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+        assertThat(allFields.get(0).getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
     }
 
     public void testDetect_GivenOutlierDetectionAndNonNumericField() {
@@ -111,8 +111,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.size(), equalTo(3));
         assertThat(allFields.stream().map(ExtractedField::getName).collect(Collectors.toSet()),
             containsInAnyOrder("some_float", "some_long", "some_boolean"));
-        assertThat(allFields.stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+        assertThat(allFields.stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.DOC_VALUE)));
     }
 
     public void testDetect_GivenRegressionAndMultipleFields() {
@@ -132,8 +132,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.size(), equalTo(5));
         assertThat(allFields.stream().map(ExtractedField::getName).collect(Collectors.toList()),
             containsInAnyOrder("foo", "some_float", "some_keyword", "some_long", "some_boolean"));
-        assertThat(allFields.stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+        assertThat(allFields.stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.DOC_VALUE)));
     }
 
     public void testDetect_GivenRegressionAndRequiredFieldMissing() {
@@ -442,8 +442,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
             .collect(Collectors.toList());
         assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
-        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.DOC_VALUE)));
     }
 
     public void testDetect_GivenEqualFieldsToDocValuesLimit() {
@@ -461,8 +461,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
             .collect(Collectors.toList());
         assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
-        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.DOC_VALUE)));
     }
 
     public void testDetect_GivenMoreFieldsThanDocValuesLimit() {
@@ -480,8 +480,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
             .collect(Collectors.toList());
         assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
-        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.SOURCE)));
+        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.SOURCE)));
     }
 
     public void testDetect_GivenBooleanField_BooleanMappedAsInteger() {
@@ -497,7 +497,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.size(), equalTo(1));
         ExtractedField booleanField = allFields.get(0);
         assertThat(booleanField.getTypes(), contains("boolean"));
-        assertThat(booleanField.getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+        assertThat(booleanField.getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
 
         SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
         assertThat(booleanField.value(hit), arrayContaining(1));
@@ -522,7 +522,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.size(), equalTo(1));
         ExtractedField booleanField = allFields.get(0);
         assertThat(booleanField.getTypes(), contains("boolean"));
-        assertThat(booleanField.getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+        assertThat(booleanField.getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
 
         SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
         assertThat(booleanField.value(hit), arrayContaining("true"));

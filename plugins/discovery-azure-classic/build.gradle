@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.info.BuildParams
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -69,7 +70,7 @@ task createKey(type: LoggedExec) {
     keystore.parentFile.mkdirs()
   }
   outputs.file(keystore).withPropertyName('keystoreFile')
-  executable = new File(project.runtimeJavaHome, 'bin/keytool')
+  executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
           '-alias', 'test-node',

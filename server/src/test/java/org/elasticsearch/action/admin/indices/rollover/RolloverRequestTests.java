@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -50,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverRequestTests extends ESTestCase {
@@ -73,7 +70,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .field("max_size", "45gb")
                 .endObject()
             .endObject();
-        request.fromXContent(false, createParser(builder));
+        request.fromXContent(createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(3));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
@@ -93,12 +90,10 @@ public class RolloverRequestTests extends ESTestCase {
                     .field("max_docs", 100)
                 .endObject()
                 .startObject("mappings")
-                    .startObject("type1")
-                        .startObject("properties")
-                            .startObject("field1")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
-                            .endObject()
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "string")
+                            .field("index", "not_analyzed")
                         .endObject()
                     .endObject()
                 .endObject()
@@ -109,7 +104,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .startObject("alias1").endObject()
                 .endObject()
             .endObject();
-        request.fromXContent(true, createParser(builder));
+        request.fromXContent(createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));
@@ -130,8 +125,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .endObject()
             .endObject();
 
-        boolean includeTypeName = false;
-        request.fromXContent(includeTypeName, createParser(builder));
+        request.fromXContent(createParser(builder));
 
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
         String mapping = createIndexRequest.mappings().get(MapperService.SINGLE_MAPPING_NAME);
@@ -168,27 +162,6 @@ public class RolloverRequestTests extends ESTestCase {
         }
     }
 
-    public void testToAndFromXContent() throws IOException {
-        RolloverRequest rolloverRequest = createTestItem();
-
-        final XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(rolloverRequest, xContentType, EMPTY_PARAMS, humanReadable);
-
-        RolloverRequest parsedRolloverRequest = new RolloverRequest();
-        parsedRolloverRequest.fromXContent(true, createParser(xContentType.xContent(), originalBytes));
-
-        CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
-        CreateIndexRequest parsedCreateIndexRequest = parsedRolloverRequest.getCreateIndexRequest();
-        CreateIndexRequestTests.assertMappingsEqual(createIndexRequest.mappings(), parsedCreateIndexRequest.mappings());
-        CreateIndexRequestTests.assertAliasesEqual(createIndexRequest.aliases(), parsedCreateIndexRequest.aliases());
-        assertEquals(createIndexRequest.settings(), parsedCreateIndexRequest.settings());
-        assertEquals(rolloverRequest.getConditions(), parsedRolloverRequest.getConditions());
-
-        BytesReference finalBytes = toShuffledXContent(parsedRolloverRequest, xContentType, EMPTY_PARAMS, humanReadable);
-        ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
-    }
-
     public void testUnknownFields() throws IOException {
         final RolloverRequest request = new RolloverRequest();
         XContentType xContentType = randomFrom(XContentType.values());
@@ -201,7 +174,7 @@ public class RolloverRequestTests extends ESTestCase {
         }
         builder.endObject();
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
-        expectThrows(XContentParseException.class, () -> request.fromXContent(false, createParser(xContentType.xContent(), mutated)));
+        expectThrows(XContentParseException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {

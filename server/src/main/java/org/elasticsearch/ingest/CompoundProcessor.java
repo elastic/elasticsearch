@@ -212,7 +212,7 @@ public class CompoundProcessor implements Processor {
             return (ElasticsearchException) e;
         }
 
-        ElasticsearchException exception = new ElasticsearchException(new IllegalArgumentException(e));
+        ElasticsearchException exception = new ElasticsearchException(e);
 
         if (processorType != null) {
             exception.addHeader("processor_type", processorType);

@@ -62,6 +62,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -121,10 +122,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
-            (update, shardId, type, mappingListener) -> {
-                assert update != null;
-                assert shardId != null;
-                mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update, mappingListener);
+            new MappingUpdatePerformer() {
+                @Override
+                public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> mappingListener) {
+                    assert update != null;
+                    assert shardId != null;
+                    mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update, mappingListener);
+                }
+
+                @Override
+                public void validateMappings(Mapping update, String type) throws IOException {
+                    primary.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
+                        new CompressedXContent(update, XContentType.JSON, ToXContent.EMPTY_PARAMS),
+                        MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT);
+                }
             },
             mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
@@ -267,9 +278,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
 
             try {
-                primary.mapperService().merge("_doc",
-                    new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
-                    MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT);
+                mappingUpdater.validateMappings(result.getRequiredMappingUpdate(), MapperService.SINGLE_MAPPING_NAME);
             } catch (Exception e) {
                 logger.info("required mapping update failed during pre-flight check", e);
                 onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);

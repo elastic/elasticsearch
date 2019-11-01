@@ -248,11 +248,18 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         AtomicInteger updateCalled = new AtomicInteger();
         TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
-            (update, shardId, type, listener) -> {
-                // There should indeed be a mapping update
-                assertNotNull(update);
-                updateCalled.incrementAndGet();
-                listener.onResponse(null);
+            new MappingUpdatePerformer() {
+                @Override
+                public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
+                    // There should indeed be a mapping update
+                    assertNotNull(update);
+                    updateCalled.incrementAndGet();
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void validateMappings(Mapping update, String type) {
+                }
             }, listener -> listener.onResponse(null), ASSERTING_DONE_LISTENER);
         assertTrue(context.isInitial());
         assertTrue(context.hasMoreOperationsToExecute());
@@ -266,7 +273,16 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .thenReturn(success);
 
         TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
-            (update, shardId, type, listener) -> fail("should not have had to update the mappings"), listener -> {},
+            new MappingUpdatePerformer() {
+                @Override
+                public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
+                    fail("should not have had to update the mappings");
+                }
+
+                @Override
+                public void validateMappings(Mapping update, String type) {
+                }
+            }, listener -> {},
             ASSERTING_DONE_LISTENER);
 
 
@@ -856,6 +872,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
+
+        @Override
+        public void validateMappings(Mapping update, String type) {
+        }
     }
 
     /** Always throw the given exception */
@@ -869,6 +889,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         @Override
         public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
             listener.onFailure(e);
+        }
+
+        @Override
+        public void validateMappings(Mapping update, String type) {
         }
     }
 }

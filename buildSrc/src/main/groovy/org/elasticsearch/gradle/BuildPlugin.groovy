@@ -484,7 +484,7 @@ class BuildPlugin implements Plugin<Project> {
         ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
         GlobalInfoExtension globalBuildInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
         globalBuildInfo.ready {
-            if ((ext.get('compilerJavaVersion') as JavaVersion) < JavaVersion.VERSION_1_10) {
+            if (BuildParams.compilerJavaVersion < JavaVersion.VERSION_1_10) {
                 ext.set('compactProfile', 'compact3')
             } else {
                 ext.set('compactProfile', 'full')

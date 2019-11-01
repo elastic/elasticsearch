@@ -32,7 +32,7 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 <<ip>>::            `ip` for IPv4 and IPv6 addresses
 <<completion-suggester,Completion datatype>>::
                     `completion` to provide auto-complete suggestions
-<<histogram>>:: Record pre-aggregated numerical values to be used in percentiles aggregations.
+
 <<token-count>>::   `token_count` to count the number of tokens in a string
 {plugins}/mapper-murmur3.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
 {plugins}/mapper-annotated-text.html[`mapper-annotated-text`]:: `annotated-text` to index text containing special markup (typically used for identifying named entities)
@@ -56,6 +56,8 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 <<flattened>>:: Allows an entire JSON object to be indexed as a single field.
 
 <<shape>>:: `shape` for arbitrary cartesian geometries.
+
+<<histogram>>:: `histogram` for pre-aggregated numerical values for percentiles aggregations.
 
 [float]
 [[types-array-handling]]

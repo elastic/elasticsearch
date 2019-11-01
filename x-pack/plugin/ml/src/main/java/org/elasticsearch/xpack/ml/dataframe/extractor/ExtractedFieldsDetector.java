@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -238,7 +239,9 @@ public class ExtractedFieldsDetector {
         // We sort the fields to ensure the checksum for each document is deterministic
         Collections.sort(sortedFields);
         ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse);
-        if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
+        boolean preferSource = extractedFields.getDocValueFields().size() > docValueFieldsLimit;
+        extractedFields = deduplicateMultiFields(extractedFields, preferSource);
+        if (preferSource) {
             extractedFields = fetchFromSourceIfSupported(extractedFields);
             if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
                 throw ExceptionsHelper.badRequestException("[{}] fields must be retrieved from doc_values but the limit is [{}]; " +
@@ -250,9 +253,59 @@ public class ExtractedFieldsDetector {
         return extractedFields;
     }
 
+    private ExtractedFields deduplicateMultiFields(ExtractedFields extractedFields, boolean preferSource) {
+        Set<String> requiredFields = config.getAnalysis().getRequiredFields().stream().map(RequiredField::getName)
+            .collect(Collectors.toSet());
+        Map<String, ExtractedField> nameOrParentToField = new LinkedHashMap<>();
+        for (ExtractedField currentField : extractedFields.getAllFields()) {
+            String nameOrParent = currentField.isMultiField() ? currentField.getParentField() : currentField.getName();
+            ExtractedField existingField = nameOrParentToField.putIfAbsent(nameOrParent, currentField);
+            if (existingField != null) {
+                ExtractedField parent = currentField.isMultiField() ? existingField : currentField;
+                ExtractedField multiField = currentField.isMultiField() ? currentField : existingField;
+                nameOrParentToField.put(nameOrParent, chooseMultiFieldOrParent(preferSource, requiredFields, parent, multiField));
+            }
+        }
+        return new ExtractedFields(new ArrayList<>(nameOrParentToField.values()));
+    }
+
+    private ExtractedField chooseMultiFieldOrParent(boolean preferSource, Set<String> requiredFields,
+                                                    ExtractedField parent, ExtractedField multiField) {
+        // Check requirements first
+        if (requiredFields.contains(parent.getName())) {
+            return parent;
+        }
+        if (requiredFields.contains(multiField.getName())) {
+            return multiField;
+        }
+
+        // If both are multi-fields it means there are several. In this case parent is the previous multi-field
+        // we selected. We'll just keep that.
+        if (parent.isMultiField() && multiField.isMultiField()) {
+            return parent;
+        }
+
+        // If we prefer source only the parent may support it. If it does we pick it immediately.
+        if (preferSource && parent.supportsFromSource()) {
+            return parent;
+        }
+
+        // If any of the two is a doc_value field let's prefer it as it'd support aggregations.
+        // We check the parent first as it'd be a shorter field name.
+        if (parent.getMethod() == ExtractedField.Method.DOC_VALUE) {
+            return parent;
+        }
+        if (multiField.getMethod() == ExtractedField.Method.DOC_VALUE) {
+            return multiField;
+        }
+
+        // None is aggregatable. Let's pick the parent for its shorter name.
+        return parent;
+    }
+
     private ExtractedFields fetchFromSourceIfSupported(ExtractedFields extractedFields) {
         List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
-        for (ExtractedField field : extractedFields.getDocValueFields()) {
+        for (ExtractedField field : extractedFields.getAllFields()) {
             adjusted.add(field.supportsFromSource() ? field.newFromSource() : field);
         }
         return new ExtractedFields(adjusted);

@@ -18,6 +18,7 @@
  */
 
 import org.elasticsearch.gradle.PropertyNormalization
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 
 esplugin {
@@ -35,7 +36,7 @@ task urlFixture(type: AntFixture) {
         repositoryDir.mkdirs()
     }
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    executable = new File(project.runtimeJavaHome, 'bin/java')
+    executable = "${BuildParams.runtimeJavaHome}/bin/java"
     args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }
 

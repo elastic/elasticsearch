@@ -187,11 +187,14 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
 
     public void testCancelRecoveryIfFoundCopyWithNoopRetentionLease() {
         final UnassignedInfo unassignedInfo;
+        final Set<String> failedNodeIds;
         if (randomBoolean()) {
+            failedNodeIds = Collections.emptySet();
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null);
         } else {
+            failedNodeIds = new HashSet<>(randomSubsetOf(Set.of("node-4", "node-5", "node-6", "node-7")));
             unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, null, null, randomIntBetween(1, 10),
-                System.nanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT, Set.of("node-4"));
+                System.nanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodeIds);
         }
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), unassignedInfo);
         long retainingSeqNo = randomLongBetween(1, Long.MAX_VALUE);
@@ -205,7 +208,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(unassignedShards, hasSize(1));
         assertThat(unassignedShards.get(0).shardId(), equalTo(shardId));
         assertThat(unassignedShards.get(0).unassignedInfo().getNumFailedAllocations(), equalTo(0));
-        assertThat(unassignedShards.get(0).unassignedInfo().getFailedNodeIds(), empty());
+        assertThat(unassignedShards.get(0).unassignedInfo().getFailedNodeIds(), equalTo(failedNodeIds));
     }
 
     public void testNotCancellingRecoveryIfCurrentRecoveryHasRetentionLease() {

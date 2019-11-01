@@ -161,7 +161,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         tracerLog = Loggers.getLogger(logger, ".tracer");
         taskManager = createTaskManager(settings, threadPool, taskHeaders);
         this.interceptor = transportInterceptor;
-        this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
+        this.asyncSender = interceptor.interceptSender(this::sendInternalRequest);
         this.connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
@@ -626,7 +626,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     }
 
-    private <T extends TransportResponse> void sendRequestInternal(final Transport.Connection connection, final String action,
+    private <T extends TransportResponse> void sendInternalRequest(final Transport.Connection connection, final String action,
                                                                    final TransportRequest request,
                                                                    final TransportRequestOptions options,
                                                                    TransportResponseHandler<T> handler) {

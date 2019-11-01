@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -71,10 +72,12 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
         if (globalBlock != null) {
             return globalBlock;
         }
-        if (request.settings().size() == 1 &&  // we have to allow resetting these settings otherwise users can't unblock an index
-            IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.exists(request.settings())
-            || IndexMetaData.INDEX_READ_ONLY_SETTING.exists(request.settings())
-            || IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
+        Settings normalizedSettings =
+            Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+        if (normalizedSettings.size() == 1 &&  // we have to allow resetting these settings otherwise users can't unblock an index
+            IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.exists(normalizedSettings)
+            || IndexMetaData.INDEX_READ_ONLY_SETTING.exists(normalizedSettings)
+            || IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(normalizedSettings)) {
             return null;
         }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,

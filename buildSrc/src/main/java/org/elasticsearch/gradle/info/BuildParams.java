@@ -155,6 +155,7 @@ public class BuildParams {
                 .filter(f -> Modifier.isStatic(f.getModifiers()))
                 .forEach(f -> {
                     try {
+                        f.setAccessible(true);
                         f.set(null, null);
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);

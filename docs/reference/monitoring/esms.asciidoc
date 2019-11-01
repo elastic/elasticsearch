@@ -373,7 +373,7 @@ include::esms.asciidoc[tag=metricbeat-config]
 +
 --
 Open {kib} in your web browser. Use the {kib} URL and the administrator user ID
-that was provided to you by the Elastic support team.
+that was provided to you by the Elastic support team. View the
 {kibana-ref}/beats-page.html[{beats} metrics] on the *Stack Monitoring* page.
 
 If you do not see your metrics yet, see

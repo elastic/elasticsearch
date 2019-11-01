@@ -69,7 +69,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
-        public static final HDRPercentilesFieldType FIELD_TYPE = new HDRPercentilesFieldType();
+        public static final HistogramFieldType FIELD_TYPE = new HistogramFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -193,11 +193,12 @@ public class HistogramFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
-    public static class HDRPercentilesFieldType extends MappedFieldType {
-        public HDRPercentilesFieldType() {
+    public static class HistogramFieldType extends MappedFieldType {
+
+        public HistogramFieldType() {
         }
 
-        HDRPercentilesFieldType(HDRPercentilesFieldType ref) {
+        HistogramFieldType(HistogramFieldType ref) {
             super(ref);
         }
 
@@ -208,7 +209,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public MappedFieldType clone() {
-            return new HDRPercentilesFieldType(this);
+            return new HistogramFieldType(this);
         }
 
         @Override

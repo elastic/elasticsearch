@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,7 +57,7 @@ public class RolloverAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public RolloverAction(ByteSizeValue maxSize, TimeValue maxAge, Long maxDocs) {
+    public RolloverAction(@Nullable ByteSizeValue maxSize, @Nullable TimeValue maxAge, @Nullable Long maxDocs) {
         if (maxSize == null && maxAge == null && maxDocs == null) {
             throw new IllegalArgumentException("At least one rollover condition must be set.");
         }

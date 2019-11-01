@@ -317,13 +317,11 @@ public class IndexLifecycleRunner {
      * @param nextStepKey    The next step to move the index into
      * @param nowSupplier    The current-time supplier for updating when steps changed
      * @param stepRegistry   The steps registry to check a step-key's existence in the index's current policy
-     * @param forcePhaseDefinitionRefresh When true, step information will be recompiled from the latest version of the
-     *                                    policy. Otherwise, existing phase definition is used.
      * @return The updated cluster state where the index moved to <code>nextStepKey</code>
      */
     static ClusterState moveClusterStateToStep(String indexName, ClusterState currentState, StepKey currentStepKey,
                                                StepKey nextStepKey, LongSupplier nowSupplier,
-                                               PolicyStepsRegistry stepRegistry, boolean forcePhaseDefinitionRefresh) {
+                                               PolicyStepsRegistry stepRegistry) {
         IndexMetaData idxMeta = currentState.getMetaData().index(indexName);
         validateTransition(idxMeta, currentStepKey, nextStepKey, stepRegistry);
 
@@ -333,7 +331,7 @@ public class IndexLifecycleRunner {
             indexName, currentStepKey, nextStepKey, policy);
 
         return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey,
-            nextStepKey, nowSupplier, forcePhaseDefinitionRefresh);
+            nextStepKey, nowSupplier, true);
     }
 
     static void validateTransition(IndexMetaData idxMeta, StepKey currentStepKey, StepKey nextStepKey, PolicyStepsRegistry stepRegistry) {

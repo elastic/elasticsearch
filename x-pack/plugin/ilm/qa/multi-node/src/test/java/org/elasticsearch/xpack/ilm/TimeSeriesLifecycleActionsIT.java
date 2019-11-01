@@ -808,6 +808,42 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    public void testMoveToStepRereadsPolicy() throws Exception {
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
+
+        createIndexWithSettings("test-1", Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            true);
+
+        assertBusy(() -> assertThat(getStepKeyForIndex("test-1"), equalTo(new StepKey("hot", "rollover", "check-rollover-ready"))));
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null), TimeValue.ZERO);
+
+        // Move to the same step, which should re-read the policy
+        Request moveToStepRequest = new Request("POST", "_ilm/move/test-1");
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": { \n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"check-rollover-ready\"\n" +
+            "  },\n" +
+            "  \"next_step\": { \n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"check-rollover-ready\"\n" +
+            "  }\n" +
+            "}");
+        assertOK(client().performRequest(moveToStepRequest));
+
+        // Make sure we actually rolled over
+        assertBusy(() -> {
+            indexExists("test-000002");
+        });
+    }
+
     public void testCanStopILMWithPolicyUsingNonexistentPolicy() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

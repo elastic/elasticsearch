@@ -73,10 +73,17 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         if (field == null) {
             if (script == null) {
+                // TODO: The ValuesSourceConfig this constructs is invalid.  We should just throw here.
                 ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
                 config.format(resolveFormat(null, valueType, timeZone));
                 return config;
             }
+            /*
+             * This is the Stand Alone Script path.  We should have a script that will produce a value independent of the presence or
+             * absence of any one field.  The type of the script is given by the valueType field, and defaults to bytes if not specified.
+             */
+            // TODO: Not pluggable, should always be valueType if specified, BYTES if not.
+            // TODO: Probably should validate that the resulting type is valid for this agg.  That needs to be plugable.
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
             if (valuesSourceType == ValuesSourceType.ANY) {
                 // the specific value source type is undefined, but for scripts,
@@ -96,6 +103,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
+            // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
+            /* We got here because the user specified a field, but it doesn't exist on this index, possibly because of a wildcard index
+             * pattern.  In this case, we're going to end up using the EMPTY variant of the ValuesSource, and possibly applying a user
+             * specified missing value.
+             */
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);

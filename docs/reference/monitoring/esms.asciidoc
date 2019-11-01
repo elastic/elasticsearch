@@ -28,7 +28,7 @@ To use {metricbeat}:
 include::configuring-metricbeat.asciidoc[tag=enable-collection]
 
 For more information about these settings, see
-{ref}/monitoring-settings.html[Monitoring settings in {es}].
+<<monitoring-settings>>.
 --
 
 . Disable the default collection of {es} monitoring metrics.
@@ -337,9 +337,9 @@ If the Elastic {security-features} are enabled, you must also provide a user
 ID and password so that {metricbeat} can collect metrics successfully: 
 
 .. Create a user on the production cluster that has the 
-`remote_monitoring_collector` {ref}/built-in-roles.html[built-in role]. 
+`remote_monitoring_collector` <<built-in-roles,built-in role>>. 
 Alternatively, if it's available in your environment, use the
-`remote_monitoring_user` {ref}/built-in-users.html[built-in user].
+`remote_monitoring_user` <<built-in-users,built-in user>>.
 
 .. Add the `username` and `password` settings to the beat module configuration 
 file.

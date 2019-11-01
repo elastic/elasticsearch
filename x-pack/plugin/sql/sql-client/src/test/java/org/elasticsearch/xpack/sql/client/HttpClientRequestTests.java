@@ -60,6 +60,7 @@ public class HttpClientRequestTests extends ESTestCase {
     @AfterClass
     public static void cleanup() {
         webServer.close();
+        webServer = null;
     }
     
     public void testBinaryRequestForCLIEnabled() throws URISyntaxException {

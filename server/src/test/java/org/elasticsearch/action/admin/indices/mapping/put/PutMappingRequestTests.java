@@ -20,19 +20,16 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class PutMappingRequestTests extends ESTestCase {
 
@@ -70,43 +67,13 @@ public class PutMappingRequestTests extends ESTestCase {
         assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
     }
 
-    public void testToXContent() throws IOException {
-        PutMappingRequest request = new PutMappingRequest("foo");
+    public void testFromXContent() throws IOException {
+        XContentBuilder mapping = randomMapping();
+        String mappingSource = BytesReference.bytes(shuffleXContent(mapping)).utf8ToString();
 
-        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
-        mapping.startObject("properties");
-        mapping.startObject("email");
-        mapping.field("type", "text");
-        mapping.endObject();
-        mapping.endObject();
-        mapping.endObject();
-        request.source(mapping);
-
-        String actualRequestBody = Strings.toString(request);
-        String expectedRequestBody = "{\"properties\":{\"email\":{\"type\":\"text\"}}}";
-        assertEquals(expectedRequestBody, actualRequestBody);
-    }
-
-    public void testToXContentWithEmptySource() throws IOException {
-        PutMappingRequest request = new PutMappingRequest("foo");
-
-        String actualRequestBody = Strings.toString(request);
-        String expectedRequestBody = "{}";
-        assertEquals(expectedRequestBody, actualRequestBody);
-    }
-
-    public void testToAndFromXContent() throws IOException {
-
-        final PutMappingRequest putMappingRequest = createTestItem();
-
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(putMappingRequest, xContentType, EMPTY_PARAMS, humanReadable);
-
-        PutMappingRequest parsedPutMappingRequest = new PutMappingRequest();
-        parsedPutMappingRequest.source(originalBytes, xContentType);
-
-        assertMappingsEqual(putMappingRequest.source(), parsedPutMappingRequest.source());
+        PutMappingRequest request = new PutMappingRequest();
+        request.source(mappingSource, mapping.contentType());
+        assertMappingsEqual(mappingSource, request.source());
     }
 
     private void assertMappingsEqual(String expected, String actual) throws IOException {
@@ -115,6 +82,14 @@ public class PutMappingRequestTests extends ESTestCase {
             XContentParser actualJson = createParser(XContentType.JSON.xContent(), actual)) {
             assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
         }
+    }
+
+    private static XContentBuilder randomMapping() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        RandomCreateIndexGenerator.randomMappingFields(builder, true);
+        builder.endObject();
+        return builder;
     }
 
     /**

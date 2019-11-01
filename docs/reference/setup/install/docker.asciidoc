@@ -323,7 +323,7 @@ docker run <various parameters> bin/elasticsearch -Ecluster.name=mynewclusternam
 --------------------------------------------
 
 While bind-mounting your configuration files is usually the preferred method in production, 
-you can also <<docker-config-custom-image, create a custom Docker image>> 
+you can also <<_c_customized_image, create a custom Docker image>> 
 that contains your configuration.
 
 [[docker-config-bind-mount]]
@@ -341,7 +341,7 @@ IMPORTANT: The container **runs {es} as user `elasticsearch` using
 **uid:gid `1000:1000`**. Bind mounted host directories and files must be accessible by this user, 
 and the data and log directories must be writable by this user.
 
-[[docker-config-custom-image]]
+[[_c_customized_image]]
 ===== Using custom Docker images
 In some environments, it might make more sense to prepare a custom image that contains
 your configuration. A `Dockerfile` to achieve this might be as simple as:

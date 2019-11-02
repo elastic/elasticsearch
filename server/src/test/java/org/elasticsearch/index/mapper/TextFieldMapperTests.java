@@ -852,10 +852,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         Query q7 = matchQuery.parse(MatchQuery.Type.BOOLEAN, "synfield", "foo");
         assertThat(q7, is(new BooleanQuery.Builder().add(new BooleanQuery.Builder()
             .add(new TermQuery(new Term("synfield", "foo")), BooleanClause.Occur.SHOULD)
-            .add(new PhraseQuery.Builder()
-                .add(new Term("synfield", "bar"))
-                .add(new Term("synfield", "baz"))
-                .build(), BooleanClause.Occur.SHOULD)
+            .add(new PhraseQuery("synfield._index_phrase", "bar baz"), BooleanClause.Occur.SHOULD)
             .build(), BooleanClause.Occur.SHOULD).build()));
 
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference

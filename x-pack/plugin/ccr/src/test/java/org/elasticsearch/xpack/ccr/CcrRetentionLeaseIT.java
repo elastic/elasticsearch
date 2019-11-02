@@ -43,7 +43,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -87,9 +86,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
-@TestIssueLogging(
-    value = "org.elasticsearch.xpack.ccr:trace,org.elasticsearch.indices.recovery:trace,org.elasticsearch.index.seqno:debug",
-    issueUrl = "https://github.com/elastic/elasticsearch/issues/45192")
 public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     public static final class RetentionLeaseRenewIntervalSettingPlugin extends Plugin {
@@ -781,40 +777,42 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     (connection, requestId, action, request, options) -> {
                         if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
                             || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
-                            senderTransportService.clearAllRules();
                             final RetentionLeaseActions.RenewRequest renewRequest = (RetentionLeaseActions.RenewRequest) request;
                             final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
-                            assertThat(retentionLeaseId, equalTo(renewRequest.getId()));
-                            logger.info("--> intercepting renewal request for retention lease [{}]", retentionLeaseId);
-                            final String primaryShardNodeId =
-                                getLeaderCluster()
-                                    .clusterService()
-                                    .state()
-                                    .routingTable()
-                                    .index(leaderIndex)
-                                    .shard(renewRequest.getShardId().id())
-                                    .primaryShard()
-                                    .currentNodeId();
-                            final String primaryShardNodeName =
-                                getLeaderCluster().clusterService().state().nodes().get(primaryShardNodeId).getName();
-                            final IndexShard primary =
-                                getLeaderCluster()
-                                    .getInstance(IndicesService.class, primaryShardNodeName)
-                                    .getShardOrNull(renewRequest.getShardId());
-                            final CountDownLatch innerLatch = new CountDownLatch(1);
-                            // this forces the background renewal from following to face a retention lease not found exception
-                            logger.info("--> removing retention lease [{}] on the leader", retentionLeaseId);
-                            primary.removeRetentionLease(retentionLeaseId,
-                                ActionListener.wrap(r -> innerLatch.countDown(), e -> fail(e.toString())));
-                            logger.info("--> waiting for the removed retention lease [{}] to be synced on the leader", retentionLeaseId);
-                            try {
-                                innerLatch.await();
-                            } catch (final InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                fail(e.toString());
+                            if (retentionLeaseId.equals(renewRequest.getId())) {
+                                logger.info("--> intercepting renewal request for retention lease [{}]", retentionLeaseId);
+                                senderTransportService.clearAllRules();
+                                final String primaryShardNodeId =
+                                    getLeaderCluster()
+                                        .clusterService()
+                                        .state()
+                                        .routingTable()
+                                        .index(leaderIndex)
+                                        .shard(renewRequest.getShardId().id())
+                                        .primaryShard()
+                                        .currentNodeId();
+                                final String primaryShardNodeName =
+                                    getLeaderCluster().clusterService().state().nodes().get(primaryShardNodeId).getName();
+                                final IndexShard primary =
+                                    getLeaderCluster()
+                                        .getInstance(IndicesService.class, primaryShardNodeName)
+                                        .getShardOrNull(renewRequest.getShardId());
+                                final CountDownLatch innerLatch = new CountDownLatch(1);
+                                try {
+                                    // this forces the background renewal from following to face a retention lease not found exception
+                                    logger.info("--> removing retention lease [{}] on the leader", retentionLeaseId);
+                                    primary.removeRetentionLease(retentionLeaseId,
+                                        ActionListener.wrap(r -> innerLatch.countDown(), e -> fail(e.toString())));
+                                    logger.info("--> waiting for the removed retention lease [{}] to be synced on the leader",
+                                        retentionLeaseId);
+                                    innerLatch.await();
+                                    logger.info("--> removed retention lease [{}] on the leader", retentionLeaseId);
+                                } catch (final Exception e) {
+                                    throw new AssertionError("failed to remove retention lease [" + retentionLeaseId + "] on the leader");
+                                } finally {
+                                    latch.countDown();
+                                }
                             }
-                            logger.info("--> removed retention lease [{}] on the leader", retentionLeaseId);
-                            latch.countDown();
                         }
                         connection.sendRequest(requestId, action, request, options);
                     });

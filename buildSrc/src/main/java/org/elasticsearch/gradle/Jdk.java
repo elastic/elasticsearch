@@ -111,8 +111,13 @@ public class Jdk implements Buildable, Iterable<File> {
         return configuration.getBuildDependencies();
     }
 
-    public String getSignature() {
-        return vendor + "-" + version + "-" + platform;
+    public Object getLazyPath() {
+        return new Object() {
+            @Override
+            public String toString() {
+                return getPath();
+            }
+        };
     }
 
     // internal, make this jdks configuration unmodifiable

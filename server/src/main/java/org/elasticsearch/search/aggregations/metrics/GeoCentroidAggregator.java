@@ -88,16 +88,16 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     double sumLon = lonSum.get(bucket);
                     double compensationLon = lonCompensations.get(bucket);
 
-                    CompensatedSum compensatedSumLat = CompensatedSum.newInstance(sumLat, compensationLat);
-                    CompensatedSum compensatedSumLon = CompensatedSum.newInstance(sumLon, compensationLon);
+                    CompensatedSum compensatedSumLat = new CompensatedSum(sumLat, compensationLat);
+                    CompensatedSum compensatedSumLon = new CompensatedSum(sumLon, compensationLon);
 
                     // update the sum
                     for (int i = 0; i < valueCount; ++i) {
                         GeoPoint value = values.nextValue();
                         //latitude
-                        compensatedSumLat = compensatedSumLat.add(value.getLat());
+                        compensatedSumLat.add(value.getLat());
                         //longitude
-                        compensatedSumLon = compensatedSumLon.add(value.getLon());
+                        compensatedSumLon.add(value.getLon());
                     }
                     lonSum.set(bucket, compensatedSumLon.value());
                     lonCompensations.set(bucket, compensatedSumLon.delta());

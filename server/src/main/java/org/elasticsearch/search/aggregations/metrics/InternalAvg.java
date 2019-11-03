@@ -88,14 +88,14 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public InternalAvg doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        CompensatedSum kahanSummation = CompensatedSum.newZeroInstance();
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         long count = 0;
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         for (InternalAggregation aggregation : aggregations) {
             InternalAvg avg = (InternalAvg) aggregation;
             count += avg.count;
-            kahanSummation = kahanSummation.add(avg.sum);
+            kahanSummation.add(avg.sum);
         }
         return new InternalAvg(getName(), kahanSummation.value(), count, format, pipelineAggregators(), getMetaData());
     }

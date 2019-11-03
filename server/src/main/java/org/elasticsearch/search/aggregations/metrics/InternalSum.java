@@ -74,10 +74,10 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     public InternalSum doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
-        CompensatedSum kahanSummation = CompensatedSum.newZeroInstance();
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         for (InternalAggregation aggregation : aggregations) {
             double value = ((InternalSum) aggregation).sum;
-            kahanSummation = kahanSummation.add(value);
+            kahanSummation.add(value);
         }
         return new InternalSum(name, kahanSummation.value(), format, pipelineAggregators(), getMetaData());
     }

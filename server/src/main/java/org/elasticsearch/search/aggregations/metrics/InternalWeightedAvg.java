@@ -88,15 +88,15 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
 
     @Override
     public InternalWeightedAvg doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        CompensatedSum sumCompensation = CompensatedSum.newZeroInstance();
-        CompensatedSum weightCompensation = CompensatedSum.newZeroInstance();
+        CompensatedSum sumCompensation = new CompensatedSum(0, 0);
+        CompensatedSum weightCompensation = new CompensatedSum(0, 0);
 
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         for (InternalAggregation aggregation : aggregations) {
             InternalWeightedAvg avg = (InternalWeightedAvg) aggregation;
-            weightCompensation = weightCompensation.add(avg.weight);
-            sumCompensation = sumCompensation.add(avg.sum);
+            weightCompensation.add(avg.weight);
+            sumCompensation.add(avg.sum);
         }
 
         return new InternalWeightedAvg(getName(), sumCompensation.value(), weightCompensation.value(),

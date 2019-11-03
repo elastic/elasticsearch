@@ -33,8 +33,8 @@ public class CompensatedSum {
 
     private static final double NO_CORRECTION = 0.0;
 
-    private final double value;
-    private final double delta;
+    private double value;
+    private double delta;
 
     /**
      * Used to calculate sums using the Kahan summation algorithm.
@@ -42,17 +42,9 @@ public class CompensatedSum {
      * @param value the sum
      * @param delta correction term
      */
-    private CompensatedSum(double value, double delta) {
+    public CompensatedSum(double value, double delta) {
         this.value = value;
         this.delta = delta;
-    }
-
-    public static CompensatedSum newInstance(double value, double delta) {
-        return new CompensatedSum(value, delta);
-    }
-
-    public static CompensatedSum newZeroInstance() {
-        return new CompensatedSum(0.0, 0.0);
     }
 
     /**
@@ -70,36 +62,32 @@ public class CompensatedSum {
     }
 
     /**
-     * Increments the Kahan sum by adding a value and a correction term.
-     */
-    public CompensatedSum add(double value, double delta) {
-        return add(new CompensatedSum(value, delta));
-    }
-
-    /**
      * Increments the Kahan sum by adding a value without a correction term.
      */
     public CompensatedSum add(double value) {
-        return add(new CompensatedSum(value, NO_CORRECTION));
+        return add(value, NO_CORRECTION);
     }
 
     /**
      * Increments the Kahan sum by adding two sums, and updating the correction term for reducing numeric errors.
      */
-    public CompensatedSum add(CompensatedSum other) {
-
-        if (!Double.isFinite(other.value())) {
-            return new CompensatedSum(other.value() + this.value, this.delta);
+    public CompensatedSum add(double value, double delta) {
+        // If the value is Inf or NaN, just add it to the running tally to "convert" to
+        // Inf/NaN. This keeps the behavior bwc from before kahan summing
+        if (Double.isFinite(value) == false) {
+            this.value = value + this.value;
         }
 
         if (Double.isFinite(this.value)) {
-            double correctedSum = other.value() + (this.delta + other.delta());
+            double correctedSum = value + (this.delta + delta);
             double updatedValue = this.value + correctedSum;
-            double updatedDelta = correctedSum - (updatedValue - this.value);
-            return new CompensatedSum(updatedValue, updatedDelta);
+            this.delta = correctedSum - (updatedValue - this.value);
+            this.value = updatedValue;
         }
+
         return this;
     }
+
 
 }
 

@@ -32,23 +32,23 @@ public class CompensatedSumTests extends ESTestCase {
      * helps prove our Kahan Summation is working.
      */
     public void testAdd() {
-        final CompensatedSum smallSum = CompensatedSum.newInstance(0.001, 0.0);
-        final CompensatedSum largeSum = CompensatedSum.newInstance(1000, 0.0);
+        final CompensatedSum smallSum = new CompensatedSum(0.001, 0.0);
+        final CompensatedSum largeSum = new CompensatedSum(1000, 0.0);
 
-        CompensatedSum compensatedResult1 = smallSum;
-        CompensatedSum compensatedResult2 = largeSum;
+        CompensatedSum compensatedResult1 = new CompensatedSum(0.001, 0.0);
+        CompensatedSum compensatedResult2 = new CompensatedSum(1000, 0.0);
         double naiveResult1 = smallSum.value();
         double naiveResult2 = largeSum.value();
 
         for (int i = 0; i < 10; i++) {
-            compensatedResult1 = compensatedResult1.add(smallSum);
-            compensatedResult2 = compensatedResult2.add(smallSum);
+            compensatedResult1.add(smallSum.value());
+            compensatedResult2.add(smallSum.value());
             naiveResult1 += smallSum.value();
             naiveResult2 += smallSum.value();
         }
 
-        compensatedResult1 = compensatedResult1.add(largeSum);
-        compensatedResult2 = compensatedResult2.add(smallSum);
+        compensatedResult1.add(largeSum.value());
+        compensatedResult2.add(smallSum.value());
         naiveResult1 += largeSum.value();
         naiveResult2 += smallSum.value();
 
@@ -66,9 +66,9 @@ public class CompensatedSumTests extends ESTestCase {
     }
 
     public void testDelta() {
-        CompensatedSum compensatedResult1 = CompensatedSum.newInstance(0.001, 0.0);
+        CompensatedSum compensatedResult1 = new CompensatedSum(0.001, 0.0);
         for (int i = 0; i < 10; i++) {
-            compensatedResult1 = compensatedResult1.add(0.001);
+            compensatedResult1.add(0.001);
         }
 
         Assert.assertEquals(0.011, compensatedResult1.value(), 0.0);
@@ -76,10 +76,10 @@ public class CompensatedSumTests extends ESTestCase {
     }
 
     public void testInfiniteAndNaN() {
-        CompensatedSum compensatedResult1 = CompensatedSum.newZeroInstance();
+        CompensatedSum compensatedResult1 = new CompensatedSum(0, 0);
         double[] doubles = {Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN};
         for (double d : doubles) {
-            compensatedResult1 = compensatedResult1.add(d);
+            compensatedResult1.add(d);
 
         }
 

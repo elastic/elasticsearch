@@ -117,16 +117,16 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                     // which is more accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
-                    CompensatedSum compensatedSum = CompensatedSum.newInstance(sum, compensation);
+                    CompensatedSum compensatedSum = new CompensatedSum(sum, compensation);
 
                     double sumOfSqr = sumOfSqrs.get(bucket);
                     double compensationOfSqr = compensationOfSqrs.get(bucket);
-                    CompensatedSum compensatedSumOfSqr = CompensatedSum.newInstance(sumOfSqr, compensationOfSqr);
+                    CompensatedSum compensatedSumOfSqr = new CompensatedSum(sumOfSqr, compensationOfSqr);
 
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        compensatedSum = compensatedSum.add(value);
-                        compensatedSumOfSqr = compensatedSumOfSqr.add(value * value);
+                        compensatedSum.add(value);
+                        compensatedSumOfSqr.add(value * value);
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }

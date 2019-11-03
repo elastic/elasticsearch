@@ -81,11 +81,11 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
                     // accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
-                    CompensatedSum kahanSummation = CompensatedSum.newInstance(sum, compensation);
+                    CompensatedSum kahanSummation = new CompensatedSum(sum, compensation);
 
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        kahanSummation = kahanSummation.add(value);
+                        kahanSummation.add(value);
                     }
 
                     compensations.set(bucket, kahanSummation.delta());

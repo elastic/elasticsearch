@@ -117,7 +117,7 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         double sum = values.get(bucket);
         double compensation = compensations.get(bucket);
 
-        CompensatedSum kahanSummation = CompensatedSum.newInstance(sum, compensation)
+        CompensatedSum kahanSummation = new CompensatedSum(sum, compensation)
             .add(value);
 
         values.set(bucket, kahanSummation.value());

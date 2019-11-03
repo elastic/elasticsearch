@@ -149,7 +149,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         long count = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
-        CompensatedSum kahanSummation = CompensatedSum.newZeroInstance();
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         for (InternalAggregation aggregation : aggregations) {
             InternalStats stats = (InternalStats) aggregation;
@@ -158,7 +158,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             max = Math.max(max, stats.getMax());
             // Compute the sum of double values with Kahan summation algorithm which is more
             // accurate than naive summation.
-            kahanSummation = kahanSummation.add(stats.getSum());
+            kahanSummation.add(stats.getSum());
         }
         return new InternalStats(name, count, kahanSummation.value(), min, max, format, pipelineAggregators(), getMetaData());
     }

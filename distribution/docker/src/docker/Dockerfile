@@ -16,10 +16,10 @@ FROM centos:7 AS builder
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 ENV JAVA_HOME /opt/jdk-${jdkVersion}
 
-RUN curl -L --retry 8 -s -S ${jdkUrl} --continue-at - --output /tmp/jdk.tar.gz && \
-    tar -C /opt -zxf /tmp/jdk.tar.gz && \
-    rm -Rf /tmp/jdk.tar.gz
-
+RUN for iter in {1..10}; do curl -L -s -S ${jdkUrl} | tar -C /opt -zx && \
+    exit_code=0 && break || exit_code=\$? && echo "download error: retry $iter in 10s" && sleep 10; done; \
+    (exit $exit_code)
+ 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.
 # REF: https://github.com/elastic/elasticsearch-docker/issues/171
@@ -56,7 +56,7 @@ COPY --from=builder /opt/jdk-${jdkVersion} /opt/jdk-${jdkVersion}
 
 RUN for iter in {1..10}; do yum update  --setopt=tsflags=nodocs -y && \
     yum install -y  --setopt=tsflags=nodocs nc unzip wget which && \
-    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
+    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry $iter in 10s" && sleep 10; done; \
     (exit $exit_code)
 
 RUN groupadd -g 1000 elasticsearch && \

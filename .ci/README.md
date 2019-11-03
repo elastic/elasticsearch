@@ -10,5 +10,7 @@ simmilar to [JJB](https://elasticsearch-ci.elastic.co/view/Elasticsearch%20maste
 Macros are not allowed, and each job must be defined in its own file.
 Merging of the default configuration is customized so unlike in standard JJB,
 it recurses into YML objects. 
-
+Further (internal) documentation  on the setup 
+[is available](https://github.com/elastic/infra/blob/master/flavortown/jjbb/README.md) 
+.
 

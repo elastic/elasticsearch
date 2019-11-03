@@ -111,6 +111,10 @@ public class Jdk implements Buildable, Iterable<File> {
         return configuration.getBuildDependencies();
     }
 
+    public String getSignature() {
+        return vendor + "-" + version + "-" + platform;
+    }
+
     // internal, make this jdks configuration unmodifiable
     void finalizeValues() {
         if (version.isPresent() == false) {

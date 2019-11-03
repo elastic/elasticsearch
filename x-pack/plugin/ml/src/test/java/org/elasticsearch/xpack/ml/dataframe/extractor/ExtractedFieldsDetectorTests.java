@@ -53,7 +53,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(1));
         assertThat(allFields.get(0).getName(), equalTo("some_float"));
-        assertThat(allFields.get(0).getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+        assertThat(allFields.get(0).getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
     }
 
     public void testDetect_GivenNumericFieldWithMultipleTypes() {
@@ -68,7 +68,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<ExtractedField> allFields = extractedFields.getAllFields();
         assertThat(allFields.size(), equalTo(1));
         assertThat(allFields.get(0).getName(), equalTo("some_number"));
-        assertThat(allFields.get(0).getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+        assertThat(allFields.get(0).getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
     }
 
     public void testDetect_GivenOutlierDetectionAndNonNumericField() {
@@ -111,8 +111,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.size(), equalTo(3));
         assertThat(allFields.stream().map(ExtractedField::getName).collect(Collectors.toSet()),
             containsInAnyOrder("some_float", "some_long", "some_boolean"));
-        assertThat(allFields.stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+        assertThat(allFields.stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.DOC_VALUE)));
     }
 
     public void testDetect_GivenRegressionAndMultipleFields() {
@@ -132,8 +132,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.size(), equalTo(5));
         assertThat(allFields.stream().map(ExtractedField::getName).collect(Collectors.toList()),
             containsInAnyOrder("foo", "some_float", "some_keyword", "some_long", "some_boolean"));
-        assertThat(allFields.stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+        assertThat(allFields.stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.DOC_VALUE)));
     }
 
     public void testDetect_GivenRegressionAndRequiredFieldMissing() {
@@ -442,8 +442,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
             .collect(Collectors.toList());
         assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
-        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.DOC_VALUE)));
     }
 
     public void testDetect_GivenEqualFieldsToDocValuesLimit() {
@@ -461,8 +461,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
             .collect(Collectors.toList());
         assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
-        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.DOC_VALUE)));
+        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.DOC_VALUE)));
     }
 
     public void testDetect_GivenMoreFieldsThanDocValuesLimit() {
@@ -480,8 +480,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
             .collect(Collectors.toList());
         assertThat(extractedFieldNames, equalTo(Arrays.asList("field_1", "field_2", "field_3")));
-        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getExtractionMethod).collect(Collectors.toSet()),
-            contains(equalTo(ExtractedField.ExtractionMethod.SOURCE)));
+        assertThat(extractedFields.getAllFields().stream().map(ExtractedField::getMethod).collect(Collectors.toSet()),
+            contains(equalTo(ExtractedField.Method.SOURCE)));
     }
 
     public void testDetect_GivenBooleanField_BooleanMappedAsInteger() {
@@ -497,7 +497,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.size(), equalTo(1));
         ExtractedField booleanField = allFields.get(0);
         assertThat(booleanField.getTypes(), contains("boolean"));
-        assertThat(booleanField.getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+        assertThat(booleanField.getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
 
         SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
         assertThat(booleanField.value(hit), arrayContaining(1));
@@ -522,7 +522,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(allFields.size(), equalTo(1));
         ExtractedField booleanField = allFields.get(0);
         assertThat(booleanField.getTypes(), contains("boolean"));
-        assertThat(booleanField.getExtractionMethod(), equalTo(ExtractedField.ExtractionMethod.DOC_VALUE));
+        assertThat(booleanField.getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
 
         SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
         assertThat(booleanField.value(hit), arrayContaining("true"));
@@ -532,6 +532,151 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         hit = new SearchHitBuilder(42).addField("some_boolean", Arrays.asList(false, true, false)).build();
         assertThat(booleanField.value(hit), arrayContaining("false", "true", "false"));
+    }
+
+    public void testDetect_GivenMultiFields() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("a_float", "float")
+            .addNonAggregatableField("text_without_keyword", "text")
+            .addNonAggregatableField("text_1", "text")
+            .addAggregatableField("text_1.keyword", "keyword")
+            .addNonAggregatableField("text_2", "text")
+            .addAggregatableField("text_2.keyword", "keyword")
+            .addAggregatableField("keyword_1", "keyword")
+            .addNonAggregatableField("keyword_1.text", "text")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildRegressionConfig("a_float"), RESULTS_FIELD, true, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        assertThat(extractedFields.getAllFields().size(), equalTo(5));
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, contains("a_float", "keyword_1", "text_1.keyword", "text_2.keyword", "text_without_keyword"));
+    }
+
+    public void testDetect_GivenMultiFieldAndParentIsRequired() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_1", "keyword")
+            .addAggregatableField("field_1.keyword", "keyword")
+            .addAggregatableField("field_2", "float")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildClassificationConfig("field_1"), RESULTS_FIELD, true, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        assertThat(extractedFields.getAllFields().size(), equalTo(2));
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, contains("field_1", "field_2"));
+    }
+
+    public void testDetect_GivenMultiFieldAndMultiFieldIsRequired() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_1", "keyword")
+            .addAggregatableField("field_1.keyword", "keyword")
+            .addAggregatableField("field_2", "float")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildClassificationConfig("field_1.keyword"), RESULTS_FIELD, true, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        assertThat(extractedFields.getAllFields().size(), equalTo(2));
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, contains("field_1.keyword", "field_2"));
+    }
+
+    public void testDetect_GivenSeveralMultiFields_ShouldPickFirstSorted() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addNonAggregatableField("field_1", "text")
+            .addAggregatableField("field_1.keyword_3", "keyword")
+            .addAggregatableField("field_1.keyword_2", "keyword")
+            .addAggregatableField("field_1.keyword_1", "keyword")
+            .addAggregatableField("field_2", "float")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildRegressionConfig("field_2"), RESULTS_FIELD, true, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        assertThat(extractedFields.getAllFields().size(), equalTo(2));
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, contains("field_1.keyword_1", "field_2"));
+    }
+
+    public void testDetect_GivenMultiFields_OverDocValueLimit() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addNonAggregatableField("field_1", "text")
+            .addAggregatableField("field_1.keyword_1", "keyword")
+            .addAggregatableField("field_2", "float")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildRegressionConfig("field_2"), RESULTS_FIELD, true, 0, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        assertThat(extractedFields.getAllFields().size(), equalTo(2));
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, contains("field_1", "field_2"));
+    }
+
+    public void testDetect_GivenParentAndMultiFieldBothAggregatable() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_1", "keyword")
+            .addAggregatableField("field_1.keyword", "keyword")
+            .addAggregatableField("field_2.keyword", "float")
+            .addAggregatableField("field_2.double", "double")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildRegressionConfig("field_2.double"), RESULTS_FIELD, true, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        assertThat(extractedFields.getAllFields().size(), equalTo(2));
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, contains("field_1", "field_2.double"));
+    }
+
+    public void testDetect_GivenParentAndMultiFieldNoneAggregatable() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addNonAggregatableField("field_1", "text")
+            .addNonAggregatableField("field_1.text", "text")
+            .addAggregatableField("field_2", "float")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildRegressionConfig("field_2"), RESULTS_FIELD, true, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        assertThat(extractedFields.getAllFields().size(), equalTo(2));
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, contains("field_1", "field_2"));
+    }
+
+    public void testDetect_GivenMultiFields_AndExplicitlyIncludedFields() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addNonAggregatableField("field_1", "text")
+            .addAggregatableField("field_1.keyword", "keyword")
+            .addAggregatableField("field_2", "float")
+            .build();
+        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] { "field_1", "field_2" }, new String[0]);
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildRegressionConfig("field_2", analyzedFields), RESULTS_FIELD, false, 100, fieldCapabilities);
+        ExtractedFields extractedFields = extractedFieldsDetector.detect();
+
+        assertThat(extractedFields.getAllFields().size(), equalTo(2));
+        List<String> extractedFieldNames = extractedFields.getAllFields().stream().map(ExtractedField::getName)
+            .collect(Collectors.toList());
+        assertThat(extractedFieldNames, contains("field_1", "field_2"));
     }
 
     private static DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
@@ -576,9 +721,17 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         private final Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
 
         private MockFieldCapsResponseBuilder addAggregatableField(String field, String... types) {
+            return addField(field, true, types);
+        }
+
+        private MockFieldCapsResponseBuilder addNonAggregatableField(String field, String... types) {
+            return addField(field, false, types);
+        }
+
+        private MockFieldCapsResponseBuilder addField(String field, boolean isAggregatable, String... types) {
             Map<String, FieldCapabilities> caps = new HashMap<>();
             for (String type : types) {
-                caps.put(type, new FieldCapabilities(field, type, true, true));
+                caps.put(type, new FieldCapabilities(field, type, true, isAggregatable));
             }
             fieldCaps.put(field, caps);
             return this;

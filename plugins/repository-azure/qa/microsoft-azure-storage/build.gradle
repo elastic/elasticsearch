@@ -19,6 +19,7 @@
 
 
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 
 import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
@@ -81,7 +82,7 @@ testClusters.integTest {
         // in a hacky way to change the protocol and endpoint. We must fix that.
         setting 'azure.client.integration_test.endpoint_suffix',
                 { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=${ -> azureAddress() }" }, IGNORE_VALUE
-        String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
+        String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
         setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
     }
 }

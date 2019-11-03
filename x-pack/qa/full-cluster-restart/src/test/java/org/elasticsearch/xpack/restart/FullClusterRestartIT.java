@@ -299,7 +299,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createSlmPolicyRequest);
         }
 
-        if(isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_4_0)){
+        if(isRunningAgainstOldCluster() == false && getOldClusterVersion().onOrAfter(Version.V_7_4_0)){
             Request getSlmPolicyRequest = new Request("GET", "_slm/policy/test-policy");
             Response response = client().performRequest(getSlmPolicyRequest);
             Map<String, Object> responseMap = entityAsMap(response);
@@ -310,7 +310,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertEquals(slmPolicy.getConfig(), policy.get("config"));
         }
 
-        if (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_5_0)) {
+        if (isRunningAgainstOldCluster() == false) {
             Response response = client().performRequest(new Request("GET", "_slm/stats"));
             XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
             try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,

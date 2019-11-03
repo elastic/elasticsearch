@@ -84,16 +84,16 @@ public final class Verifier {
     }
 
     static class Failure {
-        private final Node<?> source;
+        private final Node<?> node;
         private final String message;
 
-        Failure(Node<?> source, String message) {
-            this.source = source;
+        Failure(Node<?> node, String message) {
+            this.node = node;
             this.message = message;
         }
 
-        Node<?> source() {
-            return source;
+        Node<?> node() {
+            return node;
         }
 
         String message() {
@@ -102,7 +102,7 @@ public final class Verifier {
 
         @Override
         public int hashCode() {
-            return source.hashCode();
+            return Objects.hash(node);
         }
 
         @Override
@@ -116,7 +116,7 @@ public final class Verifier {
             }
 
             Verifier.Failure other = (Verifier.Failure) obj;
-            return Objects.equals(source, other.source);
+            return Objects.equals(node, other.node);
         }
 
         @Override
@@ -131,7 +131,7 @@ public final class Verifier {
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
         Collection<Failure> failures = verify(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
+        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
     Collection<Failure> verify(LogicalPlan plan) {

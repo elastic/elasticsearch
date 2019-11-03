@@ -69,7 +69,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
@@ -777,15 +776,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-            MappingUpdatePerformer noopMappingUpdater = new MappingUpdatePerformer() {
-                @Override
-                public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener1) {
-                }
-
-                @Override
-                public void validateMappings(Mapping update, String type) {
-                }
-            };
+            MappingUpdatePerformer noopMappingUpdater = (update, shardId, type, listener1) -> {};
             TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
                 null, ActionTestUtils.assertNoFailureListener(result -> {
                     TransportWriteActionTestHelper.performPostWriteActions(primary, request,

@@ -23,8 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.io.IOException;
-
 public interface MappingUpdatePerformer {
 
     /**
@@ -32,8 +30,4 @@ public interface MappingUpdatePerformer {
      */
     void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener);
 
-    /**
-     * Validate the mapping update locally. Throws an unchecked exception of some kind if the mapping update is invalid.
-     */
-    void validateMappings(Mapping update, String type) throws IOException;
 }

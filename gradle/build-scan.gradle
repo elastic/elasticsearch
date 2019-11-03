@@ -29,10 +29,12 @@ buildScan {
     if (nodeName) {
         link 'System logs', "https://infra-stats.elastic.co/app/infra#/logs?" +
                 "&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
-        link 'System metrics', "https://infra-stats.elastic.co/app/infra#/metrics/host/" +
-                "${nodeName}?_g=()&metricTime=(autoReload:!f,refreshInterval:5000," +
-                "time:(from:${startTime -  TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)},interval:%3E%3D1m," +
-                "to:${System.currentTimeMillis() +  TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)}))"
+        buildFinished {
+            link 'System metrics', "https://infra-stats.elastic.co/app/infra#/metrics/host/" +
+                    "${nodeName}?_g=()&metricTime=(autoReload:!f,refreshInterval:5000," +
+                    "time:(from:${startTime - TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)},interval:%3E%3D1m," +
+                    "to:${System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)}))"
+        }
     }
 
     // Jenkins-specific build scan metadata

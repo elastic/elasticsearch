@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
@@ -223,7 +224,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             }
             return a;
         }
-        
+
         static EsQueryExec fold(AggregateExec a, EsQueryExec exec) {
             // build the group aggregation
             // and also collect info about it (since the group columns might be used inside the select)
@@ -377,8 +378,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             queryC = withAgg.v1().addColumn(withAgg.v2().context(), af.toAttribute());
                         }
                     }
-                    // not an Alias or Function means it's an Attribute so apply the same logic as above
-                } else {
+                    // not an Alias or Function or Literal means it's an Attribute so apply the same logic as above
+                } else if(ne instanceof Literal == false){
                     GroupByKey matchingGroup = null;
                     if (groupingContext != null) {
                         matchingGroup = groupingContext.groupFor(ne);
@@ -389,6 +390,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         else if (ne.foldable()) {
                             queryC = queryC.addColumn(ne.toAttribute());
                         }
+                    } else {
+                        queryC = queryC.addColumn(
+                            new GroupByRef("Literal" + ((Literal) ne).value(), null, false), ne.toAttribute());
                     }
                 }
 
@@ -587,7 +591,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     i += valuesOutput.size();
                 }
 
-                return fold.with(new QueryContainer(query.query(), query.aggs(), 
+                return fold.with(new QueryContainer(query.query(), query.aggs(),
                         fields,
                         query.aliases(),
                         query.pseudoFunctions(),

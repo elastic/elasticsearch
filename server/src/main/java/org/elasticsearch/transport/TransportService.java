@@ -25,7 +25,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -139,7 +138,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * Build the service.
      *
      * @param clusterSettings if non null, the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
- *   *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
+     *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
@@ -316,25 +315,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     /**
-     * Connect to the specified node with the default connection profile
-     *
-     * @param node the node to connect to
-     */
-    public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-        connectToNode(node, (ConnectionProfile) null);
-    }
-
-    /**
-     * Connect to the specified node with the given connection profile
-     *
-     * @param node the node to connect to
-     * @param connectionProfile the connection profile to use when connecting to this node
-     */
-    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
-        PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
-    }
-
-    /**
      * Connect to the specified node with the given connection profile.
      * The ActionListener will be called on the calling thread or the generic thread pool.
      *
@@ -372,17 +352,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 return null;
             }));
         };
-    }
-
-    /**
-     * Establishes and returns a new connection to the given node. The connection is NOT maintained by this service, it's the callers
-     * responsibility to close the connection once it goes out of scope.
-     * The ActionListener will be called on the calling thread or the generic thread pool.
-     * @param node the node to connect to
-     * @param connectionProfile the connection profile to use
-     */
-    public Transport.Connection openConnection(final DiscoveryNode node, ConnectionProfile connectionProfile) {
-        return PlainActionFuture.get(fut -> openConnection(node, connectionProfile, fut));
     }
 
     /**

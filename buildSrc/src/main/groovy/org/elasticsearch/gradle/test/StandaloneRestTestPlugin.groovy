@@ -23,6 +23,7 @@ package org.elasticsearch.gradle.test
 import groovy.transform.CompileStatic
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
@@ -67,8 +68,8 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         BuildPlugin.configureFips140(project)
 
         ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
-        project.extensions.getByType(JavaPluginExtension).sourceCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
-        project.extensions.getByType(JavaPluginExtension).targetCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
+        project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion
+        project.extensions.getByType(JavaPluginExtension).targetCompatibility = BuildParams.minimumRuntimeVersion
 
         // only setup tests to build
         SourceSetContainer sourceSets = project.extensions.getByType(SourceSetContainer)

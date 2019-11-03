@@ -19,6 +19,7 @@
 
 
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -102,7 +103,7 @@ task thirdPartyTest (type: Test) {
     include '**/GoogleCloudStorageThirdPartyTests.class'
     systemProperty 'tests.security.manager', false
     systemProperty 'test.google.bucket', gcsBucket
-    systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + project.testSeed
+    systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
     nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
 }
 

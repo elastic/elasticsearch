@@ -47,4 +47,11 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<AtomicOrdi
      * or null if global ordinals are not needed (constant value or single segment).
      */
     OrdinalMap getOrdinalMap();
+
+    /**
+     * Whether this field data is able to provide a mapping between global and segment ordinals,
+     * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
+     * {@link #getOrdinalMap} will result in an {@link UnsupportedOperationException}.
+     */
+    boolean supportsGlobalOrdinalsMapping();
 }

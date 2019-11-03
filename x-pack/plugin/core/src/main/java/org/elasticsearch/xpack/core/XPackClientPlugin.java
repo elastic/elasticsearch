@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,48 +30,39 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
+import org.elasticsearch.xpack.ccr.CCRInfoTransportAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
+import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
-import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
-import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
-import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
+import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
+import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
+import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
-import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
-import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
-import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
-import org.elasticsearch.xpack.core.indexlifecycle.FreezeAction;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
-import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
-import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
-import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
-import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
+import org.elasticsearch.xpack.core.ilm.AllocateAction;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
+import org.elasticsearch.xpack.core.ilm.FreezeAction;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleType;
+import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
+import org.elasticsearch.xpack.core.ilm.UnfollowAction;
+import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction;
+import org.elasticsearch.xpack.core.ilm.action.RetryAction;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -79,12 +70,15 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
+import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -93,6 +87,8 @@ import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
@@ -111,11 +107,13 @@ import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
+import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -127,6 +125,31 @@ import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.AucRoc;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.ConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.Precision;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.Recall;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.ScoreByThresholdResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.SoftClassificationMetric;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.LogisticRegression;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.OutputAggregator;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedMode;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedSum;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
@@ -168,12 +191,35 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExceptExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
+import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
+import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
+import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
+import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
+import org.elasticsearch.xpack.core.votingonly.VotingOnlyNodeFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
@@ -194,11 +240,6 @@ import java.util.Optional;
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
 
     static Optional<String> X_PACK_FEATURE = Optional.of("x-pack");
-
-    @Override
-    protected Optional<String> getFeature() {
-        return X_PACK_FEATURE;
-    }
 
     private final Settings settings;
 
@@ -224,7 +265,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     }
 
     @Override
-    public List<Action<? extends ActionResponse>> getClientActions() {
+    public List<ActionType<? extends ActionResponse>> getClientActions() {
         return Arrays.asList(
                 // deprecation
                 DeprecationInfoAction.INSTANCE,
@@ -281,6 +322,13 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 PersistJobAction.INSTANCE,
                 FindFileStructureAction.INSTANCE,
                 SetUpgradeModeAction.INSTANCE,
+                PutDataFrameAnalyticsAction.INSTANCE,
+                GetDataFrameAnalyticsAction.INSTANCE,
+                GetDataFrameAnalyticsStatsAction.INSTANCE,
+                DeleteDataFrameAnalyticsAction.INSTANCE,
+                StartDataFrameAnalyticsAction.INSTANCE,
+                EvaluateDataFrameAction.INSTANCE,
+                EstimateMemoryUsageAction.INSTANCE,
                 // security
                 ClearRealmCacheAction.INSTANCE,
                 ClearRolesCacheAction.INSTANCE,
@@ -343,16 +391,21 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 RemoveIndexLifecyclePolicyAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
                 RetryAction.INSTANCE,
-                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
+                PutSnapshotLifecycleAction.INSTANCE,
+                GetSnapshotLifecycleAction.INSTANCE,
+                DeleteSnapshotLifecycleAction.INSTANCE,
+                ExecuteSnapshotLifecycleAction.INSTANCE,
+                GetSnapshotLifecycleStatsAction.INSTANCE,
+                // Freeze
+                FreezeIndexAction.INSTANCE,
                 // Data Frame
-                PutDataFrameTransformAction.INSTANCE,
-                StartDataFrameTransformAction.INSTANCE,
-                StartDataFrameTransformTaskAction.INSTANCE,
-                StopDataFrameTransformAction.INSTANCE,
-                DeleteDataFrameTransformAction.INSTANCE,
-                GetDataFrameTransformsAction.INSTANCE,
-                GetDataFrameTransformsStatsAction.INSTANCE,
-                PreviewDataFrameTransformAction.INSTANCE
+                PutTransformAction.INSTANCE,
+                StartTransformAction.INSTANCE,
+                StopTransformAction.INSTANCE,
+                DeleteTransformAction.INSTANCE,
+                GetTransformAction.INSTANCE,
+                GetTransformStatsAction.INSTANCE,
+                PreviewTransformAction.INSTANCE
         );
     }
 
@@ -373,11 +426,45 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         StartDatafeedAction.DatafeedParams::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_TASK_NAME,
                         OpenJobAction.JobParams::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+                    StartDataFrameAnalyticsAction.TaskParams::new),
                 // ML - Task states
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, DatafeedState.NAME, DatafeedState::fromStream),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameAnalyticsTaskState.NAME,
+                    DataFrameAnalyticsTaskState::new),
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MACHINE_LEARNING,
                         MachineLearningFeatureSetUsage::new),
+                // ML - Data frame analytics
+                new NamedWriteableRegistry.Entry(DataFrameAnalysis.class, OutlierDetection.NAME.getPreferredName(), OutlierDetection::new),
+                new NamedWriteableRegistry.Entry(DataFrameAnalysis.class, Regression.NAME.getPreferredName(), Regression::new),
+                new NamedWriteableRegistry.Entry(DataFrameAnalysis.class, Classification.NAME.getPreferredName(), Classification::new),
+                // ML - Data frame evaluation
+                new NamedWriteableRegistry.Entry(Evaluation.class, BinarySoftClassification.NAME.getPreferredName(),
+                        BinarySoftClassification::new),
+                new NamedWriteableRegistry.Entry(SoftClassificationMetric.class, AucRoc.NAME.getPreferredName(), AucRoc::new),
+                new NamedWriteableRegistry.Entry(SoftClassificationMetric.class, Precision.NAME.getPreferredName(), Precision::new),
+                new NamedWriteableRegistry.Entry(SoftClassificationMetric.class, Recall.NAME.getPreferredName(), Recall::new),
+                new NamedWriteableRegistry.Entry(SoftClassificationMetric.class, ConfusionMatrix.NAME.getPreferredName(),
+                        ConfusionMatrix::new),
+                new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, AucRoc.NAME.getPreferredName(), AucRoc.Result::new),
+                new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, ScoreByThresholdResult.NAME, ScoreByThresholdResult::new),
+                new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, ConfusionMatrix.NAME.getPreferredName(),
+                        ConfusionMatrix.Result::new),
+                // ML - Inference preprocessing
+                new NamedWriteableRegistry.Entry(PreProcessor.class, FrequencyEncoding.NAME.getPreferredName(), FrequencyEncoding::new),
+                new NamedWriteableRegistry.Entry(PreProcessor.class, OneHotEncoding.NAME.getPreferredName(), OneHotEncoding::new),
+                new NamedWriteableRegistry.Entry(PreProcessor.class, TargetMeanEncoding.NAME.getPreferredName(), TargetMeanEncoding::new),
+                // ML - Inference models
+                new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new),
+                new NamedWriteableRegistry.Entry(TrainedModel.class, Ensemble.NAME.getPreferredName(), Ensemble::new),
+                // ML - Inference aggregators
+                new NamedWriteableRegistry.Entry(OutputAggregator.class, WeightedSum.NAME.getPreferredName(), WeightedSum::new),
+                new NamedWriteableRegistry.Entry(OutputAggregator.class, WeightedMode.NAME.getPreferredName(), WeightedMode::new),
+                new NamedWriteableRegistry.Entry(OutputAggregator.class,
+                    LogisticRegression.NAME.getPreferredName(),
+                    LogisticRegression::new),
+
                 // monitoring
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MONITORING, MonitoringFeatureSetUsage::new),
                 // security
@@ -385,9 +472,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetaData.TYPE, TokenMetaData::readDiffFrom),
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
                 // security : conditional privileges
-                new NamedWriteableRegistry.Entry(ConditionalClusterPrivilege.class,
-                    ConditionalClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
-                    ConditionalClusterPrivileges.ManageApplicationPrivileges::createFrom),
+                new NamedWriteableRegistry.Entry(ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom),
                 // security : role-mappings
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
@@ -412,14 +499,20 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, AutoFollowMetadata.TYPE,
                     in -> AutoFollowMetadata.readDiffFrom(MetaData.Custom.class, AutoFollowMetadata.TYPE, in)),
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.CCR, CCRFeatureSet.Usage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.CCR, CCRInfoTransportAction.Usage::new),
                 // ILM
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.INDEX_LIFECYCLE,
                     IndexLifecycleFeatureSetUsage::new),
+                // SLM
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SNAPSHOT_LIFECYCLE,
+                    SLMFeatureSetUsage::new),
                 // ILM - Custom Metadata
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, IndexLifecycleMetadata.TYPE,
                     IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, SnapshotLifecycleMetadata.TYPE,
+                    SnapshotLifecycleMetadata.SnapshotLifecycleMetadataDiff::new),
                 // ILM - LifecycleTypes
                 new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
                     (in) -> TimeseriesLifecycleType.INSTANCE),
@@ -434,10 +527,22 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, UnfollowAction::new),
                 // Data Frame
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_FRAME, DataFrameFeatureSetUsage::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DataFrameField.TASK_NAME, DataFrameTransform::new),
-                new NamedWriteableRegistry.Entry(Task.Status.class, DataFrameField.TASK_NAME, DataFrameTransformState::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameField.TASK_NAME, DataFrameTransformState::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.TRANSFORM, TransformFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TransformField.TASK_NAME, TransformTaskParams::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, TransformField.TASK_NAME, TransformState::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, TransformField.TASK_NAME, TransformState::new),
+                new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(), TimeSyncConfig::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FLATTENED, FlattenedFeatureSetUsage::new),
+                // Vectors
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VECTORS, VectorsFeatureSetUsage::new),
+                // Voting Only Node
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
+                // Frozen indices
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new),
+                // Spatial
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new),
+                // data science
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new)
         );
     }
 
@@ -452,9 +557,13 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         StartDatafeedAction.DatafeedParams::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(MlTasks.JOB_TASK_NAME),
                         OpenJobAction.JobParams::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME),
+                        StartDataFrameAnalyticsAction.TaskParams::fromXContent),
                 // ML - Task states
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DatafeedState.NAME), DatafeedState::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(JobTaskState.NAME), JobTaskState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameAnalyticsTaskState.NAME),
+                    DataFrameAnalyticsTaskState::fromXContent),
                 // watcher
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(WatcherMetaData.TYPE),
                         WatcherMetaData::fromXContent),
@@ -469,12 +578,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(RollupJobStatus.NAME),
                         RollupJobStatus::fromXContent),
                 // Data Frame
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(DataFrameField.TASK_NAME),
-                        DataFrameTransform::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameField.TASK_NAME),
-                        DataFrameTransformState::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameField.TASK_NAME),
-                        DataFrameTransformState::fromXContent)
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(TransformField.TASK_NAME),
+                        TransformTaskParams::fromXContent),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TransformField.TASK_NAME),
+                        TransformState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(TransformField.TASK_NAME),
+                        TransformState::fromXContent)
             );
     }
 }

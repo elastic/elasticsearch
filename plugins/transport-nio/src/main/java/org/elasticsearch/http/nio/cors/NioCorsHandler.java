@@ -32,15 +32,17 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.nio.NioHttpResponse;
 
+import java.util.Date;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
  * Handles <a href="http://www.w3.org/TR/cors/">Cross Origin Resource Sharing</a> (CORS) requests.
  * <p>
- * This handler can be configured using a {@link NioCorsConfig}, please
+ * This handler can be configured using a {@link CorsHandler.Config}, please
  * refer to this class for details about the configuration options available.
  *
  * This code was borrowed from Netty 4 and refactored to work for Elasticsearch's Netty 3 setup.
@@ -50,13 +52,13 @@ public class NioCorsHandler extends ChannelDuplexHandler {
     public static final String ANY_ORIGIN = "*";
     private static Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
 
-    private final NioCorsConfig config;
+    private final CorsHandler.Config config;
     private FullHttpRequest request;
 
     /**
-     * Creates a new instance with the specified {@link NioCorsConfig}.
+     * Creates a new instance with the specified {@link CorsHandler.Config}.
      */
-    public NioCorsHandler(final NioCorsConfig config) {
+    public NioCorsHandler(final CorsHandler.Config config) {
         if (config == null) {
             throw new NullPointerException();
         }
@@ -76,7 +78,7 @@ public class NioCorsHandler extends ChannelDuplexHandler {
                     releaseRequest();
                 }
             }
-            if (config.isShortCircuit() && !validateOrigin()) {
+            if (!validateOrigin()) {
                 try {
                     forbidden(ctx, request);
                     return;
@@ -96,7 +98,7 @@ public class NioCorsHandler extends ChannelDuplexHandler {
         ctx.write(response, promise);
     }
 
-    public static void setCorsResponseHeaders(HttpRequest request, HttpResponse resp, NioCorsConfig config) {
+    public static void setCorsResponseHeaders(HttpRequest request, HttpResponse resp, CorsHandler.Config config) {
         if (!config.isCorsSupportEnabled()) {
             return;
         }
@@ -161,7 +163,8 @@ public class NioCorsHandler extends ChannelDuplexHandler {
      * @param response the HttpResponse to which the preflight response headers should be added.
      */
     private void setPreflightHeaders(final HttpResponse response) {
-        response.headers().add(config.preflightResponseHeaders());
+        response.headers().add("date", new Date());
+        response.headers().add("content-length", "0");
     }
 
     private boolean setOrigin(final HttpResponse response) {

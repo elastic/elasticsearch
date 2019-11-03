@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
@@ -30,6 +32,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -37,6 +40,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetMappingsAction.class);
 
     private final IndicesService indicesService;
 
@@ -62,8 +67,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     }
 
     @Override
-    protected GetMappingsResponse newResponse() {
-        return new GetMappingsResponse();
+    protected GetMappingsResponse read(StreamInput in) throws IOException {
+        return new GetMappingsResponse(in);
     }
 
     @Override
@@ -71,8 +76,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
                                      final ActionListener<GetMappingsResponse> listener) {
         logger.trace("serving getMapping request based on version {}", state.version());
         try {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result =
-                    state.metaData().findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
+            ImmutableOpenMap<String, MappingMetaData> result =
+                    state.metaData().findMappings(concreteIndices, indicesService.getFieldFilter());
             listener.onResponse(new GetMappingsResponse(result));
         } catch (IOException e) {
             listener.onFailure(e);

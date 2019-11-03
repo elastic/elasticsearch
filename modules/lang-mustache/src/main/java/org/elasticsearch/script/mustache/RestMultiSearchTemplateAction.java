@@ -52,7 +52,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     public RestMultiSearchTemplateAction(Settings settings, RestController controller) {
-        super(settings);
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
 
         controller.registerHandler(GET, "/_msearch/template", this);

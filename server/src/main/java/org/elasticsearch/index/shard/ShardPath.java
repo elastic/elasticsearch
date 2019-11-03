@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";
@@ -283,10 +284,10 @@ public final class ShardPath {
             return false;
         }
         final ShardPath shardPath = (ShardPath) o;
-        if (shardId != null ? !shardId.equals(shardPath.shardId) : shardPath.shardId != null) {
+        if (Objects.equals(shardId, shardPath.shardId) == false) {
             return false;
         }
-        if (path != null ? !path.equals(shardPath.path) : shardPath.path != null) {
+        if (Objects.equals(path, shardPath.path) == false) {
             return false;
         }
 

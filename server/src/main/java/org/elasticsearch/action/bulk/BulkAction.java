@@ -19,22 +19,17 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
-public class BulkAction extends Action<BulkResponse> {
+public class BulkAction extends ActionType<BulkResponse> {
 
     public static final BulkAction INSTANCE = new BulkAction();
     public static final String NAME = "indices:data/write/bulk";
 
     private BulkAction() {
-        super(NAME);
-    }
-
-    @Override
-    public BulkResponse newResponse() {
-        return new BulkResponse();
+        super(NAME, BulkResponse::new);
     }
 
     @Override

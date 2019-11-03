@@ -44,8 +44,10 @@ import org.elasticsearch.snapshots.SnapshotId;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,9 +83,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
     public void testSerialization() throws Exception {
         UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
+        int failedAllocations = randomIntBetween(1, 100);
+        Set<String> failedNodes = IntStream.range(0, between(0, failedAllocations))
+            .mapToObj(n -> "failed-node-" + n).collect(Collectors.toSet());
         UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
             new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null, null,
-                randomIntBetween(1, 100), System.nanoTime(), System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT):
+                failedAllocations, System.nanoTime(), System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT, failedNodes):
             new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
@@ -95,6 +100,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
         assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
+        assertThat(read.getFailedNodeIds(), equalTo(meta.getFailedNodeIds()));
     }
 
     public void testIndexCreated() {
@@ -193,7 +199,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index);
         for (IndexShardRoutingTable indexShardRoutingTable : clusterState.routingTable().index(index)) {
             builder.addIndexShard(indexShardRoutingTable);
@@ -237,9 +243,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
@@ -269,9 +275,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // fail shard
         ShardRouting shardToFail = clusterState.getRoutingNodes().shardsWithState(STARTED).get(0);
@@ -297,7 +303,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testRemainingDelayCalculation() throws Exception {
         final long baseTime = System.nanoTime();
         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime,
-                                                           System.currentTimeMillis(), randomBoolean(), AllocationStatus.NO_ATTEMPT);
+            System.currentTimeMillis(), randomBoolean(), AllocationStatus.NO_ATTEMPT, Collections.emptySet());
         final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
         final Settings indexSettings = Settings.builder()
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();
@@ -327,9 +333,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = allocation.reroute(clusterState, "reroute");
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
@@ -358,9 +364,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = allocation.reroute(clusterState, "reroute");
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         final long baseTime = System.nanoTime();

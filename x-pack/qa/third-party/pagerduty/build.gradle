@@ -1,3 +1,4 @@
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -8,16 +9,16 @@ dependencies {
 
 String pagerDutyServiceKey = System.getenv('pagerduty_service_api_key')
 
-integTestCluster {
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-  keystoreSetting 'xpack.notification.pagerduty.account.test_account.secure_service_api_key', pagerDutyServiceKey
-}
-
 if (!pagerDutyServiceKey) {
   integTest.enabled = false
   testingConventions.enabled = false
+} else {
+  testClusters.integTest {
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+    keystore 'xpack.notification.pagerduty.account.test_account.secure_service_api_key', pagerDutyServiceKey
+  }
 }

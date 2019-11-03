@@ -104,7 +104,6 @@
   - match: {version_conflicts: 1}
   - match: {batches: 1}
   - match: {failures.0.index:  test}
-  - match: {failures.0.type:   _doc}
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
@@ -144,7 +143,6 @@
   - match: {version_conflicts: 1}
   - match: {batches: 1}
   - match: {failures.0.index:  test}
-  - match: {failures.0.type:   _doc}
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
@@ -164,7 +162,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -173,7 +170,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test2" }
 
@@ -218,7 +214,11 @@
   - gte: { took: 0 }
 
 ---
-"Limit by size":
+"Limit by size pre 7.3":
+  - skip:
+      version: "7.3.0 - "
+      reason: "7.3 should use max_docs or get deprecation warning"
+
   - do:
       index:
         index:  twitter
@@ -236,6 +236,70 @@
       update_by_query:
         index: twitter
         size: 1
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+
+---
+"Limit by max_docs in URL":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index: twitter
+        max_docs: 1
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+
+---
+"Limit by max_docs in body":
+  - skip:
+      version: " - 7.2.99"
+      reason: "max_docs introduced in 7.3.0"
+
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        id:     2
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      update_by_query:
+        index: twitter
+        body:
+          max_docs: 1
+          query:
+            match:
+              user: "kimchy"
   - match: {updated: 1}
   - match: {version_conflicts: 0}
   - match: {batches: 1}

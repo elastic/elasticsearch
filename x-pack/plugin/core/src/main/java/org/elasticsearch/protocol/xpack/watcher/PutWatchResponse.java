@@ -36,7 +36,15 @@ public class PutWatchResponse extends ActionResponse implements ToXContentObject
     private long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
     private boolean created;
 
-    public PutWatchResponse() {
+    public PutWatchResponse() {}
+
+    public PutWatchResponse(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        version = in.readVLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        created = in.readBoolean();
     }
 
     public PutWatchResponse(String id, long version, long seqNo, long primaryTerm, boolean created) {
@@ -106,22 +114,11 @@ public class PutWatchResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(id);
         out.writeVLong(version);
         out.writeZLong(seqNo);
         out.writeVLong(primaryTerm);
         out.writeBoolean(created);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        version = in.readVLong();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        created = in.readBoolean();
     }
 
     @Override

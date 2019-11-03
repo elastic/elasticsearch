@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -75,6 +76,7 @@ public class RealmsTests extends ESTestCase {
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.ALL);
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
+        when(reservedRealm.name()).thenReturn("reserved");
     }
 
     public void testWithSettings() throws Exception {
@@ -110,6 +112,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
     }
 
     public void testWithSettingsWhereDifferentRealmsHaveSameOrder() throws Exception {
@@ -150,6 +153,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
     }
 
     public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
@@ -165,6 +169,20 @@ public class RealmsTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("multiple [file] realms are configured"));
         }
+    }
+
+    public void testWithSettingsWithMultipleRealmsWithSameName() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.authc.realms.file.realm_1.order", 0)
+            .put("xpack.security.authc.realms.native.realm_1.order", 1)
+            .put("xpack.security.authc.realms.kerberos.realm_1.order", 2)
+            .put("path.home", createTempDir())
+            .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->{
+            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        });
+        assertThat(e.getMessage(), containsString("Found multiple realms configured with the same name"));
     }
 
     public void testWithEmptySettings() throws Exception {
@@ -185,6 +203,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(false));
 
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
     }
 
     public void testUnlicensedWithOnlyCustomRealms() throws Exception {
@@ -220,6 +239,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
 
@@ -303,6 +323,7 @@ public class RealmsTests extends ESTestCase {
         }
         assertThat(types, contains("ldap", "type_0"));
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
         iter = realms.iterator();

@@ -15,15 +15,12 @@ import java.util.Arrays;
 import java.util.Objects;
 
 public class NodesDeprecationCheckRequest extends BaseNodesRequest<NodesDeprecationCheckRequest> {
-    public NodesDeprecationCheckRequest() {}
+    public NodesDeprecationCheckRequest(StreamInput in) throws IOException {
+        super(in);
+    }
 
     public NodesDeprecationCheckRequest(String... nodesIds) {
         super(nodesIds);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
     }
 
     @Override

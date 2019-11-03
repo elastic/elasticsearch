@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -35,7 +34,7 @@ import java.util.Objects;
  * Response object that contains the acknowledgement or the task id
  * depending on whether the delete job action was requested to wait for completion.
  */
-public class DeleteJobResponse extends ActionResponse implements ToXContentObject {
+public class DeleteJobResponse implements ToXContentObject {
 
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
     private static final ParseField TASK = new ParseField("task");

@@ -32,9 +32,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
     public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                    ThreadPool threadPool, TransportDeleteByQueryAction action, DeleteByQueryRequest request,
-                                    ScriptService scriptService, ActionListener<BulkByScrollResponse> listener) {
-        super(task, false, true, logger, client, threadPool, action, request, listener);
+                                    ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService,
+                                    ActionListener<BulkByScrollResponse> listener) {
+        super(task, false, true, logger, client, threadPool, request, listener, scriptService, null);
     }
 
     @Override
@@ -48,7 +48,6 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
     protected RequestWrapper<DeleteRequest> buildRequest(ScrollableHitSource.Hit doc) {
         DeleteRequest delete = new DeleteRequest();
         delete.index(doc.getIndex());
-        delete.type(doc.getType());
         delete.id(doc.getId());
         delete.setIfSeqNo(doc.getSeqNo());
         delete.setIfPrimaryTerm(doc.getPrimaryTerm());

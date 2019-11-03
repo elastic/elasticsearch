@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -25,7 +24,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response.DatafeedStats;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -114,9 +112,11 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             logger.info("Restarting all nodes");
             internalCluster().fullRestart();
             logger.info("Restarted all nodes");
+            ensureStableClusterOnAllNodes(3);
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43670")
     public void testCloseUnassignedJobAndDatafeed() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");
@@ -147,7 +147,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         waitForDatafeed(jobId, numDocs1);
 
         // stop the only ML node
+        ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
         internalCluster().stopRandomNonMasterNode();
+        ensureStableCluster(1);
 
         // Job state is opened but the job is not assigned to a node (because we just killed the only ML node)
         GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);
@@ -165,21 +167,13 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         StopDatafeedAction.Response stopDatafeedResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).actionGet();
         assertTrue(stopDatafeedResponse.isStopped());
 
-        // Can't normal stop an unassigned job
+        // Since 7.5 we can also stop an unassigned job either normally or by force
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
-        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
-                () -> client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet());
-        assertEquals("Cannot close job [" + jobId +
-                        "] because the job does not have an assigned node. Use force close to close the job",
-                statusException.getMessage());
-
-        // Can only force close an unassigned job
-        closeJobRequest.setForce(true);
+        closeJobRequest.setForce(randomBoolean());
         CloseJobAction.Response closeJobResponse = client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertTrue(closeJobResponse.isClosed());
     }
 
-    @TestLogging("org.elasticsearch.xpack.ml.action:TRACE,org.elasticsearch.xpack.ml.process:TRACE")
     public void testJobRelocationIsMemoryAware() throws Exception {
 
         internalCluster().ensureAtLeastNumDataNodes(1);
@@ -200,7 +194,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Wait for the cluster to be green - this means the indices have been replicated.
 
-        ensureGreen(".ml-config", ".ml-anomalies-shared", ".ml-notifications");
+        ensureGreen();
 
         // Open a big job.  This should go on a different node to the 4 small ones.
 

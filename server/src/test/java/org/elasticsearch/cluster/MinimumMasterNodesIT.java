@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
@@ -63,7 +62,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     @Override
@@ -108,7 +106,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
         // make sure that all shards recovered before trying to flush
         assertThat(client().admin().cluster().prepareHealth("test")
@@ -130,10 +128,11 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
 
-        awaitBusy(() -> {
+        assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            return clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID);
+            assertTrue(clusterState.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
+
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID), equalTo(true));
         // verify that both nodes are still in the cluster state but there is no master
@@ -241,7 +240,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
         ensureGreen();
         // make sure that all shards recovered before trying to flush

@@ -24,16 +24,20 @@ public final class Protocol {
     public static final TimeValue PAGE_TIMEOUT = TimeValue.timeValueSeconds(45);
     public static final boolean FIELD_MULTI_VALUE_LENIENCY = false;
     public static final boolean INDEX_INCLUDE_FROZEN = false;
+    
+    /*
+     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or 
+     * binary parameter).
+     * See {@code SqlTranslateRequest.toXContent}
+     */
+    public static final Boolean COLUMNAR = Boolean.FALSE;
+    public static final Boolean BINARY_COMMUNICATION = null;
 
     /**
      * SQL-related endpoints
      */
     public static final String CLEAR_CURSOR_REST_ENDPOINT = "/_sql/close";
-    public static final String CLEAR_CURSOR_DEPRECATED_REST_ENDPOINT = "/_xpack/sql/close";
     public static final String SQL_QUERY_REST_ENDPOINT = "/_sql";
-    public static final String SQL_QUERY_DEPRECATED_REST_ENDPOINT = "/_xpack/sql";
     public static final String SQL_TRANSLATE_REST_ENDPOINT = "/_sql/translate";
-    public static final String SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT = "/_xpack/sql/translate";
     public static final String SQL_STATS_REST_ENDPOINT = "/_sql/stats";
-    public static final String SQL_STATS_DEPRECATED_REST_ENDPOINT = "/_xpack/sql/stats";
 }

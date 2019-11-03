@@ -20,10 +20,10 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -52,7 +52,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
             assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
             assertThat(analyzeRequest.tokenizer().name, equalTo("keyword"));
             assertThat(analyzeRequest.tokenFilters().size(), equalTo(1));
-            for (AnalyzeAction.Request.NameOrDefinition filter : analyzeRequest.tokenFilters()) {
+            for (NameOrDefinition filter : analyzeRequest.tokenFilters()) {
                 assertThat(filter.name, equalTo("lowercase"));
             }
         }
@@ -94,7 +94,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
     }
 
     public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() {
-        RestAnalyzeAction action = new RestAnalyzeAction(Settings.EMPTY, mock(RestController.class));
+        RestAnalyzeAction action = new RestAnalyzeAction(mock(RestController.class));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray("{invalid_json}"), XContentType.JSON).build();
         IOException e = expectThrows(IOException.class, () -> action.handleRequest(request, null, null));

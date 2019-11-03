@@ -22,7 +22,6 @@ package org.elasticsearch.index.cache.query;
 import org.apache.lucene.search.DocIdSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -31,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class QueryCacheStats implements Streamable, Writeable, ToXContentFragment {
+public class QueryCacheStats implements Writeable, ToXContentFragment {
 
     private long ramBytesUsed;
     private long hitCount;
@@ -114,11 +113,6 @@ public class QueryCacheStats implements Streamable, Writeable, ToXContentFragmen
      */
     public long getEvictions() {
         return cacheCount - cacheSize;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

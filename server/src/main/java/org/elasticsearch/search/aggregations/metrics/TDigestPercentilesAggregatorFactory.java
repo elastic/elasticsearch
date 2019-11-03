@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -34,32 +35,38 @@ import java.util.List;
 import java.util.Map;
 
 class TDigestPercentilesAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, TDigestPercentilesAggregatorFactory> {
+        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final double[] percents;
     private final double compression;
     private final boolean keyed;
 
     TDigestPercentilesAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double[] percents,
-            double compression, boolean keyed, SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+                                        double compression, boolean keyed, QueryShardContext queryShardContext, AggregatorFactory parent,
+                                        AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.percents = percents;
         this.compression = compression;
         this.keyed = keyed;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new TDigestPercentilesAggregator(name, null, context, parent, percents, compression, keyed, config.format(),
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new TDigestPercentilesAggregator(name, null, searchContext, parent, percents, compression, keyed, config.format(),
                 pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new TDigestPercentilesAggregator(name, valuesSource, context, parent, percents, compression, keyed, config.format(),
+    protected Aggregator doCreateInternal(Numeric valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new TDigestPercentilesAggregator(name, valuesSource, searchContext, parent, percents, compression, keyed, config.format(),
                 pipelineAggregators, metaData);
     }
 

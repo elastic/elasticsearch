@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -50,7 +50,8 @@ public final class ClientHelper {
     public static final String DEPRECATION_ORIGIN = "deprecation";
     public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
     public static final String ROLLUP_ORIGIN = "rollup";
-    public static final String DATA_FRAME_ORIGIN = "data_frame";
+    public static final String ENRICH_ORIGIN = "enrich";
+    public static final String TRANSFORM_ORIGIN = "transform";
 
     private ClientHelper() {}
 
@@ -81,7 +82,7 @@ public final class ClientHelper {
      */
     public static <Request extends ActionRequest, Response extends ActionResponse,
             RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
-        Client client, String origin, Action<Response> action, Request request,
+        Client client, String origin, ActionType<Response> action, Request request,
         ActionListener<Response> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
@@ -139,7 +140,7 @@ public final class ClientHelper {
      *            The listener to call when the action is complete
      */
     public static <Request extends ActionRequest, Response extends ActionResponse>
-    void executeWithHeadersAsync(Map<String, String> headers, String origin, Client client, Action<Response> action, Request request,
+    void executeWithHeadersAsync(Map<String, String> headers, String origin, Client client, ActionType<Response> action, Request request,
                                  ActionListener<Response> listener) {
 
         Map<String, String> filteredHeaders = headers.entrySet().stream().filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))

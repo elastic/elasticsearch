@@ -45,7 +45,7 @@ public class BroadcastResponse {
         return shards;
     }
 
-    BroadcastResponse(final Shards shards) {
+    protected BroadcastResponse(final Shards shards) {
         this.shards = Objects.requireNonNull(shards);
     }
 
@@ -56,7 +56,7 @@ public class BroadcastResponse {
             a -> new BroadcastResponse((Shards) a[0]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), Shards.SHARDS_PARSER, SHARDS_FIELD);
+        declareShardsField(PARSER);
     }
 
     /**
@@ -68,6 +68,10 @@ public class BroadcastResponse {
      */
     public static BroadcastResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    protected static <T extends BroadcastResponse> void declareShardsField(ConstructingObjectParser<T, Void> PARSER) {
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), Shards.SHARDS_PARSER, SHARDS_FIELD);
     }
 
     /**

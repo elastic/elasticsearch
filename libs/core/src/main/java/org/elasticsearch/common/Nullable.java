@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.meta.TypeQualifierNickname;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -33,6 +35,8 @@ import java.lang.annotation.Target;
  *
  */
 @Documented
+@TypeQualifierNickname
+@CheckForNull
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.PARAMETER, ElementType.FIELD, ElementType.METHOD})
 public @interface Nullable {

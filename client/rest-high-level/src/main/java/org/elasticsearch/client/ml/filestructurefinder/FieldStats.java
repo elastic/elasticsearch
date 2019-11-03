@@ -38,12 +38,14 @@ public class FieldStats implements ToXContentObject {
     public static final ParseField MAX_VALUE = new ParseField("max_value");
     public static final ParseField MEAN_VALUE = new ParseField("mean_value");
     public static final ParseField MEDIAN_VALUE = new ParseField("median_value");
+    public static final ParseField EARLIEST = new ParseField("earliest");
+    public static final ParseField LATEST = new ParseField("latest");
     public static final ParseField TOP_HITS = new ParseField("top_hits");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<FieldStats, Void> PARSER = new ConstructingObjectParser<>("field_stats", true,
         a -> new FieldStats((long) a[0], (int) a[1], (Double) a[2], (Double) a[3], (Double) a[4], (Double) a[5],
-            (List<Map<String, Object>>) a[6]));
+            (String) a[6], (String) a[7], (List<Map<String, Object>>) a[8]));
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), COUNT);
@@ -52,6 +54,8 @@ public class FieldStats implements ToXContentObject {
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MAX_VALUE);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MEAN_VALUE);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MEDIAN_VALUE);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), EARLIEST);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LATEST);
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapOrdered(), TOP_HITS);
     }
 
@@ -61,16 +65,20 @@ public class FieldStats implements ToXContentObject {
     private final Double maxValue;
     private final Double meanValue;
     private final Double medianValue;
+    private final String earliestTimestamp;
+    private final String latestTimestamp;
     private final List<Map<String, Object>> topHits;
 
     FieldStats(long count, int cardinality, Double minValue, Double maxValue, Double meanValue, Double medianValue,
-               List<Map<String, Object>> topHits) {
+               String earliestTimestamp, String latestTimestamp, List<Map<String, Object>> topHits) {
         this.count = count;
         this.cardinality = cardinality;
         this.minValue = minValue;
         this.maxValue = maxValue;
         this.meanValue = meanValue;
         this.medianValue = medianValue;
+        this.earliestTimestamp = earliestTimestamp;
+        this.latestTimestamp = latestTimestamp;
         this.topHits = (topHits == null) ? Collections.emptyList() : Collections.unmodifiableList(topHits);
     }
 
@@ -98,6 +106,14 @@ public class FieldStats implements ToXContentObject {
         return medianValue;
     }
 
+    public String getEarliestTimestamp() {
+        return earliestTimestamp;
+    }
+
+    public String getLatestTimestamp() {
+        return latestTimestamp;
+    }
+
     public List<Map<String, Object>> getTopHits() {
         return topHits;
     }
@@ -120,6 +136,12 @@ public class FieldStats implements ToXContentObject {
         if (medianValue != null) {
             builder.field(MEDIAN_VALUE.getPreferredName(), toIntegerIfInteger(medianValue));
         }
+        if (earliestTimestamp != null) {
+            builder.field(EARLIEST.getPreferredName(), earliestTimestamp);
+        }
+        if (latestTimestamp != null) {
+            builder.field(LATEST.getPreferredName(), latestTimestamp);
+        }
         if (topHits.isEmpty() == false) {
             builder.field(TOP_HITS.getPreferredName(), topHits);
         }
@@ -140,7 +162,7 @@ public class FieldStats implements ToXContentObject {
     @Override
     public int hashCode() {
 
-        return Objects.hash(count, cardinality, minValue, maxValue, meanValue, medianValue, topHits);
+        return Objects.hash(count, cardinality, minValue, maxValue, meanValue, medianValue, earliestTimestamp, latestTimestamp, topHits);
     }
 
     @Override
@@ -161,6 +183,8 @@ public class FieldStats implements ToXContentObject {
             Objects.equals(this.maxValue, that.maxValue) &&
             Objects.equals(this.meanValue, that.meanValue) &&
             Objects.equals(this.medianValue, that.medianValue) &&
+            Objects.equals(this.earliestTimestamp, that.earliestTimestamp) &&
+            Objects.equals(this.latestTimestamp, that.latestTimestamp) &&
             Objects.equals(this.topHits, that.topHits);
     }
 }

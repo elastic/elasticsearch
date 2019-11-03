@@ -23,6 +23,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -61,6 +62,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import javax.crypto.SecretKey;
+
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -110,17 +112,16 @@ public class TokenServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+                    .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
-        when(client.prepareIndex(any(String.class), any(String.class), any(String.class)))
+        }).when(client).prepareGet(anyString(), anyString());
+        when(client.prepareIndex(any(String.class)))
                 .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareUpdate(any(String.class), any(String.class), any(String.class)))
+        when(client.prepareUpdate(any(String.class), any(String.class)))
                 .thenReturn(new UpdateRequestBuilder(client, UpdateAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
-            responseActionListener.onResponse(new IndexResponse(new ShardId(".security", UUIDs.randomBase64UUID(), randomInt()), "_doc",
+            responseActionListener.onResponse(new IndexResponse(new ShardId(".security", UUIDs.randomBase64UUID(), randomInt()),
                     randomAlphaOfLength(4), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), true));
             return null;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
@@ -812,7 +813,7 @@ public class TokenServiceTests extends ESTestCase {
         final ClusterState currentState = clusterService.state();
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
         final DiscoveryNode anotherDataNode = new DiscoveryNode("another_data_node#" + version, buildNewFakeTransportAddress(),
-                Collections.emptyMap(), Collections.singleton(DiscoveryNode.Role.DATA), version);
+                Collections.emptyMap(), Collections.singleton(DiscoveryNodeRole.DATA_ROLE), version);
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);

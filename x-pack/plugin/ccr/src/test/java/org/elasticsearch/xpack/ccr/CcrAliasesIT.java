@@ -10,7 +10,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -360,14 +359,14 @@ public class CcrAliasesIT extends CcrIntegTestCase {
     private void assertAliasExistence(final String alias, final boolean exists) throws Exception {
         assertBusy(() -> {
             // we must check serially because aliases exist will return true if any but not necessarily all of the requested aliases exist
-            final AliasesExistResponse response = followerClient().admin()
+            final GetAliasesResponse response = followerClient().admin()
                     .indices()
-                    .aliasesExist(new GetAliasesRequest().indices("follower").aliases(alias))
+                    .getAliases(new GetAliasesRequest().indices("follower").aliases(alias))
                     .get();
             if (exists) {
-                assertTrue("alias [" + alias + "] did not exist", response.exists());
+                assertFalse("alias [" + alias + "] did not exist", response.getAliases().isEmpty());
             } else {
-                assertFalse("alias [" + alias + "] exists", response.exists());
+                assertTrue("alias [" + alias + "] exists", response.getAliases().isEmpty());
             }
         });
     }

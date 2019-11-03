@@ -8,6 +8,7 @@ package org.elasticsearch.smoketest;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -115,7 +117,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, 60, TimeUnit.SECONDS);
 
         adminClient().performRequest(new Request("DELETE", "/my_test_index"));
     }
@@ -330,6 +332,10 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
                 assertThat(watchid, is(watchId));
                 objectPathReference.set(objectPath);
+            } catch (ResponseException e) {
+                final String err = "Failed to perform search of watcher history";
+                logger.info(err, e);
+                fail(err);
             }
         });
         return objectPathReference.get();

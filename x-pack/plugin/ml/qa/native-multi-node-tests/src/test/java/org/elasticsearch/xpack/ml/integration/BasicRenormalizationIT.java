@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -32,6 +33,7 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testDefaultRenormalization() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44613", Constants.WINDOWS);
         String jobId = "basic-renormalization-it-test-default-renormalization-job";
         createAndRunJob(jobId, null);
 

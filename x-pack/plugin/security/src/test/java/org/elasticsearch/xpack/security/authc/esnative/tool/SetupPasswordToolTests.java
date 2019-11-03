@@ -12,19 +12,15 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -236,8 +232,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
 
         Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, true, true, null));
+        featureSets.add(new FeatureSet("logstash", true, true));
+        featureSets.add(new FeatureSet("security", true, true));
         FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
         XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
         String securityPluginQueryResponseBody = null;
@@ -267,8 +263,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponse);
 
         Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, false, false, null));
+        featureSets.add(new FeatureSet("logstash", true, true));
+        featureSets.add(new FeatureSet("security", false, false));
         FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
         XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
         String securityPluginQueryResponseBody = null;
@@ -298,8 +294,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponse);
 
         Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, true, false, null));
+        featureSets.add(new FeatureSet("logstash", true, true));
+        featureSets.add(new FeatureSet("security", true, false));
         FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
         XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
         String securityPluginQueryResponseBody = null;
@@ -350,7 +346,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.OK, e.exitCode);
-            assertThat(terminal.getOutput(), Matchers.containsString("Your cluster health is currently RED."));
+            assertThat(terminal.getErrorOutput(), Matchers.containsString("Your cluster health is currently RED."));
         }
     }
 
@@ -416,7 +412,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             while (failCount-- > 0) {
                 String password1 = randomAlphaOfLength(randomIntBetween(3, 10));
                 terminal.addSecretInput(password1);
-                Validation.Error err = Validation.Users.validatePassword(password1.toCharArray());
+                Validation.Error err = Validation.Users.validatePassword(new SecureString(password1.toCharArray()));
                 if (err == null) {
                     // passes strength validation, fail by mismatch
                     terminal.addSecretInput(password1 + "typo");
@@ -441,21 +437,6 @@ public class SetupPasswordToolTests extends CommandTestCase {
                     passwordCaptor.capture(), any(CheckedFunction.class));
             assertThat(passwordCaptor.getValue().get(), CoreMatchers.containsString(user + "-password"));
         }
-    }
-
-    private String parsePassword(String value) throws IOException {
-        try (XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, value)) {
-            XContentParser.Token token = parser.nextToken();
-            if (token == XContentParser.Token.START_OBJECT) {
-                if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                    if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-                        return parser.text();
-                    }
-                }
-            }
-        }
-        throw new RuntimeException("Did not properly parse password.");
     }
 
     private URL authenticateUrl(URL url) throws MalformedURLException, URISyntaxException {

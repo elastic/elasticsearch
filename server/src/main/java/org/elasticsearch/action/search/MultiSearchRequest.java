@@ -56,9 +56,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
-    private List<SearchRequest> requests = new ArrayList<>();
+    private final List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+    public MultiSearchRequest() {}
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
@@ -129,9 +131,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return this;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+
+    public MultiSearchRequest(StreamInput in) throws IOException {
+        super(in);
         maxConcurrentSearchRequests = in.readVInt();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {

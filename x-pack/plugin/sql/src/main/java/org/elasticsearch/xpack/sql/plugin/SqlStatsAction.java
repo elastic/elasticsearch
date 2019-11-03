@@ -6,20 +6,14 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class SqlStatsAction extends Action<SqlStatsResponse> {
+public class SqlStatsAction extends ActionType<SqlStatsResponse> {
 
     public static final SqlStatsAction INSTANCE = new SqlStatsAction();
     public static final String NAME = "cluster:monitor/xpack/sql/stats/dist";
 
     private SqlStatsAction() {
-        super(NAME);
+        super(NAME, SqlStatsResponse::new);
     }
-
-    @Override
-    public SqlStatsResponse newResponse() {
-        return new SqlStatsResponse();
-    }
-
 }

@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorF
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -69,14 +69,15 @@ import static org.mockito.Mockito.when;
 public class DatafeedJobTests extends ESTestCase {
 
     private static final String jobId = "_job_id";
-    
-    private Auditor auditor;
+
+    private AnomalyDetectionAuditor auditor;
     private DataExtractorFactory dataExtractorFactory;
     private DataExtractor dataExtractor;
+    private DatafeedTimingStatsReporter timingStatsReporter;
     private Client client;
     private DelayedDataDetector delayedDataDetector;
     private DataDescription.Builder dataDescription;
-    ActionFuture<PostDataAction.Response> postDataFuture;
+    private ActionFuture<PostDataAction.Response> postDataFuture;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
     private ActionFuture<IndexResponse> indexFuture;
     private ArgumentCaptor<FlushJobAction.Request> flushJobRequests;
@@ -89,10 +90,11 @@ public class DatafeedJobTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setup() throws Exception {
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         dataExtractorFactory = mock(DataExtractorFactory.class);
         dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -113,7 +115,7 @@ public class DatafeedJobTests extends ESTestCase {
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
-        DataCounts dataCounts = new DataCounts(jobId, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0), 
+        DataCounts dataCounts = new DataCounts(jobId, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0),
                 new Date(0), new Date(0), new Date(0));
 
         PostDataAction.Request expectedRequest = new PostDataAction.Request(jobId);
@@ -126,12 +128,12 @@ public class DatafeedJobTests extends ESTestCase {
         when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
 
-        when(indexFuture.actionGet()).thenReturn(new IndexResponse(new ShardId("index", "uuid", 0), "doc", annotationDocId, 0, 0, 0, true));
+        when(indexFuture.actionGet()).thenReturn(new IndexResponse(new ShardId("index", "uuid", 0), annotationDocId, 0, 0, 0, true));
         when(client.index(any())).thenReturn(indexFuture);
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
-        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, randomBoolean());
         assertNull(datafeedJob.runLookBack(0L, 1000L));
 
         verify(dataExtractorFactory).newExtractor(0L, 1000L);
@@ -143,7 +145,7 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testSetIsolated() throws Exception {
         currentTime = 2000L;
-        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, randomBoolean());
         datafeedJob.isolate();
         assertNull(datafeedJob.runLookBack(0L, null));
 
@@ -156,7 +158,7 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = 2000L;
         long frequencyMs = 1000;
         long queryDelayMs = 500;
-        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, -1, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, -1, -1, randomBoolean());
         long next = datafeedJob.runLookBack(0L, null);
         assertEquals(2000 + frequencyMs + queryDelayMs + 100, next);
 
@@ -179,7 +181,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         long frequencyMs = 1000;
         long queryDelayMs = 500;
-        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, latestFinalBucketEndTimeMs, latestRecordTimeMs);
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, latestFinalBucketEndTimeMs, latestRecordTimeMs, true);
         long next = datafeedJob.runLookBack(0L, null);
         assertEquals(10000 + frequencyMs + queryDelayMs + 100, next);
 
@@ -204,7 +206,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         long frequencyMs = 1000;
         long queryDelayMs = 500;
-        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, latestFinalBucketEndTimeMs, latestRecordTimeMs);
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, latestFinalBucketEndTimeMs, latestRecordTimeMs, true);
         datafeedJob.runLookBack(currentTime, null);
 
         // advance time
@@ -236,7 +238,7 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = 60000L;
         long frequencyMs = 100;
         long queryDelayMs = 1000;
-        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1, false);
         long next = datafeedJob.runRealtime();
         assertEquals(currentTime + frequencyMs + 100, next);
 
@@ -342,7 +344,7 @@ public class DatafeedJobTests extends ESTestCase {
     public void testEmptyDataCountGivenlookback() throws Exception {
         when(dataExtractor.hasNext()).thenReturn(false);
 
-        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
         expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 1000L));
         verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
@@ -353,7 +355,7 @@ public class DatafeedJobTests extends ESTestCase {
         when(dataExtractor.hasNext()).thenReturn(true);
         when(dataExtractor.next()).thenThrow(new IOException());
 
-        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, randomBoolean());
         expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
 
         currentTime = 3001;
@@ -380,7 +382,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         when(dataExtractor.getEndTime()).thenReturn(1000L);
 
-        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, randomBoolean());
         DatafeedJob.AnalysisProblemException analysisProblemException =
                 expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
         assertThat(analysisProblemException.shouldStop, is(false));
@@ -409,7 +411,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         when(dataExtractor.getEndTime()).thenReturn(1000L);
 
-        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, randomBoolean());
         DatafeedJob.AnalysisProblemException analysisProblemException =
                 expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
         assertThat(analysisProblemException.shouldStop, is(true));
@@ -434,7 +436,7 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = 60000L;
         long frequencyMs = 100;
         long queryDelayMs = 1000;
-        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1, randomBoolean());
         DatafeedJob.AnalysisProblemException analysisProblemException =
                 expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runRealtime());
         assertThat(analysisProblemException.shouldStop, is(false));
@@ -446,16 +448,17 @@ public class DatafeedJobTests extends ESTestCase {
         currentTime = 60000L;
         long frequencyMs = 100;
         long queryDelayMs = 1000;
-        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1);
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1, randomBoolean());
         DatafeedJob.AnalysisProblemException analysisProblemException =
                 expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runRealtime());
         assertThat(analysisProblemException.shouldStop, is(true));
     }
 
     private DatafeedJob createDatafeedJob(long frequencyMs, long queryDelayMs, long latestFinalBucketEndTimeMs,
-                                            long latestRecordTimeMs) {
+                                          long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
-        return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, client, auditor,
-                currentTimeSupplier, delayedDataDetector, latestFinalBucketEndTimeMs, latestRecordTimeMs);
+        return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
+            client, auditor, currentTimeSupplier, delayedDataDetector, null, latestFinalBucketEndTimeMs, latestRecordTimeMs,
+            haveSeenDataPreviously);
     }
 }

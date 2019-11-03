@@ -68,7 +68,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "2016-03-11")
@@ -97,7 +97,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "2016-03-11")
@@ -119,7 +119,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "2016-03-11")
@@ -141,7 +141,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "2016-03-11")
@@ -168,7 +168,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ThrowingRunnable runnable = () -> mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ThrowingRunnable runnable = () -> mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "2016-03-99")
@@ -185,7 +185,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = mapper2.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper2.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", ":1")
@@ -207,7 +207,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", 1457654400)
@@ -232,10 +232,10 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
-                        .field("field", "Mi., 06 Dez. 2000 02:55:00 -0800")
+                        .field("field", "Mi, 06 Dez 2000 02:55:00 -0800")
                         .endObject()),
                 XContentType.JSON));
     }
@@ -253,7 +253,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("field")
@@ -274,7 +274,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("field")
@@ -340,7 +340,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         final ZoneId randomTimeZone = randomBoolean() ? ZoneId.of(randomFrom("UTC", "CET")) : randomZone();
         final ZonedDateTime randomDate = ZonedDateTime.of(2016, 3, 11, 0, 0, 0, 0, randomTimeZone);
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("field", formatter.format(randomDate))
@@ -380,12 +380,12 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject());
-        DocumentMapper mapper = indexService.mapperService().parse("_doc", new CompressedXContent(mapping), false);
+        DocumentMapper mapper = indexService.mapperService().parse("_doc", new CompressedXContent(mapping));
 
         String mappingUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("date").field("type", "text").endObject()
                 .endObject().endObject().endObject());
-        DocumentMapper update = indexService.mapperService().parse("_doc", new CompressedXContent(mappingUpdate), false);
+        DocumentMapper update = indexService.mapperService().parse("_doc", new CompressedXContent(mappingUpdate));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapper.merge(update.mapping()));

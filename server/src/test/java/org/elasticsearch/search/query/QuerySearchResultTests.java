@@ -48,7 +48,7 @@ public class QuerySearchResultTests extends ESTestCase {
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     public QuerySearchResultTests() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         this.namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 

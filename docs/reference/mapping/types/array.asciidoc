@@ -1,9 +1,9 @@
 [[array]]
-=== Array datatype
+=== Arrays
 
-In Elasticsearch, there is no dedicated `array` type.  Any field can contain
-zero or more values by default, however, all values in the array must be of
-the same datatype. For instance:
+In Elasticsearch, there is no dedicated `array` datatype.  Any field can contain
+zero or more values by default, however, all values in the array must be of the
+same datatype. For instance:
 
 * an array of strings: [ `"one"`, `"two"` ]
 * an array of integers: [ `1`, `2` ]
@@ -38,7 +38,7 @@ Nothing needs to be pre-configured in order to use arrays in documents, they
 are supported out of the box:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index/_doc/1
 {
@@ -75,12 +75,13 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `tags` field is dynamically added as a `string` field.
 <2> The `lists` field is dynamically added as an `object` field.
 <3> The second document contains no arrays, but can be indexed into the same fields.
 <4> The query looks for `elasticsearch` in the `tags` field, and matches both documents.
 
+[[multi-value-fields-inverted-index]]
 .Multi-value fields and the inverted index
 ****************************************************
 

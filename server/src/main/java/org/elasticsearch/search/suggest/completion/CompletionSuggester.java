@@ -49,12 +49,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             final CompletionSuggestionContext suggestionContext, final IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
         if (suggestionContext.getFieldType() != null) {
             final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
-            CompletionSuggestion completionSuggestion =
-                new CompletionSuggestion(name, suggestionContext.getSize(), suggestionContext.isSkipDuplicates());
-            spare.copyUTF8Bytes(suggestionContext.getText());
-            CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(
-                new Text(spare.toString()), 0, spare.length());
-            completionSuggestion.addTerm(completionSuggestEntry);
+            CompletionSuggestion completionSuggestion = emptySuggestion(name, suggestionContext, spare);
             int shardSize = suggestionContext.getShardSize() != null ? suggestionContext.getShardSize() : suggestionContext.getSize();
             TopSuggestGroupDocsCollector collector = new TopSuggestGroupDocsCollector(shardSize, suggestionContext.isSkipDuplicates());
             suggest(searcher, suggestionContext.toQuery(), collector);
@@ -71,7 +66,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 if (numResult++ < suggestionContext.getSize()) {
                     CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(suggestDoc.doc,
                         new Text(suggestDoc.key.toString()), suggestDoc.score, contexts);
-                    completionSuggestEntry.addOption(option);
+                    completionSuggestion.getEntries().get(0).addOption(option);
                 } else {
                     break;
                 }
@@ -95,5 +90,15 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 }
             }
         }
+    }
+
+    @Override
+    protected CompletionSuggestion emptySuggestion(String name, CompletionSuggestionContext suggestion, CharsRefBuilder spare)
+            throws IOException {
+        CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestion.getSize(), suggestion.isSkipDuplicates());
+        spare.copyUTF8Bytes(suggestion.getText());
+        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new Text(spare.toString()), 0, spare.length());
+        completionSuggestion.addTerm(completionSuggestEntry);
+        return completionSuggestion;
     }
 }

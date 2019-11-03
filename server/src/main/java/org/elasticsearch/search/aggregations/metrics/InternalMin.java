@@ -90,12 +90,15 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(min);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), min);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         InternalMin other = (InternalMin) obj;
         return Objects.equals(min, other.min);
     }

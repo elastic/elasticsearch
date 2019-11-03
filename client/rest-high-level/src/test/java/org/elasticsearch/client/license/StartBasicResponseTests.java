@@ -18,50 +18,24 @@
  */
 package org.elasticsearch.client.license;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.PostStartBasicResponse;
-import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
 
-public class StartBasicResponseTests extends
-        AbstractHlrcStreamableXContentTestCase<PostStartBasicResponse, org.elasticsearch.client.license.StartBasicResponse> {
+import static org.hamcrest.Matchers.equalTo;
 
-    @Override
-    public org.elasticsearch.client.license.StartBasicResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.license.StartBasicResponse.fromXContent(parser);
-    }
+public class StartBasicResponseTests extends AbstractResponseTestCase<
+    PostStartBasicResponse, StartBasicResponse> {
 
     @Override
-    public PostStartBasicResponse convertHlrcToInternal(org.elasticsearch.client.license.StartBasicResponse instance) {
-        return new PostStartBasicResponse(PostStartBasicResponse.Status.valueOf(instance.getStatus().name()),
-            instance.getAcknowledgeMessages(), instance.getAcknowledgeMessage());
-    }
-
-    @Override
-    protected PostStartBasicResponse createBlankInstance() {
-        return new PostStartBasicResponse();
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // The structure of the response is such that unknown fields inside acknowledge cannot be supported since they
-        // are treated as messages from new services
-        return p -> p.startsWith("acknowledge");
-    }
-
-    @Override
-    protected PostStartBasicResponse createTestInstance() {
+    protected PostStartBasicResponse createServerTestInstance(XContentType xContentType) {
         PostStartBasicResponse.Status status = randomFrom(PostStartBasicResponse.Status.values());
         String acknowledgeMessage = null;
         Map<String, String[]> ackMessages = Collections.emptyMap();
@@ -70,7 +44,6 @@ public class StartBasicResponseTests extends
             ackMessages = randomAckMessages();
         }
         final PostStartBasicResponse postStartBasicResponse = new PostStartBasicResponse(status, ackMessages, acknowledgeMessage);
-        logger.info("{}", Strings.toString(postStartBasicResponse));
         return postStartBasicResponse;
     }
 
@@ -90,5 +63,23 @@ public class StartBasicResponseTests extends
         }
 
         return ackMessages;
+    }
+
+    @Override
+    protected StartBasicResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return StartBasicResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(PostStartBasicResponse serverTestInstance, StartBasicResponse clientInstance) {
+        assertThat(serverTestInstance.getStatus().name(), equalTo(clientInstance.getStatus().name()));
+        assertThat(serverTestInstance.getStatus().isBasicStarted(), equalTo(clientInstance.isBasicStarted()));
+        assertThat(serverTestInstance.isAcknowledged(), equalTo(clientInstance.isAcknowledged()));
+        assertThat(serverTestInstance.getStatus().getErrorMessage(), equalTo(clientInstance.getErrorMessage()));
+        assertThat(serverTestInstance.getAcknowledgeMessage(), equalTo(clientInstance.getAcknowledgeMessage()));
+        assertThat(serverTestInstance.getAcknowledgeMessages().keySet(), equalTo(clientInstance.getAcknowledgeMessages().keySet()));
+        for(Map.Entry<String, String[]> entry: serverTestInstance.getAcknowledgeMessages().entrySet()) {
+            assertTrue(Arrays.equals(entry.getValue(), clientInstance.getAcknowledgeMessages().get(entry.getKey())));
+        }
     }
 }

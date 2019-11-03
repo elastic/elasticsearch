@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -76,7 +77,6 @@ public class TransportBulkShardOperationsAction
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;
                 operationWithPrimaryTerm = new Translog.Index(
-                    index.type(),
                     index.id(),
                     index.seqNo(),
                     primaryTerm,
@@ -88,7 +88,6 @@ public class TransportBulkShardOperationsAction
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
                 operationWithPrimaryTerm = new Translog.Delete(
-                    delete.type(),
                     delete.id(),
                     delete.uid(),
                     delete.seqNo(),
@@ -144,10 +143,11 @@ public class TransportBulkShardOperationsAction
                     assert failure.getSeqNo() == targetOp.seqNo() : targetOp.seqNo() + " != " + failure.getSeqNo();
                     if (failure.getExistingPrimaryTerm().isPresent()) {
                         appliedOperations.add(rewriteOperationWithPrimaryTerm(sourceOp, failure.getExistingPrimaryTerm().getAsLong()));
-                    } else if (targetOp.seqNo() > primary.getGlobalCheckpoint()) {
-                        assert false : "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getGlobalCheckpoint();
+                    } else if (targetOp.seqNo() > primary.getLastKnownGlobalCheckpoint()) {
+                        assert false :
+                            "can't find primary_term for existing op=" + targetOp + " gcp=" + primary.getLastKnownGlobalCheckpoint();
                         throw new IllegalStateException("can't find primary_term for existing op=" + targetOp +
-                            " global_checkpoint=" + primary.getGlobalCheckpoint(), failure);
+                            " global_checkpoint=" + primary.getLastKnownGlobalCheckpoint(), failure);
                     }
                 } else {
                     assert false : "Only already-processed error should happen; op=[" + targetOp + "] error=[" + result.getFailure() + "]";
@@ -189,8 +189,8 @@ public class TransportBulkShardOperationsAction
     }
 
     @Override
-    protected BulkShardOperationsResponse newResponseInstance() {
-        return new BulkShardOperationsResponse();
+    protected BulkShardOperationsResponse newResponseInstance(StreamInput in) throws IOException {
+        return new BulkShardOperationsResponse(in);
     }
 
     /**

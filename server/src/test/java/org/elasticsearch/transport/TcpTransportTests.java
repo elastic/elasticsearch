@@ -288,7 +288,7 @@ public class TcpTransportTests extends ESTestCase {
         }
     }
 
-    public void testHTTPHeader() throws IOException {
+    public void testHTTPRequest() throws IOException {
         String[] httpHeaders = {"GET", "POST", "PUT", "HEAD", "DELETE", "OPTIONS", "PATCH", "TRACE"};
 
         for (String httpHeader : httpHeaders) {
@@ -304,9 +304,54 @@ public class TcpTransportTests extends ESTestCase {
                 TcpTransport.decodeFrame(bytes);
                 fail("Expected exception");
             } catch (Exception ex) {
-                assertThat(ex, instanceOf(TcpTransport.HttpOnTransportException.class));
+                assertThat(ex, instanceOf(TcpTransport.HttpRequestOnTransportException.class));
                 assertEquals("This is not an HTTP port", ex.getMessage());
             }
+        }
+    }
+
+    public void testTLSHeader() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+
+        streamOutput.write(0x16);
+        streamOutput.write(0x03);
+        byte byte1 = randomByte();
+        streamOutput.write(byte1);
+        byte byte2 = randomByte();
+        streamOutput.write(byte2);
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+
+        try {
+            BytesReference bytes = streamOutput.bytes();
+            TcpTransport.decodeFrame(bytes);
+            fail("Expected exception");
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(StreamCorruptedException.class));
+            String expected = "SSL/TLS request received but SSL/TLS is not enabled on this node, got (16,3,"
+                    + Integer.toHexString(byte1 & 0xFF) + ","
+                    + Integer.toHexString(byte2 & 0xFF) + ")";
+            assertEquals(expected, ex.getMessage());
+        }
+    }
+
+    public void testHTTPResponse() throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput(1 << 14);
+        streamOutput.write('H');
+        streamOutput.write('T');
+        streamOutput.write('T');
+        streamOutput.write('P');
+        streamOutput.write(randomByte());
+        streamOutput.write(randomByte());
+
+        try {
+            TcpTransport.decodeFrame(streamOutput.bytes());
+            fail("Expected exception");
+        } catch (Exception ex) {
+            assertThat(ex, instanceOf(StreamCorruptedException.class));
+            assertEquals("received HTTP response on transport port, ensure that transport port " +
+                    "(not HTTP port) of a remote node is specified in the configuration", ex.getMessage());
         }
     }
 }

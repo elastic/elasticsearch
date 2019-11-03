@@ -18,7 +18,6 @@ public class ReservedFieldNamesTests extends ESTestCase {
         assertFalse(ReservedFieldNames.isValidFieldName("actual.host"));
         assertFalse(ReservedFieldNames.isValidFieldName(AnomalyRecord.BUCKET_SPAN.getPreferredName()));
         assertFalse(ReservedFieldNames.isValidFieldName(GetResult._INDEX));
-        assertFalse(ReservedFieldNames.isValidFieldName(GetResult._TYPE));
         assertFalse(ReservedFieldNames.isValidFieldName(GetResult._ID));
     }
 }

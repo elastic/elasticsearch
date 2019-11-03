@@ -38,7 +38,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.util.Arrays;
@@ -59,8 +58,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@TestLogging("_root:DEBUG,org.elasticsearch.action.admin.indices.shards:TRACE,org.elasticsearch.cluster.service:TRACE," +
-    "org.elasticsearch.gateway.TransportNodesListGatewayStartedShards:TRACE")
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
     @Override
@@ -216,7 +213,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(10, 20);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index, "type").setSource("field", "value");
+            builders[i] = client().prepareIndex(index).setSource("field", "value");
         }
         indexRandom(true, builders);
         client().admin().indices().prepareFlush().setForce(true).execute().actionGet();

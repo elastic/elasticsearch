@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -46,13 +44,10 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.locationtech.spatial4j.shape.Point;
+import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
 import org.locationtech.spatial4j.shape.Shape;
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -79,7 +74,7 @@ import java.util.Objects;
  * @deprecated use {@link GeoShapeFieldMapper}
  */
 @Deprecated
-public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
+public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<ShapeBuilder<?, ?, ?>, Shape> {
 
     public static final String CONTENT_TYPE = "geo_shape";
 
@@ -183,7 +178,8 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
     private static final Logger logger = LogManager.getLogger(LegacyGeoShapeFieldMapper.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
-    public static class Builder extends BaseGeoShapeFieldMapper.Builder<BaseGeoShapeFieldMapper.Builder, LegacyGeoShapeFieldMapper> {
+    public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder,
+        LegacyGeoShapeFieldMapper> {
 
         DeprecatedParameters deprecatedParameters;
 
@@ -268,6 +264,10 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
 
+            fieldType().setGeometryIndexer(new LegacyGeoShapeIndexer(fieldType()));
+            fieldType().setGeometryParser(ShapeParser::parse);
+            fieldType().setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(fieldType()));
+
             // field mapper handles this at build time
             // but prefix tree strategies require a name, so throw a similar exception
             if (fieldType().name().isEmpty()) {
@@ -297,7 +297,7 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         }
     }
 
-    public static final class GeoShapeFieldType extends BaseGeoShapeFieldType {
+    public static final class GeoShapeFieldType extends AbstractGeometryFieldType {
 
         private String tree = DeprecatedParameters.Defaults.TREE;
         private SpatialStrategy strategy = DeprecatedParameters.Defaults.STRATEGY;
@@ -353,6 +353,11 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         public int hashCode() {
             return Objects.hash(super.hashCode(), tree, strategy, pointsOnly, treeLevels, precisionInMeters, distanceErrorPct,
                     defaultDistanceErrorPct);
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -477,51 +482,7 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
-        try {
-            Shape shape = context.parseExternalValue(Shape.class);
-            if (shape == null) {
-                ShapeBuilder shapeBuilder = ShapeParser.parse(context.parser(), this);
-                if (shapeBuilder == null) {
-                    return;
-                }
-                shape = shapeBuilder.buildS4J();
-            }
-            if (fieldType().pointsOnly() == true) {
-                // index configured for pointsOnly
-                if (shape instanceof XShapeCollection && XShapeCollection.class.cast(shape).pointsOnly()) {
-                    // MULTIPOINT data: index each point separately
-                    List<Shape> shapes = ((XShapeCollection) shape).getShapes();
-                    for (Shape s : shapes) {
-                        indexShape(context, s);
-                    }
-                    return;
-                } else if (shape instanceof Point == false) {
-                    throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a "
-                        + ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass())
-                        + " was found");
-                }
-            }
-            indexShape(context, shape);
-        } catch (Exception e) {
-            if (ignoreMalformed.value() == false) {
-                throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
-                    fieldType().typeName());
-            }
-            context.addIgnoredField(fieldType.name());
-        }
-    }
-
-    private void indexShape(ParseContext context, Shape shape) {
-        List<IndexableField> fields = new ArrayList<>(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(shape)));
-        createFieldNamesField(context, fields);
-        for (IndexableField field : fields) {
-            context.doc().add(field);
-        }
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
         if (includeDefaults
@@ -570,5 +531,21 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
                 builder.field(DeprecatedParameters.Names.POINTS_ONLY.getPreferredName(), fieldType().pointsOnly());
             }
         }
+    }
+
+    @Override
+    protected void doMerge(Mapper mergeWith) {
+        if (mergeWith instanceof GeoShapeFieldMapper) {
+            GeoShapeFieldMapper fieldMapper = (GeoShapeFieldMapper) mergeWith;
+            throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
+                "using [" + fieldType().strategy() + "] strategy cannot be merged with " + "[" + fieldMapper.typeName() +
+                "] with [BKD] strategy");
+        }
+        super.doMerge(mergeWith);
+    }
+
+    @Override
+    protected String contentType() {
+        return CONTENT_TYPE;
     }
 }

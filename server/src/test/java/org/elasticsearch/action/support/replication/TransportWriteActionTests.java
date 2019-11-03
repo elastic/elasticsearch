@@ -417,7 +417,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
 
         @Override
-        protected TestResponse newResponseInstance() {
+        protected TestResponse newResponseInstance(StreamInput in) throws IOException {
             return new TestResponse();
         }
 

@@ -34,14 +34,14 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
                 .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null, randomBoolean())
                 .get();
         new PutUserRequestBuilder(client()).username("other")
-            .password(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests())
+            .password(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING, getFastStoredHashAlgoForTests())
             .roles("scrollable")
             .get();
 
         final int numDocs = randomIntBetween(4, 16);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < docs.length; i++) {
-            docs[i] = client().prepareIndex("foo", "bar").setSource("doc", i);
+            docs[i] = client().prepareIndex("foo").setSource("doc", i);
         }
         indexRandom(true, docs);
 
@@ -74,7 +74,7 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
     public void testSearchAndClearScroll() throws Exception {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[randomIntBetween(20, 100)];
         for (int i = 0; i < docs.length; i++) {
-            docs[i] = client().prepareIndex("idx", "type").setSource("field", "value");
+            docs[i] = client().prepareIndex("idx").setSource("field", "value");
         }
         indexRandom(true, docs);
         SearchResponse response = client().prepareSearch()

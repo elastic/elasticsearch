@@ -93,7 +93,7 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (bucketsPaths.length != 1) {
             throw new IllegalStateException(BUCKETS_PATH.getPreferredName()
@@ -162,12 +162,15 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(format);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         CumulativeSumPipelineAggregationBuilder other = (CumulativeSumPipelineAggregationBuilder) obj;
         return Objects.equals(format, other.format);
     }

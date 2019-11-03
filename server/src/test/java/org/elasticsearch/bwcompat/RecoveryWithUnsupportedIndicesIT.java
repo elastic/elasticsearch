@@ -20,8 +20,10 @@ package org.elasticsearch.bwcompat;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -41,7 +43,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
     /**
      * Return settings that could be used to start a node that has the given zipped home directory.
      */
-    protected Settings prepareBackwardsDataDir(Path backwardsIndex) throws IOException {
+    private Settings prepareBackwardsDataDir(Path backwardsIndex) throws IOException {
         Path indexDir = createTempDir();
         Path dataDir = indexDir.resolve("data");
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
@@ -84,8 +86,9 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
         String indexName = "unsupported-2.4.5";
 
         logger.info("Checking static index {}", indexName);
-        Settings nodeSettings = prepareBackwardsDataDir(getBwcIndicesPath().resolve(indexName + ".zip"));
-        assertThat(expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings))
-            .getCause().getCause().getMessage(), containsString("Format version is not supported"));
+        Settings nodeSettings = prepareBackwardsDataDir(getDataPath("/indices/bwc").resolve(indexName + ".zip"));
+        assertThat(ExceptionsHelper.unwrap(
+            expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)), CorruptStateException.class).getMessage(),
+            containsString("Format version is not supported"));
     }
 }

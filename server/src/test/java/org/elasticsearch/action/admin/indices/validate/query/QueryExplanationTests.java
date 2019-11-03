@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
-public class QueryExplanationTests extends AbstractStreamableXContentTestCase<QueryExplanation> {
+public class QueryExplanationTests extends AbstractSerializingTestCase<QueryExplanation> {
 
     static QueryExplanation createRandomQueryExplanation(boolean isValid) {
         String index = "index_" + randomInt(1000);
@@ -48,12 +49,12 @@ public class QueryExplanationTests extends AbstractStreamableXContentTestCase<Qu
     }
 
     @Override
-    protected QueryExplanation createBlankInstance() {
-        return new QueryExplanation();
+    protected QueryExplanation createTestInstance() {
+        return createRandomQueryExplanation();
     }
 
     @Override
-    protected QueryExplanation createTestInstance() {
-        return createRandomQueryExplanation();
+    protected Writeable.Reader<QueryExplanation> instanceReader() {
+        return QueryExplanation::new;
     }
 }

@@ -11,9 +11,9 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
@@ -24,15 +24,15 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * This test makes sure that the index action response `index` and `type` fields in the watch_record action result are
- * not analyzed so they can be used in aggregations
+ * This test makes sure that the index action response `index` field in the watch_record action result is
+ * not analyzed so it can be used in aggregations
  */
 public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     public void testIndexActionFields() throws Exception {
         String index = "the-index";
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5m")))
                 .addAction("index", indexAction(index)))
                 .get();
@@ -48,8 +48,7 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         refresh();
 
         SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
-                .aggregation(terms("index_action_indices").field("result.actions.index.response.index"))
-                .aggregation(terms("index_action_types").field("result.actions.index.response.type")))
+                .aggregation(terms("index_action_indices").field("result.actions.index.response.index")))
                 .get();
 
         assertThat(response, notNullValue());
@@ -62,11 +61,5 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         assertThat(terms.getBuckets().size(), is(1));
         assertThat(terms.getBucketByKey(index), notNullValue());
         assertThat(terms.getBucketByKey(index).getDocCount(), is(1L));
-
-        terms = aggs.get("index_action_types");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getBuckets().size(), is(1));
-        assertThat(terms.getBucketByKey(SINGLE_MAPPING_NAME), notNullValue());
-        assertThat(terms.getBucketByKey(SINGLE_MAPPING_NAME).getDocCount(), is(1L));
     }
 }

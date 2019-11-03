@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 
 import java.util.Arrays;
 import java.util.List;
@@ -91,10 +92,29 @@ public class RealmSettings {
                     return settingsByName.names().stream().map(name -> {
                         final RealmConfig.RealmIdentifier id = new RealmConfig.RealmIdentifier(type, name);
                         final Settings realmSettings = settingsByName.getAsSettings(name);
+                        verifyRealmSettings(id, realmSettings);
                         return new Tuple<>(id, realmSettings);
                     });
                 })
                 .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+    }
+
+    /**
+     * Performs any necessary verifications on a realms settings that are not automatically applied by Settings validation infrastructure.
+     */
+    private static void verifyRealmSettings(RealmConfig.RealmIdentifier identifier, Settings realmSettings) {
+        final Settings nonSecureSettings = Settings.builder().put(realmSettings, false).build();
+        if (nonSecureSettings.isEmpty()) {
+            final String prefix = realmSettingPrefix(identifier);
+            throw new SettingsException(
+                "found settings for the realm [{}] (with type [{}]) in the secure settings (elasticsearch.keystore)," +
+                    " but this realm does not have any settings in elasticsearch.yml." +
+                    " Please remove these settings from the keystore, or update their names to match one of the realms that are" +
+                    " defined in elasticsearch.yml - [{}]",
+                identifier.getName(), identifier.getType(),
+                realmSettings.keySet().stream().map(k -> prefix + k).collect(Collectors.joining(","))
+            );
+        }
     }
 
     public static String getFullSettingKey(String realmName, Setting.AffixSetting<?> setting) {

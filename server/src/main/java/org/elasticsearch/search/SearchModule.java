@@ -73,7 +73,6 @@ import org.elasticsearch.index.query.SpanWithinQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
-import org.elasticsearch.index.query.TypeQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ExponentialDecayFunctionBuilder;
@@ -153,9 +152,13 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Scrip
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.StringRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.UnmappedRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
@@ -279,7 +282,6 @@ public class SearchModule {
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting("indices.query.bool.max_clause_count",
             1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
-    private final boolean transportClient;
     private final Map<String, Highlighter> highlighters;
     private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = new ParseFieldRegistry<>(
             "significance_heuristic");
@@ -295,14 +297,11 @@ public class SearchModule {
      *
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
      *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
-     *
-     * @param settings Current settings
-     * @param transportClient Is this being constructed in the TransportClient or not
+     *  @param settings Current settings
      * @param plugins List of included {@link SearchPlugin} objects.
      */
-    public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
+    public SearchModule(Settings settings, List<SearchPlugin> plugins) {
         this.settings = settings;
-        this.transportClient = transportClient;
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
@@ -394,6 +393,11 @@ public class SearchModule {
                     .addResultReader(UnmappedTerms.NAME, UnmappedTerms::new)
                     .addResultReader(LongTerms.NAME, LongTerms::new)
                     .addResultReader(DoubleTerms.NAME, DoubleTerms::new));
+        registerAggregation(new AggregationSpec(RareTermsAggregationBuilder.NAME, RareTermsAggregationBuilder::new,
+                RareTermsAggregationBuilder::parse)
+                    .addResultReader(StringRareTerms.NAME, StringRareTerms::new)
+                    .addResultReader(UnmappedRareTerms.NAME, UnmappedRareTerms::new)
+                    .addResultReader(LongRareTerms.NAME, LongRareTerms::new));
         registerAggregation(new AggregationSpec(SignificantTermsAggregationBuilder.NAME, SignificantTermsAggregationBuilder::new,
                 SignificantTermsAggregationBuilder.getParser(significanceHeuristicParserRegistry))
                     .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)
@@ -437,12 +441,10 @@ public class SearchModule {
     }
 
     private void registerAggregation(AggregationSpec spec) {
-        if (false == transportClient) {
-            namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
-                AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
-                return spec.getParser().parse(context.name, p);
-            }));
-        }
+        namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
+            AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
+            return spec.getParser().parse(context.name, p);
+        }));
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.getResultReaders().entrySet()) {
@@ -538,12 +540,10 @@ public class SearchModule {
     }
 
     private void registerPipelineAggregation(PipelineAggregationSpec spec) {
-        if (false == transportClient) {
-            namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
-                AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
-                return spec.getParser().parse(context.name, p);
-            }));
-        }
+        namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
+            AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
+            return spec.getParser().parse(context.name, p);
+        }));
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedWriteables.add(
@@ -566,9 +566,7 @@ public class SearchModule {
     }
 
     private void registerRescorer(RescorerSpec<?> spec) {
-        if (false == transportClient) {
-            namedXContents.add(new NamedXContentRegistry.Entry(RescorerBuilder.class, spec.getName(), (p, c) -> spec.getParser().apply(p)));
-        }
+        namedXContents.add(new NamedXContentRegistry.Entry(RescorerBuilder.class, spec.getName(), (p, c) -> spec.getParser().apply(p)));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
@@ -668,6 +666,7 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new);
         registerValueFormat(DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new);
         registerValueFormat(DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
+        registerValueFormat(DocValueFormat.GEOTILE.getWriteableName(), in -> DocValueFormat.GEOTILE);
         registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
         registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);
@@ -773,7 +772,6 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(ScriptScoreQueryBuilder.NAME, ScriptScoreQueryBuilder::new, ScriptScoreQueryBuilder::fromXContent));
         registerQuery(
                 new QuerySpec<>(SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(TypeQueryBuilder.NAME, TypeQueryBuilder::new, TypeQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(ScriptQueryBuilder.NAME, ScriptQueryBuilder::new, ScriptQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(GeoDistanceQueryBuilder.NAME, GeoDistanceQueryBuilder::new, GeoDistanceQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(GeoBoundingBoxQueryBuilder.NAME, GeoBoundingBoxQueryBuilder::new,
@@ -802,6 +800,10 @@ public class SearchModule {
             IntervalsSourceProvider.Combine.NAME, IntervalsSourceProvider.Combine::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
             IntervalsSourceProvider.Disjunction.NAME, IntervalsSourceProvider.Disjunction::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+            IntervalsSourceProvider.Prefix.NAME, IntervalsSourceProvider.Prefix::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
+            IntervalsSourceProvider.Wildcard.NAME, IntervalsSourceProvider.Wildcard::new));
     }
 
     private void registerQuery(QuerySpec<?> spec) {

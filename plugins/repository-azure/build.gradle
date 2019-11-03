@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -23,10 +25,11 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.microsoft.azure:azure-storage:8.0.0'
+  compile 'com.microsoft.azure:azure-storage:8.4.0'
   compile 'com.microsoft.azure:azure-keyvault-core:1.0.0'
   compile 'com.google.guava:guava:20.0'
   compile 'org.apache.commons:commons-lang3:3.4'
+  testCompile project(':test:fixtures:azure-fixture')
 }
 
 dependencyLicenses {
@@ -76,6 +79,7 @@ String azureAccount = System.getenv("azure_storage_account")
 String azureKey = System.getenv("azure_storage_key")
 String azureContainer = System.getenv("azure_storage_container")
 String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
 
 test {
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
@@ -85,10 +89,11 @@ task thirdPartyTest(type: Test) {
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
   systemProperty 'test.azure.key', azureKey ? azureKey : ""
+  systemProperty 'test.azure.sas_token', azureSasToken ? azureSasToken : ""
   systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
-  systemProperty 'test.azure.base', azureBasePath ? azureBasePath : ""
+  systemProperty 'test.azure.base', (azureBasePath ? azureBasePath : "") + "_third_party_tests_" + BuildParams.testSeed
 }
 
-if (azureAccount || azureKey || azureContainer || azureBasePath) {
+if (azureAccount || azureKey || azureContainer || azureBasePath || azureSasToken) {
   check.dependsOn(thirdPartyTest)
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -47,8 +48,8 @@ public abstract class ESBlobStoreTestCase extends ESTestCase {
             assertArrayEquals(readBlobFully(containerFoo, "test", data1.length), data1);
             assertArrayEquals(readBlobFully(containerBar, "test", data2.length), data2);
 
-            assertTrue(containerFoo.blobExists("test"));
-            assertTrue(containerBar.blobExists("test"));
+            assertTrue(BlobStoreTestUtil.blobExists(containerFoo, "test"));
+            assertTrue(BlobStoreTestUtil.blobExists(containerBar, "test"));
         }
     }
 

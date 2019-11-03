@@ -34,7 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-
+import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -80,7 +80,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String index;
 
     @Before
-    public void setIndex() throws IOException {
+    public void setIndex() {
         index = getTestName().toLowerCase(Locale.ROOT);
     }
 
@@ -235,8 +235,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
 
         // Check some global properties:
-        String clusterName = (String) clusterState.get("cluster_name");
-        assertEquals("full-cluster-restart", clusterName);
         String numberOfShards = (String) XContentMapValues.extractValue(
             "metadata.templates.template_1.settings.index.number_of_shards", clusterState);
         assertEquals("1", numberOfShards);
@@ -674,23 +672,21 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // make sure all recoveries are done
             ensureGreen(index);
-            // Recovering a synced-flush index from 5.x to 6.x might be subtle as a 5.x index commit does not have all 6.x commit tags.
+
+            // Force flush so we're sure that all translog are committed
+            Request flushRequest = new Request("POST", "/" + index + "/_flush");
+            flushRequest.addParameter("force", "true");
+            flushRequest.addParameter("wait_if_ongoing", "true");
+            assertOK(client().performRequest(flushRequest));
+
             if (randomBoolean()) {
-                // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-                // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-                assertBusy(() -> {
-                    try {
-                        Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
-                        Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                        assertThat(result.get("successful"), equalTo(result.get("total")));
-                        assertThat(result.get("failed"), equalTo(0));
-                    } catch (ResponseException ex) {
-                        throw new AssertionError(ex); // cause assert busy to retry
-                    }
-                });
-            } else {
-                // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
-                assertOK(client().performRequest(new Request("POST", "/_flush")));
+                // We had a bug before where we failed to perform peer recovery with sync_id from 5.x to 6.x.
+                // We added this synced flush so we can exercise different paths of recovery code.
+                try {
+                    client().performRequest(new Request("POST", index + "/_flush/synced"));
+                } catch (ResponseException ignored) {
+                    // synced flush is optional here
+                }
             }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
@@ -1048,19 +1044,26 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
-        Map<String, Object> listSnapshotResponse = entityAsMap(client().performRequest(listSnapshotRequest));
-        assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", listSnapshotResponse));
-        assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", listSnapshotResponse));
-        assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
+        Map<String, Object> responseMap = entityAsMap(client().performRequest(listSnapshotRequest));
+        Map<String, Object> snapResponse;
+        if (responseMap.get("responses") != null) {
+            snapResponse = (Map<String, Object>) ((List<Object>) responseMap.get("responses")).get(0);
+        } else {
+            snapResponse = responseMap;
+        }
+
+        assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
+        assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
+        assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", snapResponse));
 
         // Remove the routing setting and template so we can test restoring them.
         Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
         clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
         client().performRequest(clearRoutingFromSettings);
-
         client().performRequest(new Request("DELETE", "/_template/test_template"));
 
         // Restore
@@ -1222,5 +1225,27 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         logger.info("health api response: {}", healthRsp);
         assertEquals("green", healthRsp.get("status"));
         assertFalse((Boolean) healthRsp.get("timed_out"));
+    }
+
+    public void testPeerRecoveryRetentionLeases() throws IOException {
+        if (isRunningAgainstOldCluster()) {
+            XContentBuilder settings = jsonBuilder();
+            settings.startObject();
+            {
+                settings.startObject("settings");
+                settings.field("number_of_shards", between(1, 5));
+                settings.field("number_of_replicas", between(0, 1));
+                settings.endObject();
+            }
+            settings.endObject();
+
+            Request createIndex = new Request("PUT", "/" + index);
+            createIndex.setJsonEntity(Strings.toString(settings));
+            client().performRequest(createIndex);
+            ensureGreen(index);
+        } else {
+            ensureGreen(index);
+            RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index);
+        }
     }
 }

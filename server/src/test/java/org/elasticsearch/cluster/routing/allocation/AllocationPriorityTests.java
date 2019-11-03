@@ -80,18 +80,18 @@ public class AllocationPriorityTests extends ESAllocationTestCase {
         assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
         assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
 
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertEquals(2, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
         assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
         assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
 
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertEquals(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).toString(),2,
             clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
         assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
         assertEquals(highPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());
 
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertEquals(2, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size());
         assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(0).getIndexName());
         assertEquals(lowPriorityName, clusterState.getRoutingNodes().shardsWithState(INITIALIZING).get(1).getIndexName());

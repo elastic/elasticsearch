@@ -150,6 +150,11 @@ public class Reconfigurator {
 
         @Override
         public int compareTo(VotingConfigNode other) {
+            // prefer current master
+            final int currentMasterComp = Boolean.compare(other.currentMaster, currentMaster);
+            if (currentMasterComp != 0) {
+                return currentMasterComp;
+            }
             // prefer nodes that are live
             final int liveComp = Boolean.compare(other.live, live);
             if (liveComp != 0) {
@@ -159,11 +164,6 @@ public class Reconfigurator {
             final int inCurrentConfigComp = Boolean.compare(other.inCurrentConfig, inCurrentConfig);
             if (inCurrentConfigComp != 0) {
                 return inCurrentConfigComp;
-            }
-            // prefer current master
-            final int currentMasterComp = Boolean.compare(other.currentMaster, currentMaster);
-            if (currentMasterComp != 0) {
-                return currentMasterComp;
             }
             // tiebreak by node id to have stable ordering
             return id.compareTo(other.id);

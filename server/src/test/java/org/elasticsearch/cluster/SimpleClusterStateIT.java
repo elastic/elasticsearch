@@ -51,7 +51,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
@@ -84,9 +83,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
     @Before
     public void indexData() throws Exception {
-        index("foo", "bar", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
-        index("fuu", "buu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
-        index("baz", "baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
+        index("foo", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
+        index("fuu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
+        index("baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
         refresh();
     }
 
@@ -245,20 +244,20 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .setTimeout("60s").get());
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
         MappingMetaData masterMappingMetaData = client().admin().indices()
-            .prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
+            .prepareGetMappings("test").get().getMappings().get("test");
         for (Client client : clients()) {
             MappingMetaData mappingMetadata = client.admin().indices()
-                .prepareGetMappings("test").setTypes("type").setLocal(true).get().getMappings().get("test").get("type");
+                .prepareGetMappings("test").setLocal(true).get().getMappings().get("test");
             assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetaData.source().string()));
             assertThat(mappingMetadata, equalTo(masterMappingMetaData));
         }
     }
 
-    @TestLogging("org.elasticsearch.action.admin.indices.close:DEBUG,org.elasticsearch.cluster.metadata:DEBUG")
     public void testIndicesOptions() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
                 .get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(2));
+        ensureGreen("fuu");
 
         // close one index
         assertAcked(client().admin().indices().close(Requests.closeIndexRequest("fuu")).get());

@@ -5,36 +5,40 @@
 <titleabbrev>Authenticate</titleabbrev>
 ++++
 
-The Authenticate API enables you to submit a request with a basic auth header to
+Enables you to submit a request with a basic auth header to
 authenticate a user and retrieve information about the authenticated user.
 
 
-==== Request
+[[security-api-authenticate-request]]
+==== {api-request-title}
 
 `GET /_security/_authenticate`
 
-
-==== Description
+[[security-api-authenticate-desc]]
+==== {api-description-title}
 
 A successful call returns a JSON structure that shows user information such as their username, the roles that are
 assigned to the user, any assigned metadata, and information about the realms that authenticated and authorized the user.
 
+[[security-api-authenticate-response-codes]]
+==== {api-response-codes-title}
+
 If the user cannot be authenticated, this API returns a 401 status code.
 
-==== Examples
+[[security-api-authenticate-example]]
+==== {api-examples-title}
 
 To authenticate a user, submit a GET request to the
 `/_security/_authenticate` endpoint:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/_authenticate
 --------------------------------------------------
-// CONSOLE
 
 The following example output provides information about the "rdeniro" user:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "username": "rdeniro",

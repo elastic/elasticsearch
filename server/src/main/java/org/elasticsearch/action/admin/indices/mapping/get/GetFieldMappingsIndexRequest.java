@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -31,14 +30,20 @@ import java.io.IOException;
 
 public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMappingsIndexRequest> {
 
-    private boolean probablySingleFieldRequest;
-    private boolean includeDefaults;
-    private String[] fields = Strings.EMPTY_ARRAY;
-    private String[] types = Strings.EMPTY_ARRAY;
+    private final boolean probablySingleFieldRequest;
+    private final boolean includeDefaults;
+    private final String[] fields;
+    private final String[] types;
 
     private OriginalIndices originalIndices;
 
-    public GetFieldMappingsIndexRequest() {
+    GetFieldMappingsIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        types = in.readStringArray();
+        fields = in.readStringArray();
+        includeDefaults = in.readBoolean();
+        probablySingleFieldRequest = in.readBoolean();
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     GetFieldMappingsIndexRequest(GetFieldMappingsRequest other, String index, boolean probablySingleFieldRequest) {
@@ -90,16 +95,6 @@ public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMap
         out.writeBoolean(includeDefaults);
         out.writeBoolean(probablySingleFieldRequest);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        types = in.readStringArray();
-        fields = in.readStringArray();
-        includeDefaults = in.readBoolean();
-        probablySingleFieldRequest = in.readBoolean();
-        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
 }

@@ -69,9 +69,7 @@ public class TransportForceMergeAction
 
     @Override
     protected ForceMergeRequest readRequestFrom(StreamInput in) throws IOException {
-        final ForceMergeRequest request = new ForceMergeRequest();
-        request.readFrom(in);
-        return request;
+        return new ForceMergeRequest(in);
     }
 
     @Override

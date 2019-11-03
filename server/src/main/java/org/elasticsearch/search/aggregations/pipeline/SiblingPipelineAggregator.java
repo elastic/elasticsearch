@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
-    SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
+    protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
         super(name, bucketsPaths, metaData);
     }
 

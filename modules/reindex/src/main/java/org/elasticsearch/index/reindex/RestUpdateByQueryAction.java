@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -39,8 +38,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_LANG;
 
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
-    public RestUpdateByQueryAction(Settings settings, RestController controller) {
-        super(settings, UpdateByQueryAction.INSTANCE);
+    public RestUpdateByQueryAction(RestController controller) {
+        super(UpdateByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
     }
 
@@ -66,6 +65,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
         consumers.put("script", o -> internal.setScript(parseScript(o)));
+        consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
 
         parseInternalRequest(internal, request, consumers);
 

@@ -104,7 +104,7 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
 
         logger.info("Start the primary shard (on node1)");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        newState = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node("node1"));
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -127,7 +127,7 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
 
         logger.info("Start the backup shard");
         routingNodes = clusterState.getRoutingNodes();
-        newState = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node("node2"));
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
@@ -162,7 +162,7 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
 
         logger.info("Start the shards on node 3");
         routingNodes = clusterState.getRoutingNodes();
-        newState = strategy.applyStartedShards(clusterState, routingNodes.node("node3").shardsWithState(INITIALIZING));
+        newState = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node("node3"));
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();

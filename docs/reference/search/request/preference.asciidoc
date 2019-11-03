@@ -1,5 +1,5 @@
-[[search-request-preference]]
-=== Preference
+[[request-body-search-preference]]
+==== Preference
 
 Controls a `preference` of the shard copies on which to execute the search.  By
 default, Elasticsearch selects from the available shard copies in an
@@ -55,7 +55,7 @@ Custom (string) value::
 
 For instance, use the user's session ID `xyzabc123` as follows:
 
-[source,js]
+[source,console]
 ------------------------------------------------
 GET /_search?preference=xyzabc123
 {
@@ -66,7 +66,6 @@ GET /_search?preference=xyzabc123
     }
 }
 ------------------------------------------------
-// CONSOLE
 
 This can be an effective strategy to increase usage of e.g. the request cache for
 unique users running similar searches repeatedly by always hitting the same cache, while

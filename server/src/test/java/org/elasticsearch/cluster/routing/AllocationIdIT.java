@@ -52,7 +52,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -174,14 +173,14 @@ public class AllocationIdIT extends ESIntegTestCase {
         assertThat(indexHealthStatus, is(healthStatus));
     }
 
-    private int indexDocs(String indexName, Object ... source) throws InterruptedException, ExecutionException {
+    private int indexDocs(String indexName, Object ... source) throws InterruptedException {
         // index some docs in several segments
         int numDocs = 0;
         for (int k = 0, attempts = randomIntBetween(5, 10); k < attempts; k++) {
             final int numExtraDocs = between(10, 100);
             IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
             for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName, "type").setSource(source);
+                builders[i] = client().prepareIndex(indexName).setSource(source);
             }
 
             indexRandom(true, false, true, Arrays.asList(builders));
@@ -192,9 +191,7 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private Path getIndexPath(String nodeName, ShardId shardId) {
-        final Set<Path> indexDirs = RemoveCorruptedShardDataCommandIT.getDirs(nodeName, shardId, ShardPath.INDEX_FOLDER_NAME);
-        assertThat(indexDirs, hasSize(1));
-        return indexDirs.iterator().next();
+        return RemoveCorruptedShardDataCommandIT.getPathToShardData(nodeName, shardId, ShardPath.INDEX_FOLDER_NAME);
     }
 
     private Set<String> getAllocationIds(String indexName) {
@@ -211,8 +208,10 @@ public class AllocationIdIT extends ESIntegTestCase {
 
     private String historyUUID(String node, String indexName) {
         final ShardStats[] shards = client(node).admin().indices().prepareStats(indexName).clear().get().getShards();
+        final String nodeId = client(node).admin().cluster().prepareState().get().getState().nodes().resolveNode(node).getId();
         assertThat(shards.length, greaterThan(0));
         final Set<String> historyUUIDs = Arrays.stream(shards)
+            .filter(shard -> shard.getShardRouting().currentNodeId().equals(nodeId))
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY))
             .collect(Collectors.toSet());
         assertThat(historyUUIDs, hasSize(1));

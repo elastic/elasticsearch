@@ -1,20 +1,29 @@
 [[cluster-get-settings]]
-== Cluster Get Settings
+=== Cluster get settings API
+++++
+<titleabbrev>Cluster get settings</titleabbrev>
+++++
 
-The cluster get settings API allows to retrieve the cluster wide settings.
+Returns cluster-wide settings.
 
-[source,js]
---------------------------------------------------
-GET /_cluster/settings
---------------------------------------------------
-// CONSOLE
+`GET /_cluster/settings`
 
-Or
-[source,js]
---------------------------------------------------
-GET /_cluster/settings?include_defaults=true
---------------------------------------------------
-// CONSOLE
+[[cluster-get-settings-api-desc]]
+==== {api-description-title}
 
-In the second example above, the parameter `include_defaults` ensures that the settings which were not set explicitly
-are also returned. By default `include_defaults` is set to false.
+By default, this API call only returns settings that have been explicitly 
+defined, but can also include the default settings by calling the 
+`include_defaults` parameter.
+
+
+[[cluster-get-settings-api-query-params]]
+==== {api-query-parms-title}
+
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+`include_defaults`::
+    (Optional, boolean) If `true`, returns all default cluster settings. 
+    Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

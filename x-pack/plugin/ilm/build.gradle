@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-ilm'
     description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
-    classname 'org.elasticsearch.xpack.indexlifecycle.IndexLifecycle'
+    classname 'org.elasticsearch.xpack.ilm.IndexLifecycle'
     extendedPlugins = ['x-pack-core']
     hasNativeController false
     requiresKeystore true
@@ -15,9 +15,6 @@ archivesBaseName = 'x-pack-ilm'
 dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
 }
 
 // add all sub-projects of the qa sub-project
@@ -30,4 +27,3 @@ gradle.projectsEvaluated {
 }
 
 integTest.enabled = false
-

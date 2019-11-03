@@ -430,20 +430,20 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    public void testWriteStreamableList() throws IOException {
+    public void testWriteWriteableList() throws IOException {
         final int size = randomIntBetween(0, 5);
-        final List<TestStreamable> expected = new ArrayList<>(size);
+        final List<TestWriteable> expected = new ArrayList<>(size);
 
         for (int i = 0; i < size; ++i) {
-            expected.add(new TestStreamable(randomBoolean()));
+            expected.add(new TestWriteable(randomBoolean()));
         }
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeStreamableList(expected);
+        out.writeList(expected);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final List<TestStreamable> loaded = in.readStreamableList(TestStreamable::new);
+        final List<TestWriteable> loaded = in.readList(TestWriteable::new);
 
         assertThat(loaded, hasSize(expected.size()));
 
@@ -587,18 +587,15 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    private static class TestStreamable implements Streamable {
+    private static class TestWriteable implements Writeable {
 
         private boolean value;
 
-        TestStreamable() { }
-
-        TestStreamable(boolean value) {
+        TestWriteable(boolean value) {
             this.value = value;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        TestWriteable(StreamInput in) throws IOException {
             value = in.readBoolean();
         }
 

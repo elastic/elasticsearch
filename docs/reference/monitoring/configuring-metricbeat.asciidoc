@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="gold"]
 [[configuring-metricbeat]]
-=== Collecting {es} monitoring data with {metricbeat}
+== Collecting {es} monitoring data with {metricbeat}
 
 [subs="attributes"]
 ++++
@@ -14,26 +14,18 @@ as described in <<collecting-monitoring-data>>.
 
 image::monitoring/images/metricbeat.png[Example monitoring architecture]
 
-To learn about monitoring in general, see 
-{stack-ov}/xpack-monitoring.html[Monitoring the {stack}]. 
-
 //NOTE: The tagged regions are re-used in the Stack Overview.
 
 . Enable the collection of monitoring data. +
 +
 --
 // tag::enable-collection[]
-Set `xpack.monitoring.collection.enabled` to `true` on each node in the
+Set `xpack.monitoring.collection.enabled` to `true` on the
 production cluster. By default, it is is disabled (`false`). 
 
-NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
-node or across the cluster as a dynamic cluster setting. If {es} 
-{security-features} are enabled, you must have `monitor` cluster privileges to 
-view the cluster settings and `manage` cluster privileges to change them.
+You can use the following APIs to review and change this setting:
 
-For example, you can use the following APIs to review and change this setting:
-
-[source,js]
+[source,console]
 ----------------------------------
 GET _cluster/settings
 
@@ -43,39 +35,13 @@ PUT _cluster/settings
     "xpack.monitoring.collection.enabled": true
   }
 }
-----------------------------------
-// CONSOLE 
-// end::enable-collection[]
-For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
---
+---------------------------------- 
 
-. Disable the default collection of {es} monitoring metrics. +
-+
---
-// tag::disable-default-collection[]
-Set `xpack.monitoring.elasticsearch.collection.enabled` to `false` on each node
-in the production cluster.
-
-NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
-node or across the cluster as a dynamic cluster setting. If {es} 
-{security-features} are enabled, you must have `monitor` cluster privileges to 
+If {es} {security-features} are enabled, you must have `monitor` cluster privileges to 
 view the cluster settings and `manage` cluster privileges to change them.
 
-For example, you can use the following API to change this setting:
-
-[source,js]
-----------------------------------
-PUT _cluster/settings
-{
-  "persistent": {
-    "xpack.monitoring.elasticsearch.collection.enabled": false
-  }
-}
-----------------------------------
-// CONSOLE
-
-Leave `xpack.monitoring.enabled` set to its default value (`true`).
-// end::disable-default-collection[]
+// end::enable-collection[]
+For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
 
 . {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}] on each
@@ -137,9 +103,9 @@ If Elastic {security-features} are enabled, you must also provide a user ID
 and password so that {metricbeat} can collect metrics successfully: 
 
 .. Create a user on the production cluster that has the
-{stack-ov}/built-in-roles.html[`remote_monitoring_collector` built-in role]. 
+<<built-in-roles,`remote_monitoring_collector` built-in role>>. 
 Alternatively, use the
-{stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
+<<built-in-users,`remote_monitoring_user` built-in user>>.
 
 .. Add the `username` and `password` settings to the {es} module configuration
 file. 
@@ -202,9 +168,9 @@ provide a valid user ID and password so that {metricbeat} can send metrics
 successfully: 
 
 .. Create a user on the monitoring cluster that has the 
-{stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
+<<built-in-roles,`remote_monitoring_agent` built-in role>>. 
 Alternatively, use the 
-{stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
+<<built-in-users,`remote_monitoring_user` built-in user>>.
 
 .. Add the `username` and `password` settings to the {es} output information in 
 the {metricbeat} configuration file.
@@ -213,8 +179,32 @@ For more information about these configuration options, see
 {metricbeat-ref}/elasticsearch-output.html[Configure the {es} output].
 --
 
-. <<starting-elasticsearch,Start {es}>> on each node.
-
 . {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}] on each node. 
+
+. Disable the default collection of {es} monitoring metrics. +
++
+--
+// tag::disable-default-collection[]
+Set `xpack.monitoring.elasticsearch.collection.enabled` to `false` on the 
+production cluster.
+
+You can use the following API to change this setting:
+
+[source,console]
+----------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.elasticsearch.collection.enabled": false
+  }
+}
+----------------------------------
+
+If {es} {security-features} are enabled, you must have `monitor` cluster
+privileges to  view the cluster settings and `manage` cluster privileges
+to change them.
+
+// end::disable-default-collection[]
+--
 
 . {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 

@@ -25,16 +25,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 public class RemoteInfo implements Writeable, ToXContentObject {
     /**
@@ -45,6 +53,8 @@ public class RemoteInfo implements Writeable, ToXContentObject {
      * Default {@link #connectTimeout} for requests that don't have one set.
      */
     public static final TimeValue DEFAULT_CONNECT_TIMEOUT = timeValueSeconds(30);
+
+    public static final XContent QUERY_CONTENT_TYPE = JsonXContent.jsonXContent;
 
     private final String scheme;
     private final String host;
@@ -65,6 +75,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
 
     public RemoteInfo(String scheme, String host, int port, String pathPrefix, BytesReference query, String username, String password,
                       Map<String, String> headers, TimeValue socketTimeout, TimeValue connectTimeout) {
+        assert isQueryJson(query) : "Query does not appear to be JSON";
         this.scheme = requireNonNull(scheme, "[scheme] must be specified to reindex from a remote cluster");
         this.host = requireNonNull(host, "[host] must be specified to reindex from a remote cluster");
         this.port = port;
@@ -204,5 +215,51 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         builder.field("connect_timeout", connectTimeout.getStringRep());
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RemoteInfo that = (RemoteInfo) o;
+        return port == that.port &&
+            Objects.equals(scheme, that.scheme) &&
+            Objects.equals(host, that.host) &&
+            Objects.equals(pathPrefix, that.pathPrefix) &&
+            Objects.equals(query, that.query) &&
+            Objects.equals(username, that.username) &&
+            Objects.equals(password, that.password) &&
+            Objects.equals(headers, that.headers) &&
+            Objects.equals(socketTimeout, that.socketTimeout) &&
+            Objects.equals(connectTimeout, that.connectTimeout);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(scheme, host, port, pathPrefix, query, username, password, headers, socketTimeout, connectTimeout);
+    }
+
+    static BytesReference queryForRemote(Map<String, Object> source) throws IOException {
+        XContentBuilder builder = XContentBuilder.builder(QUERY_CONTENT_TYPE).prettyPrint();
+        Object query = source.remove("query");
+        if (query == null) {
+            return BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
+        }
+        if (!(query instanceof Map)) {
+            throw new IllegalArgumentException("Expected [query] to be an object but was [" + query + "]");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) query;
+        return BytesReference.bytes(builder.map(map));
+    }
+
+    private static boolean isQueryJson(BytesReference bytesReference) {
+        try (XContentParser parser = QUERY_CONTENT_TYPE.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytesReference.streamInput())) {
+            Map<String, Object> query = parser.map();
+            return true;
+        } catch (IOException e) {
+            throw new AssertionError("Could not parse JSON", e);
+        }
     }
 }

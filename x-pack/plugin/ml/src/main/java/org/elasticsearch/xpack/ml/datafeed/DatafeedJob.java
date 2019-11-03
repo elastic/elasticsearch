@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -36,9 +35,8 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
@@ -56,15 +54,17 @@ class DatafeedJob {
     private static final int NEXT_TASK_DELAY_MS = 100;
     static final long MISSING_DATA_CHECK_INTERVAL_MS = 900_000; //15 minutes in ms
 
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final String jobId;
     private final DataDescription dataDescription;
     private final long frequencyMs;
     private final long queryDelayMs;
     private final Client client;
     private final DataExtractorFactory dataExtractorFactory;
+    private final DatafeedTimingStatsReporter timingStatsReporter;
     private final Supplier<Long> currentTimeSupplier;
     private final DelayedDataDetector delayedDataDetector;
+    private final Integer maxEmptySearches;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -74,28 +74,34 @@ class DatafeedJob {
     private volatile Long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
+    private volatile boolean haveEverSeenData;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
-                DataExtractorFactory dataExtractorFactory, Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
-                DelayedDataDetector delayedDataDetector, long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
+                DataExtractorFactory dataExtractorFactory, DatafeedTimingStatsReporter timingStatsReporter, Client client,
+                AnomalyDetectionAuditor auditor, Supplier<Long> currentTimeSupplier, DelayedDataDetector delayedDataDetector,
+                Integer maxEmptySearches, long latestFinalBucketEndTimeMs, long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
         this.queryDelayMs = queryDelayMs;
         this.dataExtractorFactory = dataExtractorFactory;
+        this.timingStatsReporter = timingStatsReporter;
         this.client = client;
         this.auditor = auditor;
         this.currentTimeSupplier = currentTimeSupplier;
         this.delayedDataDetector = delayedDataDetector;
+        this.maxEmptySearches = maxEmptySearches;
         this.latestFinalBucketEndTimeMs = latestFinalBucketEndTimeMs;
         long lastEndTime = Math.max(latestFinalBucketEndTimeMs, latestRecordTimeMs);
         if (lastEndTime > 0) {
             lastEndTimeMs = lastEndTime;
         }
+        this.haveEverSeenData = haveSeenDataPreviously;
     }
 
     void isolate() {
         isIsolated = true;
+        timingStatsReporter.disallowPersisting();
     }
 
     boolean isIsolated() {
@@ -104,6 +110,14 @@ class DatafeedJob {
 
     public String getJobId() {
         return jobId;
+    }
+
+    public Integer getMaxEmptySearches() {
+        return maxEmptySearches;
+    }
+
+    public void finishReportingTimingStats() {
+        timingStatsReporter.finishReporting();
     }
 
     Long runLookBack(long startTime, Long endTime) throws Exception {
@@ -352,6 +366,7 @@ class DatafeedJob {
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
                     LOGGER.trace("[{}] Processed another {} records", jobId, counts.getProcessedRecordCount());
+                    timingStatsReporter.reportDataCounts(counts);
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
@@ -373,6 +388,7 @@ class DatafeedJob {
                     break;
                 }
                 recordCount += counts.getProcessedRecordCount();
+                haveEverSeenData |= (recordCount > 0);
                 if (counts.getLatestRecordTimeStamp() != null) {
                     lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
                 }
@@ -399,7 +415,7 @@ class DatafeedJob {
         }
 
         if (recordCount == 0) {
-            throw new EmptyDataCountException(nextRealtimeTimestamp());
+            throw new EmptyDataCountException(nextRealtimeTimestamp(), haveEverSeenData);
         }
     }
 
@@ -407,9 +423,7 @@ class DatafeedJob {
             throws IOException {
         PostDataAction.Request request = new PostDataAction.Request(jobId);
         request.setDataDescription(dataDescription);
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Streams.copy(inputStream, outputStream);
-        request.setContent(new BytesArray(outputStream.toByteArray()), xContentType);
+        request.setContent(Streams.readFully(inputStream), xContentType);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).actionGet();
             return response.getDataCounts();
@@ -504,10 +518,11 @@ class DatafeedJob {
     static class EmptyDataCountException extends RuntimeException {
 
         final long nextDelayInMsSinceEpoch;
+        final boolean haveEverSeenData;
 
-        EmptyDataCountException(long nextDelayInMsSinceEpoch) {
+        EmptyDataCountException(long nextDelayInMsSinceEpoch, boolean haveEverSeenData) {
             this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
+            this.haveEverSeenData = haveEverSeenData;
         }
     }
-
 }

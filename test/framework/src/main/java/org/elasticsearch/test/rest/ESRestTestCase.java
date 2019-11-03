@@ -26,6 +26,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
@@ -77,14 +78,17 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -140,11 +144,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert hasXPack == null;
             assert nodeVersions == null;
-            String cluster = System.getProperty("tests.rest.cluster");
-            if (cluster == null) {
-                throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
-                        + "to which to send REST requests");
-            }
+            String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
             List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
             for (String stringUrl : stringUrls) {
@@ -182,7 +182,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert hasXPack != null;
         assert nodeVersions != null;
     }
-    
+
+    protected String getTestRestCluster() {
+        String cluster = System.getProperty("tests.rest.cluster");
+        if (cluster == null) {
+            throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
+                + "to which to send REST requests");
+        }
+        return cluster;
+    }
+
     /**
      * Helper class to check warnings in REST responses with sensitivity to versions
      * used in the target cluster.
@@ -191,14 +200,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         Set<String> requiredSameVersionClusterWarnings = new HashSet<>();
         Set<String> allowedWarnings = new HashSet<>();
         final Set<Version> testNodeVersions;
-        
+
         public VersionSensitiveWarningsHandler(Set<Version> nodeVersions) {
             this.testNodeVersions = nodeVersions;
         }
 
         /**
          * Adds to the set of warnings that are all required in responses if the cluster
-         * is formed from nodes all running the exact same version as the client. 
+         * is formed from nodes all running the exact same version as the client.
          * @param requiredWarnings a set of required warnings
          */
         public void current(String... requiredWarnings) {
@@ -206,11 +215,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         /**
-         * Adds to the set of warnings that are permissible (but not required) when running 
+         * Adds to the set of warnings that are permissible (but not required) when running
          * in mixed-version clusters or those that differ in version from the test client.
          * @param allowedWarnings optional warnings that will be ignored if received
          */
-        public void compatible(String... allowedWarnings) {            
+        public void compatible(String... allowedWarnings) {
             this.allowedWarnings.addAll(Arrays.asList(allowedWarnings));
         }
 
@@ -231,15 +240,15 @@ public abstract class ESRestTestCase extends ESTestCase {
                 return false;
             }
         }
-        
+
         private boolean isExclusivelyTargetingCurrentVersionCluster() {
             assertFalse("Node versions running in the cluster are missing", testNodeVersions.isEmpty());
-            return testNodeVersions.size() == 1 && 
+            return testNodeVersions.size() == 1 &&
                     testNodeVersions.iterator().next().equals(Version.CURRENT);
-        } 
-        
+        }
+
     }
-    
+
     public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
         VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
@@ -453,12 +462,27 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Returns whether to preserve ILM Policies of this test. Defaults to not
-     * preserviing them. Only runs at all if xpack is installed on the cluster
+     * preserving them. Only runs at all if xpack is installed on the cluster
      * being tested.
      */
     protected boolean preserveILMPoliciesUponCompletion() {
         return false;
     }
+
+    /**
+     * Returns whether to preserve SLM Policies of this test. Defaults to not
+     * preserving them. Only runs at all if xpack is installed on the cluster
+     * being tested.
+     */
+    protected boolean preserveSLMPoliciesUponCompletion() {
+        return false;
+    }
+
+    /**
+     * Returns whether to wait to make absolutely certain that all snapshots
+     * have been deleted.
+     */
+    protected boolean waitForAllSnapshotsWiped() { return false; }
 
     private void wipeCluster() throws Exception {
 
@@ -470,18 +494,33 @@ public abstract class ESRestTestCase extends ESTestCase {
             waitForPendingRollupTasks();
         }
 
-        final Map<String, List<Map<?,?>>> inProgressSnapshots = wipeSnapshots();
+        if (preserveSLMPoliciesUponCompletion() == false) {
+            // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
+            deleteAllSLMPolicies();
+        }
+
+        SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
+        if (waitForAllSnapshotsWiped()) {
+            AtomicReference<Map<String, List<Map<?,?>>>> snapshots = new AtomicReference<>();
+            try {
+                // Repeatedly delete the snapshots until there aren't any
+                assertBusy(() -> {
+                    snapshots.set(wipeSnapshots());
+                    assertThat(snapshots.get(), anEmptyMap());
+                }, 2, TimeUnit.MINUTES);
+                // At this point there should be no snaphots
+                inProgressSnapshots.set(snapshots.get());
+            } catch (AssertionError e) {
+                // This will cause an error at the end of this method, but do the rest of the cleanup first
+                inProgressSnapshots.set(snapshots.get());
+            }
+        } else {
+            inProgressSnapshots.set(wipeSnapshots());
+        }
 
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
-            try {
-                adminClient().performRequest(new Request("DELETE", "*"));
-            } catch (ResponseException e) {
-                // 404 here just means we had no indexes
-                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                    throw e;
-                }
-            }
+            wipeAllIndices();
         }
 
         // wipe index templates
@@ -518,10 +557,24 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
-            deleteAllPolicies();
+            deleteAllILMPolicies();
         }
 
-        assertTrue("Found in progress snapshots [" + inProgressSnapshots + "].", inProgressSnapshots.isEmpty());
+        assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
+    }
+
+    protected static void wipeAllIndices() throws IOException {
+        try {
+            final Response response = adminClient().performRequest(new Request("DELETE", "*"));
+            try (InputStream is = response.getEntity().getContent()) {
+                assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
+            }
+        } catch (ResponseException e) {
+            // 404 here just means we had no indexes
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     /**
@@ -530,7 +583,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * the snapshots intact in the repository.
      * @return Map of repository name to list of snapshots found in unfinished state
      */
-    private Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
+    protected Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
         final Map<String, List<Map<?, ?>>> inProgressSnapshots = new HashMap<>();
         for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
             String repoName = repo.getKey();
@@ -540,7 +593,16 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
                 Request listRequest = new Request("GET", "/_snapshot/" + repoName + "/_all");
                 listRequest.addParameter("ignore_unavailable", "true");
-                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest(listRequest)).get("snapshots");
+
+                Map<?, ?> response = entityAsMap(adminClient.performRequest(listRequest));
+                Map<?, ?> oneRepoResponse;
+                if (response.containsKey("responses")) {
+                    oneRepoResponse = ((Map<?,?>)((List<?>) response.get("responses")).get(0));
+                } else {
+                    oneRepoResponse = response;
+                }
+
+                List<?> snapshots = (List<?>) oneRepoResponse.get("snapshots");
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
@@ -626,14 +688,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
-    private static void deleteAllPolicies() throws IOException {
+    private static void deleteAllILMPolicies() throws IOException {
         Map<String, Object> policies;
 
         try {
             Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
             policies = entityAsMap(response);
         } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode() ||
+                RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
                 // If bad request returned, ILM is not enabled.
                 return;
             }
@@ -646,6 +709,30 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         for (String policyName : policies.keySet()) {
             adminClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
+        }
+    }
+
+    private static void deleteAllSLMPolicies() throws IOException {
+        Map<String, Object> policies;
+
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
+            policies = entityAsMap(response);
+        } catch (ResponseException e) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode() ||
+                RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                // If bad request returned, SLM is not enabled.
+                return;
+            }
+            throw e;
+        }
+
+        if (policies == null || policies.isEmpty()) {
+            return;
+        }
+
+        for (String policyName : policies.keySet()) {
+            adminClient().performRequest(new Request("DELETE", "/_slm/policy/" + policyName));
         }
     }
 
@@ -764,11 +851,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             builder.setDefaultHeaders(defaultHeaders);
         }
-        final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
-        if (socketTimeoutString != null) {
-            final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
-            builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
-        }
+        final String socketTimeoutString = Objects.requireNonNullElse(settings.get(CLIENT_SOCKET_TIMEOUT), "60s");
+        final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
+        builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
         if (settings.hasValue(CLIENT_PATH_PREFIX)) {
             builder.setPathPrefix(settings.get(CLIENT_PATH_PREFIX));
         }
@@ -800,17 +885,27 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @param index index to test for
      **/
     protected static void ensureGreen(String index) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + index);
-        request.addParameter("wait_for_status", "green");
-        request.addParameter("wait_for_no_relocating_shards", "true");
-        request.addParameter("timeout", "70s");
-        request.addParameter("level", "shards");
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "green");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            request.addParameter("timeout", "70s");
+            request.addParameter("level", "shards");
+        });
+    }
+
+    protected static void ensureHealth(Consumer<Request> requestConsumer) throws IOException {
+        ensureHealth("", requestConsumer);
+    }
+
+    protected static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
+        Request request = new Request("GET", "/_cluster/health" + (index.isBlank() ? "" : "/" + index));
+        requestConsumer.accept(request);
         try {
             client().performRequest(request);
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
                 try {
-                    final Response clusterStateResponse = client().performRequest(new Request("GET", "/_cluster/state"));
+                    final Response clusterStateResponse = client().performRequest(new Request("GET", "/_cluster/state?pretty"));
                     fail("timed out waiting for green state for index [" + index + "] " +
                         "cluster state [" + EntityUtils.toString(clusterStateResponse.getEntity()) + "]");
                 } catch (Exception inner) {
@@ -935,6 +1030,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".watch") || name.startsWith(".triggered_watches")) {
             return true;
         }
+        if (name.startsWith(".data-frame-")) {
+            return true;
+        }
         if (name.startsWith(".ml-")) {
             return true;
         }
@@ -943,6 +1041,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         case ".watches":
         case "logstash-index-template":
         case "security_audit_log":
+        case ".slm-history":
             return true;
         default:
             return false;

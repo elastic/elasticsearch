@@ -18,16 +18,6 @@
  */
 package org.elasticsearch.indices.flush;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.index.Term;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -49,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
@@ -58,6 +49,16 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -76,7 +77,7 @@ public class FlushIT extends ESIntegTestCase {
         final int numIters = scaledRandomIntBetween(10, 30);
         for (int i = 0; i < numIters; i++) {
             for (int j = 0; j < 10; j++) {
-                client().prepareIndex("test", "test").setSource("{}", XContentType.JSON).get();
+                client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
             }
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
@@ -111,7 +112,7 @@ public class FlushIT extends ESIntegTestCase {
         createIndex("test");
         int numDocs = randomIntBetween(0, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "_doc").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
         assertThat(expectThrows(ValidationException.class,
             () -> client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()).getMessage(),
@@ -205,7 +206,7 @@ public class FlushIT extends ESIntegTestCase {
             @Override
             public void run() {
                 while (stop.get() == false) {
-                    client().prepareIndex().setIndex("test").setType("_doc").setSource("{}", XContentType.JSON).get();
+                    client().prepareIndex().setIndex("test").setSource("{}", XContentType.JSON).get();
                     numDocs.incrementAndGet();
                 }
             }
@@ -274,9 +275,10 @@ public class FlushIT extends ESIntegTestCase {
     private void indexDoc(Engine engine, String id) throws IOException {
         final ParsedDocument doc = InternalEngineTests.createParsedDoc(id, null);
         final Engine.IndexResult indexResult = engine.index(new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), doc,
-            engine.getLocalCheckpoint() + 1, 1L, 1L, null, Engine.Operation.Origin.REPLICA, randomLong(), -1L, false,
-            SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+            ((InternalEngine) engine).getProcessedLocalCheckpoint() + 1, 1L, 1L, null, Engine.Operation.Origin.REPLICA, System.nanoTime(),
+            -1L, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
         assertThat(indexResult.getFailure(), nullValue());
+        engine.syncTranslog();
     }
 
     public void testSyncedFlushSkipOutOfSyncReplicas() throws Exception {
@@ -292,7 +294,7 @@ public class FlushIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(index, 0);
         final int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            index("test", "doc", Integer.toString(i));
+            indexDoc("test", Integer.toString(i));
         }
         final List<IndexShard> indexShards = internalCluster().nodesInclude("test").stream()
             .map(node -> internalCluster().getInstance(IndicesService.class, node).getShardOrNull(shardId))
@@ -307,7 +309,7 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(partialResult.totalShards(), equalTo(numberOfReplicas + 1));
         assertThat(partialResult.successfulShards(), equalTo(numberOfReplicas));
         assertThat(partialResult.shardResponses().get(outOfSyncReplica.routingEntry()).failureReason, equalTo(
-            "out of sync replica; num docs on replica [" + (numDocs + extraDocs) + "]; num docs on primary [" + numDocs + "]"));
+            "ongoing indexing operations: num docs on replica [" + (numDocs + extraDocs) + "]; num docs on primary [" + numDocs + "]"));
         // Index extra documents to all shards - synced-flush should be ok.
         for (IndexShard indexShard : indexShards) {
             // Do reindex documents to the out of sync replica to avoid trigger merges
@@ -335,7 +337,7 @@ public class FlushIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(index, 0);
         final int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            index("test", "doc", Integer.toString(i));
+            indexDoc("test", Integer.toString(i));
         }
         final ShardsSyncedFlushResult firstSeal = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         assertThat(firstSeal.successfulShards(), equalTo(numberOfReplicas + 1));
@@ -346,7 +348,7 @@ public class FlushIT extends ESIntegTestCase {
         // Shards were updated, renew synced flush.
         final int moreDocs = between(1, 10);
         for (int i = 0; i < moreDocs; i++) {
-            index("test", "doc", "more-" + i);
+            indexDoc("test", "more-" + i);
         }
         final ShardsSyncedFlushResult thirdSeal = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         assertThat(thirdSeal.successfulShards(), equalTo(numberOfReplicas + 1));

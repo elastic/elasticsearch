@@ -29,7 +29,7 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 public class LetterTokenizerFactory extends AbstractTokenizerFactory {
 
     LetterTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings);
+        super(indexSettings, settings, name);
     }
 
     @Override

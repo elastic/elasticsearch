@@ -19,22 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
  * Upgrade index/indices action.
  */
-public class UpgradeAction extends Action<UpgradeResponse> {
+public class UpgradeAction extends ActionType<UpgradeResponse> {
 
     public static final UpgradeAction INSTANCE = new UpgradeAction();
     public static final String NAME = "indices:admin/upgrade";
 
     private UpgradeAction() {
-        super(NAME);
-    }
-
-    @Override
-    public UpgradeResponse newResponse() {
-        return new UpgradeResponse();
+        super(NAME, UpgradeResponse::new);
     }
 }

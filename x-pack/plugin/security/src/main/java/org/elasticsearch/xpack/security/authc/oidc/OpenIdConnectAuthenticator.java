@@ -12,7 +12,6 @@ import com.nimbusds.jose.jwk.JWKSelector;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.BadJOSEException;
-import com.nimbusds.jose.proc.BadJWSException;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.IOUtils;
@@ -77,7 +76,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -96,8 +94,10 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -110,8 +110,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW;
-import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_MAX_CONNECTIONS;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_SOCKET_TIMEOUT;
@@ -141,7 +141,7 @@ public class OpenIdConnectAuthenticator {
         this.sslService = sslService;
         this.httpClient = createHttpClient();
         this.watcherService = watcherService;
-        this.idTokenValidator.set(createIdTokenValidator());
+        this.idTokenValidator.set(createIdTokenValidator(true));
     }
 
     // For testing
@@ -241,7 +241,7 @@ public class OpenIdConnectAuthenticator {
                 }
                 claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
             }
-        } catch (BadJWSException e) {
+        } catch (BadJOSEException e) {
             // We only try to update the cached JWK set once if a remote source is used and
             // RSA or ECDSA is used for signatures
             if (shouldRetry
@@ -257,7 +257,7 @@ public class OpenIdConnectAuthenticator {
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
-        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | BadJOSEException | JOSEException e) {
+        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
     }
@@ -313,10 +313,11 @@ public class OpenIdConnectAuthenticator {
      * @throws ParseException if the file cannot be parsed
      * @throws IOException    if the file cannot be read
      */
-    @SuppressForbidden(reason = "uses toFile")
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
-        return JWKSet.load(path.toFile());
+        // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
+        String jwkSet = Files.readString(path, StandardCharsets.UTF_8);
+        return JWKSet.parse(jwkSet);
     }
 
     /**
@@ -466,8 +467,9 @@ public class OpenIdConnectAuthenticator {
             }
             httpPost.setEntity(new UrlEncodedFormEntity(params));
             httpPost.setHeader("Content-type", "application/x-www-form-urlencoded");
-            UsernamePasswordCredentials creds = new UsernamePasswordCredentials(rpConfig.getClientId().getValue(),
-                rpConfig.getClientSecret().toString());
+            UsernamePasswordCredentials creds =
+                new UsernamePasswordCredentials(URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8),
+                    URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8));
             httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -587,7 +589,7 @@ public class OpenIdConnectAuthenticator {
     /*
      * Creates an {@link IDTokenValidator} based on the current Relying Party configuration
      */
-    IDTokenValidator createIdTokenValidator() {
+    IDTokenValidator createIdTokenValidator(boolean addFileWatcherIfRequired) {
         try {
             final JWSAlgorithm requestedAlgorithm = rpConfig.getSignatureAlgorithm();
             final int allowedClockSkew = Math.toIntExact(realmConfig.getSetting(ALLOWED_CLOCK_SKEW).getMillis());
@@ -598,12 +600,16 @@ public class OpenIdConnectAuthenticator {
                     new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), requestedAlgorithm, clientSecret);
             } else {
                 String jwkSetPath = opConfig.getJwkSetPath();
-                if (jwkSetPath.startsWith("https://")) {
+                if (jwkSetPath.startsWith("http://")) {
+                    throw new IllegalArgumentException("The [http] protocol is not supported as it is insecure. Use [https] instead");
+                } else if (jwkSetPath.startsWith("https://")) {
                     final JWSVerificationKeySelector keySelector = new JWSVerificationKeySelector(requestedAlgorithm,
                         new ReloadableJWKSource(new URL(jwkSetPath)));
                     idTokenValidator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), keySelector, null);
                 } else {
-                    setMetadataFileWatcher(jwkSetPath);
+                    if (addFileWatcherIfRequired) {
+                        setMetadataFileWatcher(jwkSetPath);
+                    }
                     final JWKSet jwkSet = readJwkSetFromFile(jwkSetPath);
                     idTokenValidator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), requestedAlgorithm, jwkSet);
                 }
@@ -618,7 +624,7 @@ public class OpenIdConnectAuthenticator {
     private void setMetadataFileWatcher(String jwkSetPath) throws IOException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
         FileWatcher watcher = new FileWatcher(path);
-        watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator())));
+        watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator(false))));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
     }
 
@@ -627,7 +633,7 @@ public class OpenIdConnectAuthenticator {
      * necessary as some OPs return slightly different values for some claims (i.e. Google for the profile picture) and
      * {@link JSONObject#merge(Object)} would throw a runtime exception. The merging is performed based on the following rules:
      * <ul>
-     * <li>If the values for a given claim are primitives (of the the same type), the value from the ID Token is retained</li>
+     * <li>If the values for a given claim are primitives (of the same type), the value from the ID Token is retained</li>
      * <li>If the values for a given claim are Objects, the values are merged</li>
      * <li>If the values for a given claim are Arrays, the values are merged without removing duplicates</li>
      * <li>If the values for a given claim are of different types, an exception is thrown</li>

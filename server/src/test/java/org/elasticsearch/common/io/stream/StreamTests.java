@@ -25,6 +25,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -49,7 +50,9 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StreamTests extends ESTestCase {
 
@@ -402,6 +405,32 @@ public class StreamTests extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(string);
+        }
+    }
+
+    public void testSecureStringSerialization() throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            final SecureString secureString = new SecureString("super secret".toCharArray());
+            output.writeSecureString(secureString);
+
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+
+            assertThat(secureString, is(equalTo(input.readSecureString())));
+        }
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            final SecureString secureString = randomBoolean() ? null : new SecureString("super secret".toCharArray());
+            output.writeOptionalSecureString(secureString);
+
+            final BytesReference bytesReference = output.bytes();
+            final StreamInput input = bytesReference.streamInput();
+
+            if (secureString != null) {
+                assertThat(input.readOptionalSecureString(), is(equalTo(secureString)));
+            } else {
+                assertThat(input.readOptionalSecureString(), is(nullValue()));
+            }
         }
     }
 

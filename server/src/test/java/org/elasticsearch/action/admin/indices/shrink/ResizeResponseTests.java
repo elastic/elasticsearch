@@ -20,10 +20,11 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
-public class ResizeResponseTests extends AbstractStreamableXContentTestCase<ResizeResponse> {
+public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeResponse> {
 
     public void testToXContent() {
         ResizeResponse response = new ResizeResponse(true, false, "index_name");
@@ -45,8 +46,8 @@ public class ResizeResponseTests extends AbstractStreamableXContentTestCase<Resi
     }
 
     @Override
-    protected ResizeResponse createBlankInstance() {
-        return new ResizeResponse();
+    protected Writeable.Reader<ResizeResponse> instanceReader() {
+        return ResizeResponse::new;
     }
 
     @Override

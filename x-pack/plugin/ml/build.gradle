@@ -13,7 +13,7 @@ esplugin {
 repositories {
     ivy {
         name "ml-cpp"
-        url "https://prelert-artifacts.s3.amazonaws.com"
+        url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
         metadataSources {
             // no repository metadata, look directly for the artifact
             artifact()
@@ -31,6 +31,7 @@ configurations {
                 substitute module("org.elasticsearch.ml:ml-cpp") with project(":ml-cpp")
             }
         }
+        resolutionStrategy.cacheChangingModulesFor 2, 'hours'
     }
 }
 
@@ -45,16 +46,10 @@ bundlePlugin {
     exclude 'platform/licenses/**'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-
 dependencies {
     compileOnly project(':modules:lang-painless:spi')
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
@@ -62,7 +57,9 @@ dependencies {
     compile project(':libs:elasticsearch-grok')
     compile "com.ibm.icu:icu4j:${versions.icu4j}"
     compile "net.sf.supercsv:super-csv:${versions.supercsv}"
-    nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
+    nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
+      changing = true
+    }
     testCompile 'org.ini4j:ini4j:0.5.2'
 }
 
@@ -74,7 +71,7 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+    // normal es plugins do not publish the jar but we need to since users need it for extensions
     archives jar
     testArtifacts testJar
 }

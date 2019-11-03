@@ -66,7 +66,19 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
         PARSER.declareObject(constructorArg(), shardsParser, _SHARDS_FIELD);
     }
 
-    public BroadcastResponse() {
+    public BroadcastResponse() {}
+
+    public BroadcastResponse(StreamInput in) throws IOException {
+        totalShards = in.readVInt();
+        successfulShards = in.readVInt();
+        failedShards = in.readVInt();
+        int size = in.readVInt();
+        if (size > 0) {
+            shardFailures = new DefaultShardOperationFailedException[size];
+            for (int i = 0; i < size; i++) {
+                shardFailures[i] = readShardOperationFailed(in);
+            }
+        }
     }
 
     public BroadcastResponse(int totalShards, int successfulShards, int failedShards,
@@ -121,23 +133,7 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        totalShards = in.readVInt();
-        successfulShards = in.readVInt();
-        failedShards = in.readVInt();
-        int size = in.readVInt();
-        if (size > 0) {
-            shardFailures = new DefaultShardOperationFailedException[size];
-            for (int i = 0; i < size; i++) {
-                shardFailures[i] = readShardOperationFailed(in);
-            }
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);

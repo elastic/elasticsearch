@@ -30,7 +30,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -330,7 +329,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @TestLogging("_root:debug,org.elasticsearch.action.admin.cluster.tasks:trace")
     public void testPendingUpdateTask() throws Exception {
         String node_0 = internalCluster().startNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -402,8 +400,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
         block1.countDown();
         invoked2.await();
 
-        // whenever we test for no tasks, we need to awaitBusy since this is a live node
-        assertTrue(awaitBusy(() -> clusterService.getMasterService().pendingTasks().isEmpty()));
+        // whenever we test for no tasks, we need to wait since this is a live node
+        assertBusy(() -> assertTrue("Pending tasks not empty", clusterService.getMasterService().pendingTasks().isEmpty()));
         waitNoPendingTasksOnAll();
 
         final CountDownLatch block2 = new CountDownLatch(1);

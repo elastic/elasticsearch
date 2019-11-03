@@ -34,7 +34,7 @@ public class GraphClient {
     GraphClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
     }
-    
+
     /**
      * Executes an exploration request using the Graph API.
      *
@@ -52,12 +52,13 @@ public class GraphClient {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html">Graph API
      * on elastic.co</a>.
+     * @return cancellable that may be used to cancel the request
      */
-    public final void exploreAsync(GraphExploreRequest graphExploreRequest,
-                                           RequestOptions options,
-                                           ActionListener<GraphExploreResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
+    public final Cancellable exploreAsync(GraphExploreRequest graphExploreRequest,
+                                          RequestOptions options,
+                                          ActionListener<GraphExploreResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
             options, GraphExploreResponse::fromXContent, listener, emptySet());
-    }    
-    
+    }
+
 }

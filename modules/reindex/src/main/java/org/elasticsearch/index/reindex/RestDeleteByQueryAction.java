@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 
@@ -32,8 +31,9 @@ import java.util.function.Consumer;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, DeleteByQueryAction> {
-    public RestDeleteByQueryAction(Settings settings, RestController controller) {
-        super(settings, DeleteByQueryAction.INSTANCE);
+
+    public RestDeleteByQueryAction(RestController controller) {
+        super(DeleteByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_delete_by_query", this);
     }
 
@@ -58,6 +58,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
 
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
+        consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
 
         parseInternalRequest(internal, request, consumers);
 

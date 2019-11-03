@@ -27,6 +27,7 @@ import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -57,6 +58,19 @@ public class JodaDateMathParserTests extends ESTestCase {
                 "Expected milliseconds : " + expectedMillis + "\n" +
                 "Actual milliseconds   : " + gotMillis + "\n");
         }
+    }
+
+    public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
+        //the pattern has to be composite and the match should not be on the first one
+        DateFormatter formatter = Joda.forPattern("date||epoch_millis").withLocale(randomLocale(random()));
+        DateMathParser parser = formatter.toDateMathParser();
+        long gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
+        assertDateEquals(gotMillis, "297276785531", "297276785531");
+
+        formatter = Joda.forPattern("date||epoch_millis").withZone(ZoneOffset.UTC);
+        parser = formatter.toDateMathParser();
+        gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
+        assertDateEquals(gotMillis, "297276785531", "297276785531");
     }
 
     public void testBasicDates() {
@@ -151,8 +165,13 @@ public class JodaDateMathParserTests extends ESTestCase {
 
         assertDateMathEquals("now", "2014-11-18T14:27:32", now, false, null);
         assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, false, null);
+        assertDateMathEquals("now+M", "2014-12-18T14:27:32", now, true, null);
         assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, false, null);
+        assertDateMathEquals("now-2d", "2014-11-16T14:27:32", now, true, null);
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, null);
+        assertDateMathEquals("now/m", "2014-11-18T14:27:59.999Z", now, true, null);
+        assertDateMathEquals("now/M", "2014-11-01T00:00:00", now, false, null);
+        assertDateMathEquals("now/M", "2014-11-30T23:59:59.999Z", now, true, null);
 
         // timezone does not affect now
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, DateTimeZone.forID("+02:00"));

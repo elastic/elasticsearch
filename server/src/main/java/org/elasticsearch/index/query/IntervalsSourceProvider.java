@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.intervals.FilteredIntervalsSource;
-import org.apache.lucene.search.intervals.IntervalIterator;
-import org.apache.lucene.search.intervals.Intervals;
-import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.queries.intervals.FilteredIntervalsSource;
+import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -78,9 +80,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return Disjunction.fromXContent(parser);
             case "all_of":
                 return Combine.fromXContent(parser);
+            case "prefix":
+                return Prefix.fromXContent(parser);
+            case "wildcard":
+                return Wildcard.fromXContent(parser);
         }
         throw new ParsingException(parser.getTokenLocation(),
-            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of]");
+            "Unknown interval type [" + parser.currentName() + "], expecting one of [match, any_of, all_of, prefix]");
     }
 
     private static IntervalsSourceProvider parseInnerIntervals(XContentParser parser) throws IOException {
@@ -138,10 +144,10 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
                 assert fieldType != null;
-                source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer));
+                source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer, false));
             }
             else {
-                source = fieldType.intervals(query, maxGaps, ordered, analyzer);
+                source = fieldType.intervals(query, maxGaps, ordered, analyzer, false);
             }
             if (filter != null) {
                 return filter.filter(source, context, fieldType);
@@ -437,6 +443,226 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public static Combine fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
+        }
+    }
+
+    public static class Prefix extends IntervalsSourceProvider {
+
+        public static final String NAME = "prefix";
+
+        private final String prefix;
+        private final String analyzer;
+        private final String useField;
+
+        public Prefix(String prefix, String analyzer, String useField) {
+            this.prefix = prefix;
+            this.analyzer = analyzer;
+            this.useField = useField;
+        }
+
+        public Prefix(StreamInput in) throws IOException {
+            this.prefix = in.readString();
+            this.analyzer = in.readOptionalString();
+            this.useField = in.readOptionalString();
+        }
+
+        @Override
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException {
+            NamedAnalyzer analyzer = null;
+            if (this.analyzer != null) {
+                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+            }
+            IntervalsSource source;
+            if (useField != null) {
+                fieldType = context.fieldMapper(useField);
+                assert fieldType != null;
+                source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, analyzer, true));
+            }
+            else {
+                source = fieldType.intervals(prefix, 0, false, analyzer, true);
+            }
+            return source;
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Prefix prefix = (Prefix) o;
+            return Objects.equals(this.prefix, prefix.prefix) &&
+                Objects.equals(analyzer, prefix.analyzer) &&
+                Objects.equals(useField, prefix.useField);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(prefix, analyzer, useField);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(prefix);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalString(useField);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.field("prefix", prefix);
+            if (analyzer != null) {
+                builder.field("analyzer", analyzer);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Prefix, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String term = (String) args[0];
+            String analyzer = (String) args[1];
+            String useField = (String) args[2];
+            return new Prefix(term, analyzer, useField);
+        });
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("prefix"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+        }
+
+        public static Prefix fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+    }
+
+    public static class Wildcard extends IntervalsSourceProvider {
+
+        public static final String NAME = "wildcard";
+
+        private final String pattern;
+        private final String analyzer;
+        private final String useField;
+
+        public Wildcard(String pattern, String analyzer, String useField) {
+            this.pattern = pattern;
+            this.analyzer = analyzer;
+            this.useField = useField;
+        }
+
+        public Wildcard(StreamInput in) throws IOException {
+            this.pattern = in.readString();
+            this.analyzer = in.readOptionalString();
+            this.useField = in.readOptionalString();
+        }
+
+        @Override
+        public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
+            NamedAnalyzer analyzer = fieldType.searchAnalyzer();
+            if (this.analyzer != null) {
+                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+            }
+            IntervalsSource source;
+            if (useField != null) {
+                fieldType = context.fieldMapper(useField);
+                assert fieldType != null;
+                checkPositions(fieldType);
+                if (this.analyzer == null) {
+                    analyzer = fieldType.searchAnalyzer();
+                }
+                BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
+                // TODO Intervals.wildcard() should take BytesRef
+                source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
+            }
+            else {
+                checkPositions(fieldType);
+                BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
+                source = Intervals.wildcard(normalizedTerm);
+            }
+            return source;
+        }
+
+        private void checkPositions(MappedFieldType type) {
+            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
+            }
+        }
+
+        @Override
+        public void extractFields(Set<String> fields) {
+            if (useField != null) {
+                fields.add(useField);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Prefix prefix = (Prefix) o;
+            return Objects.equals(pattern, prefix.prefix) &&
+                Objects.equals(analyzer, prefix.analyzer) &&
+                Objects.equals(useField, prefix.useField);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pattern, analyzer, useField);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(pattern);
+            out.writeOptionalString(analyzer);
+            out.writeOptionalString(useField);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.field("pattern", pattern);
+            if (analyzer != null) {
+                builder.field("analyzer", analyzer);
+            }
+            if (useField != null) {
+                builder.field("use_field", useField);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        private static final ConstructingObjectParser<Wildcard, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String term = (String) args[0];
+            String analyzer = (String) args[1];
+            String useField = (String) args[2];
+            return new Wildcard(term, analyzer, useField);
+        });
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("pattern"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("analyzer"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("use_field"));
+        }
+
+        public static Wildcard fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
     }
 

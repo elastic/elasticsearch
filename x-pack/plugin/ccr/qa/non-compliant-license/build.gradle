@@ -5,9 +5,6 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
     testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
     testCompile project(':x-pack:plugin:ccr:qa:')
 }
@@ -19,20 +16,20 @@ task 'leader-cluster'(type: RestIntegTestTask) {
     }
 }
 testClusters.'leader-cluster' {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
 }
 
 task 'follow-cluster'(type: RestIntegTestTask) {
     dependsOn 'leader-cluster'
-    useCluster testClusters.'leader-cluster'
     runner {
+        useCluster testClusters.'leader-cluster'
         systemProperty 'tests.target_cluster', 'follow'
         nonInputProperties.systemProperty 'tests.leader_host',
                 { "${testClusters.'follow-cluster'.getAllHttpSocketURI().get(0)}" }
     }
 }
 testClusters.'follow-cluster' {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'cluster.remote.leader_cluster.seeds',
             { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\"" }

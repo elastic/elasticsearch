@@ -62,11 +62,10 @@ It's highly recommended to <<indices-forcemerge,`_forcemerge`>> your indices pri
 segment on disk. This not only provides much better compression but also simplifies the data structures needed to service aggregation
 or sorted search requests.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_forcemerge?max_num_segments=1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [role="xpack"]
@@ -80,11 +79,10 @@ Search requests will not be executed against frozen indices by default, even if 
 to prevent accidental slowdowns by targeting a frozen index by mistake. To include frozen indices a search request must be executed with
 the query parameter `ignore_throttled=false`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search?q=user:kimchy&ignore_throttled=false
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [IMPORTANT]
@@ -104,11 +102,10 @@ significant overhead associated with this pre-filter phase.
 Frozen indices are ordinary indices that use search throttling and a memory efficient shard implementation. For API's like the
 <<cat-indices>> frozen indices may identified by an index's `search.throttled` property (`sth`).
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/indices/twitter?v&h=i,sth
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\nPOST twitter\/_freeze\n/]
 
 The response looks like:
@@ -118,5 +115,5 @@ The response looks like:
 i         sth
 twitter   true
 --------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 

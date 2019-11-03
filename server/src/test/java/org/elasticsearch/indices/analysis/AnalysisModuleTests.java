@@ -264,8 +264,8 @@ public class AnalysisModuleTests extends ESTestCase {
             @Override
             public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
                 // Need mock keyword tokenizer here, because alpha / beta versions are broken up by the dash.
-                return singletonMap("keyword", (indexSettings, environment, name, settings) ->
-                    () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
+                return singletonMap("keyword", (indexSettings, environment, name, settings)
+                    -> TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
             }
         })).getAnalysisRegistry();
 

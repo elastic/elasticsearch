@@ -5,7 +5,7 @@ Defines a single bucket of all the documents in the current document set context
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -19,14 +19,13 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 In the above example, we calculate the average price of all the products that are of type t-shirt.
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

@@ -50,25 +50,8 @@ class PostStartTrialResponse extends ActionResponse {
     private Map<String, String[]> acknowledgeMessages;
     private String acknowledgeMessage;
 
-    PostStartTrialResponse() {
-    }
-
-    PostStartTrialResponse(Status status) {
-        this(status, Collections.emptyMap(), null);
-    }
-
-    PostStartTrialResponse(Status status, Map<String, String[]> acknowledgeMessages, String acknowledgeMessage) {
-        this.status = status;
-        this.acknowledgeMessages = acknowledgeMessages;
-        this.acknowledgeMessage = acknowledgeMessage;
-    }
-
-    public Status getStatus() {
-        return status;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    PostStartTrialResponse(StreamInput in) throws IOException {
+        super(in);
         status = in.readEnum(Status.class);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();
@@ -83,6 +66,20 @@ class PostStartTrialResponse extends ActionResponse {
             acknowledgeMessages.put(feature, messages);
         }
         this.acknowledgeMessages = acknowledgeMessages;
+    }
+
+    PostStartTrialResponse(Status status) {
+        this(status, Collections.emptyMap(), null);
+    }
+
+    PostStartTrialResponse(Status status, Map<String, String[]> acknowledgeMessages, String acknowledgeMessage) {
+        this.status = status;
+        this.acknowledgeMessages = acknowledgeMessages;
+        this.acknowledgeMessage = acknowledgeMessage;
+    }
+
+    public Status getStatus() {
+        return status;
     }
 
     @Override

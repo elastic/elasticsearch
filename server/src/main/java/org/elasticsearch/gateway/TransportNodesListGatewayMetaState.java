@@ -19,10 +19,9 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -32,11 +31,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,6 +47,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
                                                                              TransportNodesListGatewayMetaState.NodeGatewayMetaState> {
 
     public static final String ACTION_NAME = "internal:gateway/local/meta_state";
+    public static final ActionType<NodesGatewayMetaState> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayMetaState::new);
 
     private final GatewayMetaState metaState;
 
@@ -60,20 +59,14 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
         this.metaState = metaState;
     }
 
-    public ActionFuture<NodesGatewayMetaState> list(String[] nodesIds, @Nullable TimeValue timeout) {
-        PlainActionFuture<NodesGatewayMetaState> future = PlainActionFuture.newFuture();
-        execute(new Request(nodesIds).timeout(timeout), future);
-        return future;
+    @Override
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest();
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId);
-    }
-
-    @Override
-    protected NodeGatewayMetaState newNodeResponse() {
-        return new NodeGatewayMetaState();
+    protected NodeGatewayMetaState newNodeResponse(StreamInput in) throws IOException {
+        return new NodeGatewayMetaState(in);
     }
 
     @Override
@@ -82,13 +75,14 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     @Override
-    protected NodeGatewayMetaState nodeOperation(NodeRequest request) {
+    protected NodeGatewayMetaState nodeOperation(NodeRequest request, Task task) {
         return new NodeGatewayMetaState(clusterService.localNode(), metaState.getMetaData());
     }
 
     public static class Request extends BaseNodesRequest<Request> {
 
-        public Request() {
+        public Request(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Request(String... nodesIds) {
@@ -98,37 +92,41 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
     public static class NodesGatewayMetaState extends BaseNodesResponse<NodeGatewayMetaState> {
 
+        public NodesGatewayMetaState(StreamInput in) throws IOException {
+            super(in);
+        }
+
         public NodesGatewayMetaState(ClusterName clusterName, List<NodeGatewayMetaState> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
         protected List<NodeGatewayMetaState> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(NodeGatewayMetaState::new);
+            return in.readList(NodeGatewayMetaState::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeGatewayMetaState> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
     }
 
     public static class NodeRequest extends BaseNodeRequest {
-
-        public NodeRequest() {
+        NodeRequest() {}
+        NodeRequest(StreamInput in) throws IOException {
+            super(in);
         }
-
-        NodeRequest(String nodeId) {
-            super(nodeId);
-        }
-
     }
 
     public static class NodeGatewayMetaState extends BaseNodeResponse {
 
         private MetaData metaData;
 
-        NodeGatewayMetaState() {
+        public NodeGatewayMetaState(StreamInput in) throws IOException {
+            super(in);
+            if (in.readBoolean()) {
+                metaData = MetaData.readFrom(in);
+            }
         }
 
         public NodeGatewayMetaState(DiscoveryNode node, MetaData metaData) {
@@ -138,14 +136,6 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
         public MetaData metaData() {
             return metaData;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.readBoolean()) {
-                metaData = MetaData.readFrom(in);
-            }
         }
 
         @Override

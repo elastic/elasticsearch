@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -532,7 +533,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(lastAllocationId);
         Map<String, PersistentTask<?>> filteredTasks = tasks.values().stream()
-            .filter(t -> ClusterState.FeatureAware.shouldSerialize(out, t.getParams()))
+            .filter(t -> VersionedNamedWriteable.shouldSerialize(out, t.getParams()))
             .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
         out.writeMap(filteredTasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
     }

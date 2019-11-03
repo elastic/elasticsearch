@@ -87,8 +87,8 @@ It is recommended to use `LIMIT` for queries that use sorting by aggregation, es
 SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
 --------------------------------------------------
 
-It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*512*) is passed, an exception will be
-returned as {es-sql} is unable to track (and sort) all the results returned.
+It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*10000*) is passed,
+an exception will be returned as {es-sql} is unable to track (and sort) all the results returned.
 
 [float]
 === Using aggregation functions on top of scalar functions
@@ -161,3 +161,21 @@ By default,`geo_points` fields are indexed and have doc values. However only lat
 indexed with some loss of precision from the original values (4.190951585769653E-8 for the latitude and
 8.381903171539307E-8 for longitude). The altitude component is accepted but not stored in doc values nor indexed.
 Therefore calling `ST_Z` function in the filtering, grouping or sorting will return `null`.
+
+[float]
+[[fields-from-source]]
+=== Retrieving from `_source`
+
+Most of {es-sql}'s columns are retrieved from the document's `_source` and there is no attempt to get the columns content from
+`docvalue_fields` not even in the case <<mapping-source-field,`_source`>> field is disabled in the mapping explicitly.
+If a column, for which there is no source stored, is asked for in a query, {es-sql} will not return it. Field types that don't follow
+this restriction are: `keyword`, `date`, `scaled_float`, `geo_point`, `geo_shape` since they are NOT returned from `_source` but
+from `docvalue_fields`.
+
+[float]
+[[fields-from-docvalues]]
+=== Retrieving from `docvalue_fields`
+
+When the number of columns retrieveable from `docvalue_fields` is greater than the configured <<dynamic-index-settings,`index.max_docvalue_fields_search` setting>>
+the query will fail with `IllegalArgumentException: Trying to retrieve too many docvalue_fields` error. Either the mentioned {es}
+setting needs to be adjusted or fewer columns retrieveable from `docvalue_fields` need to be selected.

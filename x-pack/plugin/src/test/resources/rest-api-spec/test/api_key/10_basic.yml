@@ -12,7 +12,7 @@ setup:
         name: "admin_role"
         body:  >
             {
-              "cluster": ["all"],
+              "cluster": ["manage_api_key"],
               "indices": [
                 {
                   "names": "*",
@@ -166,10 +166,22 @@ teardown:
   - set: { name: api_key_name }
 
   - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.get_api_key:
         id: "$api_key_id"
   - match: { "api_keys.0.id": "$api_key_id" }
   - match: { "api_keys.0.name": "$api_key_name" }
+  - match: { "api_keys.0.username": "api_key_user" }
+  - match: { "api_keys.0.invalidated": false }
+  - is_true: "api_keys.0.creation"
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.get_api_key:
+        owner: true
+  - length: { "api_keys" : 1 }
   - match: { "api_keys.0.username": "api_key_user" }
   - match: { "api_keys.0.invalidated": false }
   - is_true: "api_keys.0.creation"
@@ -198,6 +210,8 @@ teardown:
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
 
   - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.invalidate_api_key:
         body:  >
             {

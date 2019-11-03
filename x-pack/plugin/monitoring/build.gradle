@@ -12,9 +12,6 @@ archivesBaseName = 'x-pack-monitoring'
 dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
 
     // monitoring deps
     compile project(':client:rest')
@@ -37,7 +34,7 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+    // normal es plugins do not publish the jar but we need to since users need it for extensions
     archives jar
     testArtifacts testJar
 }

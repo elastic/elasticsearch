@@ -53,7 +53,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
@@ -91,6 +90,12 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
+    @Override
+    protected boolean addMockInternalEngine() {
+        // testForceStaleReplicaToBePromotedToPrimary replies on the flushing when a shard is no longer assigned.
+        return false;
+    }
+
     public void testBulkWeirdScenario() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);
@@ -102,8 +107,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setType("_doc").setId("1").setSource("field1", "value1"))
-            .add(client().prepareUpdate().setIndex("test").setType("_doc").setId("1").setDoc("field2", "value2"))
+            .add(client().prepareIndex().setIndex("test").setId("1").setSource("field1", "value1"))
+            .add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2"))
             .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(false));
@@ -123,7 +128,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
     // returns data paths settings of in-sync shard copy
     private Settings createStaleReplicaScenario(String master) throws Exception {
-        client().prepareIndex("test", "type1").setSource(jsonBuilder()
+        client().prepareIndex("test").setSource(jsonBuilder()
             .startObject().field("field", "value1").endObject()).get();
         refresh();
         ClusterState state = client().admin().cluster().prepareState().all().get().getState();
@@ -150,7 +155,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ensureStableCluster(2, master);
 
         logger.info("--> index a document into previous replica shard (that is now primary)");
-        client(replicaNode).prepareIndex("test", "type1").setSource(jsonBuilder()
+        client(replicaNode).prepareIndex("test").setSource(jsonBuilder()
             .startObject().field("field", "value1").endObject()).get();
 
         logger.info("--> shut down node that has new acknowledged document");
@@ -420,7 +425,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertEquals(2, client().admin().cluster().prepareState().get().getState()
             .metaData().index("test").inSyncAllocationIds(0).size());
         logger.info("--> indexing...");
-        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setSource(jsonBuilder().startObject()
             .field("field", "value1").endObject()).get();
         assertEquals(1, client().admin().cluster().prepareState().get().getState()
             .metaData().index("test").inSyncAllocationIds(0).size());
@@ -449,7 +454,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put("index.number_of_shards", randomIntBetween(1, 3)).put("index.number_of_replicas", 2)).get());
         ensureGreen("test");
-        client().prepareIndex("test", "type1").setSource(jsonBuilder()
+        client().prepareIndex("test").setSource(jsonBuilder()
             .startObject().field("field", "value1").endObject()).get();
         logger.info("--> removing 2 nodes from cluster");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1), nodes.get(2)));
@@ -491,8 +496,6 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     /**
      * This test asserts that replicas failed to execute resync operations will be failed but not marked as stale.
      */
-    @TestLogging("_root:DEBUG, org.elasticsearch.cluster.routing.allocation:TRACE, org.elasticsearch.cluster.action.shard:TRACE," +
-        "org.elasticsearch.indices.recovery:TRACE, org.elasticsearch.cluster.routing.allocation.allocator:TRACE")
     public void testPrimaryReplicaResyncFailed() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);
@@ -510,14 +513,14 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> Indexing with gap in seqno to ensure that some operations will be replayed in resync");
         long numDocs = scaledRandomIntBetween(5, 50);
         for (int i = 0; i < numDocs; i++) {
-            IndexResponse indexResult = index("test", "doc", Long.toString(i));
+            IndexResponse indexResult = indexDoc("test", Long.toString(i));
             assertThat(indexResult.getShardInfo().getSuccessful(), equalTo(numberOfReplicas + 1));
         }
         final IndexShard oldPrimaryShard = internalCluster().getInstance(IndicesService.class, oldPrimary).getShardOrNull(shardId);
         EngineTestCase.generateNewSeqNo(IndexShardTestCase.getEngine(oldPrimaryShard)); // Make gap in seqno.
         long moreDocs = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < moreDocs; i++) {
-            IndexResponse indexResult = index("test", "doc", Long.toString(numDocs + i));
+            IndexResponse indexResult = indexDoc("test", Long.toString(numDocs + i));
             assertThat(indexResult.getShardInfo().getSuccessful(), equalTo(numberOfReplicas + 1));
         }
         final Set<String> replicasSide1 = Sets.newHashSet(randomSubsetOf(between(1, numberOfReplicas - 1), replicaNodes));

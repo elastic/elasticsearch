@@ -21,6 +21,12 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
     private License license;
     private boolean acknowledge = false;
 
+    public PutLicenseRequest(StreamInput in) throws IOException {
+        super(in);
+        license = License.readLicense(in);
+        acknowledge = in.readBoolean();
+    }
+
     public PutLicenseRequest() {
     }
 
@@ -59,13 +65,6 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
 
     public boolean acknowledged() {
         return acknowledge;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        license = License.readLicense(in);
-        acknowledge = in.readBoolean();
     }
 
     @Override

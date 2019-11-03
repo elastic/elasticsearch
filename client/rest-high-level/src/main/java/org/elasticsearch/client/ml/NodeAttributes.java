@@ -19,6 +19,7 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -146,5 +147,10 @@ public class NodeAttributes implements ToXContentObject {
             Objects.equals(ephemeralId, that.ephemeralId) &&
             Objects.equals(transportAddress, that.transportAddress) &&
             Objects.equals(attributes, that.attributes);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

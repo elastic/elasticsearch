@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.TransportResponse;
@@ -90,7 +91,7 @@ public abstract class SearchPhaseResult extends TransportResponse {
     public FetchSearchResult fetchResult() { return null; }
 
     @Override
-    public final void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public void writeTo(StreamOutput out) throws IOException {
+        // TODO: this seems wrong, SearchPhaseResult should have a writeTo?
     }
 }

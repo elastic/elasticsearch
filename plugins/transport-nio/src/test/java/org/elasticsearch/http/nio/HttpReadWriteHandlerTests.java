@@ -37,14 +37,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.nio.cors.NioCorsConfig;
-import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
@@ -98,9 +97,9 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         channel = mock(NioHttpChannel.class);
         taskScheduler = mock(TaskScheduler.class);
 
-        NioCorsConfig corsConfig = NioCorsConfigBuilder.forAnyOrigin().build();
+        CorsHandler.Config corsConfig = CorsHandler.disabled();
         handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsConfig, taskScheduler, System::nanoTime);
-        handler.channelRegistered();
+        handler.channelActive();
     }
 
     public void testSuccessfulDecodeHttpRequest() throws IOException {
@@ -329,12 +328,12 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put(SETTING_HTTP_READ_TIMEOUT.getKey(), timeValue).build();
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
 
-        NioCorsConfig corsConfig = NioCorsConfigBuilder.forAnyOrigin().build();
+        CorsHandler.Config corsConfig = CorsHandler.disabled();
         TaskScheduler taskScheduler = new TaskScheduler();
 
         Iterator<Integer> timeValues = Arrays.asList(0, 2, 4, 6, 8).iterator();
         handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsConfig, taskScheduler, timeValues::next);
-        handler.channelRegistered();
+        handler.channelActive();
 
         prepareHandlerForResponse(handler);
         SocketChannelContext context = mock(SocketChannelContext.class);
@@ -378,10 +377,10 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
     private FullHttpResponse executeCorsRequest(final Settings settings, final String originValue, final String host) throws IOException {
         HttpHandlingSettings httpSettings = HttpHandlingSettings.fromSettings(settings);
-        NioCorsConfig corsConfig = NioHttpServerTransport.buildCorsConfig(settings);
+        CorsHandler.Config corsConfig = CorsHandler.fromSettings(settings);
         HttpReadWriteHandler handler = new HttpReadWriteHandler(channel, transport, httpSettings, corsConfig, taskScheduler,
             System::nanoTime);
-        handler.channelRegistered();
+        handler.channelActive();
         prepareHandlerForResponse(handler);
         DefaultFullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
         if (originValue != null) {

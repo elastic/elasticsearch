@@ -154,11 +154,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 // fire off the search. Note this is async, the method will return from here
                 executor.execute(() -> {
                     onStart(now, ActionListener.wrap(r -> {
-                        nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
-                    }, e -> {
-                        finishAndSetState();
-                        onFailure(e);
-                    }));
+                        assert r != null;
+                        if (r) {
+                            nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                        } else {
+                            onFinish(ActionListener.wrap(
+                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), () -> {}),
+                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), () -> {})));
+                        }
+                    },
+                    this::finishWithFailure));
                 });
                 logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
                 return true;
@@ -200,9 +205,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * internal state is {@link IndexerState#STARTED}.
      *
      * @param now The current time in milliseconds passed through from {@link #maybeTriggerAsyncJob(long)}
-     * @param listener listener to call after done
+     * @param listener listener to call after done. The argument passed to the listener indicates if the indexer should continue or not
+     *                 true: continue execution as normal
+     *                 false: cease execution. This does NOT call onFinish
      */
-    protected abstract void onStart(long now, ActionListener<Void> listener);
+    protected abstract void onStart(long now, ActionListener<Boolean> listener);
 
     /**
      * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the
@@ -243,8 +250,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     /**
      * Called when a failure occurs in an async job causing the execution to stop.
      *
-     * @param exc
-     *            The exception
+     * This is called before the internal state changes from the state in which the failure occurred.
+     *
+     * @param exc The exception
      */
     protected abstract void onFailure(Exception exc);
 
@@ -272,12 +280,19 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private void finishWithSearchFailure(Exception exc) {
         stats.incrementSearchFailures();
-        doSaveState(finishAndSetState(), position.get(), () -> onFailure(exc));
+        onFailure(exc);
+        doSaveState(finishAndSetState(), position.get(), () -> {});
     }
 
     private void finishWithIndexingFailure(Exception exc) {
         stats.incrementIndexingFailures();
-        doSaveState(finishAndSetState(), position.get(), () -> onFailure(exc));
+        onFailure(exc);
+        doSaveState(finishAndSetState(), position.get(), () -> {});
+    }
+
+    private void finishWithFailure(Exception exc) {
+        onFailure(exc);
+        finishAndSetState();
     }
 
     private IndexerState finishAndSetState() {
@@ -349,31 +364,43 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             }
 
             final List<IndexRequest> docs = iterationResult.getToIndex();
-            final BulkRequest bulkRequest = new BulkRequest();
-            docs.forEach(bulkRequest::add);
 
-            // TODO this might be a valid case, e.g. if implementation filters
-            assert bulkRequest.requests().size() > 0;
+            // an iteration result might return an empty set of documents to be indexed
+            if (docs.isEmpty() == false) {
+                final BulkRequest bulkRequest = new BulkRequest();
+                docs.forEach(bulkRequest::add);
 
-            stats.markStartIndexing();
-            doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
-                // TODO we should check items in the response and move after accordingly to
-                // resume the failing buckets ?
-                if (bulkResponse.hasFailures()) {
-                    logger.warn("Error while attempting to bulk index documents: " + bulkResponse.buildFailureMessage());
+                stats.markStartIndexing();
+                doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
+                    // TODO we should check items in the response and move after accordingly to
+                    // resume the failing buckets ?
+                    if (bulkResponse.hasFailures()) {
+                        logger.warn("Error while attempting to bulk index documents: " + bulkResponse.buildFailureMessage());
+                    }
+                    stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
+
+                    // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
+                    if (checkState(getState()) == false) {
+                        return;
+                    }
+
+                    JobPosition newPosition = iterationResult.getPosition();
+                    position.set(newPosition);
+
+                    onBulkResponse(bulkResponse, newPosition);
+                }, this::finishWithIndexingFailure));
+            } else {
+                // no documents need to be indexed, continue with search
+                try {
+                    JobPosition newPosition = iterationResult.getPosition();
+                    position.set(newPosition);
+
+                    ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure);
+                    nextSearch(listener);
+                } catch (Exception e) {
+                    finishWithFailure(e);
                 }
-                stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
-
-                // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
-                if (checkState(getState()) == false) {
-                    return;
-                }
-
-                JobPosition newPosition = iterationResult.getPosition();
-                position.set(newPosition);
-
-                onBulkResponse(bulkResponse, newPosition);
-            }, this::finishWithIndexingFailure));
+            }
         } catch (Exception e) {
             finishWithSearchFailure(e);
         }

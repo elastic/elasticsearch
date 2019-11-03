@@ -19,14 +19,25 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.microsoft.azure.storage.OperationContext;
+import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.CloudBlobClient;
+import com.microsoft.azure.storage.blob.CloudBlobContainer;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
+import java.net.HttpURLConnection;
 import java.util.Collection;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,13 +53,22 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     @Override
     protected SecureSettings credentials() {
         assertThat(System.getProperty("test.azure.account"), not(blankOrNullString()));
-        assertThat(System.getProperty("test.azure.key"), not(blankOrNullString()));
+        final boolean hasSasToken = Strings.hasText(System.getProperty("test.azure.sas_token"));
+        if (hasSasToken == false) {
+            assertThat(System.getProperty("test.azure.key"), not(blankOrNullString()));
+        } else {
+            assertThat(System.getProperty("test.azure.key"), blankOrNullString());
+        }
         assertThat(System.getProperty("test.azure.container"), not(blankOrNullString()));
         assertThat(System.getProperty("test.azure.base"), not(blankOrNullString()));
 
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.default.account", System.getProperty("test.azure.account"));
-        secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
+        if (hasSasToken) {
+            secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token"));
+        } else {
+            secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
+        }
         return secureSettings;
     }
 
@@ -61,5 +81,32 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 .put("base_path", System.getProperty("test.azure.base"))
             ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        if (Strings.hasText(System.getProperty("test.azure.sas_token"))) {
+            ensureSasTokenPermissions();
+        }
+    }
+
+    private void ensureSasTokenPermissions() {
+        final BlobStoreRepository repository = getRepository();
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {
+            final AzureBlobStore blobStore = (AzureBlobStore) repository.blobStore();
+            final String account = "default";
+            final Tuple<CloudBlobClient, Supplier<OperationContext>> client = blobStore.getService().client(account);
+            final CloudBlobContainer blobContainer = client.v1().getContainerReference(blobStore.toString());
+            try {
+                SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, client.v2().get()));
+                future.onFailure(new RuntimeException(
+                    "The SAS token used in this test allowed for checking container existence. This test only supports tokens " +
+                        "that grant only the documented permission requirements for the Azure repository plugin."));
+            } catch (StorageException e) {
+                if (e.getHttpStatusCode() == HttpURLConnection.HTTP_FORBIDDEN) {
+                    future.onResponse(null);
+                } else {
+                    future.onFailure(e);
+                }
+            }
+        }));
+        future.actionGet();
     }
 }

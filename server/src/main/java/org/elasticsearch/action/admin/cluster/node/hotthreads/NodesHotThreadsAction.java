@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class NodesHotThreadsAction extends Action<NodesHotThreadsResponse> {
+public class NodesHotThreadsAction extends ActionType<NodesHotThreadsResponse> {
 
     public static final NodesHotThreadsAction INSTANCE = new NodesHotThreadsAction();
     public static final String NAME = "cluster:monitor/nodes/hot_threads";
 
     private NodesHotThreadsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public NodesHotThreadsResponse newResponse() {
-        return new NodesHotThreadsResponse();
+        super(NAME, NodesHotThreadsResponse::new);
     }
 }

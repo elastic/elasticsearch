@@ -21,8 +21,8 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,7 +30,7 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -38,8 +38,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus.readStoreStatus;
 
 /**
  * Response for {@link IndicesShardStoresAction}
@@ -52,7 +50,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     /**
      * Shard store information from a node
      */
-    public static class StoreStatus implements Streamable, ToXContentFragment, Comparable<StoreStatus> {
+    public static class StoreStatus implements Writeable, ToXContentFragment, Comparable<StoreStatus> {
         private DiscoveryNode node;
         private String allocationId;
         private Exception storeException;
@@ -111,7 +109,13 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             }
         }
 
-        private StoreStatus() {
+        public StoreStatus(StreamInput in) throws IOException {
+            node = new DiscoveryNode(in);
+            allocationId = in.readOptionalString();
+            allocationStatus = AllocationStatus.readFrom(in);
+            if (in.readBoolean()) {
+                storeException = in.readException();
+            }
         }
 
         public StoreStatus(DiscoveryNode node, String allocationId, AllocationStatus allocationStatus, Exception storeException) {
@@ -152,22 +156,6 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
          */
         public AllocationStatus getAllocationStatus() {
             return allocationStatus;
-        }
-
-        public static StoreStatus readStoreStatus(StreamInput in) throws IOException {
-            StoreStatus storeStatus = new StoreStatus();
-            storeStatus.readFrom(in);
-            return storeStatus;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            node = new DiscoveryNode(in);
-            allocationId = in.readOptionalString();
-            allocationStatus = AllocationStatus.readFrom(in);
-            if (in.readBoolean()) {
-                storeException = in.readException();
-            }
         }
 
         @Override
@@ -232,7 +220,14 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             this.nodeId = nodeId;
         }
 
-        private Failure() {
+        private Failure(StreamInput in) throws IOException {
+            if (in.getVersion().before(Version.V_7_4_0)) {
+                nodeId = in.readString();
+            }
+            readFrom(in, this);
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+                nodeId = in.readString();
+            }
         }
 
         public String nodeId() {
@@ -240,30 +235,24 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         static Failure readFailure(StreamInput in) throws IOException {
-            Failure failure = new Failure();
-            failure.readFrom(in);
-            return failure;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            nodeId = in.readString();
-            super.readFrom(in);
+            return new Failure(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(nodeId);
+            if (out.getVersion().before(Version.V_7_4_0)) {
+                out.writeString(nodeId);
+            }
             super.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+                out.writeString(nodeId);
+            }
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("node", nodeId());
-            super.innerToXContent(builder, params);
-            builder.endObject();
-            return builder;
+            return super.innerToXContent(builder, params);
         }
     }
 
@@ -281,7 +270,31 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     }
 
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        int numResponse = in.readVInt();
+        ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatusesBuilder = ImmutableOpenMap.builder();
+        for (int i = 0; i < numResponse; i++) {
+            String index = in.readString();
+            int indexEntries = in.readVInt();
+            ImmutableOpenIntMap.Builder<List<StoreStatus>> shardEntries = ImmutableOpenIntMap.builder();
+            for (int shardCount = 0; shardCount < indexEntries; shardCount++) {
+                int shardID = in.readInt();
+                int nodeEntries = in.readVInt();
+                List<StoreStatus> storeStatuses = new ArrayList<>(nodeEntries);
+                for (int nodeCount = 0; nodeCount < nodeEntries; nodeCount++) {
+                    storeStatuses.add(new StoreStatus(in));
+                }
+                shardEntries.put(shardID, storeStatuses);
+            }
+            storeStatusesBuilder.put(index, shardEntries.build());
+        }
+        int numFailure = in.readVInt();
+        List<Failure> failureBuilder = new ArrayList<>();
+        for (int i = 0; i < numFailure; i++) {
+            failureBuilder.add(Failure.readFailure(in));
+        }
+        storeStatuses = storeStatusesBuilder.build();
+        failures = Collections.unmodifiableList(failureBuilder);
     }
 
     /**
@@ -301,37 +314,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int numResponse = in.readVInt();
-        ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatusesBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < numResponse; i++) {
-            String index = in.readString();
-            int indexEntries = in.readVInt();
-            ImmutableOpenIntMap.Builder<List<StoreStatus>> shardEntries = ImmutableOpenIntMap.builder();
-            for (int shardCount = 0; shardCount < indexEntries; shardCount++) {
-                int shardID = in.readInt();
-                int nodeEntries = in.readVInt();
-                List<StoreStatus> storeStatuses = new ArrayList<>(nodeEntries);
-                for (int nodeCount = 0; nodeCount < nodeEntries; nodeCount++) {
-                    storeStatuses.add(readStoreStatus(in));
-                }
-                shardEntries.put(shardID, storeStatuses);
-            }
-            storeStatusesBuilder.put(index, shardEntries.build());
-        }
-        int numFailure = in.readVInt();
-        List<Failure> failureBuilder = new ArrayList<>();
-        for (int i = 0; i < numFailure; i++) {
-            failureBuilder.add(Failure.readFailure(in));
-        }
-        storeStatuses = storeStatusesBuilder.build();
-        failures = Collections.unmodifiableList(failureBuilder);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(storeStatuses.size());
         for (ObjectObjectCursor<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses) {
             out.writeString(indexShards.key);

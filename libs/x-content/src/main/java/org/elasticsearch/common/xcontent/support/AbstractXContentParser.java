@@ -367,7 +367,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         return list;
     }
 
-    static Object readValue(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+    public static Object readValue(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         switch (parser.currentToken()) {
             case VALUE_STRING: return parser.text();
             case VALUE_NUMBER: return parser.numberValue();

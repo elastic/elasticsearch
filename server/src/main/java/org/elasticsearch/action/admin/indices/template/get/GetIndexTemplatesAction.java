@@ -18,19 +18,14 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class GetIndexTemplatesAction extends Action<GetIndexTemplatesResponse> {
+public class GetIndexTemplatesAction extends ActionType<GetIndexTemplatesResponse> {
 
     public static final GetIndexTemplatesAction INSTANCE = new GetIndexTemplatesAction();
     public static final String NAME = "indices:admin/template/get";
 
     protected GetIndexTemplatesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetIndexTemplatesResponse newResponse() {
-        return new GetIndexTemplatesResponse();
+        super(NAME, GetIndexTemplatesResponse::new);
     }
 }

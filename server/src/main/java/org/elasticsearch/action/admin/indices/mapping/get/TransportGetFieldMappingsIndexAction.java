@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -63,6 +64,7 @@ public class TransportGetFieldMappingsIndexAction
         extends TransportSingleShardAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
 
     private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "[index]";
+    public static final ActionType<GetFieldMappingsResponse> TYPE = new ActionType<>(ACTION_NAME, GetFieldMappingsResponse::new);
 
     protected final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -114,7 +116,7 @@ public class TransportGetFieldMappingsIndexAction
 
         Map<String, Map<String, FieldMappingMetaData>> typeMappings = new HashMap<>();
         for (String type : typeIntersection) {
-            DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
+            DocumentMapper documentMapper = indexService.mapperService().documentMapper();
             Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(fieldPredicate, documentMapper, request);
             if (!fieldMapping.isEmpty()) {
                 typeMappings.put(type, fieldMapping);

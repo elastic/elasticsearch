@@ -38,7 +38,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -74,7 +73,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> test starting of shard");
 
-        ClusterState newState = allocation.applyStartedShards(state, Arrays.asList(initShard));
+        ClusterState newState = startShardsAndReroute(allocation, state, initShard);
         assertThat("failed to start " + initShard + "\ncurrent routing table:" +
             newState.routingTable(), newState, not(equalTo(state)));
         assertTrue(initShard + "isn't started \ncurrent routing table:" + newState.routingTable(),
@@ -82,7 +81,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         state = newState;
 
         logger.info("--> testing starting of relocating shards");
-        newState = allocation.applyStartedShards(state, Arrays.asList(relocatingShard.getTargetRelocatingShard()));
+        newState = startShardsAndReroute(allocation, state, relocatingShard.getTargetRelocatingShard());
         assertThat("failed to start " + relocatingShard + "\ncurrent routing table:" + newState.routingTable(),
             newState, not(equalTo(state)));
         ShardRouting shardRouting = newState.routingTable().index("test").shard(relocatingShard.id()).getShards().get(0);
@@ -131,7 +130,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         ClusterState state = stateBuilder.build();
 
         logger.info("--> test starting of relocating primary shard with initializing / relocating replica");
-        ClusterState newState = allocation.applyStartedShards(state, Arrays.asList(relocatingPrimary.getTargetRelocatingShard()));
+        ClusterState newState = startShardsAndReroute(allocation, state, relocatingPrimary.getTargetRelocatingShard());
         assertNotEquals(newState, state);
         assertTrue(newState.routingTable().index("test").allPrimaryShardsActive());
         ShardRouting startedReplica = newState.routingTable().index("test").shard(0).replicaShards().get(0);
@@ -152,7 +151,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         startedShards.add(relocatingPrimary.getTargetRelocatingShard());
         startedShards.add(relocatingReplica ? replica.getTargetRelocatingShard() : replica);
         Collections.shuffle(startedShards, random());
-        newState = allocation.applyStartedShards(state, startedShards);
+        newState = startShardsAndReroute(allocation, state, startedShards);
         assertNotEquals(newState, state);
         assertTrue(newState.routingTable().index("test").shard(0).allShardsStarted());
     }

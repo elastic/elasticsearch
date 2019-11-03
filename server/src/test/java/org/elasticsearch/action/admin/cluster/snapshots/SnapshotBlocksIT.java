@@ -57,11 +57,11 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
+            client().prepareIndex(INDEX_NAME).setSource("test", "init").execute().actionGet();
         }
         docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(OTHER_INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
+            client().prepareIndex(OTHER_INDEX_NAME).setSource("test", "init").execute().actionGet();
         }
 
         logger.info("--> register a repository");
@@ -132,7 +132,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
     public void testRestoreSnapshotWithBlocks() {
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME, OTHER_INDEX_NAME));
-        assertFalse(client().admin().indices().prepareExists(INDEX_NAME, OTHER_INDEX_NAME).get().isExists());
+        assertFalse(indexExists(INDEX_NAME));
+        assertFalse(indexExists(OTHER_INDEX_NAME));
 
         logger.info("-->  restoring a snapshot is blocked when the cluster is read only");
         try {
@@ -148,8 +149,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
                 .setWaitForCompletion(true)
                 .execute().actionGet();
         assertThat(response.status(), equalTo(RestStatus.OK));
-        assertTrue(client().admin().indices().prepareExists(INDEX_NAME).get().isExists());
-        assertTrue(client().admin().indices().prepareExists(OTHER_INDEX_NAME).get().isExists());
+        assertTrue(indexExists(INDEX_NAME));
+        assertTrue(indexExists(OTHER_INDEX_NAME));
     }
 
     public void testGetSnapshotWithBlocks() {
@@ -157,8 +158,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         try {
             setClusterReadOnly(true);
             GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots(REPOSITORY_NAME).execute().actionGet();
-            assertThat(response.getSnapshots(), hasSize(1));
-            assertThat(response.getSnapshots().get(0).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
+            assertThat(response.getSnapshots(REPOSITORY_NAME), hasSize(1));
+            assertThat(response.getSnapshots(REPOSITORY_NAME).get(0).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
         } finally {
             setClusterReadOnly(false);
         }

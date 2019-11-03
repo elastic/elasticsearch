@@ -9,23 +9,28 @@ Example for the ["Create Index"](http://www.elastic.co/guide/en/elasticsearch/re
 ```json
 {
   "indices.create": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html",
-    "methods": ["PUT", "POST"],
-    "url": {
-      "path": "/{index}",
-      "paths": ["/{index}"],
-      "parts": {
-        "index": {
-          "type" : "string",
-          "required" : true,
-          "description" : "The name of the index"
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html"
+    },
+    "stability": "stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}",
+          "method":"PUT",
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the index"
+            }
+          }
         }
-      },
-      "params": {
-        "timeout": {
-          "type" : "time",
-          "description" : "Explicit operation timeout"
-        }
+      ]
+    },
+    "params": {
+      "timeout": {
+        "type" : "time",
+        "description" : "Explicit operation timeout"
       }
     },
     "body": {
@@ -38,13 +43,111 @@ Example for the ["Create Index"](http://www.elastic.co/guide/en/elasticsearch/re
 The specification contains:
 
 * The _name_ of the API (`indices.create`), which usually corresponds to the client calls
-* Link to the documentation at <http://elastic.co>
-* List of HTTP methods for the endpoint
-* URL specification: path, parts, parameters
-* Whether body is allowed for the endpoint or not and its description
+* Link to the documentation at the <http://elastic.co> website
+* `stability` indicating the state of the API, has to be declared explicitly or YAML tests will fail
+    * `experimental` highly likely to break in the near future (minor/path), no bwc guarantees.
+    Possibly removed in the future.
+    * `beta` less likely to break or be removed but still reserve the right to do so
+    * `stable` No backwards breaking changes in a minor
+* Request URL: HTTP method, path and parts
+* Request parameters
+* Request body specification
 
-The `methods` and `url.paths` elements list all possible HTTP methods and URLs for the endpoint;
-it is the responsibility of the developer to use this information for a sensible API on the target platform.
+**NOTE**
+If an API is stable but it response should be treated as an arbitrary map of key values please notate this as followed
+
+```json
+{
+  "api.name": {
+    "stability" : "stable",
+    "response": {
+      "treat_json_as_key_value" : true
+    }
+  }
+}
+```
+
+## Backwards compatibility
+
+The specification follows the same backward compatibility guarantees as Elasticsearch.
+
+- Within a Major, additions only.
+- If an item has been documented wrong it should be deprecated instead as removing these might break downstream clients.
+- Major version change, may deprecate pieces or simply remove them given enough deprecation time.
+
+## Deprecations
+
+The specification schema allows to codify API deprecations, either for an entire API, or for specific parts of the API, such as paths or parameters.
+
+#### Entire API:
+
+```json
+{
+  "api" : {
+    "deprecated" : {
+      "version" : "7.0.0",
+      "description" : "Reason API is being deprecated"
+    },
+  }
+}
+```
+
+#### Specific paths and their parts:
+
+```json
+{
+  "api": {
+    "url": {
+      "paths": [
+        {
+          "path":"/{index}/{type}/{id}/_create",
+          "method":"PUT",
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Document ID"
+            },
+            "index":{
+              "type":"string",
+              "description":"The name of the index"
+            },
+            "type":{
+              "type":"string",
+              "description":"The type of the document",
+              "deprecated":true
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"Specifying types in urls has been deprecated"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+#### Parameters
+
+```json
+{
+  "api": {
+    "url": {
+      "params": {
+        "stored_fields": {
+          "type": "list",
+          "description" : "",
+          "deprecated" : {
+            "version" : "7.0.0",
+            "description" : "Reason parameter is being deprecated"
+          }
+        }
+      }
+    }
+  }
+}
+```
 
 ## License
 

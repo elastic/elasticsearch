@@ -73,7 +73,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
 
-    @SuppressWarnings("unchecked")
     protected AsyncShardFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
         this.logger = logger;
         this.type = type;
@@ -230,6 +229,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Implement this in order to scheduled another round that causes a call to fetch data.
      */
     protected abstract void reroute(ShardId shardId, String reason);
+
+    /**
+     * Clear cache for node, ensuring next fetch will fetch a fresh copy.
+     */
+    synchronized void clearCacheForNode(String nodeId) {
+        cache.remove(nodeId);
+    }
 
     /**
      * Fills the shard fetched data with new (data) nodes and a fresh NodeEntry, and removes from

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,6 +44,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DiscoveryNodesTests extends ESTestCase {
 
@@ -162,6 +164,35 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertEquals(sortedNodes, returnedNodes);
     }
 
+    public void testDeltaListsMultipleNodes() {
+        final List<DiscoveryNode> discoveryNodes = randomNodes(3);
+
+        final DiscoveryNodes nodes0 = DiscoveryNodes.builder().add(discoveryNodes.get(0)).build();
+        final DiscoveryNodes nodes01 = DiscoveryNodes.builder(nodes0).add(discoveryNodes.get(1)).build();
+        final DiscoveryNodes nodes012 = DiscoveryNodes.builder(nodes01).add(discoveryNodes.get(2)).build();
+
+        assertThat(nodes01.delta(nodes0).shortSummary(), equalTo("added {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes012.delta(nodes0).shortSummary(), oneOf(
+            "added {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
+            "added {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+
+        assertThat(nodes0.delta(nodes01).shortSummary(), equalTo("removed {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes0.delta(nodes012).shortSummary(), oneOf(
+            "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
+            "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+
+        final DiscoveryNodes nodes01Local = DiscoveryNodes.builder(nodes01).localNodeId(discoveryNodes.get(1).getId()).build();
+        final DiscoveryNodes nodes02Local = DiscoveryNodes.builder(nodes012).localNodeId(discoveryNodes.get(1).getId()).build();
+
+        assertThat(nodes01Local.delta(nodes0).shortSummary(), equalTo(""));
+        assertThat(nodes02Local.delta(nodes0).shortSummary(), equalTo("added {" + discoveryNodes.get(2) + "}"));
+
+        assertThat(nodes0.delta(nodes01Local).shortSummary(), equalTo("removed {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes0.delta(nodes02Local).shortSummary(), oneOf(
+            "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
+            "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+    }
+
     public void testDeltas() {
         Set<DiscoveryNode> nodesA = new HashSet<>();
         nodesA.addAll(randomNodes(1 + randomInt(10)));
@@ -240,8 +271,16 @@ public class DiscoveryNodesTests extends ESTestCase {
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
-            final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes,
-                new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))));
+            final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+            if (frequently()) {
+                roles.add(new DiscoveryNodeRole("custom_role", "cr") {
+                    @Override
+                    protected Setting<Boolean> roleSetting() {
+                        return null;
+                    }
+                });
+            }
+            final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);
             nodesList.add(node);
         }
         return nodesList;
@@ -259,7 +298,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         return discoBuilder.build();
     }
 
-    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
+    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
             Version.CURRENT);
     }
@@ -275,21 +314,21 @@ public class DiscoveryNodesTests extends ESTestCase {
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 return Collections.singleton(nodes.getMasterNodeId());
             }
-        }, MASTER_ELIGIBLE(DiscoveryNode.Role.MASTER.getRoleName() + ":true") {
+        }, MASTER_ELIGIBLE(DiscoveryNodeRole.MASTER_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getMasterNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
-        }, DATA(DiscoveryNode.Role.DATA.getRoleName() + ":true") {
+        }, DATA(DiscoveryNodeRole.DATA_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getDataNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
-        }, INGEST(DiscoveryNode.Role.INGEST.getRoleName() + ":true") {
+        }, INGEST(DiscoveryNodeRole.INGEST_ROLE.roleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
@@ -314,6 +353,17 @@ public class DiscoveryNodesTests extends ESTestCase {
                 });
                 return ids;
             }
+        }, CUSTOM_ROLE("custom_role:true") {
+            @Override
+            Set<String> matchingNodeIds(DiscoveryNodes nodes) {
+                Set<String> ids = new HashSet<>();
+                nodes.getNodes().valuesIt().forEachRemaining(node -> {
+                    if (node.getRoles().stream().anyMatch(role -> role.roleName().equals("custom_role"))) {
+                        ids.add(node.getId());
+                    }
+                });
+                return ids;
+            }
         };
 
         private final String selector;
@@ -328,13 +378,13 @@ public class DiscoveryNodesTests extends ESTestCase {
     public void testMaxMinNodeVersion() {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.add(new DiscoveryNode("name_" + 1, "node_" + 1, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
             Version.fromString("5.1.0")));
         discoBuilder.add(new DiscoveryNode("name_" + 2, "node_" + 2, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
             Version.fromString("6.3.0")));
         discoBuilder.add(new DiscoveryNode("name_" + 3, "node_" + 3, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
             Version.fromString("1.1.0")));
         discoBuilder.localNodeId("name_1");
         discoBuilder.masterNodeId("name_2");

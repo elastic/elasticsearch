@@ -92,11 +92,10 @@ public class TermVectorsService  {
             handleFieldWildcards(indexShard, request);
         }
 
-        try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, MapperService.SINGLE_MAPPING_NAME,
-            request.id(), uidTerm)
+        try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.id(), uidTerm)
                 .version(request.version()).versionType(request.versionType()));
                 Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")) {
-            Fields topLevelFields = fields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
+            Fields topLevelFields = fields(get.searcher() != null ? get.searcher().getIndexReader() : searcher.getIndexReader());
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
@@ -213,8 +212,7 @@ public class TermVectorsService  {
         /* generate term vectors from fetched document fields */
         String[] getFields = validFields.toArray(new String[validFields.size() + 1]);
         getFields[getFields.length - 1] = SourceFieldMapper.NAME;
-        GetResult getResult = indexShard.getService().get(
-                get, request.id(), MapperService.SINGLE_MAPPING_NAME, getFields, null);
+        GetResult getResult = indexShard.getService().get(get, request.id(), getFields, null);
         Fields generatedTermVectors = generateTermVectors(indexShard, getResult.sourceAsMap(), getResult.getFields().values(),
             request.offsets(), request.perFieldAnalyzer(), validFields);
 
@@ -326,9 +324,9 @@ public class TermVectorsService  {
     private static ParsedDocument parseDocument(IndexShard indexShard, String index, BytesReference doc,
                                                 XContentType xContentType, String routing) {
         MapperService mapperService = indexShard.mapperService();
-        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(MapperService.SINGLE_MAPPING_NAME);
+        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
         ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(
-                new SourceToParse(index, MapperService.SINGLE_MAPPING_NAME, "_id_for_tv_api", doc, xContentType, routing));
+                new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }

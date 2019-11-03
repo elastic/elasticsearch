@@ -44,7 +44,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.test.ESTestCase;
@@ -81,8 +80,8 @@ public class QueryProfilerTests extends ESTestCase {
         }
         reader = w.getReader();
         w.close();
-        Engine.Searcher engineSearcher = new Engine.Searcher("test", new IndexSearcher(reader), null);
-        searcher = new ContextIndexSearcher(engineSearcher, IndexSearcher.getDefaultQueryCache(), MAYBE_CACHE_POLICY);
+        searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(), MAYBE_CACHE_POLICY);
     }
 
     @AfterClass
@@ -159,10 +158,10 @@ public class QueryProfilerTests extends ESTestCase {
 
     public void testApproximations() throws IOException {
         QueryProfiler profiler = new QueryProfiler();
-        Engine.Searcher engineSearcher = new Engine.Searcher("test", new IndexSearcher(reader), reader::close);
         // disable query caching since we want to test approximations, which won't
         // be exposed on a cached entry
-        ContextIndexSearcher searcher = new ContextIndexSearcher(engineSearcher, null, MAYBE_CACHE_POLICY);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
+            null, MAYBE_CACHE_POLICY);
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);

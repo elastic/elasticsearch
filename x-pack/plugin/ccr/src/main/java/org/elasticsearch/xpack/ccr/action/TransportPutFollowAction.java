@@ -31,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -83,20 +84,15 @@ public final class TransportPutFollowAction
     }
 
     @Override
-    protected PutFollowAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected PutFollowAction.Response read(StreamInput in) throws IOException {
         return new PutFollowAction.Response(in);
     }
 
     @Override
     protected void masterOperation(
-            final PutFollowAction.Request request,
-            final ClusterState state,
-            final ActionListener<PutFollowAction.Response> listener) {
+        Task task, final PutFollowAction.Request request,
+        final ClusterState state,
+        final ActionListener<PutFollowAction.Response> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;

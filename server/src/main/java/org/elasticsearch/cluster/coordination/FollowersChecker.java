@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
@@ -113,7 +114,7 @@ public class FollowersChecker {
             (request, transportChannel, task) -> handleFollowerCheck(request, transportChannel));
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
-            public void onNodeDisconnected(DiscoveryNode node) {
+            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                 handleDisconnectedNode(node);
             }
         });
@@ -242,11 +243,9 @@ public class FollowersChecker {
     }
 
     private void handleDisconnectedNode(DiscoveryNode discoveryNode) {
-        synchronized (mutex) {
-            FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
-            if (followerChecker != null && followerChecker.running()) {
-                followerChecker.failNode("disconnected");
-            }
+        FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
+        if (followerChecker != null) {
+            followerChecker.failNode("disconnected");
         }
     }
 

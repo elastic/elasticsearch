@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security.action.saml;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -46,6 +46,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -143,13 +144,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final Client client = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 if (IndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;
                     indexRequests.add(indexRequest);
                     final IndexResponse response = new IndexResponse(
-                        indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                        new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
                     listener.onResponse((Response) response);
                 } else if (BulkAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(BulkRequest.class));

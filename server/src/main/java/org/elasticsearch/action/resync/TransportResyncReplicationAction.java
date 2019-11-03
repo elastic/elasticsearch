@@ -63,8 +63,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected ResyncReplicationResponse newResponseInstance() {
-        return new ResyncReplicationResponse();
+    protected ResyncReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ResyncReplicationResponse(in);
     }
 
     @Override
@@ -137,9 +137,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             new TransportResponseHandler<ResyncReplicationResponse>() {
                 @Override
                 public ResyncReplicationResponse read(StreamInput in) throws IOException {
-                    ResyncReplicationResponse response = newResponseInstance();
-                    response.readFrom(in);
-                    return response;
+                    return newResponseInstance(in);
                 }
 
                 @Override

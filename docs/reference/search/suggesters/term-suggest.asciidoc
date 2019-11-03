@@ -1,5 +1,5 @@
-[[search-suggesters-term]]
-=== Term suggester
+[[term-suggester]]
+==== Term suggester
 
 NOTE: In order to understand the format of suggestions, please
 read the <<search-suggesters>> page first.
@@ -9,7 +9,7 @@ suggest text is analyzed before terms are suggested. The suggested terms
 are provided per analyzed suggest text token. The `term` suggester
 doesn't take the query into account that is part of request.
 
-==== Common suggest options:
+===== Common suggest options:
 
 [horizontal]
 `text`::
@@ -50,12 +50,9 @@ doesn't take the query into account that is part of request.
      ** `always`:   Suggest any matching suggestions based on terms in the
                     suggest text.
 
-==== Other term suggest options:
+===== Other term suggest options:
 
 [horizontal]
-`lowercase_terms`::
-    Lowercases the suggest text terms after text analysis.
-
 `max_edits`::
     The maximum edit distance candidate suggestions can
     have in order to be considered as a suggestion. Can only be a value

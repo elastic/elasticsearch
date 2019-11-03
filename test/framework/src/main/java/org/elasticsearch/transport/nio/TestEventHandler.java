@@ -92,6 +92,30 @@ public class TestEventHandler extends EventHandler {
         }
     }
 
+    @Override
+    protected void handleActive(ChannelContext<?> context) throws IOException {
+        final boolean registered = transportThreadWatchdog.register();
+        try {
+            super.handleActive(context);
+        } finally {
+            if (registered) {
+                transportThreadWatchdog.unregister();
+            }
+        }
+    }
+
+    @Override
+    protected void activeException(ChannelContext<?> context, Exception exception) {
+        final boolean registered = transportThreadWatchdog.register();
+        try {
+            super.activeException(context, exception);
+        } finally {
+            if (registered) {
+                transportThreadWatchdog.unregister();
+            }
+        }
+    }
+
     public void handleConnect(SocketChannelContext context) throws IOException {
         assert hasConnectedMap.contains(context) == false : "handleConnect should only be called is a channel is not yet connected";
         final boolean registered = transportThreadWatchdog.register();

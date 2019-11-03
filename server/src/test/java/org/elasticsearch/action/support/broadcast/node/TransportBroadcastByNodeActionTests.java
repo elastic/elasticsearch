@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -74,7 +75,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -96,16 +96,19 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     private TestTransportBroadcastByNodeAction action;
 
     public static class Request extends BroadcastRequest<Request> {
-        public Request() {
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
         }
 
-        public Request(String[] indices) {
+        public Request(String... indices) {
             super(indices);
         }
     }
 
     public static class Response extends BroadcastResponse {
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
@@ -118,7 +121,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
 
         TestTransportBroadcastByNodeAction(TransportService transportService, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                           IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
                                            String executor) {
             super("indices:admin/test", TransportBroadcastByNodeActionTests.this.clusterService, transportService,
                 actionFilters, indexNameExpressionResolver, request, executor);
@@ -138,9 +141,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         @Override
         protected Request readRequestFrom(StreamInput in) throws IOException {
-            final Request request = new Request();
-            request.readFrom(in);
-            return request;
+            return new Request(in);
         }
 
         @Override
@@ -396,7 +397,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         List<BroadcastShardOperationFailedException> exceptions = nodeResponse.getExceptions();
         for (BroadcastShardOperationFailedException exception : exceptions) {
             assertThat(exception.getMessage(), is("operation indices:admin/test failed"));
-            assertThat(exception, hasToString(containsString("operation failed")));
+            assertThat(exception.getCause(), hasToString(containsString("operation failed")));
         }
     }
 

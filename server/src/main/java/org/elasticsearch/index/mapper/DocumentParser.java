@@ -41,7 +41,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
@@ -57,7 +56,6 @@ final class DocumentParser {
     }
 
     ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
-        validateType(source);
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
@@ -116,18 +114,6 @@ final class DocumentParser {
         }
     }
 
-    private void validateType(SourceToParse source) {
-        if (docMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
-            throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
-        }
-
-        if (Objects.equals(source.type(), docMapper.type()) == false &&
-                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used by typeless APIs
-            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type ["
-                + docMapper.type() + "]");
-        }
-    }
-
     private static void validateStart(XContentParser parser) throws IOException {
         // will result in START_OBJECT
         XContentParser.Token token = parser.nextToken();
@@ -166,7 +152,6 @@ final class DocumentParser {
             context.version(),
             context.seqID(),
             context.sourceToParse().id(),
-            context.sourceToParse().type(),
             source.routing(),
             context.docs(),
             context.sourceToParse().source(),
@@ -670,7 +655,7 @@ final class DocumentParser {
             }
         }
         if (builder == null) {
-            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(currentFieldName);
+            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
             Mapper.TypeParser typeParser = parserContext.typeParser(fieldType.typeName());
             if (typeParser == null) {
                 throw new MapperParsingException("Cannot generate dynamic mappings of type [" + fieldType.typeName()
@@ -764,13 +749,17 @@ final class DocumentParser {
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
             XContentParser.NumberType numberType = context.parser().numberType();
-            if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
+            if (numberType == XContentParser.NumberType.INT
+                    || numberType == XContentParser.NumberType.LONG
+                    || numberType == XContentParser.NumberType.BIG_INTEGER) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
                     builder = newLongBuilder(currentFieldName);
                 }
                 return builder;
-            } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
+            } else if (numberType == XContentParser.NumberType.FLOAT
+                    || numberType == XContentParser.NumberType.DOUBLE
+                    || numberType == XContentParser.NumberType.BIG_DECIMAL) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
                 if (builder == null) {
                     // no templates are defined, we use float by default instead of double

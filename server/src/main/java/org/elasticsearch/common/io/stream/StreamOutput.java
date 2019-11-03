@@ -24,18 +24,18 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -58,6 +58,7 @@ import java.nio.file.NotDirectoryException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -67,7 +68,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
@@ -106,7 +106,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     private Version version = Version.CURRENT;
-    private Set<String> features = Collections.emptySet();
 
     /**
      * The version of the node on the other side of this stream.
@@ -120,27 +119,6 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void setVersion(Version version) {
         this.version = version;
-    }
-
-    /**
-     * Test if the stream has the specified feature. Features are used when serializing {@link ClusterState.Custom} or
-     * {@link MetaData.Custom}; see also {@link ClusterState.FeatureAware}.
-     *
-     * @param feature the feature to test
-     * @return true if the stream has the specified feature
-     */
-    public boolean hasFeature(final String feature) {
-        return this.features.contains(feature);
-    }
-
-    /**
-     * Set the features on the stream. See {@link StreamOutput#hasFeature(String)}.
-     *
-     * @param features the features on the stream
-     */
-    public void setFeatures(final Set<String> features) {
-        assert this.features.isEmpty() : this.features;
-        this.features = Set.copyOf(features);
     }
 
     public long position() throws IOException {
@@ -228,19 +206,25 @@ public abstract class StreamOutput extends OutputStream {
         write(bytes.bytes, bytes.offset, bytes.length);
     }
 
+    private static final ThreadLocal<byte[]> scratch = ThreadLocal.withInitial(() -> new byte[1024]);
+
     public final void writeShort(short v) throws IOException {
-        writeByte((byte) (v >> 8));
-        writeByte((byte) v);
+        final byte[] buffer = scratch.get();
+        buffer[0] = (byte) (v >> 8);
+        buffer[1] = (byte) v;
+        writeBytes(buffer, 0, 2);
     }
 
     /**
      * Writes an int as four bytes.
      */
     public void writeInt(int i) throws IOException {
-        writeByte((byte) (i >> 24));
-        writeByte((byte) (i >> 16));
-        writeByte((byte) (i >> 8));
-        writeByte((byte) i);
+        final byte[] buffer = scratch.get();
+        buffer[0] = (byte) (i >> 24);
+        buffer[1] = (byte) (i >> 16);
+        buffer[2] = (byte) (i >> 8);
+        buffer[3] = (byte) i;
+        writeBytes(buffer, 0, 4);
     }
 
     /**
@@ -250,19 +234,30 @@ public abstract class StreamOutput extends OutputStream {
      * using {@link #writeInt}
      */
     public void writeVInt(int i) throws IOException {
+        final byte[] buffer = scratch.get();
+        int index = 0;
         while ((i & ~0x7F) != 0) {
-            writeByte((byte) ((i & 0x7f) | 0x80));
+            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
         }
-        writeByte((byte) i);
+        buffer[index++] = ((byte) i);
+        writeBytes(buffer, 0, index);
     }
 
     /**
      * Writes a long as eight bytes.
      */
     public void writeLong(long i) throws IOException {
-        writeInt((int) (i >> 32));
-        writeInt((int) i);
+        final byte[] buffer = scratch.get();
+        buffer[0] = (byte) (i >> 56);
+        buffer[1] = (byte) (i >> 48);
+        buffer[2] = (byte) (i >> 40);
+        buffer[3] = (byte) (i >> 32);
+        buffer[4] = (byte) (i >> 24);
+        buffer[5] = (byte) (i >> 16);
+        buffer[6] = (byte) (i >> 8);
+        buffer[7] = (byte) i;
+        writeBytes(buffer, 0, 8);
     }
 
     /**
@@ -282,11 +277,14 @@ public abstract class StreamOutput extends OutputStream {
      * {@link #writeVLong(long)} instead.
      */
     void writeVLongNoCheck(long i) throws IOException {
+        final byte[] buffer = scratch.get();
+        int index = 0;
         while ((i & ~0x7F) != 0) {
-            writeByte((byte) ((i & 0x7f) | 0x80));
+            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
         }
-        writeByte((byte) i);
+        buffer[index++] = ((byte) i);
+        writeBytes(buffer, 0, index);
     }
 
     /**
@@ -297,13 +295,16 @@ public abstract class StreamOutput extends OutputStream {
      * If the numbers are known to be non-negative, use {@link #writeVLong(long)}
      */
     public void writeZLong(long i) throws IOException {
+        final byte[] buffer = scratch.get();
+        int index = 0;
         // zig-zag encoding cf. https://developers.google.com/protocol-buffers/docs/encoding?hl=en
         long value = BitUtil.zigZagEncode(i);
         while ((value & 0xFFFFFFFFFFFFFF80L) != 0L) {
-            writeByte((byte)((value & 0x7F) | 0x80));
+            buffer[index++] = (byte) ((value & 0x7F) | 0x80);
             value >>>= 7;
         }
-        writeByte((byte) (value & 0x7F));
+        buffer[index++] = (byte) (value & 0x7F);
+        writeBytes(buffer, 0, index);
     }
 
     public void writeOptionalLong(@Nullable Long l) throws IOException {
@@ -321,6 +322,19 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeString(str);
+        }
+    }
+
+    public void writeOptionalSecureString(@Nullable SecureString secureStr) throws IOException {
+        if (secureStr == null) {
+            writeOptionalBytesReference(null);
+        } else {
+            final byte[] secureStrBytes = CharArrays.toUtf8Bytes(secureStr.getChars());
+            try {
+                writeOptionalBytesReference(new BytesArray(secureStrBytes));
+            } finally {
+                Arrays.fill(secureStrBytes, (byte) 0);
+            }
         }
     }
 
@@ -377,18 +391,9 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    // we use a small buffer to convert strings to bytes since we want to prevent calling writeByte
-    // for every byte in the string (see #21660 for details).
-    // This buffer will never be the oversized limit of 1024 bytes and will not be shared across streams
-    private byte[] convertStringBuffer = BytesRef.EMPTY_BYTES; // TODO should we reduce it to 0 bytes once the stream is closed?
-
     public void writeString(String str) throws IOException {
         final int charCount = str.length();
-        final int bufferSize = Math.min(3 * charCount, 1024); // at most 3 bytes per character is needed here
-        if (convertStringBuffer.length < bufferSize) { // we don't use ArrayUtils.grow since copying the bytes is unnecessary
-            convertStringBuffer = new byte[ArrayUtil.oversize(bufferSize, Byte.BYTES)];
-        }
-        byte[] buffer = convertStringBuffer;
+        byte[] buffer = scratch.get();
         int offset = 0;
         writeVInt(charCount);
         for (int i = 0; i < charCount; i++) {
@@ -412,6 +417,15 @@ public abstract class StreamOutput extends OutputStream {
             }
         }
         writeBytes(buffer, offset);
+    }
+
+    public void writeSecureString(SecureString secureStr) throws IOException {
+        final byte[] secureStrBytes = CharArrays.toUtf8Bytes(secureStr.getChars());
+        try {
+            writeBytesReference(new BytesArray(secureStrBytes));
+        } finally {
+            Arrays.fill(secureStrBytes, (byte) 0);
+        }
     }
 
     public void writeFloat(float v) throws IOException {
@@ -890,18 +904,6 @@ public abstract class StreamOutput extends OutputStream {
         writeOptionalArray((out, value) -> value.writeTo(out), array);
     }
 
-    /**
-     * Serializes a potential null value.
-     */
-    public void writeOptionalStreamable(@Nullable Streamable streamable) throws IOException {
-        if (streamable != null) {
-            writeBoolean(true);
-            streamable.writeTo(this);
-        } else {
-            writeBoolean(false);
-        }
-    }
-
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
@@ -1091,16 +1093,6 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeZoneId(timeZone);
-        }
-    }
-
-    /**
-     * Writes a list of {@link Streamable} objects
-     */
-    public void writeStreamableList(List<? extends Streamable> list) throws IOException {
-        writeVInt(list.size());
-        for (Streamable obj: list) {
-            obj.writeTo(this);
         }
     }
 

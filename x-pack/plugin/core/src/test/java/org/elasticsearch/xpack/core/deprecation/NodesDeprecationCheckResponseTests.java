@@ -10,8 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -21,11 +22,11 @@ import java.util.Collections;
 import java.util.List;
 
 public class NodesDeprecationCheckResponseTests
-    extends AbstractStreamableTestCase<NodesDeprecationCheckResponse> {
+    extends AbstractWireSerializingTestCase<NodesDeprecationCheckResponse> {
 
     @Override
-    protected NodesDeprecationCheckResponse createBlankInstance() {
-        return new NodesDeprecationCheckResponse();
+    protected Writeable.Reader<NodesDeprecationCheckResponse> instanceReader() {
+        return NodesDeprecationCheckResponse::new;
     }
 
     @Override

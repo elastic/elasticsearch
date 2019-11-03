@@ -273,12 +273,12 @@ logging.
 
 The following is a list of additional parameters that can be configured for a
 particular connection, in case the default behavior of the driver is not
-suitable. This can be done within the client application, in a manner
-particular to that application, generally in a free text input box (sometimes
-named "Connection string", "String extras", or similar).  The format of the
-string is `Attribute1=Value1`. Multiple attributes can be specified, separated
-by a semicolon `Attribute1=Value1;Attribute2=Value2;`. The attribute names are
-given below.
+suitable. For earlier versions of the driver, this needs to be done within the
+client application, in a manner particular to that application, generally in a
+free text input box (sometimes named "Connection string", "String extras", or
+similar).  The format of the string is `Attribute1=Value1`. Multiple attributes
+can be specified, separated by a semicolon
+`Attribute1=Value1;Attribute2=Value2;`. The attribute names are given below.
 
 `Timeout` (default: `0`)::
 The maximum time (in seconds) a request to the server can take. This can be
@@ -352,5 +352,20 @@ such a field, it will pick a value in the set - without any guarantees of what
 that will be, but typically the first in natural ascending order - and return
 it as the value for the column. If not set, the server will return an error.
 This corresponds to {es-sql}'s request parameter `field_multi_value_leniency`
+(see <<sql-rest-fields>>).
+
+
+`AutoEscapePVA` (default: `true`)::
+The pattern-value arguments make use of `_` and `%` as special characters to
+build patern matching values. Some applications however use these chars as
+regular ones, which can lead to {es-sql} returning more data than the app
+intended. With the auto escaping, the driver will inspect the arguments and
+will escape these special characters if not already done by the application.
+
+
+`IndexIncludeFrozen` (default: `false`)::
+If this parameter is `true`, the server will include the frozen indices in the
+query execution.
+This corresponds to {es-sql}'s request parameter `index_include_frozen`
 (see <<sql-rest-fields>>).
 

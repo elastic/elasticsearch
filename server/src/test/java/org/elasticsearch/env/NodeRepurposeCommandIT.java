@@ -48,11 +48,11 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         final String indexUUID = resolveIndex(indexName).getUUID();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").get();
+        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         ensureGreen();
 
-        assertTrue(client().prepareGet(indexName, "type1", "1").get().isExists());
+        assertTrue(client().prepareGet(indexName, "1").get().isExists());
 
         final Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         final Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
@@ -94,7 +94,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().startCoordinatingOnlyNode(dataNodeDataPathSettings);
 
         assertTrue(indexExists(indexName));
-        expectThrows(NoShardAvailableActionException.class, () -> client().prepareGet(indexName, "type1", "1").get());
+        expectThrows(NoShardAvailableActionException.class, () -> client().prepareGet(indexName, "1").get());
 
         logger.info("--> Restarting and repurposing other node");
 

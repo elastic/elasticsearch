@@ -67,9 +67,10 @@ public final class IngestClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putPipelineAsync(PutPipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::putPipeline, options,
+    public Cancellable putPipelineAsync(PutPipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::putPipeline, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -94,9 +95,10 @@ public final class IngestClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getPipelineAsync(GetPipelineRequest request, RequestOptions options, ActionListener<GetPipelineResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::getPipeline, options,
+    public Cancellable getPipelineAsync(GetPipelineRequest request, RequestOptions options, ActionListener<GetPipelineResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::getPipeline, options,
             GetPipelineResponse::fromXContent, listener, Collections.singleton(404));
     }
 
@@ -123,9 +125,12 @@ public final class IngestClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deletePipelineAsync(DeletePipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::deletePipeline, options,
+    public Cancellable deletePipelineAsync(DeletePipelineRequest request, RequestOptions options,
+                                           ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity( request,
+            IngestRequestConverters::deletePipeline, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -154,11 +159,12 @@ public final class IngestClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void simulateAsync(SimulatePipelineRequest request,
-                              RequestOptions options,
-                              ActionListener<SimulatePipelineResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
+    public Cancellable simulateAsync(SimulatePipelineRequest request,
+                                     RequestOptions options,
+                                     ActionListener<SimulatePipelineResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
             SimulatePipelineResponse::fromXContent, listener, emptySet());
     }
 }

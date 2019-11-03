@@ -16,9 +16,9 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -36,7 +36,6 @@ import java.util.OptionalLong;
  */
 public final class FollowingEngine extends InternalEngine {
 
-    private final CounterMetric numOfOptimizedIndexing = new CounterMetric();
 
     /**
      * Construct a new following engine with the specified engine configuration.
@@ -68,32 +67,18 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
-        // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
-        final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
-        assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
-        if (hasBeenProcessedBefore(index)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("index operation [id={} seq_no={} origin={}] was processed before", index.id(), index.seqNo(), index.origin());
-            }
-            if (index.origin() == Operation.Origin.PRIMARY) {
-                /*
-                 * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
-                 * from the term of the current operation. If the current operation arrives on replicas before the previous operation,
-                 * then the Lucene content between the primary and replicas are not identical (primary terms are different). We can safely
-                 * skip the existing operations below the global checkpoint, however must replicate the ones above the global checkpoint
-                 * but with the previous primary term (not the current term of the operation) in order to guarantee the consistency
-                 * between the primary and replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
-                 */
-                final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
-                    shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
-                return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.primaryTerm());
-            } else {
-                return IndexingStrategy.processButSkipLucene(false, index.version());
-            }
-        } else if (maxSeqNoOfUpdatesOrDeletes <= getLocalCheckpoint()) {
-            assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : "seq_no[" + index.seqNo() + "] <= msu[" + maxSeqNoOfUpdatesOrDeletes + "]";
-            numOfOptimizedIndexing.inc();
-            return InternalEngine.IndexingStrategy.optimizedAppendOnly(index.version());
+        if (index.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(index)) {
+            /*
+             * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
+             * from the term of the current operation. If the current operation arrives on replicas before the previous operation,
+             * then the Lucene content between the primary and replicas are not identical (primary terms are different). We can safely
+             * skip the existing operations below the global checkpoint, however must replicate the ones above the global checkpoint
+             * but with the previous primary term (not the current term of the operation) in order to guarantee the consistency
+             * between the primary and replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
+             */
+            final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
+                shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
+            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -106,7 +91,7 @@ public final class FollowingEngine extends InternalEngine {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
                 shardId, delete.seqNo(), lookupPrimaryTerm(delete.seqNo()));
-            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), delete.primaryTerm(), false);
+            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false);
         } else {
             return planDeletionAsNonPrimary(delete);
         }
@@ -133,7 +118,12 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
-        assert getMaxSeqNoOfUpdatesOrDeletes() >= seqNo : seqNo + " < " + getMaxSeqNoOfUpdatesOrDeletes();
+        if (Assertions.ENABLED) {
+            final long localCheckpoint = getProcessedLocalCheckpoint();
+            final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
+            assert localCheckpoint < maxSeqNoOfUpdates || maxSeqNoOfUpdates >= seqNo :
+                "maxSeqNoOfUpdates is not advanced local_checkpoint=" + localCheckpoint + " msu=" + maxSeqNoOfUpdates + " seq_no=" + seqNo;
+        }
         super.advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(seqNo); // extra safe in production code
     }
 
@@ -200,14 +190,6 @@ public final class FollowingEngine extends InternalEngine {
             }
             throw e;
         }
-    }
-
-    /**
-     * Returns the number of indexing operations that have been optimized (bypass version lookup) using sequence numbers in this engine.
-     * This metric is not persisted, and started from 0 when the engine is opened.
-     */
-    public long getNumberOfOptimizedIndexing() {
-        return numOfOptimizedIndexing.count();
     }
 
     @Override

@@ -23,5 +23,5 @@ package org.elasticsearch.action.admin.indices.shrink;
  * The type of the resize operation
  */
 public enum  ResizeType {
-    SHRINK, SPLIT;
+    SHRINK, SPLIT, CLONE;
 }

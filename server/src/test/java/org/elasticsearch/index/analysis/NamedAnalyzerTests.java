@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 public class NamedAnalyzerTests extends ESTestCase {
@@ -73,7 +74,13 @@ public class NamedAnalyzerTests extends ESTestCase {
                 return mode;
             }
         };
-        return new CustomAnalyzer("tokenizerName", null, new CharFilterFactory[0],
-                new TokenFilterFactory[] { tokenFilter  });
+        TokenFilterFactory[] tokenfilters = new TokenFilterFactory[] { tokenFilter  };
+        CharFilterFactory[] charFilters = new CharFilterFactory[0];
+        if (mode == AnalysisMode.SEARCH_TIME && randomBoolean()) {
+            AnalyzerComponents components = new AnalyzerComponents(null, charFilters, tokenfilters);
+            // sometimes also return reloadable custom analyzer
+            return new ReloadableCustomAnalyzer(components , TextFieldMapper.Defaults.POSITION_INCREMENT_GAP, -1);
+        }
+        return new CustomAnalyzer(null, charFilters, tokenfilters);
     }
 }

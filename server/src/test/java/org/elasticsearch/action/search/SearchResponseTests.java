@@ -26,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -69,7 +68,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
+            new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
     private AggregationsTests aggregationsTests = new AggregationsTests();
 
     @Before
@@ -207,7 +206,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContent() {
-        SearchHit hit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap());
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {
@@ -233,7 +232,7 @@ public class SearchResponseTests extends ESTestCase {
                 {
                     expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
+                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
             }
             expectedString.append("}");
@@ -268,7 +267,7 @@ public class SearchResponseTests extends ESTestCase {
                 {
                     expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
+                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
             }
             expectedString.append("}");

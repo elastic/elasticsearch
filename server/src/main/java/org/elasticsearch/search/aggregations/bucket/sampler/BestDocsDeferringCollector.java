@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
@@ -254,25 +255,30 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         }
 
         public void replayRelatedMatches(List<ScoreDoc> sd) throws IOException {
-            final LeafBucketCollector leafCollector = deferred.getLeafCollector(readerContext);
-            leafCollector.setScorer(this);
+            try {
+                final LeafBucketCollector leafCollector = deferred.getLeafCollector(readerContext);
+                leafCollector.setScorer(this);
 
-            currentScore = 0;
-            currentDocId = -1;
-            if (maxDocId < 0) {
-                return;
-            }
-            for (ScoreDoc scoreDoc : sd) {
-                // Doc ids from TopDocCollector are root-level Reader so
-                // need rebasing
-                int rebased = scoreDoc.doc - readerContext.docBase;
-                if ((rebased >= 0) && (rebased <= maxDocId)) {
-                    currentScore = scoreDoc.score;
-                    currentDocId = rebased;
-                    // We stored the bucket ID in Lucene's shardIndex property
-                    // for convenience.
-                    leafCollector.collect(rebased, scoreDoc.shardIndex);
+                currentScore = 0;
+                currentDocId = -1;
+                if (maxDocId < 0) {
+                    return;
                 }
+                for (ScoreDoc scoreDoc : sd) {
+                    // Doc ids from TopDocCollector are root-level Reader so
+                    // need rebasing
+                    int rebased = scoreDoc.doc - readerContext.docBase;
+                    if ((rebased >= 0) && (rebased <= maxDocId)) {
+                        currentScore = scoreDoc.score;
+                        currentDocId = rebased;
+                        // We stored the bucket ID in Lucene's shardIndex property
+                        // for convenience.
+                        leafCollector.collect(rebased, scoreDoc.shardIndex);
+                    }
+                }
+            } catch (CollectionTerminatedException e) {
+                // collection was terminated prematurely
+                // continue with the following leaf
             }
         }
 

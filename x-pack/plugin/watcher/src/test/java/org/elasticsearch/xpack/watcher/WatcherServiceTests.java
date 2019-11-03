@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -35,7 +36,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -62,11 +62,9 @@ import org.mockito.ArgumentCaptor;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
-import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -181,7 +179,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[count];
         for (int i = 0; i < count; i++) {
             String id = String.valueOf(i);
-            SearchHit hit = new SearchHit(1, id, new Text("watch"), Collections.emptyMap());
+            SearchHit hit = new SearchHit(1, id, Collections.emptyMap());
             hit.version(1L);
             hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever", OriginalIndices.NONE));
             hits[i] = hit;
@@ -270,13 +268,13 @@ public class WatcherServiceTests extends ESTestCase {
         csBuilder.metaData(MetaData.builder());
 
         service.reload(csBuilder.build(), "whatever");
-        verify(executionService).clearExecutionsAndQueue();
-        verify(executionService, never()).pause();
+        verify(executionService).clearExecutionsAndQueue(any());
+        verify(executionService, never()).pause(any());
         verify(triggerService).pauseExecution();
     }
 
     private static DiscoveryNode newNode() {
         return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(asList(DiscoveryNode.Role.values())), Version.CURRENT);
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
     }
 }

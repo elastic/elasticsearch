@@ -1,13 +1,12 @@
 [[indices-update-settings]]
-== Update Indices Settings
+=== Update index settings API
+++++
+<titleabbrev>Update index settings</titleabbrev>
+++++
 
-Change specific index level settings in real time.
+Changes an <<index-modules-settings,index setting>> in real time.
 
-The REST endpoint is `/_settings` (to update all indices) or
-`{index}/_settings` to update one (or more) indices settings.
-The body of the request includes the updated settings, for example:
-
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -16,12 +15,59 @@ PUT /twitter/_settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
-To reset a setting back to the default value, use `null`. For example:
 
-[source,js]
+[[update-index-settings-api-request]]
+==== {api-request-title}
+
+`PUT /<index>/_settings`
+
+
+[[update-index-settings-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
++
+To update a setting for all indices,
+use `_all` or exclude this parameter.
+
+
+[[update-index-settings-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`preserve_existing`::
+(Optional, boolean) If `true`, existing index settings remain unchanged.
+Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[update-index-settings-api-request-body]]
+==== {api-request-body-title}
+
+`settings`::
+(Optional, <<index-modules-settings,index setting object>>) Configuration
+options for the index. See <<index-modules-settings>>.
+
+[[update-index-settings-api-example]]
+==== {api-examples-title}
+
+[[reset-index-setting]]
+===== Reset an index setting
+To revert a setting to the default value, use `null`. For example:
+
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -30,7 +76,6 @@ PUT /twitter/_settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The list of per-index settings which can be updated dynamically on live
@@ -38,16 +83,15 @@ indices can be found in <<index-modules>>.
 To preserve existing settings from being updated, the `preserve_existing`
 request parameter can be set to `true`.
 
-[float]
 [[bulk]]
-=== Bulk Indexing Usage
+===== Bulk indexing usage
 
 For example, the update settings API can be used to dynamically change
 the index from being more performant for bulk indexing, and then move it
 to more real time indexing state. Before the bulk indexing is started,
 use:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -56,7 +100,6 @@ PUT /twitter/_settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 (Another optimization option is to start the index without any replicas,
@@ -65,7 +108,7 @@ and only later adding them, but that really depends on the use case).
 Then, once bulk indexing is done, the settings can be updated (back to
 the defaults for example):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -74,30 +117,29 @@ PUT /twitter/_settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And, a force merge should be called:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_forcemerge?max_num_segments=5
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[float]
 [[update-settings-analysis]]
-=== Updating Index Analysis
+===== Update index analysis
 
-It is also possible to define new <<analysis,analyzers>> for the index.
-But it is required to <<indices-open-close,close>> the index
-first and <<indices-open-close,open>> it after the changes are made.
+You can only define new analyzers on closed indices.
 
-For example if `content` analyzer hasn't been defined on `myindex` yet
-you can use the following commands to add it:
+To add an analyzer,
+you must close the index,
+define the analyzer,
+and reopen the index.
+For example,
+the following commands add the `content` analyzer to `myindex`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_close
 
@@ -115,5 +157,4 @@ PUT /twitter/_settings
 
 POST /twitter/_open
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -53,10 +54,8 @@ public class SecurityContext {
         try {
             return Authentication.readFromContext(threadContext);
         } catch (IOException e) {
-            // TODO: this seems bogus, the only way to get an ioexception here is from a corrupt or tampered
-            // auth header, which should be be audited?
             logger.error("failed to read authentication", e);
-            return null;
+            throw new UncheckedIOException(e);
         }
     }
 

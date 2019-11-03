@@ -40,7 +40,14 @@ public class ClusterStateResponse extends ActionResponse {
     private ClusterState clusterState;
     private boolean waitForTimedOut = false;
 
-    public ClusterStateResponse() {
+    public ClusterStateResponse(StreamInput in) throws IOException {
+        super(in);
+        clusterName = new ClusterName(in);
+        clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            new ByteSizeValue(in);
+        }
+        waitForTimedOut = in.readBoolean();
     }
 
     public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
@@ -73,19 +80,7 @@ public class ClusterStateResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        clusterName = new ClusterName(in);
-        clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            new ByteSizeValue(in);
-        }
-        waitForTimedOut = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         clusterName.writeTo(out);
         out.writeOptionalWriteable(clusterState);
         if (out.getVersion().before(Version.V_7_0_0)) {

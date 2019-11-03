@@ -96,6 +96,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -1483,22 +1484,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-
-    /**
-     * Checks that the Lucene index contains a history uuid marker. If not, a new one is generated and committed.
-     */
-    public void ensureIndexHasHistoryUUID() throws IOException {
-        metadataLock.writeLock().lock();
-        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
-            final Map<String, String> userData = getUserData(writer);
-            if (userData.containsKey(Engine.HISTORY_UUID_KEY) == false) {
-                updateCommitData(writer, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
-            }
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
-    }
-
     /**
      * Keeping existing unsafe commits when opening an engine can be problematic because these commits are not safe
      * at the recovering time but they can suddenly become safe in the future.
@@ -1516,31 +1501,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * commit on the replica will cause exception as the new last commit c3 will have recovery_translog_gen=1. The recovery
      * translog generation of a commit is calculated based on the current local checkpoint. The local checkpoint of c3 is 1
      * while the local checkpoint of c2 is 2.
-     * <p>
-     * 3. Commit without translog can be used in recovery. An old index, which was created before multiple-commits is introduced
-     * (v6.2), may not have a safe commit. If that index has a snapshotted commit without translog and an unsafe commit,
-     * the policy can consider the snapshotted commit as a safe commit for recovery even the commit does not have translog.
      */
-    public void trimUnsafeCommits(final long lastSyncedGlobalCheckpoint, final long minRetainedTranslogGen,
-                                  final org.elasticsearch.Version indexVersionCreated) throws IOException {
+    public void trimUnsafeCommits(final Path translogPath) throws IOException {
         metadataLock.writeLock().lock();
         try {
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
-            if (existingCommits.isEmpty()) {
-                throw new IllegalArgumentException("No index found to trim");
-            }
-            final IndexCommit lastIndexCommitCommit = existingCommits.get(existingCommits.size() - 1);
-            final String translogUUID = lastIndexCommitCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final IndexCommit startingIndexCommit;
-            // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
-            startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
-
-            if (translogUUID.equals(startingIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY)) == false) {
-                throw new IllegalStateException("starting commit translog uuid ["
-                    + startingIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY) + "] is not equal to last commit's translog uuid ["
-                    + translogUUID + "]");
-            }
-            if (startingIndexCommit.equals(lastIndexCommitCommit) == false) {
+            assert existingCommits.isEmpty() == false;
+            final IndexCommit lastIndexCommit = existingCommits.get(existingCommits.size() - 1);
+            final String translogUUID = lastIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
+            final IndexCommit startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
+            if (startingIndexCommit.equals(lastIndexCommit) == false) {
                 try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened
@@ -1557,6 +1528,22 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         } finally {
             metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Returns a {@link org.elasticsearch.index.seqno.SequenceNumbers.CommitInfo} of the safe commit if exists.
+     */
+    public Optional<SequenceNumbers.CommitInfo> findSafeIndexCommit(long globalCheckpoint) throws IOException {
+        final List<IndexCommit> commits = DirectoryReader.listCommits(directory);
+        assert commits.isEmpty() == false : "no commit found";
+        final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
+        final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
+        // all operations of the safe commit must be at most the global checkpoint.
+        if (commitInfo.maxSeqNo <= globalCheckpoint) {
+            return Optional.of(commitInfo);
+        } else {
+            return Optional.empty();
         }
     }
 

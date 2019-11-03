@@ -21,7 +21,9 @@ public class ActivateWatchResponse extends ActionResponse {
 
     private WatchStatus status;
 
-    public ActivateWatchResponse() {
+    public ActivateWatchResponse(StreamInput in) throws IOException {
+        super(in);
+        status = in.readBoolean() ? new WatchStatus(in) : null;
     }
 
     public ActivateWatchResponse(@Nullable WatchStatus status) {
@@ -36,14 +38,7 @@ public class ActivateWatchResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        status = in.readBoolean() ? new WatchStatus(in) : null;
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(status != null);
         if (status != null) {
             status.writeTo(out);

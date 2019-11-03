@@ -5,17 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -23,30 +20,24 @@ import java.util.Map;
 
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestExecuteWatchActionTests extends ESTestCase {
 
-    private RestController restController = mock(RestController.class);
-    private Client client = mock(Client.class);
-    private WatcherClient watcherClient = mock(WatcherClient.class);
+    private NodeClient client = mock(NodeClient.class);
 
     public void testThatFlagsCanBeSpecifiedViaParameters() throws Exception {
         String randomId = randomAlphaOfLength(10);
         for (String recordExecution : Arrays.asList("true", "false", null)) {
             for (String ignoreCondition : Arrays.asList("true", "false", null)) {
                 for (String debugCondition : Arrays.asList("true", "false", null)) {
-                    ExecuteWatchRequestBuilder builder = new ExecuteWatchRequestBuilder(client);
-                    when(watcherClient.prepareExecuteWatch()).thenReturn(builder);
 
-                    RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction(Settings.EMPTY, restController);
-                    restExecuteWatchAction.doPrepareRequest(createFakeRestRequest(randomId, recordExecution, ignoreCondition,
-                            debugCondition), watcherClient);
+                    ExecuteWatchRequest request = RestExecuteWatchAction.parseRequest(
+                        createFakeRestRequest(randomId, recordExecution, ignoreCondition, debugCondition), client);
 
-                    assertThat(builder.request().getId(), is(randomId));
-                    assertThat(builder.request().isRecordExecution(), is(Boolean.parseBoolean(recordExecution)));
-                    assertThat(builder.request().isIgnoreCondition(), is(Boolean.parseBoolean(ignoreCondition)));
-                    assertThat(builder.request().isDebug(), is(Boolean.parseBoolean(debugCondition)));
+                    assertThat(request.getId(), is(randomId));
+                    assertThat(request.isRecordExecution(), is(Boolean.parseBoolean(recordExecution)));
+                    assertThat(request.isIgnoreCondition(), is(Boolean.parseBoolean(ignoreCondition)));
+                    assertThat(request.isDebug(), is(Boolean.parseBoolean(debugCondition)));
                 }
             }
         }

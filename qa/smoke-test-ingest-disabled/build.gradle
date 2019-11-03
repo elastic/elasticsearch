@@ -17,6 +17,7 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -24,6 +25,6 @@ dependencies {
     testCompile project(path: ':modules:ingest-common', configuration: 'runtime')
 }
 
-integTestCluster {
+testClusters.integTest {
     setting 'node.ingest', 'false'
 }

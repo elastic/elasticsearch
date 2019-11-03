@@ -164,12 +164,12 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException("[rank_feature] fields do not support sorting, scripting or aggregating");
+            throw new IllegalArgumentException("[rank_feature] fields do not support sorting, scripting or aggregating");
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException("Queries on [rank_feature] fields are not supported");
+            throw new IllegalArgumentException("Queries on [rank_feature] fields are not supported");
         }
     }
 

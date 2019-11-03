@@ -218,7 +218,7 @@ public final class SamlRealm extends Realm implements Releasable {
         this.idpDescriptor = idpDescriptor;
         this.serviceProvider = spConfiguration;
 
-        this.nameIdPolicy = new SamlAuthnRequestBuilder.NameIDPolicySettings(require(config, NAMEID_FORMAT),
+        this.nameIdPolicy = new SamlAuthnRequestBuilder.NameIDPolicySettings(config.getSetting(NAMEID_FORMAT),
                 config.getSetting(NAMEID_ALLOW_CREATE), config.getSetting(NAMEID_SP_QUALIFIER));
         this.forceAuthn = config.getSetting(FORCE_AUTHN, () -> null);
         this.useSingleLogout = config.getSetting(IDP_SINGLE_LOGOUT);
@@ -384,6 +384,14 @@ public final class SamlRealm extends Realm implements Releasable {
         return token instanceof SamlToken;
     }
 
+    private boolean isTokenForRealm(SamlToken samlToken) {
+        if (samlToken.getAuthenticatingRealm() == null) {
+            return true;
+        } else {
+            return samlToken.getAuthenticatingRealm().equals(this.name());
+        }
+    }
+
     /**
      * Always returns {@code null} as there is no support for reading a SAML token out of a request
      *
@@ -396,7 +404,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult> listener) {
-        if (authenticationToken instanceof SamlToken) {
+        if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
             try {
                 final SamlToken token = (SamlToken) authenticationToken;
                 final SamlAttributes attributes = authenticator.authenticate(token);
@@ -439,20 +447,22 @@ public final class SamlRealm extends Realm implements Releasable {
             return;
         }
 
-        final Map<String, Object> userMeta = new HashMap<>();
+        final Map<String, Object> userMetaBuilder = new HashMap<>();
         if (populateUserMetadata) {
             for (SamlAttributes.SamlAttribute a : attributes.attributes()) {
-                userMeta.put("saml(" + a.name + ")", a.values);
+                userMetaBuilder.put("saml(" + a.name + ")", a.values);
                 if (Strings.hasText(a.friendlyName)) {
-                    userMeta.put("saml_" + a.friendlyName, a.values);
+                    userMetaBuilder.put("saml_" + a.friendlyName, a.values);
                 }
             }
         }
         if (attributes.name() != null) {
-            userMeta.put(USER_METADATA_NAMEID_VALUE, attributes.name().value);
-            userMeta.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
+            userMetaBuilder.put(USER_METADATA_NAMEID_VALUE, attributes.name().value);
+            if (attributes.name().format != null) {
+                userMetaBuilder.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
+            }
         }
-
+        final Map<String, Object> userMeta = Map.copyOf(userMetaBuilder);
 
         final List<String> groups = groupsAttribute.getAttribute(attributes);
         final String dn = resolveSingleValueAttribute(attributes, dnAttribute, DN_ATTRIBUTE.name(config));
@@ -719,7 +729,7 @@ public final class SamlRealm extends Realm implements Releasable {
             try {
                 onChange.run();
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("An error occurred while reloading file {}", file), e);
+                logger.warn(new ParameterizedMessage("An error occurred while reloading file [{}]", file), e);
             }
         }
     }
@@ -764,7 +774,7 @@ public final class SamlRealm extends Realm implements Releasable {
                                     return null;
                                 }
                                 return value;
-                            }).filter(Objects::nonNull).collect(Collectors.toList())
+                            }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList())
                     );
                 } else {
                     return new AttributeParser(
@@ -780,7 +790,7 @@ public final class SamlRealm extends Realm implements Releasable {
                         + "] is also set");
             } else {
                 return new AttributeParser("No SAML attribute for [" + setting.name(realmConfig) + "]",
-                        attributes -> Collections.emptyList());
+                        attributes -> List.of());
             }
         }
 

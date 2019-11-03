@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.join.query.JoinQueryBuilders;
+import org.elasticsearch.index.query.RankFeatureQueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -437,5 +438,31 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         String query = "{\"term\": {\"user\": \"kimchy\"}}"; // <1>
         wrapperQuery(query);
         // end::wrapper
+    }
+
+    public void testRankFeatureSaturation() {
+        RankFeatureQueryBuilders.saturation("pagerank");
+    }
+
+    public void testRankFeatureSaturationPivot() {
+        RankFeatureQueryBuilders.saturation(
+            "pagerank",
+            8
+        );
+    }
+
+    public void testRankFeatureLog() {
+        RankFeatureQueryBuilders.log(
+            "pagerank",
+            4f
+        );
+    }
+
+    public void testRankFeatureSigmoid() {
+        RankFeatureQueryBuilders.sigmoid(
+            "pagerank",
+            7,
+            0.6f
+        );
     }
 }

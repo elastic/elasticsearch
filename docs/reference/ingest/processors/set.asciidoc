@@ -17,7 +17,7 @@ include::common-options.asciidoc[]
 [source,js]
 --------------------------------------------------
 {
-  "description" : "sets the value of count to 1"
+  "description" : "sets the value of count to 1",
   "set": {
     "field": "count",
     "value": 1
@@ -28,7 +28,7 @@ include::common-options.asciidoc[]
 
 This processor can also be used to copy data from one field to another. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/set_os
 {
@@ -54,17 +54,16 @@ POST _ingest/pipeline/set_os/_simulate
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Result:
-[source,js]
+
+[source,console-result]
 --------------------------------------------------
 {
   "docs" : [
     {
       "doc" : {
         "_index" : "_index",
-        "_type" : "_doc",
         "_id" : "_id",
         "_source" : {
           "host" : {

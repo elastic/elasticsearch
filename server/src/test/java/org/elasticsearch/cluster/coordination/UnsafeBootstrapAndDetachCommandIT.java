@@ -36,7 +36,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -53,7 +52,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort)
@@ -376,12 +374,12 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         ensureStableCluster(2);
 
         logger.info("--> index 1 doc and ensure index is green");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen("test");
 
         logger.info("--> verify 1 doc in the index");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> stop data-only node and detach it from the old cluster");
         Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
@@ -404,12 +402,12 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         logger.info("--> verify that the dangling index exists and has green status");
         assertBusy(() -> {
-            assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
+            assertThat(indexExists("test"), equalTo(true));
         });
         ensureGreen("test");
 
         logger.info("--> verify the doc is there");
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {

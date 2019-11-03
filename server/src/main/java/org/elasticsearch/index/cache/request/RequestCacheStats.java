@@ -21,7 +21,6 @@ package org.elasticsearch.index.cache.request;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -29,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class RequestCacheStats implements Streamable, Writeable, ToXContentFragment {
+public class RequestCacheStats implements Writeable, ToXContentFragment {
 
     private long memorySize;
     private long evictions;
@@ -78,11 +77,6 @@ public class RequestCacheStats implements Streamable, Writeable, ToXContentFragm
 
     public long getMissCount() {
         return this.missCount;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
@@ -33,13 +35,16 @@ import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.util.Holder;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -64,6 +69,8 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LOCAL;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.sql.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.sql.type.DataType.SHAPE;
+import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 /**
  * The verifier has the role of checking the analyzed tree for failures and build a list of failures following this check.
@@ -71,22 +78,22 @@ import static org.elasticsearch.xpack.sql.type.DataType.GEO_SHAPE;
  */
 public final class Verifier {
     private final Metrics metrics;
-    
+
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
     }
 
     static class Failure {
-        private final Node<?> source;
+        private final Node<?> node;
         private final String message;
 
-        Failure(Node<?> source, String message) {
-            this.source = source;
+        Failure(Node<?> node, String message) {
+            this.node = node;
             this.message = message;
         }
 
-        Node<?> source() {
-            return source;
+        Node<?> node() {
+            return node;
         }
 
         String message() {
@@ -95,7 +102,7 @@ public final class Verifier {
 
         @Override
         public int hashCode() {
-            return source.hashCode();
+            return Objects.hash(node);
         }
 
         @Override
@@ -109,7 +116,7 @@ public final class Verifier {
             }
 
             Verifier.Failure other = (Verifier.Failure) obj;
-            return Objects.equals(source, other.source);
+            return Objects.equals(node, other.node);
         }
 
         @Override
@@ -124,7 +131,7 @@ public final class Verifier {
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
         Collection<Failure> failures = verify(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
+        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
     Collection<Failure> verify(LogicalPlan plan) {
@@ -237,6 +244,7 @@ public final class Verifier {
                 checkForScoreInsideFunctions(p, localFailures);
                 checkNestedUsedInGroupByOrHaving(p, localFailures);
                 checkForGeoFunctionsOnDocValues(p, localFailures);
+                checkPivot(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -247,7 +255,7 @@ public final class Verifier {
                 failures.addAll(localFailures);
             });
         }
-        
+
         // gather metrics
         if (failures.isEmpty()) {
             BitSet b = new BitSet(FeatureMetric.values().length);
@@ -464,18 +472,37 @@ public final class Verifier {
 
     private static boolean checkGroupByInexactField(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof Aggregate) {
-            Aggregate a = (Aggregate) p;
-
-            // The grouping can not be an aggregate function or an inexact field (e.g. text without a keyword)
-            a.groupings().forEach(e -> e.forEachUp(c -> {
-                EsField.Exact exact = c.getExactInfo();
-                if (exact.hasExact() == false) {
-                    localFailures.add(fail(c, "Field [" + c.sourceText()  + "] of data type [" + c.dataType().typeName + "] " +
-                        "cannot be used for grouping; " + exact.errorMsg()));
-                }
-            }, FieldAttribute.class));
+            return onlyExactFields(((Aggregate) p).groupings(), localFailures);
         }
         return true;
+    }
+
+    // The grouping can not be an aggregate function or an inexact field (e.g. text without a keyword)
+    private static boolean onlyExactFields(List<Expression> expressions, Set<Failure> localFailures) {
+        Holder<Boolean> onlyExact = new Holder<>(Boolean.TRUE);
+
+        expressions.forEach(e -> e.forEachUp(c -> {
+            EsField.Exact exact = c.getExactInfo();
+            if (exact.hasExact() == false) {
+                localFailures.add(fail(c, "Field [{}] of data type [{}] cannot be used for grouping; {}", c.sourceText(),
+                        c.dataType().typeName, exact.errorMsg()));
+                onlyExact.set(Boolean.FALSE);
+            }
+        }, FieldAttribute.class));
+
+        return onlyExact.get();
+    }
+
+    private static boolean onlyRawFields(Iterable<? extends Expression> expressions, Set<Failure> localFailures) {
+        Holder<Boolean> onlyExact = new Holder<>(Boolean.TRUE);
+
+        expressions.forEach(e -> e.forEachDown(c -> {
+            if (c instanceof Function || c instanceof FunctionAttribute) {
+                localFailures.add(fail(c, "No functions allowed (yet); encountered [{}]", c.sourceText()));
+                onlyExact.set(Boolean.FALSE);
+            }
+        }));
+        return onlyExact.get();
     }
 
     private static boolean checkGroupByTime(LogicalPlan p, Set<Failure> localFailures) {
@@ -605,7 +632,7 @@ public final class Verifier {
         if (Functions.isAggregate(e)) {
             return true;
         }
-        
+
         // left without leaves which have to match; if not there's a failure
         // make sure to match directly on the expression and not on the tree
         // (since otherwise exp might match the function argument which would be incorrect)
@@ -618,15 +645,16 @@ public final class Verifier {
         }
         return false;
     }
-    
+
     private static void checkGroupingFunctionInGroupBy(LogicalPlan p, Set<Failure> localFailures) {
         // check if the query has a grouping function (Histogram) but no GROUP BY
         if (p instanceof Project) {
             Project proj = (Project) p;
             proj.projections().forEach(e -> e.forEachDown(f ->
                 localFailures.add(fail(f, "[{}] needs to be part of the grouping", Expressions.name(f))), GroupingFunction.class));
-        } else if (p instanceof Aggregate) {
-            // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms)
+        }
+        // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms)
+        else if (p instanceof Aggregate) {
             Aggregate a = (Aggregate) p;
             a.aggregates().forEach(agg -> agg.forEachDown(e -> {
                 if (a.groupings().size() == 0
@@ -707,14 +735,14 @@ public final class Verifier {
                     fail(nested.get(0), "Grouping isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
         }
-        
+
         // check in having
         p.forEachDown(f -> {
             if (f.child() instanceof Aggregate) {
                 f.condition().forEachUp(match, FieldAttribute.class);
             }
         }, Filter.class);
-        
+
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
@@ -731,6 +759,9 @@ public final class Verifier {
                 if (fa.field().getDataType() == GEO_SHAPE) {
                     localFailures.add(fail(fa, "geo shapes cannot be used for filtering"));
                 }
+                if (fa.field().getDataType() == SHAPE) {
+                    localFailures.add(fail(fa, "shapes cannot be used for filtering"));
+                }
             }, FieldAttribute.class);
         }, Filter.class);
 
@@ -738,6 +769,9 @@ public final class Verifier {
         p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(fa -> {
             if (fa.field().getDataType() == GEO_SHAPE) {
                 localFailures.add(fail(fa, "geo shapes cannot be used in grouping"));
+            }
+            if (fa.field().getDataType() == SHAPE) {
+                localFailures.add(fail(fa, "shapes cannot be used in grouping"));
             }
         }, FieldAttribute.class)), Aggregate.class);
 
@@ -747,6 +781,67 @@ public final class Verifier {
             if (fa.field().getDataType() == GEO_SHAPE) {
                 localFailures.add(fail(fa, "geo shapes cannot be used for sorting"));
             }
+            if (fa.field().getDataType() == SHAPE) {
+                localFailures.add(fail(fa, "shapes cannot be used for sorting"));
+            }
         }, FieldAttribute.class)), OrderBy.class);
+    }
+
+    private static void checkPivot(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachDown(pv -> {
+            // check only exact fields are used inside PIVOTing
+            if (onlyExactFields(combine(pv.groupingSet(), pv.column()), localFailures) == false
+                    || onlyRawFields(pv.groupingSet(), localFailures) == false) {
+                // if that is not the case, no need to do further validation since the declaration is fundamentally wrong
+                return;
+            }
+
+            // check values
+            DataType colType = pv.column().dataType();
+            for (NamedExpression v : pv.values()) {
+                // check all values are foldable
+                Expression ex = v instanceof Alias ? ((Alias) v).child() : v;
+                if (ex instanceof Literal == false) {
+                    localFailures.add(fail(v, "Non-literal [{}] found inside PIVOT values", v.name()));
+                }
+                else if (ex.foldable() && ex.fold() == null) {
+                    localFailures.add(fail(v, "Null not allowed as a PIVOT value", v.name()));
+                }
+                // and that their type is compatible with that of the column
+                else if (DataTypes.areTypesCompatible(colType, v.dataType()) == false) {
+                    localFailures.add(fail(v, "Literal [{}] of type [{}] does not match type [{}] of PIVOT column [{}]", v.name(),
+                            v.dataType().typeName, colType.typeName, pv.column().sourceText()));
+                }
+            }
+
+            // check aggregate function, in particular formulas that might hide literals or scalars
+            pv.aggregates().forEach(a -> {
+                Holder<Boolean> hasAggs = new Holder<>(Boolean.FALSE);
+                List<Expression> aggs = a.collectFirstChildren(c -> {
+                    // skip aggregate functions
+                    if (Functions.isAggregate(c)) {
+                        hasAggs.set(Boolean.TRUE);
+                        return true;
+                    }
+                    if (c.children().isEmpty()) {
+                        return true;
+                    }
+                    return false;
+                });
+
+                if (Boolean.FALSE.equals(hasAggs.get())) {
+                    localFailures.add(fail(a, "No aggregate function found in PIVOT at [{}]", a.sourceText()));
+                }
+                // check mixture of Agg and column (wrapped in scalar)
+                else {
+                    for (Expression agg : aggs) {
+                        if (agg instanceof FieldAttribute) {
+                            localFailures.add(fail(a, "Non-aggregate function found in PIVOT at [{}]", a.sourceText()));
+                        }
+                    }
+                }
+            });
+
+        }, Pivot.class);
     }
 }

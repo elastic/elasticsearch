@@ -277,7 +277,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             assertThat(multiSearchResponse.getResponses()[1].getFailure().toString(),
-                    equalTo("[test4] IndexNotFoundException[no such index [test4]]"));
+                    equalTo("[test4] org.elasticsearch.index.IndexNotFoundException: no such index [test4]"));
         }
         {
             //we set ignore_unavailable and allow_no_indices to true, no errors returned, second item doesn't have hits.
@@ -317,42 +317,26 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testIndicesExists() {
-        createIndicesWithRandomAliases("test1", "test2", "test3");
-
-        assertEquals(true, client().admin().indices().prepareExists("*").get().isExists());
-
-        assertEquals(true, client().admin().indices().prepareExists("_all").get().isExists());
-
-        assertEquals(true, client().admin().indices().prepareExists("test1", "test2").get().isExists());
-
-        assertEquals(true, client().admin().indices().prepareExists("test*").get().isExists());
-
-        assertEquals(false, client().admin().indices().prepareExists("does_not_exist").get().isExists());
-
-        assertEquals(false, client().admin().indices().prepareExists("does_not_exist*").get().isExists());
-    }
-
     public void testGet() {
         createIndicesWithRandomAliases("test1", "index1");
 
-        client().prepareGet("test1", "type", "id").get();
+        client().prepareGet("test1", "id").get();
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("index1", "type", "id")::get, GetAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("index1", "id")::get, GetAction.NAME);
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("missing", "type", "id")::get, GetAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("missing", "id")::get, GetAction.NAME);
 
-        expectThrows(IndexNotFoundException.class, () -> client().prepareGet("test5", "type", "id").get());
+        expectThrows(IndexNotFoundException.class, () -> client().prepareGet("test5", "id").get());
     }
 
     public void testMultiGet() {
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
         MultiGetResponse multiGetResponse = client().prepareMultiGet()
-                .add("test1", "type", "id")
-                .add("index1", "type", "id")
-                .add("test3", "type", "id")
-                .add("missing", "type", "id")
-                .add("test5", "type", "id").get();
+                .add("test1", "id")
+                .add("index1", "id")
+                .add("test3", "id")
+                .add("missing", "id")
+                .add("test5", "id").get();
         assertEquals(5, multiGetResponse.getResponses().length);
         assertFalse(multiGetResponse.getResponses()[0].isFailed());
         assertEquals("test1", multiGetResponse.getResponses()[0].getResponse().getIndex());

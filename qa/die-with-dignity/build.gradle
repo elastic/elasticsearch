@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,6 +19,7 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -24,12 +27,15 @@ esplugin {
     classname 'org.elasticsearch.DieWithDignityPlugin'
 }
 
-integTestRunner {
+integTest.runner {
     systemProperty 'tests.security.manager', 'false'
     systemProperty 'tests.system_call_filter', 'false'
-    nonInputProperties.systemProperty 'pidfile', "${-> integTest.getNodes().get(0).pidFile}"
-    nonInputProperties.systemProperty 'log', "${-> integTest.getNodes().get(0).homeDir}/logs/${-> integTest.getNodes().get(0).clusterName}_server.json"
-    systemProperty 'runtime.java.home', "${project.runtimeJavaHome}"
+    nonInputProperties.systemProperty 'log', "${-> testClusters.integTest.singleNode().getServerLog()}"
+    systemProperty 'runtime.java.home', BuildParams.runtimeJavaHome
+}
+
+testClusters.integTest {
+    systemProperty "die.with.dignity.test", "whatever"
 }
 
 test.enabled = false

@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -90,9 +91,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     @Inject
     public GatewayService(final Settings settings, final AllocationService allocationService, final ClusterService clusterService,
-                          final ThreadPool threadPool,
-                          final TransportNodesListGatewayMetaState listGatewayMetaState,
-                          final Discovery discovery) {
+                          final ThreadPool threadPool, final Discovery discovery, final NodeClient client) {
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -121,7 +120,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             recoveryRunnable = () ->
                     clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
         } else {
-            final Gateway gateway = new Gateway(clusterService, listGatewayMetaState);
+            final Gateway gateway = new Gateway(clusterService, client);
             recoveryRunnable = () ->
                     gateway.performStateRecovery(new GatewayRecoveryListener());
         }

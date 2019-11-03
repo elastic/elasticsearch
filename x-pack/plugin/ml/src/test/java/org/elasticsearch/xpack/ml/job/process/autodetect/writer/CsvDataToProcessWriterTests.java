@@ -125,7 +125,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         try (CategorizationAnalyzer categorizationAnalyzer =
-                     new CategorizationAnalyzer(analysisRegistry, environment, analysisConfig.getCategorizationAnalyzerConfig())) {
+                     new CategorizationAnalyzer(analysisRegistry, analysisConfig.getCategorizationAnalyzerConfig())) {
             writer.write(inputStream, categorizationAnalyzer, null, (r, e) -> {});
         }
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
@@ -265,6 +265,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting(any());
     }
 
+    @SuppressWarnings("unchecked")
     public void testWrite_EmptyInput() throws IOException {
         AnalysisConfig.Builder builder =
                 new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));

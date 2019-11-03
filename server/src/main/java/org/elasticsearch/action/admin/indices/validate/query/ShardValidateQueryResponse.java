@@ -39,8 +39,11 @@ class ShardValidateQueryResponse extends BroadcastShardResponse {
 
     private String error;
     
-    ShardValidateQueryResponse() {
-
+    ShardValidateQueryResponse(StreamInput in) throws IOException {
+        super(in);
+        valid = in.readBoolean();
+        explanation = in.readOptionalString();
+        error = in.readOptionalString();
     }
 
     ShardValidateQueryResponse(ShardId shardId, boolean valid, String explanation, String error) {
@@ -60,14 +63,6 @@ class ShardValidateQueryResponse extends BroadcastShardResponse {
     
     public String getError() {
         return error;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        valid = in.readBoolean();
-        explanation = in.readOptionalString();
-        error = in.readOptionalString();
     }
 
     @Override

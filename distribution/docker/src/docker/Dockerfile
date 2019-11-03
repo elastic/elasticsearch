@@ -19,7 +19,7 @@ ENV JAVA_HOME /opt/jdk-${jdkVersion}
 RUN for iter in {1..10}; do curl -L -s -S ${jdkUrl} | tar -C /opt -zx && \
     exit_code=0 && break || exit_code=\$? && echo "download error: retry $iter in 10s" && sleep 10; done; \
     (exit $exit_code)
-    
+ 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.
 # REF: https://github.com/elastic/elasticsearch-docker/issues/171

@@ -58,7 +58,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
  * Field Mapper for pre-aggregated histograms.
- *
  */
 public class HistogramFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "histogram";
@@ -353,13 +352,13 @@ public class HistogramFieldMapper extends FieldMapper {
         }
         context.path().add(simpleName());
         try {
-            DoubleArrayList values = null;
-            IntArrayList counts = null;
             XContentParser.Token token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 context.path().remove();
                 return;
             }
+            DoubleArrayList values = null;
+            IntArrayList counts = null;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
             token = context.parser().nextToken();
@@ -419,19 +418,18 @@ public class HistogramFieldMapper extends FieldMapper {
                     + name() + "], expected same length from [" + VALUES_FIELD.getPreferredName() +"] and " +
                     "[" + COUNTS_FIELD.getPreferredName() +"] but got [" + values.size() + " != " + counts.size() +"]");
             }
-            if (values.size() == 0) {
-                context.path().remove();
-                return;
-            }
             if (fieldType().hasDocValues()) {
                 BytesStreamOutput streamOutput = new BytesStreamOutput();
                 for (int i = 0; i < values.size(); i++) {
-                    streamOutput.writeDouble(values.get(i));
-                    if (counts.get(i) < 0) {
+                    int count = counts.get(i);
+                    if (count < 0) {
                         throw new MapperParsingException("error parsing field ["
                             + name() + "], ["+ COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i));
+                    } else if (count > 0) {
+                        // we do not add elements with count == 0
+                        streamOutput.writeDouble(values.get(i));
+                        streamOutput.writeVInt(count);
                     }
-                    streamOutput.writeVInt(counts.get(i));
                 }
 
                 Field field = new BinaryDocValuesField(simpleName(), streamOutput.bytes().toBytesRef());
@@ -448,6 +446,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]",
                     ex, fieldType().name(), fieldType().typeName());
             }
+            context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
     }

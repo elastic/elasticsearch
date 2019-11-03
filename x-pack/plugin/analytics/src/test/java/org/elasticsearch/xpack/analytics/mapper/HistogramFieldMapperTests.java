@@ -43,8 +43,8 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject().field("pre_aggregated").startObject()
-                        .field("values", new int[] {0, 0})
-                        .field("counts", new long[] {0, 0})
+                        .field("values", new double[] {2, 3})
+                        .field("counts", new int[] {0, 4})
                         .endObject()
                         .endObject()),
                 XContentType.JSON));
@@ -96,7 +96,7 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()),
             XContentType.JSON));
 
-        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+        assertThat(doc.rootDoc().getField("pre_aggregated"), notNullValue());
     }
 
     public void testNullValue() throws Exception {
@@ -335,7 +335,7 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         SourceToParse source = new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("pre_aggregated").startObject()
-                .field("counts", new long[] {2, 8, 4})
+                .field("counts", new int[] {2, 8, 4})
                 .field("values", new double[] {2 ,3 ,2})
                 .endObject()
                 .endObject()),
@@ -443,8 +443,8 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("pre_aggregated").startObject()
-                .field("values", new double[] {0, 0})
-                .field("counts", new int[] {0, 0})
+                .field("values", new double[]  {2, 3})
+                .field("counts", new int[] {4, 6})
                 .endObject()
                 .endObject()),
             XContentType.JSON));
@@ -462,8 +462,8 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("pre_aggregated").startObject()
-                .field("values", new double[] {0, 0})
-                .field("counts", new int[] {0, 0})
+                .field("values", new double[] {2, 3})
+                .field("counts", new int[] {4, 6})
                 .endObject()
                 .endObject()),
             XContentType.JSON));

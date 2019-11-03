@@ -36,9 +36,9 @@ import static java.util.Collections.singleton;
 
 public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
 
-   private BinaryDocValuesField getDocValue(String fieldName, int[] values) throws IOException {
+   private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
        TDigest histogram = new TDigestState(100.0); //default
-       for (int value : values) {
+       for (double value : values) {
            histogram.add(value);
        }
        BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -55,16 +55,24 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(singleton(getDocValue("wrong_number", new int[]{7, 1})));
+            iw.addDocument(singleton(getDocValue("wrong_number", new double[]{7, 1})));
         }, hdr -> {
             //assertEquals(0L, hdr.state.getTotalCount());
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
     }
 
+    public void testEmptyField() throws IOException {
+        testCase(new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(getDocValue("number", new double[0])));
+        }, hdr -> {
+            assertFalse(AggregationInspectionHelper.hasValue(hdr));
+        });
+    }
+
     public void testSomeMatchesBinaryDocValues() throws IOException {
         testCase(new DocValuesFieldExistsQuery("number"), iw -> {
-            iw.addDocument(singleton(getDocValue("number", new int[]{60, 40, 20, 10})));
+            iw.addDocument(singleton(getDocValue("number", new double[]{60, 40, 20, 10})));
         }, hdr -> {
             //assertEquals(4L, hdr.state.getTotalCount());
             double approximation = 0.05d;
@@ -78,10 +86,10 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
 
     public void testSomeMatchesMultiBinaryDocValues() throws IOException {
         testCase(new DocValuesFieldExistsQuery("number"), iw -> {
-            iw.addDocument(singleton(getDocValue("number", new int[]{60, 40, 20, 10})));
-            iw.addDocument(singleton(getDocValue("number", new int[]{60, 40, 20, 10})));
-            iw.addDocument(singleton(getDocValue("number", new int[]{60, 40, 20, 10})));
-            iw.addDocument(singleton(getDocValue("number", new int[]{60, 40, 20, 10})));
+            iw.addDocument(singleton(getDocValue("number", new double[]{60, 40, 20, 10})));
+            iw.addDocument(singleton(getDocValue("number", new double[]{60, 40, 20, 10})));
+            iw.addDocument(singleton(getDocValue("number", new double[]{60, 40, 20, 10})));
+            iw.addDocument(singleton(getDocValue("number", new double[]{60, 40, 20, 10})));
         }, hdr -> {
             //assertEquals(16L, hdr.state.getTotalCount());
             double approximation = 0.05d;

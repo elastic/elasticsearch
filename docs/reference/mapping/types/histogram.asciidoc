@@ -21,7 +21,6 @@ same position of the `count` array, these two arrays must have the same length.
 ========
 * A `histogram` field can only store a single pair of `values` and `count` arrays
 per document. Nested arrays are not supported.
-* A `histogram` field with empty `values` and `counts` arrays is treated as `null`.
 * `histogram` fields do not support sorting.
 ========
 

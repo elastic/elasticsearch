@@ -74,7 +74,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                 .put("analysis.filter.synonym_graph_filter.synonyms_path", synonymsFileName))
                 .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
 
-        client().prepareIndex(indexName, "_doc", "1").setSource("field", "Foo").get();
+        client().prepareIndex(indexName).setId("1").setSource("field", "Foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
 
         SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();

@@ -455,6 +455,7 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     static String deriveId(final Map<String, String> osRelease) {
+        logger.warn(osRelease.toString());
         return osRelease.get("ID") + "-" + osRelease.get("VERSION_ID");
     }
 
@@ -463,11 +464,15 @@ public class DistroTestPlugin implements Plugin<Project> {
         final Path exclusionsPath = project.getRootDir().toPath().resolve(Path.of(".ci", exclusionsFilename));
 
         try {
-            return Files.readAllLines(exclusionsPath)
+            final List<String> exclusionsList = Files.readAllLines(exclusionsPath)
                 .stream()
                 .map(String::trim)
-                .filter(line -> line.startsWith("#"))
+                .filter(line -> line.isEmpty() || line.startsWith("#"))
                 .collect(Collectors.toList());
+
+            logger.warn("Exclusion list: " + exclusionsList);
+
+            return exclusionsList;
         } catch (IOException e) {
             throw new GradleException("Failed to read .ci/" + exclusionsFilename, e);
         }

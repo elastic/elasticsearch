@@ -258,6 +258,10 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         return NAME + "-" + transformId + "-" + checkpoint;
     }
 
+    public static boolean isNullOrEmpty (TransformCheckpoint checkpoint) {
+        return checkpoint == null || checkpoint.isEmpty();
+    }
+
     /**
      * Calculate the diff of 2 checkpoints
      *

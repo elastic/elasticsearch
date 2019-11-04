@@ -20,38 +20,25 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
+
 public class S3Repository extends AbstractRepository {
     private final AmazonS3 client;
     private final String bucket;
-    private final String basePath;
 
-    S3Repository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String endpoint, String region, String accessKey,
-                 String secretKey, String bucket,
-                 String basePath) {
-        super(terminal, safetyGapMillis, parallelism);
+    S3Repository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String bucket, String basePath,
+                 String accessKey, String secretKey, String endpoint, String region) {
+        super(terminal, safetyGapMillis, parallelism, basePath);
         this.client = buildS3Client(endpoint, region, accessKey, secretKey);
-        this.basePath = basePath;
         this.bucket = bucket;
     }
 
@@ -66,10 +53,6 @@ public class S3Repository extends AbstractRepository {
         builder.setClientConfiguration(new ClientConfiguration().withUserAgentPrefix("s3_cleanup_tool"));
 
         return builder.build();
-    }
-
-    private String fullPath(String path) {
-        return basePath + "/" + path;
     }
 
     @Override
@@ -102,41 +85,18 @@ public class S3Repository extends AbstractRepository {
     }
 
     @Override
-    public RepositoryData getRepositoryData(long indexFileGeneration) throws IOException {
-        final String snapshotsIndexBlobName = BlobStoreRepository.INDEX_FILE_PREFIX + indexFileGeneration;
-        try (InputStream blob = client.getObject(bucket, fullPath(snapshotsIndexBlobName)).getObjectContent()) {
-            BytesStreamOutput out = new BytesStreamOutput();
-            Streams.copy(blob, out);
-            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
-                return RepositoryData.snapshotsFromXContent(parser, indexFileGeneration);
-            }
-        } catch (IOException e) {
-            terminal.println("Failed to read " + snapshotsIndexBlobName + " file");
-            throw e;
-        }
+    public InputStream getBlobInputStream(String blobName) {
+        return client.getObject(bucket, blobName).getObjectContent();
     }
 
     @Override
-    public Collection<SnapshotId> getIncompatibleSnapshots() throws IOException {
-        try (InputStream blob = client.getObject(bucket, fullPath("incompatible-snapshots")).getObjectContent()) {
-            BytesStreamOutput out = new BytesStreamOutput();
-            Streams.copy(blob, out);
-            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
-                return incompatibleSnapshotsFromXContent(parser);
+    protected boolean isBlobNotFoundException(Exception e) {
+        if (e instanceof AmazonS3Exception) {
+            if (((AmazonS3Exception)e).getStatusCode() == HTTP_NOT_FOUND) {
+                return true;
             }
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() != RestStatus.NOT_FOUND.getStatus()) {
-                throw e;
-            }
-            return Collections.emptyList();
-        } catch (IOException e) {
-            terminal.println("Failed to read [incompatible-snapshots] blob");
-            throw e;
         }
+        return false;
     }
 
     @Override
@@ -182,8 +142,6 @@ public class S3Repository extends AbstractRepository {
         ObjectListing listing = client.listObjects(listRequest);
         List<S3ObjectSummary> summaries = listing.getObjectSummaries();
         if (summaries.isEmpty()) {
-            terminal.println(Terminal.Verbosity.VERBOSE, "Failed to find single file in index "
-                    + indexDirectoryName + " directory. " + "Skipping");
             return null;
         } else {
             S3ObjectSummary any = summaries.get(0);

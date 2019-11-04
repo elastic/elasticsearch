@@ -63,6 +63,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -163,8 +164,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Collection<String> getRestHeaders() {
-        List<String> headers = new ArrayList<>();
+    public Collection<RestHeaderDefinition> getRestHeaders() {
+        List<RestHeaderDefinition> headers = new ArrayList<>();
         headers.addAll(super.getRestHeaders());
         filterPlugins(ActionPlugin.class).stream().forEach(p -> headers.addAll(p.getRestHeaders()));
         return headers;

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -73,7 +75,7 @@ forbiddenPatterns {
 
 // pulled in as external dependency to work on java 9
 rootProject.globalInfo.ready {
-    if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
+    if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
         thirdPartyAudit.ignoreJarHellWithJDK(
                 // pulled in as external dependency to work on java 9
                 'com.sun.activation.registries.LineTokenizer',

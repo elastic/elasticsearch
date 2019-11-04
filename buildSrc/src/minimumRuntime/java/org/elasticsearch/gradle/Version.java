@@ -13,8 +13,27 @@ public final class Version implements Comparable<Version> {
     private final int revision;
     private final int id;
 
+    /**
+     * Specifies how a version string should be parsed.
+     */
+    public enum Mode {
+        /**
+         * Strict parsing only allows known suffixes after the patch number: "-alpha", "-beta" or "-rc". The
+         * suffix "-SNAPSHOT" is also allowed, either after the patch number, or after the other suffices.
+         */
+        STRICT,
+
+        /**
+         * Relaxed parsing allows any alphanumeric suffix after the patch number.
+         */
+        RELAXED
+    }
+
     private static final Pattern pattern =
             Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
+
+    private static final Pattern relaxedPattern =
+        Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-[a-zA-Z0-9_]+)*?");
 
     public Version(int major, int minor, int revision) {
         Objects.requireNonNull(major, "major version can't be null");
@@ -36,11 +55,18 @@ public final class Version implements Comparable<Version> {
     }
 
     public static Version fromString(final String s) {
+        return fromString(s, Mode.STRICT);
+    }
+
+    public static Version fromString(final String s, final Mode mode) {
         Objects.requireNonNull(s);
-        Matcher matcher = pattern.matcher(s);
+        Matcher matcher = mode == Mode.STRICT ? pattern.matcher(s) : relaxedPattern.matcher(s);
         if (matcher.matches() == false) {
+            String expected = mode == Mode.STRICT == true
+                ? "major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
+                : "major.minor.revision[-extra]";
             throw new IllegalArgumentException(
-                "Invalid version format: '" + s + "'. Should be major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
+                "Invalid version format: '" + s + "'. Should be " + expected
             );
         }
 

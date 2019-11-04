@@ -124,6 +124,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     @Override
     public void stringField(FieldInfo fieldInfo, byte[] bytes) {
         assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
+        assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
         final String value = new String(bytes, StandardCharsets.UTF_8);
         addValue(fieldInfo.name, value);
     }
@@ -150,6 +151,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     public void objectField(FieldInfo fieldInfo, Object object) {
         assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
+        assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
         addValue(fieldInfo.name, object);
     }
 

@@ -141,8 +141,13 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                     distroTest.configure(t -> {
                         // Only VM sub-projects that are specifically opted-in to testing Docker should
-                        // have the Docker task added as a dependency. The shouldTestDocker property could
-                        // be null, hence we use Boolean.TRUE.equals()
+                        // have the Docker task added as a dependency. Although we control whether Docker
+                        // is installed in the VM via `Vagrantfile` and we could auto-detect its presence
+                        // in the VM, the test tasks e.g. `destructiveDistroTest.default-docker` are defined
+                        // on the host during Gradle's configuration phase and not in the VM, so
+                        // auto-detection doesn't work.
+                        //
+                        // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
                         boolean shouldExecute = distribution.getType() != Type.DOCKER
                             || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker")) == true;
 

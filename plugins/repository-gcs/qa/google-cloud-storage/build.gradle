@@ -19,6 +19,7 @@
 
 
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 
 import java.nio.file.Files
@@ -61,7 +62,7 @@ def encodedCredentials = {
 task googleCloudStorageFixture(type: AntFixture) {
     dependsOn testClasses
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    executable = new File(project.runtimeJavaHome, 'bin/java')
+    executable = "${BuildParams.runtimeJavaHome}/bin/java"
     args 'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture', baseDir, 'bucket_test'
 }
 
@@ -89,7 +90,7 @@ task thirdPartyTest (type: Test) {
     include '**/GoogleCloudStorageThirdPartyTests.class'
     systemProperty 'tests.security.manager', false
     systemProperty 'test.google.bucket', gcsBucket
-    systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + project.testSeed
+    systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
     nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
 }
 

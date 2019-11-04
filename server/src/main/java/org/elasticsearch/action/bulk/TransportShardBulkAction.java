@@ -267,7 +267,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
 
             try {
-                primary.mapperService().merge("_doc",
+                primary.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
                     new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
                     MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT);
             } catch (Exception e) {

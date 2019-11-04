@@ -271,7 +271,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
                     MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT);
             } catch (Exception e) {
-                logger.info("required mapping update failed during pre-flight check", e);
+                logger.info(() -> new ParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);
                 onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
                 return true;
             }

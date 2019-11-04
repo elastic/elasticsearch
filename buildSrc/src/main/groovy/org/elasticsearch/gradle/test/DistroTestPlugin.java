@@ -513,7 +513,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                     final boolean shouldExclude = getLinuxExclusionList(project).contains(id);
 
-                    logger.info("Linux OS id [" + id + "] is " + (shouldExclude ? "" : "not ") + "present in the exclude list");
+                    logger.warn("Linux OS id [" + id + "] is " + (shouldExclude ? "" : "not ") + "present in the Docker exclude list");
 
                     return shouldExclude == false;
                 }

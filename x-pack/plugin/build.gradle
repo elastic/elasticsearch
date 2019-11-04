@@ -48,7 +48,7 @@ File nodeCert = file("$keystoreDir/testnode.crt")
 task copyKeyCerts(type: Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
-    }
+  }
   into keystoreDir
 }
 // Add keystores to test classpath: it expects it there

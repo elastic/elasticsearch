@@ -51,7 +51,7 @@ testingConventions.enabled = false
 tasks.dependencyLicenses.enabled = false
 tasks.dependenciesInfo.enabled = false
 
-tasks.thirdPartyAudit.ignoreMissingClasses ()
+tasks.thirdPartyAudit.ignoreMissingClasses()
 
 tasks.register('destructivePackagingTest') {
   dependsOn 'destructiveDistroTest', 'destructiveBatsTest.oss', 'destructiveBatsTest.default'

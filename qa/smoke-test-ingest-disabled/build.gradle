@@ -22,9 +22,9 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: ':modules:ingest-common', configuration: 'runtime')
+  testCompile project(path: ':modules:ingest-common', configuration: 'runtime')
 }
 
 testClusters.integTest {
-    setting 'node.ingest', 'false'
+  setting 'node.ingest', 'false'
 }

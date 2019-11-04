@@ -19,6 +19,6 @@ if (!slackUrl) {
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-    keystore  'xpack.notification.slack.account.test_account.secure_url', slackUrl
+    keystore 'xpack.notification.slack.account.test_account.secure_url', slackUrl
   }
 }

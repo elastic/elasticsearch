@@ -7,40 +7,40 @@ description = 'JDBC driver for Elasticsearch'
 archivesBaseName = "x-pack-sql-jdbc"
 
 forbiddenApisMain {
-    // does not depend on core, so only jdk and http signatures should be checked
-    replaceSignatureFiles 'jdk-signatures'
+  // does not depend on core, so only jdk and http signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 dependencies {
-    compile (xpackProject('plugin:sql:sql-client')) {
-        transitive = false
-    }
-    compile (xpackProject('plugin:sql:sql-proto')) {
-        transitive = false
-    }
-    compile (project(':libs:elasticsearch-x-content')) {
-        transitive = false
-    }
-    compile (project(':libs:elasticsearch-geo')) {
-        transitive = false
-    }
-    compile project(':libs:elasticsearch-core')
-    compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-    runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    testCompile project(":test:framework")
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compile(xpackProject('plugin:sql:sql-client')) {
+    transitive = false
+  }
+  compile(xpackProject('plugin:sql:sql-proto')) {
+    transitive = false
+  }
+  compile(project(':libs:elasticsearch-x-content')) {
+    transitive = false
+  }
+  compile(project(':libs:elasticsearch-geo')) {
+    transitive = false
+  }
+  compile project(':libs:elasticsearch-core')
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testCompile project(":test:framework")
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 dependencyLicenses {
-    mapping from: /sql-proto.*/, to: 'elasticsearch'
-    mapping from: /sql-client.*/, to: 'elasticsearch'
-    mapping from: /jackson-.*/, to: 'jackson'
-    mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
-    ignoreSha 'sql-proto'
-    ignoreSha 'sql-client'
-    ignoreSha 'elasticsearch'
+  mapping from: /sql-proto.*/, to: 'elasticsearch'
+  mapping from: /sql-client.*/, to: 'elasticsearch'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /elasticsearch-core.*/, to: 'elasticsearch'
+  ignoreSha 'sql-proto'
+  ignoreSha 'sql-client'
+  ignoreSha 'elasticsearch'
 }
 
 shadowJar {
-    relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
+  relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
 }

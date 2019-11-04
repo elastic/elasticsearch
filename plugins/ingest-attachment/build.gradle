@@ -25,9 +25,9 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.22',
+  'tika'  : '1.22',
   'pdfbox': '2.0.16',
-  'poi': '4.0.1',
+  'poi'   : '4.0.1',
   'mime4j': '0.8.3'
 ]
 
@@ -84,8 +84,8 @@ forbiddenPatterns {
   exclude '**/*.vsdx'
 }
 
-thirdPartyAudit{ 
-    ignoreMissingClasses()
+thirdPartyAudit {
+  ignoreMissingClasses()
 }
 
 thirdPartyAudit.onlyIf {

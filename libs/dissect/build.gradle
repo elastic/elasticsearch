@@ -18,15 +18,15 @@
  */
 
 dependencies {
-    testCompile(project(":test:framework")) {
-        exclude group: 'org.elasticsearch', module: 'elasticsearch-dissect'
-    }
-    testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-    testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  testCompile(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-dissect'
+  }
+  testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
 forbiddenApisMain {
-    replaceSignatureFiles 'jdk-signatures'
+  replaceSignatureFiles 'jdk-signatures'
 }
 

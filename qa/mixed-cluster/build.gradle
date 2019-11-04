@@ -39,14 +39,14 @@ dependencies {
 }
 
 processTestResources {
-  from ({ zipTree(configurations.restSpec.singleFile) })
+  from({ zipTree(configurations.restSpec.singleFile) })
   dependsOn configurations.restSpec
 }
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {
   if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
     // Not really a mixed cluster
-    continue ;
+    continue;
   }
 
   String baseName = "v${bwcVersion}"
@@ -55,7 +55,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
      the nodes has a different minor.  */
   testClusters {
     "${baseName}" {
-      versions = [ bwcVersion.toString(), project.version ]
+      versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 4
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
@@ -69,16 +69,16 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     doFirst {
       project.delete("${buildDir}/cluster/shared/repo/${baseName}")
       // Getting the endpoints causes a wait for the cluster
-      println "Test cluster endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",") }"
+      println "Test cluster endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
       println "Upgrading one node to create a mixed cluster"
       testClusters."${baseName}".nextNodeToNextVersion()
       // Getting the endpoints causes a wait for the cluster
-      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",") }"
+      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
       println "Upgrading another node to create a mixed cluster"
       testClusters."${baseName}".nextNodeToNextVersion()
 
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     }
     systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     onlyIf { project.bwc_tests_enabled }

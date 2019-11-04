@@ -34,7 +34,7 @@ test.enabled = false
 
 task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   dependsOn testClasses
-  env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
+  env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
 }
@@ -42,7 +42,7 @@ task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
 integTest {
   dependsOn exampleFixture
   runner {
-    nonInputProperties.systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"  
+    nonInputProperties.systemProperty 'external.address', "${-> exampleFixture.addressAndPort}"
   }
 }
 

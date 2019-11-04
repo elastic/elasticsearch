@@ -14,9 +14,9 @@ dependencies {
 
   // CLI testing dependencies
   compile project(path: xpackModule('sql:sql-cli'))
-  
+
   // H2GIS testing dependencies
-  compile ("org.orbisgis:h2gis:${h2gisVersion}") {
+  compile("org.orbisgis:h2gis:${h2gisVersion}") {
     exclude group: "org.locationtech.jts"
   }
 
@@ -62,7 +62,7 @@ subprojects {
     resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
   }
   dependencies {
-    
+
     /* Since we're a standalone rest test we actually get transitive
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress
@@ -77,11 +77,11 @@ subprojects {
     testRuntime "com.h2database:h2:${h2Version}"
 
     // H2GIS testing dependencies
-    testRuntime ("org.orbisgis:h2gis:${h2gisVersion}") {
+    testRuntime("org.orbisgis:h2gis:${h2gisVersion}") {
       exclude group: "org.locationtech.jts"
       exclude group: "com.fasterxml.jackson.core"
     }
-  
+
     testRuntime project(path: xpackModule('sql:jdbc'))
     testRuntime xpackProject('plugin:sql:sql-client')
 
@@ -92,7 +92,7 @@ subprojects {
 
     // CLI testing dependencies
     testRuntime project(path: xpackModule('sql:sql-cli'))
-    testRuntime (xpackProject('plugin:sql:sql-action')) {
+    testRuntime(xpackProject('plugin:sql:sql-action')) {
       transitive = false
     }
 

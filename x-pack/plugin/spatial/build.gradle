@@ -3,20 +3,20 @@ evaluationDependsOn(xpackModule('core'))
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
-    name 'spatial'
-    description 'A plugin for Basic Spatial features'
-    classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
-    extendedPlugins = ['x-pack-core']
+  name 'spatial'
+  description 'A plugin for Basic Spatial features'
+  classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
+  extendedPlugins = ['x-pack-core']
 }
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 licenseHeaders {
-    // This class was sourced from apache lucene's sandbox module tests
-    excludes << 'org/apache/lucene/geo/XShapeTestUtil.java'
+  // This class was sourced from apache lucene's sandbox module tests
+  excludes << 'org/apache/lucene/geo/XShapeTestUtil.java'
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

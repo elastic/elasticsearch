@@ -35,15 +35,15 @@ task createNodeKeyStore(type: LoggedExec) {
   executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
-          '-alias', 'test-node',
-          '-keystore', nodeKeystore,
-          '-keyalg', 'RSA',
-          '-keysize', '2048',
-          '-validity', '712',
-          '-dname', 'CN=smoke-test-plugins-ssl',
-          '-keypass', 'keypass',
-          '-storepass', 'keypass',
-          '-ext', san
+    '-alias', 'test-node',
+    '-keystore', nodeKeystore,
+    '-keyalg', 'RSA',
+    '-keysize', '2048',
+    '-validity', '712',
+    '-dname', 'CN=smoke-test-plugins-ssl',
+    '-keypass', 'keypass',
+    '-storepass', 'keypass',
+    '-ext', san
 }
 
 // Generate the client's keystore
@@ -60,15 +60,15 @@ task createClientKeyStore(type: LoggedExec) {
   executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
-          '-alias', 'test-client',
-          '-keystore', clientKeyStore,
-          '-keyalg', 'RSA',
-          '-keysize', '2048',
-          '-validity', '712',
-          '-dname', 'CN=smoke-test-plugins-ssl',
-          '-keypass', 'keypass',
-          '-storepass', 'keypass',
-          '-ext', san
+    '-alias', 'test-client',
+    '-keystore', clientKeyStore,
+    '-keyalg', 'RSA',
+    '-keysize', '2048',
+    '-validity', '712',
+    '-dname', 'CN=smoke-test-plugins-ssl',
+    '-keypass', 'keypass',
+    '-storepass', 'keypass',
+    '-ext', san
 }
 
 // Export the node's certificate
@@ -85,10 +85,10 @@ task exportNodeCertificate(type: LoggedExec) {
   }
   executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   args '-export',
-          '-alias', 'test-node',
-          '-keystore', nodeKeystore,
-          '-storepass', 'keypass',
-          '-file', nodeCertificate
+    '-alias', 'test-node',
+    '-keystore', nodeKeystore,
+    '-storepass', 'keypass',
+    '-file', nodeCertificate
 }
 
 // Import the node certificate in the client's keystore
@@ -96,11 +96,11 @@ task importNodeCertificateInClientKeyStore(type: LoggedExec) {
   dependsOn createClientKeyStore, exportNodeCertificate
   executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   args '-import',
-          '-alias', 'test-node',
-          '-keystore', clientKeyStore,
-          '-storepass', 'keypass',
-          '-file', nodeCertificate,
-          '-noprompt'
+    '-alias', 'test-node',
+    '-keystore', clientKeyStore,
+    '-storepass', 'keypass',
+    '-file', nodeCertificate,
+    '-noprompt'
 }
 
 // Export the client's certificate
@@ -117,10 +117,10 @@ task exportClientCertificate(type: LoggedExec) {
   }
   executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   args '-export',
-          '-alias', 'test-client',
-          '-keystore', clientKeyStore,
-          '-storepass', 'keypass',
-          '-file', clientCertificate
+    '-alias', 'test-client',
+    '-keystore', clientKeyStore,
+    '-storepass', 'keypass',
+    '-file', clientCertificate
 }
 
 // Import the client certificate in the node's keystore
@@ -128,11 +128,11 @@ task importClientCertificateInNodeKeyStore(type: LoggedExec) {
   dependsOn createNodeKeyStore, exportClientCertificate
   executable = "${BuildParams.runtimeJavaHome}/bin/keytool"
   args '-import',
-          '-alias', 'test-client',
-          '-keystore', nodeKeystore,
-          '-storepass', 'keypass',
-          '-file', clientCertificate,
-          '-noprompt'
+    '-alias', 'test-client',
+    '-keystore', nodeKeystore,
+    '-storepass', 'keypass',
+    '-file', clientCertificate,
+    '-noprompt'
 }
 
 forbiddenPatterns {
@@ -233,7 +233,7 @@ class SanEvaluator {
       InetAddress address = list.get(i);
       String hostAddress;
       if (address instanceof Inet6Address) {
-        hostAddress = compressedIPV6Address((Inet6Address)address);
+        hostAddress = compressedIPV6Address((Inet6Address) address);
       } else {
         hostAddress = address.getHostAddress();
       }

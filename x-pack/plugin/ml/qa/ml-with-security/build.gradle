@@ -18,7 +18,7 @@ task copyMlRestTests(type: Copy) {
 integTest.runner {
   dependsOn copyMlRestTests
 }
-integTest.runner  {
+integTest.runner {
   systemProperty 'tests.rest.blacklist', [
     // Remove this test because it doesn't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
@@ -187,7 +187,7 @@ integTest.runner  {
 }
 
 
-testClusters.integTest  {
+testClusters.integTest {
   testDistribution = 'DEFAULT'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"

@@ -141,7 +141,7 @@ public interface DateFormatter {
                                                  .map(DateFormatters::forPattern)
                                                  .collect(Collectors.toList());
 
-        return JavaDateFormatter.combined(format, formatters);
+        return JavaDateFormatter.combined(input, formatters);
     }
 
     static String strip8Prefix(String input) {

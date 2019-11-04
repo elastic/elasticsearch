@@ -436,26 +436,19 @@ public class DistroTestPlugin implements Plugin<Project> {
     static Map<String, String> parseOsRelease(final List<String> osReleaseLines) {
         final Map<String, String> values = new HashMap<>();
 
-        for (String line : osReleaseLines) {
-            final String trimmed = line.trim();
-
-            // ignore empty and comment lines
-            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
-                continue;
-            }
-
+        osReleaseLines.stream().map(String::trim).filter(line -> (line.isEmpty() || line.startsWith("#")) == false).forEach(line -> {
             final String[] parts = line.split("=", 2);
             final String key = parts[0];
             // remove optional leading and trailing quotes and whitespace
             final String value = parts[1].replaceAll("^['\"]?\\s*", "").replaceAll("\\s*['\"]?$", "");
+
             values.put(key, value);
-        }
+        });
 
         return values;
     }
 
     static String deriveId(final Map<String, String> osRelease) {
-        logger.warn(osRelease.toString());
         return osRelease.get("ID") + "-" + osRelease.get("VERSION_ID");
     }
 
@@ -464,15 +457,11 @@ public class DistroTestPlugin implements Plugin<Project> {
         final Path exclusionsPath = project.getRootDir().toPath().resolve(Path.of(".ci", exclusionsFilename));
 
         try {
-            final List<String> exclusionsList = Files.readAllLines(exclusionsPath)
+            return Files.readAllLines(exclusionsPath)
                 .stream()
                 .map(String::trim)
-                .filter(line -> line.isEmpty() || line.startsWith("#"))
+                .filter(line -> (line.isEmpty() || line.startsWith("#")) == false)
                 .collect(Collectors.toList());
-
-            logger.warn("Exclusion list: " + exclusionsList);
-
-            return exclusionsList;
         } catch (IOException e) {
             throw new GradleException("Failed to read .ci/" + exclusionsFilename, e);
         }

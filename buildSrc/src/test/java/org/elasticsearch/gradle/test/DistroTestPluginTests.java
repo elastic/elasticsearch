@@ -49,6 +49,32 @@ public class DistroTestPluginTests extends GradleIntegrationTestCase {
         assertThat(expected, equalTo(results));
     }
 
+    /**
+     * Trailing whitespace should be removed
+     */
+    public void testRemoveTrailingWhitespace() {
+        final List<String> lines = List.of("NAME=\"Oracle Linux Server\"   ");
+
+        final Map<String, String> results = parseOsRelease(lines);
+
+        final Map<String, String> expected = Map.of("NAME", "Oracle Linux Server");
+
+        assertThat(expected, equalTo(results));
+    }
+
+    /**
+     * Comments should be removed
+     */
+    public void testRemoveComments() {
+        final List<String> lines = List.of("# A comment", "NAME=\"Oracle Linux Server\"");
+
+        final Map<String, String> results = parseOsRelease(lines);
+
+        final Map<String, String> expected = Map.of("NAME", "Oracle Linux Server");
+
+        assertThat(expected, equalTo(results));
+    }
+
     public void testDeriveIdOnOracle() {
         final Map<String, String> osRelease = new HashMap<>();
         osRelease.put("ID", "ol");

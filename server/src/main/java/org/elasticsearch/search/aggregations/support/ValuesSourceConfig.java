@@ -70,13 +70,13 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         String format,
         Function<Script, ValuesSourceType> resolveScriptAny,
         String aggregationName) {
+        ValuesSourceConfig<VS> config;
 
         if (field == null) {
+            // Stand Alone Script Case
             if (script == null) {
-                // TODO: The ValuesSourceConfig this constructs is invalid.  We should just throw here.
-                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
-                config.format(resolveFormat(null, valueType, timeZone));
-                return config;
+                throw new IllegalStateException(
+                    "value source config is invalid; must have either a field context or a script or marked as unwrapped");
             }
             /*
              * This is the Stand Alone Script path.  We should have a script that will produce a value independent of the presence or
@@ -92,47 +92,45 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 // on Bytes
                 valuesSourceType = resolveScriptAny.apply(script);
             }
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
-            config.missing(missing);
-            config.timezone(timeZone);
+            config = new ValuesSourceConfig<>(valuesSourceType);
             config.format(resolveFormat(format, valueType, timeZone));
             config.script(createScript(script, context));
             config.scriptValueType(valueType);
-            return config;
-        }
+        } else {
+            // Field case
+            MappedFieldType fieldType = context.fieldMapper(field);
+            if (fieldType == null) {
+                /* Unmapped Field Case
+                 * We got here because the user specified a field, but it doesn't exist on this index, possibly because of a wildcard index
+                 * pattern.  In this case, we're going to end up using the EMPTY variant of the ValuesSource, and possibly applying a user
+                 * specified missing value.
+                 */
+                // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
+                ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
+                config = new ValuesSourceConfig<>(valuesSourceType);
+                config.format(resolveFormat(format, valueType, timeZone));
+                config.unmapped(true);
+                if (valueType != null) {
+                    // todo do we really need this for unmapped?
+                    config.scriptValueType(valueType);
+                }
+            } else {
 
-        MappedFieldType fieldType = context.fieldMapper(field);
-        if (fieldType == null) {
-            // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
-            /* We got here because the user specified a field, but it doesn't exist on this index, possibly because of a wildcard index
-             * pattern.  In this case, we're going to end up using the EMPTY variant of the ValuesSource, and possibly applying a user
-             * specified missing value.
-             */
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
-            config.missing(missing);
-            config.timezone(timeZone);
-            config.format(resolveFormat(format, valueType, timeZone));
-            config.unmapped(true);
-            if (valueType != null) {
-                // todo do we really need this for unmapped?
-                config.scriptValueType(valueType);
+                IndexFieldData<?> indexFieldData = context.getForField(fieldType);
+
+
+                ValuesSourceType valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, indexFieldData,
+                    aggregationName, valueType);
+
+                config = new ValuesSourceConfig<>(valuesSourceType);
+
+                config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
+                config.script(createScript(script, context));
+                config.format(fieldType.docValueFormat(format, timeZone));
             }
-            return config;
         }
-
-        IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-
-        ValuesSourceConfig<VS> config;
-        ValuesSourceType valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, indexFieldData,
-            aggregationName, valueType);
-        config = new ValuesSourceConfig<>(valuesSourceType);
-
-        config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
         config.missing(missing);
         config.timezone(timeZone);
-        config.script(createScript(script, context));
-        config.format(fieldType.docValueFormat(format, timeZone));
         return config;
     }
 
@@ -254,6 +252,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     @Nullable
     public VS toValuesSource(QueryShardContext context, Function<Object, ValuesSource> resolveMissingAny) {
         if (!valid()) {
+            // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
                     "value source config is invalid; must have either a field context or a script or marked as unwrapped");
         }

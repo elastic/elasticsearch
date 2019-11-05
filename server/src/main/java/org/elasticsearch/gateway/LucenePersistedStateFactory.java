@@ -202,8 +202,9 @@ public class LucenePersistedStateFactory {
                         long maxAcceptedTerm = bestOnDiskState.metaData.coordinationMetaData().term();
                         if (acceptedTerm > maxAcceptedTerm
                             || (acceptedTerm == maxAcceptedTerm
-                                && onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion)) {
-
+                                && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
+                                    || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
+                                        && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
                             bestOnDiskState = onDiskState;
                         }
                     } catch (IndexNotFoundException e) {
@@ -213,7 +214,12 @@ public class LucenePersistedStateFactory {
             }
         }
 
-        return new OnDiskState(bestOnDiskState.nodeId, maxCurrentTerm, bestOnDiskState.lastAcceptedVersion, bestOnDiskState.metaData);
+        if (bestOnDiskState.currentTerm != maxCurrentTerm) {
+            throw new IllegalStateException("inconsistent terms found: best state is in term [" + bestOnDiskState.currentTerm +
+                "] but there is a stale state with greater term [" + maxCurrentTerm + "]");
+        }
+
+        return bestOnDiskState;
     }
 
     private static Path getMetaDataIndexPath(Path path, int majorVersion) {
@@ -234,7 +240,7 @@ public class LucenePersistedStateFactory {
         {
             final MetaData metaData = MetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes));
-            logger.trace("found global metadata");
+            logger.trace("found global metadata with last-accepted term [{}]", metaData.coordinationMetaData().term());
             builderReference.set(MetaData.builder(metaData));
         });
 

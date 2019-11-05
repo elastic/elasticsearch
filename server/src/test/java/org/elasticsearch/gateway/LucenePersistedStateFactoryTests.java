@@ -252,6 +252,60 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         }
     }
 
+    public void testFailsIfFreshestStateIsInStaleTerm() throws IOException {
+        final Path[] dataPaths1 = createDataPaths();
+        final Path[] dataPaths2 = createDataPaths();
+        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
+
+        final long staleCurrentTerm = randomLongBetween(1L, Long.MAX_VALUE - 1);
+        final long freshCurrentTerm = randomLongBetween(staleCurrentTerm + 1, Long.MAX_VALUE);
+
+        final long freshTerm = randomLongBetween(1L, Long.MAX_VALUE);
+        final long staleTerm = randomBoolean() ? freshTerm : randomLongBetween(1L, freshTerm);
+        final long freshVersion = randomLongBetween(2L, Long.MAX_VALUE);
+        final long staleVersion = staleTerm == freshTerm ? randomLongBetween(1L, freshVersion - 1) : randomLongBetween(1L, Long.MAX_VALUE);
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
+            try (CoordinationState.PersistedState persistedState
+                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                final ClusterState clusterState = persistedState.getLastAcceptedState();
+                persistedState.setCurrentTerm(staleCurrentTerm);
+                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+                    .metaData(MetaData.builder(clusterState.metaData()).version(1)
+                        .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(staleTerm).build()))
+                    .version(staleVersion)
+                    .build());
+            }
+        }
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
+            try (CoordinationState.PersistedState persistedState
+                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                persistedState.setCurrentTerm(freshCurrentTerm);
+            }
+        }
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
+            try (CoordinationState.PersistedState persistedState
+                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                final ClusterState clusterState = persistedState.getLastAcceptedState();
+                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+                    .metaData(MetaData.builder(clusterState.metaData()).version(2)
+                        .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(freshTerm).build()))
+                    .version(freshVersion)
+                    .build());
+            }
+        }
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
+            assertThat(expectThrows(IllegalStateException.class,
+                () -> loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))).getMessage(), allOf(
+                    containsString("inconsistent terms found"),
+                    containsString(Long.toString(staleCurrentTerm)),
+                    containsString(Long.toString(freshCurrentTerm))));
+        }
+    }
+
     public void testFailsGracefullyOnExceptionDuringFlush() throws IOException {
         final AtomicBoolean throwException = new AtomicBoolean();
 

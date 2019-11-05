@@ -65,7 +65,7 @@ public interface ValuesSourceType {
      * @param valuesSource - The original {@link ValuesSource}
      * @param rawMissing - The missing value we got from the parser, typically a string or number
      * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
-     * @param now - Used in conjunction with the formatter
+     * @param now - Used in conjunction with the formatter, should return the current time in milliseconds
      * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
      */
     ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,

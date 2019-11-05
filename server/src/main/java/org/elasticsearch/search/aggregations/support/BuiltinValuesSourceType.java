@@ -38,24 +38,28 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.function.LongSupplier;
 
+/**
+ * {@link BuiltinValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
+ */
 public enum BuiltinValuesSourceType implements Writeable, ValuesSourceType {
     ANY {
+        // ANY still has a lot of special handling in ValuesSourceConfig, and as such doesn't adhere to this interface yet
         @Override
         public ValuesSource getEmpty() {
             // TODO: Implement this or get rid of ANY
-            throw new UnsupportedOperationException("ValuesSourceType.ANY is still a special case");
+            throw new UnsupportedOperationException("BuiltinValuesSourceType.ANY is still a special case");
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
             // TODO: Implement this or get rid of ANY
-            throw new UnsupportedOperationException("ValuesSourceType.ANY is still a special case");
+            throw new UnsupportedOperationException("BuiltinValuesSourceType.ANY is still a special case");
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             // TODO: Implement this or get rid of ANY
-            throw new UnsupportedOperationException("ValuesSourceType.ANY is still a special case");
+            throw new UnsupportedOperationException("BuiltinValuesSourceType.ANY is still a special case");
         }
 
         @Override
@@ -77,7 +81,7 @@ public enum BuiltinValuesSourceType implements Writeable, ValuesSourceType {
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
 
-            if (!(fieldContext.indexFieldData() instanceof IndexNumericFieldData)) {
+            if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
                 // TODO: Is this the correct exception type here?
                 throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
@@ -85,7 +89,7 @@ public enum BuiltinValuesSourceType implements Writeable, ValuesSourceType {
 
             ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData)fieldContext.indexFieldData());
             if (script != null) {
-                // What's the difference between ValuesSource.Numeric.Script and ValuesSource.Numeric.WithScript?
+                // Value script case
                 dataSource = new ValuesSource.Numeric.WithScript(dataSource, script);
             }
             return dataSource;

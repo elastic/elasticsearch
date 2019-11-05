@@ -219,6 +219,9 @@ public abstract class ValuesSource {
 
         }
 
+        /**
+         * {@link ValuesSource} implementation for stand alone scripts returning a Bytes value
+         */
         public static class Script extends Bytes {
 
             private final AggregationScript.LeafFactory script;
@@ -239,6 +242,9 @@ public abstract class ValuesSource {
         }
 
         // No need to implement ReaderContextAware here, the delegate already takes care of updating data structures
+        /**
+         * {@link ValuesSource} subclass for Bytes fields with a Value Script applied
+         */
         public static class WithScript extends Bytes {
 
             private final ValuesSource delegate;
@@ -345,6 +351,9 @@ public abstract class ValuesSource {
             }
         }
 
+        /**
+         * {@link ValuesSource} subclass for Numeric fields with a Value Script applied
+         */
         public static class WithScript extends Numeric {
 
             private final Numeric delegate;
@@ -472,6 +481,9 @@ public abstract class ValuesSource {
             }
         }
 
+        /**
+         * {@link ValuesSource} implementation for stand alone scripts returning a Numeric value
+         */
         public static class Script extends Numeric {
             private final AggregationScript.LeafFactory script;
             private final ValueType scriptValueType;

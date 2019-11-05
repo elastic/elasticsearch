@@ -99,6 +99,9 @@ public final class ReservedFieldNames {
             AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName(),
             AnomalyRecord.BUCKET_SPAN.getPreferredName(),
 
+            GeoResults.TYPICAL_POINT.getPreferredName(),
+            GeoResults.ACTUAL_POINT.getPreferredName(),
+
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),
             Bucket.BUCKET_SPAN.getPreferredName(),

@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.job.config.DetectorFunction;
 
 import java.io.IOException;
 import java.util.List;
@@ -69,6 +70,9 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         parser.declareString(AnomalyCause::setOverFieldValue, OVER_FIELD_VALUE);
         parser.declareObjectArray(AnomalyCause::setInfluencers, ignoreUnknownFields ? Influence.LENIENT_PARSER : Influence.STRICT_PARSER,
                 INFLUENCERS);
+        parser.declareObject(AnomalyCause::setGeoResults,
+            ignoreUnknownFields ? GeoResults.LENIENT_PARSER : GeoResults.STRICT_PARSER,
+            GEO_RESULTS);
 
         return parser;
     }
@@ -83,6 +87,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
     private String functionDescription;
     private List<Double> typical;
     private List<Double> actual;
+    private GeoResults geoResults;
 
     private String fieldName;
 
@@ -116,6 +121,9 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         if (in.readBoolean()) {
             influencers = in.readList(Influence::new);
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            geoResults = in.readOptionalWriteable(GeoResults::new);
+        }
     }
 
     @Override
@@ -145,6 +153,9 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         out.writeBoolean(hasInfluencers);
         if (hasInfluencers) {
             out.writeList(influencers);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(geoResults);
         }
     }
 
@@ -191,26 +202,12 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         if (influencers != null) {
             builder.field(INFLUENCERS.getPreferredName(), influencers);
         }
-        if (DetectorFunction.LAT_LONG.getFullName().equals(function)) {
-            builder.startObject(GEO_RESULTS.getPreferredName());
-            writeDoublesAsGeoPoint(builder, ACTUAL.getPreferredName(), actual);
-            writeDoublesAsGeoPoint(builder, TYPICAL.getPreferredName(), typical);
-            builder.endObject();
+        if (geoResults != null) {
+            builder.field(GEO_RESULTS.getPreferredName(), geoResults);
         }
         builder.endObject();
         return builder;
     }
-
-    private void writeDoublesAsGeoPoint(XContentBuilder builder, String fieldName, List<Double> doubles) throws IOException {
-        if (doubles != null) {
-            //TODO should we fail if `doubles` is not an array of length 2?
-            assert doubles.size() == 2 : "for lat_lon function [" + fieldName + "] result has invalid format " + doubles;
-            if (doubles.size() == 2) {
-                builder.field(fieldName, doubles.get(0) + "," + doubles.get(1));
-            }
-        }
-    }
-
 
     public double getProbability() {
         return probability;
@@ -325,6 +322,14 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         this.influencers = influencers;
     }
 
+    public GeoResults getGeoResults() {
+        return geoResults;
+    }
+
+    public void setGeoResults(GeoResults geoResults) {
+        this.geoResults = geoResults;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(probability,
@@ -340,7 +345,8 @@ public class AnomalyCause implements ToXContentObject, Writeable {
                 overFieldValue,
                 partitionFieldName,
                 partitionFieldValue,
-                influencers);
+                influencers,
+                geoResults);
     }
 
     @Override
@@ -368,8 +374,13 @@ public class AnomalyCause implements ToXContentObject, Writeable {
                 Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
                 Objects.equals(this.overFieldName, that.overFieldName) &&
                 Objects.equals(this.overFieldValue, that.overFieldValue) &&
+                Objects.equals(this.geoResults, that.geoResults) &&
                 Objects.equals(this.influencers, that.influencers);
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
 
 }

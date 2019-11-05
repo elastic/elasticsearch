@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
+import org.elasticsearch.xpack.core.ml.job.results.GeoResults;
 import org.elasticsearch.xpack.core.ml.job.results.Influence;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
@@ -888,10 +889,10 @@ public class ElasticsearchMappings {
                 .endObject()
                 .startObject(AnomalyCause.GEO_RESULTS.getPreferredName())
                     .startObject(PROPERTIES)
-                        .startObject(AnomalyCause.ACTUAL.getPreferredName())
+                        .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
                             .field(TYPE, GEO_POINT)
                         .endObject()
-                        .startObject(AnomalyCause.TYPICAL.getPreferredName())
+                        .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
                             .field(TYPE, GEO_POINT)
                         .endObject()
                     .endObject()
@@ -913,10 +914,10 @@ public class ElasticsearchMappings {
         .endObject()
         .startObject(AnomalyRecord.GEO_RESULTS.getPreferredName())
             .startObject(PROPERTIES)
-                .startObject(AnomalyRecord.ACTUAL.getPreferredName())
+                .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
                     .field(TYPE, GEO_POINT)
                 .endObject()
-                .startObject(AnomalyRecord.TYPICAL.getPreferredName())
+                .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
                     .field(TYPE, GEO_POINT)
                 .endObject()
             .endObject()

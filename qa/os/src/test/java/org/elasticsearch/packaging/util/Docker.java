@@ -142,14 +142,14 @@ public class Docker {
         boolean isElasticsearchRunning = false;
         int attempt = 0;
 
-        String psOutput;
+        String psOutput = null;
 
         do {
             try {
                 // Give the container a chance to crash out
                 Thread.sleep(1000);
 
-                String psOutput = dockerShell.run("ps ax").stdout;
+                psOutput = dockerShell.run("ps ax").stdout;
 
                 if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java")) {
                     isElasticsearchRunning = true;

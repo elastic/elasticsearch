@@ -88,15 +88,19 @@ public class ServerUtils {
         long timeElapsed = 0;
         boolean started = false;
         Throwable thrownException = null;
+
         while (started == false && timeElapsed < waitTime) {
             if (System.currentTimeMillis() - lastRequest > requestInterval) {
                 try {
 
-                    final HttpResponse response = Request.Get("http://localhost:9200/_cluster/health")
-                        .connectTimeout((int) timeoutLength)
-                        .socketTimeout((int) timeoutLength)
-                        .execute()
-                        .returnResponse();
+                    final HttpResponse response = execute(
+                        Request
+                            .Get("http://localhost:9200/_cluster/health")
+                            .connectTimeout((int) timeoutLength)
+                            .socketTimeout((int) timeoutLength),
+                        username,
+                        password
+                    );
 
                     if (response.getStatusLine().getStatusCode() >= 300) {
                         final String statusLine = response.getStatusLine().toString();
@@ -133,7 +137,6 @@ public class ServerUtils {
             url = "http://localhost:9200/_cluster/health?wait_for_status=" + status + "&timeout=60s&pretty";
         } else {
             url = "http://localhost:9200/_cluster/health/" + index + "?wait_for_status=" + status + "&timeout=60s&pretty";
-
         }
 
         final String body = makeRequest(Request.Get(url), username, password);

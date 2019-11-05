@@ -57,6 +57,8 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
 
@@ -127,6 +129,15 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
     }
 
+    public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
+        final MapperService mapperService = createIndex("test1").mapperService();
+        final CompressedXContent mapping = createMappingSpecifyingNumberOfFields(1);
+        mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE_PREFLIGHT);
+        assertThat("field was not created by preflight check", mapperService.fullName("field0"), nullValue());
+        mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
+        assertThat("field was not created by mapping update", mapperService.fullName("field0"), notNullValue());
+    }
+
     /**
      * Test that we can have at least the number of fields in new mappings that are defined by "index.mapping.total_fields.limit".
      * Any additional field should trigger an IllegalArgumentException.
@@ -141,7 +152,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         // adding one more field should trigger exception
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             createIndex("test2", settings).mapperService().merge("type",
-                createMappingSpecifyingNumberOfFields(totalFieldsLimit + 1), MergeReason.MAPPING_UPDATE);
+                createMappingSpecifyingNumberOfFields(totalFieldsLimit + 1), updateOrPreflight());
         });
         assertTrue(e.getMessage(),
                 e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] in index [test2] has been exceeded"));
@@ -177,7 +188,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         indexService2.mapperService().merge("type", objectMapping, MergeReason.MAPPING_UPDATE);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> indexService1.mapperService().merge("type", objectMapping, MergeReason.MAPPING_UPDATE));
+                () -> indexService1.mapperService().merge("type", objectMapping, updateOrPreflight()));
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
     }
 
@@ -228,7 +239,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .endObject().endObject()));
         invalidNestedException = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("t", nestedFieldMapping,
-                MergeReason.MAPPING_UPDATE));
+                updateOrPreflight()));
         assertThat(invalidNestedException.getMessage(),
             containsString("cannot have nested fields when index sort is activated"));
     }
@@ -264,7 +275,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .endObject()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> mapperService.merge("type", mappingUpdate, MergeReason.MAPPING_UPDATE));
+            () -> mapperService.merge("type", mappingUpdate, updateOrPreflight()));
         assertThat(e.getMessage(), containsString("Invalid [path] value [nested.field] for field alias [alias]"));
     }
 
@@ -292,7 +303,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             createIndex("test2",
                     Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfNonAliasFields).build())
-                            .mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+                            .mapperService().merge("type", new CompressedXContent(mapping), updateOrPreflight());
         });
         assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] in index [test2] has been exceeded", e.getMessage());
     }
@@ -334,7 +345,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .endObject()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            mapperService.merge("type", mappingUpdate, MergeReason.MAPPING_UPDATE);
+            mapperService.merge("type", mappingUpdate, updateOrPreflight());
         });
 
         assertEquals("Field name [" + testString + "] in index [test1] is too long. " +
@@ -359,7 +370,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .endObject().endObject()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
+            mapperService.merge("type", mapping, updateOrPreflight());
         });
 
         assertEquals("Field name [" + testString + "] in index [test1] is too long. " +
@@ -388,7 +399,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .endObject().endObject()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
+            mapperService.merge("type", mapping, updateOrPreflight());
         });
 
         assertEquals("Field name [" + testString + "] in index [test1] is too long. " +
@@ -477,6 +488,10 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             i++;
         }
         return true;
+    }
+
+    private static MergeReason updateOrPreflight() {
+        return randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_UPDATE_PREFLIGHT);
     }
 
     public static final class ReloadableFilterPlugin extends Plugin implements AnalysisPlugin {

@@ -370,11 +370,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-            throw new AssertionError("no blocking connect");
-        }
-
-        @Override
         public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
             final CheckedRunnable<Exception> connectionBlock = nodeConnectionBlocks.get(node);
             if (connectionBlock != null) {

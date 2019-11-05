@@ -34,7 +34,7 @@ The above configures a `synonym` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
 `synonym` analyzer is then configured with the filter.
 
-This filter tokenize synonyms with whatever tokenizer and token filters
+This filter tokenizes synonyms with whatever tokenizer and token filters
 appear before it in the chain.
 
 Additional settings are:
@@ -163,7 +163,7 @@ PUT /test_index
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.
 
-
+[discrete]
 === Parsing synonym files
 
 Elasticsearch will use the token filters preceding the synonym filter

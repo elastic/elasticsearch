@@ -128,7 +128,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         parser = mock(TriggeredWatch.Parser.class);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
+        BulkProcessor bulkProcessor = BulkProcessor.
+            builder(client::bulk, listener).setConcurrentRequests(0).setBulkActions(1).build();
         triggeredWatchStore = new TriggeredWatchStore(settings, client, parser, bulkProcessor);
     }
 
@@ -429,7 +430,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             for (int i = 0; i < size; i++) {
                 DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
                 ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
-                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.type(), writeRequest.id(), 1, 1, 1, true);
+                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.id(), 1, 1, 1, true);
                 bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
             }
 
@@ -455,7 +456,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             for (int i = 0; i < size; i++) {
                 DocWriteRequest<?> writeRequest = bulkRequest.requests().get(i);
                 ShardId shardId = new ShardId(TriggeredWatchStoreField.INDEX_NAME, "uuid", 0);
-                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.type(), writeRequest.id(), 1, 1, 1, true);
+                IndexResponse indexResponse = new IndexResponse(shardId, writeRequest.id(), 1, 1, 1, true);
                 bulkItemResponse[i] = new BulkItemResponse(0, writeRequest.opType(), indexResponse);
             }
 

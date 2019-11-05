@@ -39,8 +39,14 @@ public class ServerUtils {
 
     private static final Logger logger =  LogManager.getLogger(ServerUtils.class);
 
-    private static final long waitTime = TimeUnit.SECONDS.toMillis(60);
-    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
+    // generous timeout  as nested virtualization can be quite slow ...
+    private static final long waitTime = TimeUnit.MINUTES.toMillis(
+        System.getProperty("tests.inVM") == null ? 3 : 1
+    );
+    private static final long timeoutLength = TimeUnit.SECONDS.toMillis(
+        System.getProperty("tests.inVM") == null ? 30 : 10
+    );
+    private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
 
     public static void waitForElasticsearch(Installation installation) throws IOException {
         waitForElasticsearch("green", null, installation, null, null);
@@ -78,29 +84,37 @@ public class ServerUtils {
 
         // we loop here rather than letting httpclient handle retries so we can measure the entire waiting time
         final long startTime = System.currentTimeMillis();
+        long lastRequest = 0;
         long timeElapsed = 0;
         boolean started = false;
-        Exception lastException = null;
-
+        Throwable thrownException = null;
         while (started == false && timeElapsed < waitTime) {
-            try {
-                final Request request = Request.Get("http://localhost:9200/_cluster/health")
-                    .connectTimeout((int) timeoutLength)
-                    .socketTimeout((int) timeoutLength);
+            if (System.currentTimeMillis() - lastRequest > requestInterval) {
+                try {
 
-                final HttpResponse response = execute(request, username, password);
+                    final HttpResponse response = Request.Get("http://localhost:9200/_cluster/health")
+                        .connectTimeout((int) timeoutLength)
+                        .socketTimeout((int) timeoutLength)
+                        .execute()
+                        .returnResponse();
 
-                if (response.getStatusLine().getStatusCode() >= 300) {
-                    final String statusLine = response.getStatusLine().toString();
-                    final String body = EntityUtils.toString(response.getEntity());
-                    throw new RuntimeException("Connecting to elasticsearch cluster health API failed:\n" + statusLine+ "\n" + body);
+                    if (response.getStatusLine().getStatusCode() >= 300) {
+                        final String statusLine = response.getStatusLine().toString();
+                        final String body = EntityUtils.toString(response.getEntity());
+                        throw new RuntimeException("Connecting to elasticsearch cluster health API failed:\n" + statusLine + "\n" + body);
+                    }
+
+                    started = true;
+
+                } catch (IOException e) {
+                    if (thrownException == null) {
+                        thrownException = e;
+                    } else {
+                        thrownException.addSuppressed(e);
+                    }
                 }
 
-                started = true;
-
-            } catch (IOException e) {
-                lastException = e;
-                logger.debug("Got exception when waiting for cluster health", e);
+                lastRequest = System.currentTimeMillis();
             }
 
             timeElapsed = System.currentTimeMillis() - startTime;
@@ -110,7 +124,8 @@ public class ServerUtils {
             if (installation != null) {
                 FileUtils.logAllLogs(installation.logs, logger);
             }
-            throw new RuntimeException("Elasticsearch did not start", lastException);
+
+            throw new RuntimeException("Elasticsearch did not start", thrownException);
         }
 
         final String url;
@@ -127,11 +142,11 @@ public class ServerUtils {
 
     public static void runElasticsearchTests() throws IOException {
         makeRequest(
-            Request.Post("http://localhost:9200/library/book/1?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON));
 
         makeRequest(
-            Request.Post("http://localhost:9200/library/book/2?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON));
 
         String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"));

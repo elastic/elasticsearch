@@ -456,7 +456,7 @@ See some examples of interactions with Elasticsearch with this option set to `fa
 
 [source,console]
 --------------------------------------------------
-PUT index?include_type_name=false
+PUT index
 {
   "mappings": {
     "properties": { <1>
@@ -472,7 +472,7 @@ PUT index?include_type_name=false
 
 [source,console]
 --------------------------------------------------
-PUT index/_mappings?include_type_name=false
+PUT index/_mappings
 {
   "properties": { <1>
     "bar": {
@@ -487,7 +487,7 @@ PUT index/_mappings?include_type_name=false
 
 [source,console]
 --------------------------------------------------
-GET index/_mappings?include_type_name=false
+GET index/_mappings
 --------------------------------------------------
 // TEST[continued]
 
@@ -532,7 +532,6 @@ PUT index/_doc/1
 {
   "_index": "index",
   "_id": "1",
-  "_type": "_doc",
   "_version": 1,
   "result": "created",
   "_shards": {
@@ -594,45 +593,6 @@ should not be included in the URL. Additionally, the `_type` field should not
 be used in queries, aggregations, or scripts.
 
 [float]
-==== Types in responses
-
-The document and search APIs will continue to return a `_type` key in
-responses, to avoid breaks to response parsing. However, the key is
-considered deprecated and should no longer be referenced. Types will
-be completely removed from responses in 8.0.
-
-Note that when a deprecated typed API is used, the index's mapping type will be
-returned as normal, but that typeless APIs will return the dummy type `_doc`
-in the response. For example, the following typeless `get` call will always
-return `_doc` as the type, even if the mapping has a custom type name like
-`my_type`:
-
-[source,console]
---------------------------------------------------
-PUT index/my_type/1
-{
-  "foo": "baz"
-}
-
-GET index/_doc/1
---------------------------------------------------
-
-[source,console-result]
---------------------------------------------------
-{
-    "_index" : "index",
-    "_id" : "1",
-    "_version" : 1,
-    "_seq_no" : 0,
-    "_primary_term" : 1,
-    "found": true,
-    "_source" : {
-        "foo" : "baz"
-    }
-}
---------------------------------------------------
-
-[float]
 ==== Index templates
 
 It is recommended to make index templates typeless by re-adding them with
@@ -662,28 +622,12 @@ PUT _template/template1
   }
 }
 
-PUT _template/template2?include_type_name=true
-{
-  "index_patterns":[ "index-2-*" ],
-  "mappings": {
-    "type": {
-      "properties": {
-        "foo": {
-          "type": "keyword"
-        }
-      }
-    }
-  }
-}
-
-PUT index-1-01?include_type_name=true
+PUT index-1-01
 {
   "mappings": {
-    "type": {
-      "properties": {
-        "bar": {
-          "type": "long"
-        }
+    "properties": {
+      "bar": {
+        "type": "long"
       }
     }
   }

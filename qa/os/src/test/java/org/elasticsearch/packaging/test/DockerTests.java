@@ -28,7 +28,6 @@ import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,7 +55,6 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeTrue;
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/47639")
 public class DockerTests extends PackagingTestCase {
     protected DockerShell sh;
 

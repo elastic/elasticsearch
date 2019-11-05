@@ -40,8 +40,10 @@ import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
+import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
+import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
@@ -72,7 +74,7 @@ public class DockerTests extends PackagingTestCase {
     }
 
     @Before
-    public void setupTest() throws Exception {
+    public void setupTest() {
         sh = new DockerShell();
         installation = runContainer(distribution());
     }
@@ -199,15 +201,17 @@ public class DockerTests extends PackagingTestCase {
             // ELASTIC_PASSWORD_FILE
             Files.writeString(secretsDir.resolve(passwordFilename), xpackPassword + "\n");
 
-            // Make the temp directory and contents accessible when bind-mounted
-            Files.setPosixFilePermissions(secretsDir, fromString("rwxrwxrwx"));
-
             Map<String, String> envVars = Map.of(
                 "ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename,
                 "ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename,
                 // Enable security so that we can test that the password has been used
                 "xpack.security.enabled", "true"
             );
+
+            // File permissions need to be secured in order for the ES wrapper to accept
+            // them for populating env var values
+            Files.setPosixFilePermissions(secretsDir.resolve(optionsFilename), p600);
+            Files.setPosixFilePermissions(secretsDir.resolve(passwordFilename), p600);
 
             final Map<Path, Path> volumes = Map.of(secretsDir, Path.of("/run/secrets"));
 
@@ -229,6 +233,41 @@ public class DockerTests extends PackagingTestCase {
                 xpackPassword);
 
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+        } finally {
+            rm(secretsDir);
+        }
+    }
+
+    /**
+     * Check that when populating environment variables by setting variables with the suffix "_FILE",
+     * the files' permissions are checked.
+     */
+    public void test81EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
+        final Path secretsDir = getTempDir().resolve("secrets");
+        final String optionsFilename = "esJavaOpts.txt";
+
+        try {
+            mkdir(secretsDir);
+
+            // ES_JAVA_OPTS_FILE
+            Files.writeString(secretsDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+
+            Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
+
+            // Set invalid file permissions
+            Files.setPosixFilePermissions(secretsDir.resolve(optionsFilename), p660);
+
+            final Map<Path, Path> volumes = Map.of(secretsDir, Path.of("/run/secrets"));
+
+            // Restart the container
+            final Result dockerLogs = runContainerExpectingFailure(distribution(), volumes, envVars);
+
+            assertThat(
+                dockerLogs.stderr,
+                containsString(
+                    "ERROR: File /run/secrets/" + optionsFilename + " from ES_JAVA_OPTS_FILE must have file permissions 400 or 600"
+                )
+            );
         } finally {
             rm(secretsDir);
         }

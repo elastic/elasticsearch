@@ -78,7 +78,7 @@ public class Docker {
      * Runs an Elasticsearch Docker container.
      * @param distribution details about the docker image being tested.
      */
-    public static Installation runContainer(Distribution distribution) throws Exception {
+    public static Installation runContainer(Distribution distribution) {
         return runContainer(distribution, null, null);
     }
 
@@ -95,14 +95,50 @@ public class Docker {
         Map<Path, Path> volumes,
         Map<String,String> envVars
     ) {
+        executeDockerRun(distribution, Cleanup.ALWAYS, volumes, envVars);
+
+        waitForElasticsearchToStart();
+
+        return Installation.ofContainer();
+    }
+
+    /**
+     * Similar to {@link #runContainer(Distribution, Map, Map)} in that it runs an Elasticsearch Docker
+     * container, expect that the container expecting it to exit e.g. due to configuration problem.
+     *
+     * @param distribution details about the docker image being tested.
+     * @param volumes a map that declares any volume mappings to apply, or null
+     * @param envVars environment variables to set when running the container, or null
+     * @return the docker logs of the container
+     */
+    public static Shell.Result runContainerExpectingFailure(
+        Distribution distribution,
+        Map<Path, Path> volumes,
+        Map<String,String> envVars
+    ) {
+        executeDockerRun(distribution, Cleanup.NEVER, volumes, envVars);
+
+        waitForElasticsearchToExit();
+
+        return sh.run("docker logs " + containerId);
+    }
+
+    private static void executeDockerRun(
+        Distribution distribution,
+        Cleanup cleanupMode,
+        Map<Path, Path> volumes,
+        Map<String, String> envVars
+    ) {
         removeContainer();
 
         final List<String> args = new ArrayList<>();
 
         args.add("docker run");
 
-        // Remove the container once it exits
-        args.add("--rm");
+        if (cleanupMode == Cleanup.ALWAYS) {
+            // Remove the container once it exits
+            args.add("--rm");
+        }
 
         // Run the container in the background
         args.add("--detach");
@@ -128,10 +164,6 @@ public class Docker {
         final String command = String.join(" ", args);
         logger.info("Running command: " + command);
         containerId = sh.run(command).stdout.trim();
-
-        waitForElasticsearchToStart();
-
-        return Installation.ofContainer();
     }
 
     /**
@@ -164,6 +196,34 @@ public class Docker {
         if (isElasticsearchRunning == false) {
             final String dockerLogs = sh.run("docker logs " + containerId).stdout;
             fail("Elasticsearch container did start successfully.\n\n" + psOutput + "\n\n" + dockerLogs);
+        }
+    }
+
+    /**
+     * Waits for the Elasticsearch container to exit.
+     */
+    private static void waitForElasticsearchToExit() {
+        boolean isElasticsearchRunning = true;
+        int attempt = 0;
+
+        do {
+            try {
+                // Give the container a chance to exit out
+                Thread.sleep(1000);
+
+                if (sh.run("docker ps --quiet --no-trunc").stdout.contains(containerId) == false) {
+                    isElasticsearchRunning = false;
+                    break;
+                }
+            }
+            catch (Exception e) {
+                logger.warn("Caught exception while waiting for ES to exit", e);
+            }
+        } while (attempt++ < 5);
+
+        if (isElasticsearchRunning) {
+            final String dockerLogs = sh.run("docker logs " + containerId).stdout;
+            fail("Elasticsearch container did exit.\n\n" + dockerLogs);
         }
     }
 
@@ -364,5 +424,10 @@ public class Docker {
             "users",
             "users_roles"
         ).forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
+    }
+
+    private enum Cleanup {
+        ALWAYS,
+        NEVER
     }
 }

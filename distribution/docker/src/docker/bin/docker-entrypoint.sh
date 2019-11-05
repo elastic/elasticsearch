@@ -61,6 +61,13 @@ for VAR_NAME_FILE in $(env | cut -f1 -d= | grep '_FILE$'); do
       exit 1
     fi
 
+    FILE_PERMS="$(stat -c '%a' ${!VAR_NAME_FILE})"
+
+    if [[ "$FILE_PERMS" != "400" && "$FILE_PERMS" != 600 ]]; then
+        echo "ERROR: File ${!VAR_NAME_FILE} from $VAR_NAME_FILE must have file permissions 400 or 600" >&2
+        exit 1
+    fi
+
     echo "Setting $VAR_NAME from $VAR_NAME_FILE at ${!VAR_NAME_FILE}" >&2
     export "$VAR_NAME"="$(cat ${!VAR_NAME_FILE})"
 

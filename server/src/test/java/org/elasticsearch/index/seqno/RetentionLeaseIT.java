@@ -38,6 +38,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -420,7 +421,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                         internalCluster().getInstance(TransportService.class, connection.getNode().getName());
                     final DiscoveryNode primaryNode = primaryTransportService.getLocalNode();
                     replicaTransportService.disconnectFromNode(primaryNode);
-                    replicaTransportService.connectToNode(primaryNode);
+                    AbstractSimpleTransportTestCase.connectToNode(replicaTransportService, primaryNode);
                 } else {
                     // return an exception to the FINALIZE action
                     throw new ElasticsearchException("failing recovery for test purposes");

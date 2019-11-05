@@ -546,7 +546,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(),
             getFakeDiscoNode(primary.routingEntry().currentNodeId()),
             null));
-        primary.recoverFromStore();
+        recoverFromStore(primary);
         updateRoutingEntry(primary, ShardRoutingHelper.moveToStarted(primary.routingEntry()));
     }
 
@@ -790,6 +790,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected void flushShard(IndexShard shard, boolean force) {
         shard.flush(new FlushRequest(shard.shardId().getIndexName()).force(force));
+    }
+
+    public static boolean recoverFromStore(IndexShard newShard) {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        newShard.recoverFromStore(future);
+        return future.actionGet();
     }
 
     /** Recover a shard from a snapshot using a given repository **/

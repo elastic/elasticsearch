@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
@@ -92,7 +93,7 @@ String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
 String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 
-boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(project.rootProject.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
@@ -134,7 +135,7 @@ task thirdPartyTest(type: Test) {
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
-  systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + project.testSeed
+  systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + BuildParams.testSeed
 }
 
 if (useFixture) {
@@ -218,7 +219,7 @@ File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')
 task s3FixtureProperties {
   outputs.file(s3FixtureFile)
   def s3FixtureOptions = [
-      "tests.seed"                       : project.testSeed,
+      "tests.seed"                       : BuildParams.testSeed,
       "s3Fixture.permanent_bucket_name"  : s3PermanentBucket,
       "s3Fixture.permanent_key"          : s3PermanentAccessKey,
       "s3Fixture.temporary_bucket_name"  : s3TemporaryBucket,
@@ -241,7 +242,7 @@ task s3Fixture(type: AntFixture) {
   inputs.file(s3FixtureFile)
 
   env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-  executable = new File(project.runtimeJavaHome, 'bin/java')
+  executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3FixtureFile.getAbsolutePath()
 }
 

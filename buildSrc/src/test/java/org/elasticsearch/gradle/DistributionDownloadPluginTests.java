@@ -22,6 +22,7 @@ package org.elasticsearch.gradle;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
+import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -234,7 +235,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
 
     private Project createProject(BwcVersions bwcVersions, boolean isInternal) {
         rootProject = ProjectBuilder.builder().build();
-        rootProject.getExtensions().getExtraProperties().set("isInternal", isInternal);
+        BuildParams.init(params -> params.setIsInternal(isInternal));
         Project distributionProject = ProjectBuilder.builder().withParent(rootProject).withName("distribution").build();
         archivesProject = ProjectBuilder.builder().withParent(distributionProject).withName("archives").build();
         packagesProject = ProjectBuilder.builder().withParent(distributionProject).withName("packages").build();
@@ -243,7 +244,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         if (bwcVersions != null) {
             project.getExtensions().getExtraProperties().set("bwcVersions", bwcVersions);
         }
-        project.getExtensions().getExtraProperties().set("isInternal", isInternal);
         project.getPlugins().apply("elasticsearch.distribution-download");
         return project;
     }

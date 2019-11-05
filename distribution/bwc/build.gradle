@@ -21,6 +21,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.BwcVersions
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 
 import java.nio.charset.StandardCharsets
@@ -225,7 +226,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
             outputs.files(projectArtifact)
             outputs.cacheIf("BWC distribution caching is disabled on 'master' branch") {
                 // Don't bother caching in 'master' since the BWC branches move too quickly to make this cost worthwhile
-                project.ext.isCi && System.getenv('GIT_BRANCH')?.endsWith("master") == false
+                BuildParams.ci && System.getenv('GIT_BRANCH')?.endsWith("master") == false
             }
             args ":${projectDir.replace('/', ':')}:assemble"
             if (project.gradle.startParameter.buildCacheEnabled) {

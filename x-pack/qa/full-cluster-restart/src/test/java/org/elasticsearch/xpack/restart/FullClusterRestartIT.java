@@ -123,6 +123,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48381")
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
@@ -275,8 +276,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertRollUpJob("rollup-job-test");
         }
     }
-    
-    public void testSlmStats() throws IOException {
+
+    @SuppressWarnings("unchecked")
+    public void testSlmPolicyAndStats() throws IOException {
         SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy("test-policy", "test-policy", "* * * 31 FEB ? *", "test-repo",
             Collections.singletonMap("indices", Collections.singletonList("*")), null);
         if (isRunningAgainstOldCluster() && getOldClusterVersion().onOrAfter(Version.V_7_4_0)) {
@@ -298,7 +300,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createSlmPolicyRequest);
         }
 
-        if (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_5_0)) {
+        if(isRunningAgainstOldCluster() == false && getOldClusterVersion().onOrAfter(Version.V_7_4_0)){
+            Request getSlmPolicyRequest = new Request("GET", "_slm/policy/test-policy");
+            Response response = client().performRequest(getSlmPolicyRequest);
+            Map<String, Object> responseMap = entityAsMap(response);
+            Map<String, Object> policy = (Map<String, Object>) ((Map<String, Object>) responseMap.get("test-policy")).get("policy");
+            assertEquals(slmPolicy.getName(), policy.get("name"));
+            assertEquals(slmPolicy.getRepository(), policy.get("repository"));
+            assertEquals(slmPolicy.getSchedule(), policy.get("schedule"));
+            assertEquals(slmPolicy.getConfig(), policy.get("config"));
+        }
+
+        if (isRunningAgainstOldCluster() == false) {
             Response response = client().performRequest(new Request("GET", "_slm/stats"));
             XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
             try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
@@ -306,7 +319,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));
             }
         }
-
     }
 
     private String loadWatch(String watch) throws IOException {
@@ -404,7 +416,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void waitForYellow(String indexName) throws IOException {
         Request request = new Request("GET", "/_cluster/health/" + indexName);
         request.addParameter("wait_for_status", "yellow");
-        request.addParameter("timeout", "60s");
+        request.addParameter("timeout", "30s");
         request.addParameter("wait_for_no_relocating_shards", "true");
         request.addParameter("wait_for_no_initializing_shards", "true");
         Map<String, Object> response = entityAsMap(client().performRequest(request));

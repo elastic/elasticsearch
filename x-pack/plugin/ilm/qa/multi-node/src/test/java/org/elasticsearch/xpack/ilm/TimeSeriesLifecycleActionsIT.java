@@ -312,11 +312,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // index another doc to trigger the policy
         index(client(), originalIndex, "_id", "foo", "bar");
         assertBusy(() -> {
-            logger.info(originalIndex + ": " + getStepKeyForIndex(originalIndex));
+            Map<String, Object> explainIndexResponse = explainIndex(originalIndex);
+            logger.info(originalIndex + ": " + getStepKey(explainIndexResponse));
             logger.info(secondIndex + ": " + getStepKeyForIndex(secondIndex));
-            assertThat(getStepKeyForIndex(originalIndex), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
-            assertThat(getFailedStepForIndex(originalIndex), equalTo(WaitForRolloverReadyStep.NAME));
-            assertThat(getReasonForIndex(originalIndex), containsString("already exists"));
+            assertThat(getStepKey(explainIndexResponse), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
+            assertThat(explainIndexResponse.get("failed_step"), equalTo(WaitForRolloverReadyStep.NAME));
+            @SuppressWarnings("unchecked")
+            String reason = ((Map<String, String>) explainIndexResponse.get("step_info")).get("reason");
+            assertThat(reason, containsString("already exists"));
         });
     }
 
@@ -1088,15 +1091,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return (Map<String, Object>) response.get("settings");
     }
 
+
     public static StepKey getStepKeyForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
         if (indexResponse == null) {
             return new StepKey(null, null, null);
         }
 
-        String phase = (String) indexResponse.get("phase");
-        String action = (String) indexResponse.get("action");
-        String step = (String) indexResponse.get("step");
+        return getStepKey(indexResponse);
+    }
+
+    private static StepKey getStepKey(Map<String, Object> explainIndexResponse) {
+        String phase = (String) explainIndexResponse.get("phase");
+        String action = (String) explainIndexResponse.get("action");
+        String step = (String) explainIndexResponse.get("step");
         return new StepKey(phase, action, step);
     }
 
@@ -1105,14 +1113,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         if (indexResponse == null) return null;
 
         return (String) indexResponse.get("failed_step");
-    }
-
-    @SuppressWarnings("unchecked")
-    private String getReasonForIndex(String indexName) throws IOException {
-        Map<String, Object> indexResponse = explainIndex(indexName);
-        if (indexResponse == null) return null;
-
-        return ((Map<String, String>) indexResponse.get("step_info")).get("reason");
     }
 
     private static Map<String, Object> explainIndex(String indexName) throws IOException {

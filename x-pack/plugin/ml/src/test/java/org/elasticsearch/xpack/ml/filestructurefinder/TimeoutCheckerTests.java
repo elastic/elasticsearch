@@ -59,6 +59,7 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48861")
     public void testWatchdog() throws Exception {
         TimeValue timeout = TimeValue.timeValueMillis(500);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("watchdog test", timeout, scheduler)) {

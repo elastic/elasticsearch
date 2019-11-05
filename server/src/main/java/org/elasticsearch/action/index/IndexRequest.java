@@ -543,7 +543,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void process(Version indexCreatedVersion, @Nullable MappingMetaData mappingMd, String concreteIndex) {
         if (mappingMd != null) {
             // might as well check for routing here
-            if (mappingMd.routing().required() && routing == null) {
+            if (mappingMd.routingRequired() && routing == null) {
                 throw new RoutingMissingException(concreteIndex, id);
             }
         }

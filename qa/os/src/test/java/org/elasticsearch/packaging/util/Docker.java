@@ -137,20 +137,24 @@ public class Docker {
         boolean isElasticsearchRunning = false;
         int attempt = 0;
 
-        do {
-            String psOutput = dockerShell.run("ps ax").stdout;
+        String psOutput;
 
-            if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java -X")) {
+        do {
+            // Give the container a chance to crash out
+            Thread.sleep(1000);
+
+            psOutput = dockerShell.run("ps ax").stdout;
+
+            if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java")) {
                 isElasticsearchRunning = true;
                 break;
             }
 
-            Thread.sleep(1000);
         } while (attempt++ < 5);
 
         if (!isElasticsearchRunning) {
-            final String logs = sh.run("docker logs " + containerId).stdout;
-            fail("Elasticsearch container did start successfully.\n\n" + logs);
+            final String dockerLogs = sh.run("docker logs " + containerId).stdout;
+            fail("Elasticsearch container did start successfully.\n\n" + psOutput + "\n\n" + dockerLogs);
         }
     }
 
@@ -240,7 +244,7 @@ public class Docker {
     }
 
     /**
-     * Waits for up to 5 seconds for a path to exist in the container.
+     * Waits for up to 20 seconds for a path to exist in the container.
      */
     public static void waitForPathToExist(Path path) throws InterruptedException {
         int attempt = 0;
@@ -250,8 +254,8 @@ public class Docker {
                 return;
             }
 
-            Thread.sleep(500);
-        } while (attempt++ < 10);
+            Thread.sleep(1000);
+        } while (attempt++ < 20);
 
         fail(path + " failed to exist after 5000ms");
     }

@@ -65,7 +65,7 @@ public class Docker {
      * @param distribution details about the docker image to potentially load.
      */
     public static void ensureImageIsLoaded(Distribution distribution) {
-        final long count = sh.run("docker image ls --format '{{.Repository}}' " + distribution.flavor.name).stdout.lines().count();
+        final long count = sh.run("docker image ls --format '{{.Repository}}' " + distribution.flavor.name).stdout.split("\n").length;
 
         if (count != 0) {
             return;

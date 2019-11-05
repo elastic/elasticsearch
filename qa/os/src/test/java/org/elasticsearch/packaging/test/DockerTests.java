@@ -31,6 +31,7 @@ import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
@@ -162,11 +163,12 @@ public class DockerTests extends PackagingTestCase {
             // Make the temp directory and contents accessible when bind-mounted
             Files.setPosixFilePermissions(tempConf, fromString("rwxrwxrwx"));
 
+            final Map<String, String> envVars = new HashMap<>();
+            envVars.put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
+
             // Restart the container
             removeContainer();
-            runContainer(distribution(), tempConf, Map.of(
-                "ES_JAVA_OPTS", "-XX:-UseCompressedOops"
-            ));
+            runContainer(distribution(), tempConf, envVars);
 
             waitForElasticsearch(installation);
 

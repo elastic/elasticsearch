@@ -191,3 +191,38 @@ for (final boolean oss : [false, true]) {
 if (tasks.findByName("composePull")) {
     tasks.composePull.enabled = false 
 }
+
+/*
+ * The export subprojects write out the generated Docker images to disk, so
+ * that they can be easily reloaded, for example into a VM.
+ */
+subprojects { Project subProject ->
+  if (subProject.name.contains('docker-export')) {
+    apply plugin: 'distribution'
+
+    final boolean oss = subProject.name.contains('oss-')
+    final boolean ubi = subProject.name.contains('ubi-')
+
+    def exportTaskName = taskName("export", oss, ubi, "DockerImage")
+    def buildTaskName = taskName("build", oss, ubi, "DockerImage")
+    def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
+
+    final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
+      executable 'docker'
+      args "save",
+        "-o",
+        tarFile,
+        "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}:test"
+    }
+
+    exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
+
+    artifacts.add('default', file(tarFile)) {
+        type 'tar'
+        name "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}"
+        builtBy exportTaskName
+    }
+
+    assemble.dependsOn exportTaskName
+  }
+}

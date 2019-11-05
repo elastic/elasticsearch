@@ -347,6 +347,26 @@ public class DockerTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         final Result result = sh.run(bin.elasticsearchNode + " -h");
-        assertThat(result.stdout, containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
+        assertThat(
+            "Failed to find expected message about the elasticsearch-node CLI tool",
+            result.stdout,
+            containsString("A CLI tool to do unsafe cluster and index manipulations on current node")
+        );
+    }
+
+    /**
+     * Check that no core dumps have been accidentally included in the Docker image.
+     */
+    public void test100NoCoreFilesInImage() {
+        assertFalse("Unexpected core dump found in Docker image", existsInContainer("/core*"));
+    }
+
+    /**
+     * Check that there are no files with a GID other than 0.
+     */
+    public void test101AllFilesAreGroupZero() {
+        final String findResults = sh.run("find . -not -gid 0").stdout;
+
+        assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
     }
 }

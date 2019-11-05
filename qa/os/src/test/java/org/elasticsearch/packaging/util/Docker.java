@@ -274,6 +274,13 @@ public class Docker {
      * Checks whether a path exists in the Docker container.
      */
     public static boolean existsInContainer(Path path) {
+        return existsInContainer(path.toString());
+    }
+
+    /**
+     * Checks whether a path exists in the Docker container.
+     */
+    public static boolean existsInContainer(String path) {
         logger.debug("Checking whether file " + path + " exists in container");
         final Shell.Result result = dockerShell.runIgnoreExitCode("test -e " + path);
 

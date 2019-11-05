@@ -111,8 +111,19 @@ public enum ValuesSourceRegistry {
         }
     };
 
+    /**
+     * Register a ValuesSource to Aggregator mapping.
+     *
+     * @param aggregationName The name of the family of aggregations, typically found via ValuesSourceAggregationBuilder.getType()
+     * @param valuesSourceType The ValuesSourceType this mapping applies to.
+     * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
+     *                           from the aggregation standard set of parameters
+     * @param resolveValuesSourceType A predicate operating on MappedFieldType and IndexFieldData instances which decides if the mapped
+     *                                ValuesSourceType can be applied to the given field.
+     */
     public abstract void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier,
                                   BiFunction<MappedFieldType, IndexFieldData, Boolean> resolveValuesSourceType);
+
     public abstract AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName);
     // TODO: ValueType argument is only needed for legacy logic
     public abstract ValuesSourceType getValuesSourceType(MappedFieldType fieldType, IndexFieldData indexFieldData, String aggregationName,

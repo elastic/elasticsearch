@@ -376,7 +376,7 @@ def linux_common(config,
 
   # This prevents leftovers from previous tests using the
   # same VM from messing up the current test
-  config.vm.provision 'clean es installs in tmp', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
     rm -rf /tmp/elasticsearch*
   SHELL
 

@@ -23,14 +23,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -38,6 +36,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
@@ -236,7 +235,7 @@ public class LucenePersistedStateFactory {
         final IndexSearcher searcher = new IndexSearcher(reader);
 
         final SetOnce<MetaData.Builder> builderReference = new SetOnce<>();
-        consumeBinaryDocValuesFromType(searcher, GLOBAL_TYPE_NAME, bytes ->
+        consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes ->
         {
             final MetaData metaData = MetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes));
@@ -250,7 +249,7 @@ public class LucenePersistedStateFactory {
         logger.trace("got global metadata, now reading index metadata");
 
         final Set<String> indexUUIDsForAssertions = new HashSet<>();
-        consumeBinaryDocValuesFromType(searcher, INDEX_TYPE_NAME, bytes ->
+        consumeFromType(searcher, INDEX_TYPE_NAME, bytes ->
         {
             final IndexMetaData indexMetaData = IndexMetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes));
@@ -271,13 +270,12 @@ public class LucenePersistedStateFactory {
             Long.parseLong(userData.get(LAST_ACCEPTED_VERSION_KEY)), builder.build());
     }
 
-    private static void consumeBinaryDocValuesFromType(IndexSearcher indexSearcher, String type,
-                                                       CheckedConsumer<byte[], IOException> docValuesConsumer)
+    private static void consumeFromType(IndexSearcher indexSearcher, String type,
+                                        CheckedConsumer<byte[], IOException> docValuesConsumer)
         throws IOException {
 
-        final TermQuery query = new TermQuery(new Term(TYPE_FIELD_NAME, type));
+        final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, type));
         final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
-
         logger.trace("running query [{}]", query);
 
         for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
@@ -287,13 +285,11 @@ public class LucenePersistedStateFactory {
             final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
             if (scorer != null) {
                 final DocIdSetIterator docIdSetIterator = scorer.iterator();
-                final BinaryDocValues binaryDocValues = DocValues.getBinary(leafReaderContext.reader(), DATA_FIELD_NAME);
                 while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     if (isLiveDoc.test(docIdSetIterator.docID())) {
                         logger.trace("processing doc {}", docIdSetIterator.docID());
-                        final boolean hasValue = binaryDocValues.advanceExact(docIdSetIterator.docID());
-                        assert hasValue;
-                        docValuesConsumer.accept(binaryDocValues.binaryValue().bytes);
+                        docValuesConsumer.accept(
+                            indexSearcher.getIndexReader().document(docIdSetIterator.docID()).getBinaryValue(DATA_FIELD_NAME).bytes);
                     }
                 }
             }
@@ -441,7 +437,7 @@ public class LucenePersistedStateFactory {
                 metaData.toXContent(xContentBuilder, FORMAT_PARAMS);
                 xContentBuilder.endObject();
             }
-            document.add(new BinaryDocValuesField(DATA_FIELD_NAME, new BytesRef(outputStream.toByteArray())));
+            document.add(new StoredField(DATA_FIELD_NAME, new BytesRef(outputStream.toByteArray())));
             return document;
         }
     }

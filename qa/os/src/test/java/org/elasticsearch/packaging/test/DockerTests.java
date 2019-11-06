@@ -40,6 +40,7 @@ import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwners
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
+import static org.elasticsearch.packaging.util.Docker.getEnabledPlugins;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
@@ -56,6 +57,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
@@ -102,6 +104,20 @@ public class DockerTests extends PackagingTestCase {
         final Result r = sh.run(bin.elasticsearchPlugin + " list");
 
         assertThat("Expected no plugins to be listed", r.stdout, emptyString());
+    }
+
+    /**
+     * Check that the IngestUserAgentPlugin is enabled.
+     */
+    public void test21IngestUserAgentPluginIsInstalled() throws Exception {
+        assertThat(getEnabledPlugins(installation), hasItem("org.elasticsearch.ingest.useragent.IngestUserAgentPlugin"));
+    }
+
+    /**
+     * Check that the IngestGeoIpPlugin is enabled.
+     */
+    public void test21IngestGeoIpPluginIsInstalled() throws Exception {
+        assertThat(getEnabledPlugins(installation), hasItem("org.elasticsearch.ingest.geoip.IngestGeoIpPlugin"));
     }
 
     /**

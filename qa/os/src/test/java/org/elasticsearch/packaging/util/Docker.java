@@ -19,9 +19,14 @@
 
 package org.elasticsearch.packaging.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.client.fluent.Request;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
@@ -36,10 +41,12 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
+import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -428,5 +435,31 @@ public class Docker {
 
     private interface ThrowingRunnable {
         void run() throws Exception;
+    }
+
+    public static JsonNode getJson(String path) throws IOException {
+        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200/" + path));
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        return mapper.readTree(pluginsResponse);
+    }
+
+    public static List<String> getEnabledPlugins(Installation installation) throws Exception {
+        waitForElasticsearch(installation);
+
+        final JsonNode plugins = getJson("_nodes/plugins");
+        final JsonNode modules = plugins.findValue("modules");
+
+        assertTrue(modules.isArray());
+        final ArrayNode jsonNodes = (ArrayNode) modules;
+
+        List<String> pluginClasses = new ArrayList<>();
+
+        for (JsonNode module : jsonNodes) {
+            pluginClasses.add(module.get("classname").asText());
+        }
+
+        return pluginClasses;
     }
 }

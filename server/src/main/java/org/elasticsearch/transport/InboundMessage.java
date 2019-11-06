@@ -69,6 +69,12 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 final boolean isHandshake = TransportStatus.isHandshake(status);
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
 
+                // TODO: Change to 7.6 after backport
+                if (remoteVersion.onOrAfter(Version.CURRENT)) {
+                    // Consume the variable header size
+                    streamInput.readInt();
+                }
+
                 // we have additional bytes to read, outside of the header
                 boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.headerSize(remoteVersion)) > 0;
                 if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamInput.available() > 0) {
@@ -114,13 +120,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
     @Nullable
     static Compressor getCompressor(BytesReference message, Version version) {
-        final int offset;
-        // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.CURRENT)) {
-            offset = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE + TcpHeader.VARIABLE_HEADER_SIZE;
-        } else {
-            offset = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
-        }
+        final int offset = TcpHeader.headerSize(version) - TcpHeader.MARKER_BYTES_SIZE - TcpHeader.MESSAGE_LENGTH_SIZE;
         return CompressorFactory.COMPRESSOR.isCompressed(message.slice(offset, message.length() - offset))
             ? CompressorFactory.COMPRESSOR : null;
     }

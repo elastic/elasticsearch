@@ -116,7 +116,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the IngestGeoIpPlugin is enabled.
      */
-    public void test21IngestGeoIpPluginIsInstalled() throws Exception {
+    public void test22IngestGeoIpPluginIsInstalled() throws Exception {
         assertThat(getEnabledPlugins(installation), hasItem("org.elasticsearch.ingest.geoip.IngestGeoIpPlugin"));
     }
 
@@ -140,21 +140,9 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Send some basic index, count and delete requests, in order to check that the installation
-     * is minimally functional.
-     */
-    public void test50BasicApiTests() throws Exception {
-        waitForElasticsearch(installation);
-
-        assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
-
-        ServerUtils.runElasticsearchTests();
-    }
-
-    /**
      * Check that the default keystore is automatically created
      */
-    public void test60AutoCreateKeystore() throws Exception {
+    public void test41AutoCreateKeystore() throws Exception {
         final Path keystorePath = installation.config("elasticsearch.keystore");
 
         waitForPathToExist(keystorePath);
@@ -164,6 +152,38 @@ public class DockerTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final Result result = sh.run(bin.elasticsearchKeystore + " list");
         assertThat(result.stdout, containsString("keystore.seed"));
+    }
+
+    /**
+     * Check that the JDK's cacerts file is a symlink to the copy provided by the operating system.
+     */
+    public void test42JavaUsesTheOsProvidedKeystore() {
+        final String path = sh.run("realpath jdk/lib/security/cacerts").stdout;
+
+        assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+    }
+
+    /**
+     * Checks that there are Amazon trusted certificates in the cacaerts keystore.
+     */
+    public void test43AmazonCaCertsAreInTheKeystore() {
+        final boolean matches = sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout
+            .lines()
+            .anyMatch(line -> line.contains("amazonrootca"));
+
+        assertTrue("Expected Amazon trusted cert in cacerts", matches);
+    }
+
+    /**
+     * Send some basic index, count and delete requests, in order to check that the installation
+     * is minimally functional.
+     */
+    public void test50BasicApiTests() throws Exception {
+        waitForElasticsearch(installation);
+
+        assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
+
+        ServerUtils.runElasticsearchTests();
     }
 
     /**

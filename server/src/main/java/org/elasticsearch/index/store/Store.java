@@ -128,14 +128,6 @@ import static java.util.Collections.unmodifiableMap;
  * </pre>
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
-    /**
-     * This is an escape hatch for lucenes internal optimization that checks if the IndexInput is an instance of ByteBufferIndexInput
-     * and if that's the case doesn't load the term dictionary into ram but loads it off disk iff the fields is not an ID like field.
-     * Since this optimization has been added very late in the release processes we add this setting to allow users to opt-out of
-     * this by exploiting lucene internals and wrapping the IndexInput in a simple delegate.
-     */
-    public static final Setting<Boolean> FORCE_RAM_TERM_DICT = Setting.boolSetting("index.force_memory_term_dictionary", false,
-        Property.IndexScope, Property.Deprecated);
     static final String CODEC = "store";
     static final int CORRUPTED_MARKER_CODEC_VERSION = 2;
     // public is for test purposes

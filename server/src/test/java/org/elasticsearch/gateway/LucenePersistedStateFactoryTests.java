@@ -93,6 +93,21 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                 final ClusterState clusterState = persistedState.getLastAcceptedState();
                 assertThat(clusterState.metaData().clusterUUID(), equalTo(clusterUUID));
                 assertTrue(clusterState.metaData().clusterUUIDCommitted());
+                assertThat(clusterState.metaData().version(), equalTo(version));
+
+                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+                    .metaData(MetaData.builder(clusterState.metaData())
+                        .clusterUUID(clusterUUID)
+                        .clusterUUIDCommitted(true)
+                        .version(version + 1))
+                    .incrementVersion().build());
+            }
+
+            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
+                final ClusterState clusterState = persistedState.getLastAcceptedState();
+                assertThat(clusterState.metaData().clusterUUID(), equalTo(clusterUUID));
+                assertTrue(clusterState.metaData().clusterUUIDCommitted());
+                assertThat(clusterState.metaData().version(), equalTo(version + 1));
             }
         }
     }

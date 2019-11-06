@@ -35,15 +35,30 @@ public class TcpHeader {
 
     public static final int VERSION_ID_SIZE = 4;
 
-    public static final int HEADER_SIZE = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE;
+    public static final int VARIABLE_HEADER_SIZE = 4;
 
-    public static void writeHeader(StreamOutput output, long requestId, byte status, Version version, int messageSize) throws IOException {
+    public static final int PRE_76_HEADER_SIZE = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE;
+
+    public static final int HEADER_SIZE = PRE_76_HEADER_SIZE + VARIABLE_HEADER_SIZE;
+
+
+    public static void writeHeader(StreamOutput output, long requestId, byte status, Version version, int contentSize,
+                                   int variableHeaderSize) throws IOException {
         output.writeByte((byte)'E');
         output.writeByte((byte)'S');
         // write the size, the size indicates the remaining message size, not including the size int
-        output.writeInt(messageSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE);
+        // TODO: Change to 7.6 after backport
+        if (version.onOrAfter(Version.CURRENT)) {
+            output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE + VARIABLE_HEADER_SIZE);
+        } else {
+            output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE);
+        }
         output.writeLong(requestId);
         output.writeByte(status);
         output.writeInt(version.id);
+        // TODO: Change to 7.6 after backport
+        if (version.onOrAfter(Version.CURRENT)) {
+            output.writeInt(variableHeaderSize);
+        }
     }
 }

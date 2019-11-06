@@ -78,16 +78,22 @@ public final class TransportLogger {
                 final byte status = streamInput.readByte();
                 final boolean isRequest = TransportStatus.isRequest(status);
                 final String type = isRequest ? "request" : "response";
-                final String version = Version.fromId(streamInput.readInt()).toString();
+                Version version = Version.fromId(streamInput.readInt());
+                final String versionString = version.toString();
                 sb.append(" [length: ").append(messageLengthWithHeader);
                 sb.append(", request id: ").append(requestId);
                 sb.append(", type: ").append(type);
-                sb.append(", version: ").append(version);
+                sb.append(", version: ").append(versionString);
+
+                // TODO: Change to 7.6 after backport
+                if (streamInput.getVersion().onOrAfter(Version.CURRENT)) {
+                    sb.append(", header size: ").append(streamInput.readInt()).append('B');
+                }
 
                 if (isRequest) {
                     if (TransportStatus.isCompress(status)) {
                         Compressor compressor;
-                        compressor = InboundMessage.getCompressor(message);
+                        compressor = InboundMessage.getCompressor(message, version);
                         if (compressor == null) {
                             throw new IllegalStateException(new NotCompressedException());
                         }

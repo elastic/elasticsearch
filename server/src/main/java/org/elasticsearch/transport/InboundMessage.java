@@ -60,8 +60,6 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         InboundMessage deserialize(BytesReference reference) throws IOException {
             int messageLengthBytes = reference.length();
             final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-            // we have additional bytes to read, outside of the header
-            boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
             StreamInput streamInput = reference.streamInput();
             boolean success = false;
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
@@ -70,8 +68,17 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 Version remoteVersion = Version.fromId(streamInput.readInt());
                 final boolean isHandshake = TransportStatus.isHandshake(status);
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
+                int headerSize;
+                // TODO: Change to 7.6 after backport
+                if (Version.CURRENT.onOrBefore(remoteVersion)) {
+                    headerSize = TcpHeader.HEADER_SIZE;
+                } else {
+                    headerSize = TcpHeader.PRE_76_HEADER_SIZE;
+                }
+                // we have additional bytes to read, outside of the header
+                boolean hasMessageBytesToRead = (totalMessageSize - headerSize) > 0;
                 if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamInput.available() > 0) {
-                    Compressor compressor = getCompressor(reference);
+                    Compressor compressor = getCompressor(reference, remoteVersion);
                     if (compressor == null) {
                         int maxToRead = Math.min(reference.length(), 10);
                         StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
@@ -112,8 +119,14 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
     }
 
     @Nullable
-    static Compressor getCompressor(BytesReference message) {
-        final int offset = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
+    static Compressor getCompressor(BytesReference message, Version version) {
+        final int offset;
+        // TODO: Change to 7.6 after backport
+        if (version.onOrAfter(Version.CURRENT)) {
+            offset = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE + TcpHeader.VARIABLE_HEADER_SIZE;
+        } else {
+            offset = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
+        }
         return CompressorFactory.COMPRESSOR.isCompressed(message.slice(offset, message.length() - offset))
             ? CompressorFactory.COMPRESSOR : null;
     }

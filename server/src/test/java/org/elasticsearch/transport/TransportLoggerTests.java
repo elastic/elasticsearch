@@ -61,6 +61,7 @@ public class TransportLoggerTests extends ESTestCase {
                 ", request id: \\d+" +
                 ", type: request" +
                 ", version: .*" +
+                ", header size: \\d+B" +
                 ", action: cluster:monitor/stats]" +
                 " WRITE: \\d+B";
         final MockLogAppender.LoggingExpectation writeExpectation =
@@ -72,6 +73,7 @@ public class TransportLoggerTests extends ESTestCase {
                 ", request id: \\d+" +
                 ", type: request" +
                 ", version: .*" +
+                ", header size: \\d+B" +
                 ", action: cluster:monitor/stats]" +
                 " READ: \\d+B";
 
@@ -90,21 +92,24 @@ public class TransportLoggerTests extends ESTestCase {
     private BytesReference buildRequest() throws IOException {
         try (BytesStreamOutput messageOutput = new BytesStreamOutput()) {
             messageOutput.setVersion(Version.CURRENT);
+            long preHeaderPosition = messageOutput.position();
             try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
                 context.writeTo(messageOutput);
             }
             messageOutput.writeString(ClusterStatsAction.NAME);
+            int variableHeaderSize = Math.toIntExact(messageOutput.position() - preHeaderPosition);
             new ClusterStatsRequest().writeTo(messageOutput);
             BytesReference messageBody = messageOutput.bytes();
-            final BytesReference header = buildHeader(randomInt(30), messageBody.length());
+            final BytesReference header = buildHeader(randomInt(30), variableHeaderSize, messageBody.length());
             return new CompositeBytesReference(header, messageBody);
         }
     }
 
-    private BytesReference buildHeader(long requestId, int length) throws IOException {
+    private BytesReference buildHeader(long requestId, int variableHeaderSize, int length) throws IOException {
         try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
             headerOutput.setVersion(Version.CURRENT);
-            TcpHeader.writeHeader(headerOutput, requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT, length);
+            byte status = TransportStatus.setRequest((byte) 0);
+            TcpHeader.writeHeader(headerOutput, requestId, status, Version.CURRENT, length, variableHeaderSize);
             final BytesReference bytes = headerOutput.bytes();
             assert bytes.length() == TcpHeader.HEADER_SIZE : "header size mismatch expected: " + TcpHeader.HEADER_SIZE + " but was: "
                 + bytes.length();

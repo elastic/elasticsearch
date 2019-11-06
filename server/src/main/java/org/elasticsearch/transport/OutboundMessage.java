@@ -41,18 +41,32 @@ abstract class OutboundMessage extends NetworkMessage {
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
         storedContext.restore();
         bytesStream.setVersion(version);
-        bytesStream.skip(TcpHeader.HEADER_SIZE);
+        // TODO: Change to 7.6 after backport
+        if (version.onOrAfter(Version.CURRENT)) {
+            bytesStream.skip(TcpHeader.HEADER_SIZE);
+        } else {
+            bytesStream.skip(TcpHeader.PRE_76_HEADER_SIZE);
+        }
 
         // The compressible bytes stream will not close the underlying bytes stream
         BytesReference reference;
+        int variableHeaderLength;
+        long preHeaderPosition = bytesStream.position();
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);
-            threadContext.writeTo(stream);
+            writeVariableHeader(stream);
+            stream.flush();
+            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
+
             reference = writeMessage(stream);
         }
         bytesStream.seek(0);
-        TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - TcpHeader.HEADER_SIZE);
+        TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - TcpHeader.HEADER_SIZE, variableHeaderLength);
         return reference;
+    }
+
+    protected void writeVariableHeader(CompressibleBytesOutputStream stream) throws IOException {
+        threadContext.writeTo(stream);
     }
 
     protected BytesReference writeMessage(CompressibleBytesOutputStream stream) throws IOException {
@@ -92,13 +106,13 @@ abstract class OutboundMessage extends NetworkMessage {
         }
 
         @Override
-        protected BytesReference writeMessage(CompressibleBytesOutputStream out) throws IOException {
+        protected void writeVariableHeader(CompressibleBytesOutputStream stream) throws IOException {
+            super.writeVariableHeader(stream);
             if (version.before(Version.V_8_0_0)) {
                 // empty features array
-                out.writeStringArray(Strings.EMPTY_ARRAY);
+                stream.writeStringArray(Strings.EMPTY_ARRAY);
             }
-            out.writeString(action);
-            return super.writeMessage(out);
+            stream.writeString(action);
         }
 
         private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {

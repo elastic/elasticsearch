@@ -41,12 +41,7 @@ abstract class OutboundMessage extends NetworkMessage {
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
         storedContext.restore();
         bytesStream.setVersion(version);
-        // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.CURRENT)) {
-            bytesStream.skip(TcpHeader.HEADER_SIZE);
-        } else {
-            bytesStream.skip(TcpHeader.PRE_76_HEADER_SIZE);
-        }
+        bytesStream.skip(TcpHeader.headerSize(version));
 
         // The compressible bytes stream will not close the underlying bytes stream
         BytesReference reference;
@@ -61,13 +56,7 @@ abstract class OutboundMessage extends NetworkMessage {
             reference = writeMessage(stream);
         }
         bytesStream.seek(0);
-        final int contentSize;
-        // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.CURRENT)) {
-            contentSize = reference.length() - TcpHeader.HEADER_SIZE;
-        } else {
-            contentSize = reference.length() - TcpHeader.PRE_76_HEADER_SIZE;
-        }
+        final int contentSize = reference.length() - TcpHeader.headerSize(version);
         TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
         return reference;
     }

@@ -185,7 +185,7 @@ public class InboundMessageTests extends ESTestCase {
             reference = request.serialize(streamOutput);
         }
         final byte[] serialized = BytesReference.toBytes(reference);
-        final int statusPosition = TcpHeader.HEADER_SIZE - TcpHeader.VERSION_ID_SIZE - TcpHeader.VARIABLE_HEADER_SIZE - 1;
+        final int statusPosition = TcpHeader.headerSize(Version.CURRENT) - TcpHeader.VERSION_ID_SIZE - TcpHeader.VARIABLE_HEADER_SIZE - 1;
         // force status byte to signal compressed on the otherwise uncompressed message
         serialized[statusPosition] = TransportStatus.setCompress(serialized[statusPosition]);
         reference = new BytesArray(serialized);

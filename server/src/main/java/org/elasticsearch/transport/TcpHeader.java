@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public class TcpHeader {
-    public static final int MARKER_BYTES_SIZE = 2 * 1;
+    public static final int MARKER_BYTES_SIZE = 2;
 
     public static final int MESSAGE_LENGTH_SIZE = 4;
 
@@ -37,10 +37,18 @@ public class TcpHeader {
 
     public static final int VARIABLE_HEADER_SIZE = 4;
 
-    public static final int PRE_76_HEADER_SIZE = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE;
+    private static final int PRE_76_HEADER_SIZE = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE;
 
-    public static final int HEADER_SIZE = PRE_76_HEADER_SIZE + VARIABLE_HEADER_SIZE;
+    private static final int HEADER_SIZE = PRE_76_HEADER_SIZE + VARIABLE_HEADER_SIZE;
 
+    public static int headerSize(Version version) {
+        // TODO: Change to 7.6 after backport
+        if (version.onOrAfter(Version.CURRENT)) {
+            return HEADER_SIZE;
+        } else {
+            return PRE_76_HEADER_SIZE;
+        }
+    }
 
     public static void writeHeader(StreamOutput output, long requestId, byte status, Version version, int contentSize,
                                    int variableHeaderSize) throws IOException {

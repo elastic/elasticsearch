@@ -68,17 +68,9 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 Version remoteVersion = Version.fromId(streamInput.readInt());
                 final boolean isHandshake = TransportStatus.isHandshake(status);
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
-                int headerSize;
-                // TODO: Change to 7.6 after backport
-                if (remoteVersion.onOrAfter(Version.CURRENT)) {
-                    headerSize = TcpHeader.HEADER_SIZE;
-                    // Consume the variable header size
-                    streamInput.readInt();
-                } else {
-                    headerSize = TcpHeader.PRE_76_HEADER_SIZE;
-                }
+
                 // we have additional bytes to read, outside of the header
-                boolean hasMessageBytesToRead = (totalMessageSize - headerSize) > 0;
+                boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.headerSize(remoteVersion)) > 0;
                 if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamInput.available() > 0) {
                     Compressor compressor = getCompressor(reference, remoteVersion);
                     if (compressor == null) {

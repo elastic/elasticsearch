@@ -106,13 +106,13 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     private BytesReference buildHeader(long requestId, int variableHeaderSize, int length) throws IOException {
-        try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
+        int headerSize = TcpHeader.headerSize(Version.CURRENT);
+        try (BytesStreamOutput headerOutput = new BytesStreamOutput(headerSize)) {
             headerOutput.setVersion(Version.CURRENT);
             byte status = TransportStatus.setRequest((byte) 0);
             TcpHeader.writeHeader(headerOutput, requestId, status, Version.CURRENT, length, variableHeaderSize);
             final BytesReference bytes = headerOutput.bytes();
-            assert bytes.length() == TcpHeader.HEADER_SIZE : "header size mismatch expected: " + TcpHeader.HEADER_SIZE + " but was: "
-                + bytes.length();
+            assert bytes.length() == headerSize : "header size mismatch expected: " + headerSize + " but was: " + bytes.length();
             return bytes;
         }
     }

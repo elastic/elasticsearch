@@ -42,7 +42,8 @@ In a bi-directional setup between two clusters, each cluster contains both
 leader and follower indices.
 
 When upgrading clusters in this setup, all index following needs to be paused
-using the {ref}/ccr-post-pause-follow.html[pause follower API] prior to
+using the {ref}/ccr-post-pause-follow.html[pause follower API] and the
+ {ref}/ccr-pause-auto-follow-pattern.html[pause auto-follower API] prior to
 upgrading both clusters. After both clusters have been upgraded then index
 following can be resumed using the
 {ref}/ccr-post-resume-follow.html[resume follower API]].

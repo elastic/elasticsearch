@@ -90,12 +90,8 @@ public class Docker {
      * @param volumes a map that declares any volume mappings to apply, or null
      * @param envVars environment variables to set when running the container, or null
      */
-    public static Installation runContainer(
-        Distribution distribution,
-        Map<Path, Path> volumes,
-        Map<String,String> envVars
-    ) {
-        executeDockerRun(distribution, Cleanup.ALWAYS, volumes, envVars);
+    public static Installation runContainer(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
+        executeDockerRun(distribution, volumes, envVars);
 
         waitForElasticsearchToStart();
 
@@ -114,31 +110,21 @@ public class Docker {
     public static Shell.Result runContainerExpectingFailure(
         Distribution distribution,
         Map<Path, Path> volumes,
-        Map<String,String> envVars
+        Map<String, String> envVars
     ) {
-        executeDockerRun(distribution, Cleanup.NEVER, volumes, envVars);
+        executeDockerRun(distribution, volumes, envVars);
 
         waitForElasticsearchToExit();
 
         return sh.run("docker logs " + containerId);
     }
 
-    private static void executeDockerRun(
-        Distribution distribution,
-        Cleanup cleanupMode,
-        Map<Path, Path> volumes,
-        Map<String, String> envVars
-    ) {
+    private static void executeDockerRun(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
         removeContainer();
 
         final List<String> args = new ArrayList<>();
 
         args.add("docker run");
-
-        if (cleanupMode == Cleanup.ALWAYS) {
-            // Remove the container once it exits
-            args.add("--rm");
-        }
 
         // Run the container in the background
         args.add("--detach");
@@ -187,15 +173,21 @@ public class Docker {
                     isElasticsearchRunning = true;
                     break;
                 }
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to start", e);
             }
         } while (attempt++ < 5);
 
         if (isElasticsearchRunning == false) {
-            final String dockerLogs = sh.run("docker logs " + containerId).stdout;
-            fail("Elasticsearch container did start successfully.\n\n" + psOutput + "\n\n" + dockerLogs);
+            final Shell.Result dockerLogs = sh.run("docker logs " + containerId);
+            fail(
+                "Elasticsearch container did not start successfully.\n\nps output:\n"
+                    + psOutput
+                    + "\n\nStdout:\n"
+                    + dockerLogs.stdout
+                    + "\n\nStderr:\n"
+                    + dockerLogs.stderr
+            );
         }
     }
 
@@ -215,15 +207,14 @@ public class Docker {
                     isElasticsearchRunning = false;
                     break;
                 }
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
         } while (attempt++ < 5);
 
         if (isElasticsearchRunning) {
-            final String dockerLogs = sh.run("docker logs " + containerId).stdout;
-            fail("Elasticsearch container did exit.\n\n" + dockerLogs);
+            final Shell.Result dockerLogs = sh.run("docker logs " + containerId);
+            fail("Elasticsearch container did exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
         }
     }
 
@@ -239,10 +230,12 @@ public class Docker {
                 final Shell.Result result = sh.runIgnoreExitCode(command);
 
                 if (result.isSuccess() == false) {
+                    boolean isErrorAcceptable = result.stderr.contains("removal of container " + containerId + " is already in progress")
+                        || result.stderr.contains("Error: No such container: " + containerId);
+
                     // I'm not sure why we're already removing this container, but that's OK.
-                    if (result.stderr.contains("removal of container " + containerId + " is already in progress") == false) {
-                        throw new RuntimeException(
-                            "Command was not successful: [" + command + "] result: " + result.toString());
+                    if (isErrorAcceptable == false) {
+                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result.toString());
                     }
                 }
             } finally {
@@ -273,11 +266,7 @@ public class Docker {
         protected String[] getScriptCommand(String script) {
             assert containerId != null;
 
-            return super.getScriptCommand("docker exec " +
-                "--user elasticsearch:root " +
-                "--tty " +
-                containerId + " " +
-                script);
+            return super.getScriptCommand("docker exec " + "--user elasticsearch:root " + "--tty " + containerId + " " + script);
         }
     }
 
@@ -347,87 +336,90 @@ public class Docker {
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
         assertThat(homeDir, equalTo("/usr/share/elasticsearch"));
 
-        Stream.of(
-            es.home,
-            es.data,
-            es.logs,
-            es.config
-        ).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
+        Stream.of(es.home, es.data, es.logs, es.config).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
 
-        Stream.of(
-            es.plugins,
-            es.modules
-        ).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
+        Stream.of(es.plugins, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
         // FIXME these files should all have the same permissions
-        Stream.of(
-            "elasticsearch.keystore",
-//            "elasticsearch.yml",
-            "jvm.options"
-//            "log4j2.properties"
-        ).forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
+        Stream
+            .of(
+                "elasticsearch.keystore",
+                // "elasticsearch.yml",
+                "jvm.options"
+                // "log4j2.properties"
+            )
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
 
-        Stream.of(
-            "elasticsearch.yml",
-            "log4j2.properties"
-        ).forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p644));
+        Stream
+            .of("elasticsearch.yml", "log4j2.properties")
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p644));
 
-        assertThat(
-            dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout,
-            containsString("keystore.seed"));
+        assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
-        Stream.of(
-            es.bin,
-            es.lib
-        ).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
+        Stream.of(es.bin, es.lib).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
-        Stream.of(
-            "elasticsearch",
-            "elasticsearch-cli",
-            "elasticsearch-env",
-            "elasticsearch-enve",
-            "elasticsearch-keystore",
-            "elasticsearch-node",
-            "elasticsearch-plugin",
-            "elasticsearch-shard"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
+        Stream
+            .of(
+                "elasticsearch",
+                "elasticsearch-cli",
+                "elasticsearch-env",
+                "elasticsearch-enve",
+                "elasticsearch-keystore",
+                "elasticsearch-node",
+                "elasticsearch-plugin",
+                "elasticsearch-shard"
+            )
+            .forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
-        Stream.of(
-            "LICENSE.txt",
-            "NOTICE.txt",
-            "README.textile"
-        ).forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+        Stream.of("LICENSE.txt", "NOTICE.txt", "README.textile").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
     }
 
     private static void verifyDefaultInstallation(Installation es) {
-        Stream.of(
-            "elasticsearch-certgen",
-            "elasticsearch-certutil",
-            "elasticsearch-croneval",
-            "elasticsearch-saml-metadata",
-            "elasticsearch-setup-passwords",
-            "elasticsearch-sql-cli",
-            "elasticsearch-syskeygen",
-            "elasticsearch-users",
-            "x-pack-env",
-            "x-pack-security-env",
-            "x-pack-watcher-env"
-        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
+        Stream
+            .of(
+                "elasticsearch-certgen",
+                "elasticsearch-certutil",
+                "elasticsearch-croneval",
+                "elasticsearch-saml-metadata",
+                "elasticsearch-setup-passwords",
+                "elasticsearch-sql-cli",
+                "elasticsearch-syskeygen",
+                "elasticsearch-users",
+                "x-pack-env",
+                "x-pack-security-env",
+                "x-pack-watcher-env"
+            )
+            .forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
         // the version through here
         assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p755);
 
-        Stream.of(
-            "role_mapping.yml",
-            "roles.yml",
-            "users",
-            "users_roles"
-        ).forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
+        Stream
+            .of("role_mapping.yml", "roles.yml", "users", "users_roles")
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
     }
 
-    private enum Cleanup {
-        ALWAYS,
-        NEVER
+    public static void waitForElasticsearch(Installation installation) throws Exception {
+        withLogging(() -> ServerUtils.waitForElasticsearch(installation));
+    }
+
+    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
+        throws Exception {
+        withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
+    }
+
+    private static void withLogging(ThrowingRunnable r) throws Exception {
+        try {
+            r.run();
+        } catch (Exception e) {
+            final Shell.Result logs = sh.run("docker logs " + containerId);
+            logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
+            throw e;
+        }
+    }
+
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 }

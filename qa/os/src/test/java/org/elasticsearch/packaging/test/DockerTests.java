@@ -42,6 +42,7 @@ import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
+import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
@@ -50,7 +51,6 @@ import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.elasticsearch.packaging.util.ServerUtils.waitForElasticsearch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.emptyString;
@@ -166,7 +166,6 @@ public class DockerTests extends PackagingTestCase {
             Files.setPosixFilePermissions(tempConf, fromString("rwxrwxrwx"));
 
             // Restart the container
-            removeContainer();
             final Map<Path, Path> volumes = Map.of(tempConf, Path.of("/usr/share/elasticsearch/config"));
             runContainer(distribution(), volumes, Map.of(
                 "ES_JAVA_OPTS", "-XX:-UseCompressedOops"

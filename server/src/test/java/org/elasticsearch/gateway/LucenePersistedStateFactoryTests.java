@@ -104,16 +104,13 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         final long freshVersion = randomLongBetween(2L, Long.MAX_VALUE);
         final long staleVersion = staleTerm == freshTerm ? randomLongBetween(1L, freshVersion - 1) : randomLongBetween(1L, Long.MAX_VALUE);
 
-        final long staleCurrentTerm = randomLongBetween(1L, Long.MAX_VALUE);
-        final long freshCurrentTerm = randomLongBetween(staleCurrentTerm, Long.MAX_VALUE);
-
         final HashSet<Path> unimportantPaths = Arrays.stream(dataPaths).collect(Collectors.toCollection(HashSet::new));
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths)) {
             try (CoordinationState.PersistedState persistedState
                      = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
                 final ClusterState clusterState = persistedState.getLastAcceptedState();
-                persistedState.setCurrentTerm(staleCurrentTerm);
+                persistedState.setCurrentTerm(randomLongBetween(1L, Long.MAX_VALUE));
                 persistedState.setLastAcceptedState(
                     ClusterState.builder(clusterState).version(staleVersion)
                         .metaData(MetaData.builder(clusterState.metaData()).coordinationMetaData(
@@ -133,14 +130,6 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
             }
         }
 
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[]{randomFrom(dataPaths)})) {
-            unimportantPaths.remove(nodeEnvironment.nodeDataPaths()[0]);
-            try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
-                persistedState.setCurrentTerm(freshCurrentTerm);
-            }
-        }
-
         if (randomBoolean() && unimportantPaths.isEmpty() == false) {
             IOUtils.rm(randomFrom(unimportantPaths));
         }
@@ -151,7 +140,6 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                      = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
                 assertThat(persistedState.getLastAcceptedState().term(), equalTo(freshTerm));
                 assertThat(persistedState.getLastAcceptedState().version(), equalTo(freshVersion));
-                assertThat(persistedState.getCurrentTerm(), equalTo(freshCurrentTerm));
             }
         }
 
@@ -161,7 +149,6 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                      = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
                 assertThat(persistedState.getLastAcceptedState().term(), equalTo(freshTerm));
                 assertThat(persistedState.getLastAcceptedState().version(), equalTo(freshVersion));
-                assertThat(persistedState.getCurrentTerm(), equalTo(freshCurrentTerm));
             }
         }
     }

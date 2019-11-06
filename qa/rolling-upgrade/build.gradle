@@ -18,6 +18,7 @@
  */
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -69,7 +70,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'http.content_type.required', 'true'
-      javaHome = project.file(project.ext.runtimeJavaHome)
+      javaHome = BuildParams.runtimeJavaHome
     }
   }
 

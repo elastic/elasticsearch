@@ -83,6 +83,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public enum MergeReason {
         /**
+         * Pre-flight check before sending a mapping update to the master
+         */
+        MAPPING_UPDATE_PREFLIGHT,
+        /**
          * Create or update a mapping.
          */
         MAPPING_UPDATE,
@@ -306,6 +310,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private synchronized Map<String, DocumentMapper> internalMerge(IndexMetaData indexMetaData,
                                                                    MergeReason reason, boolean onlyUpdateIfNeeded) {
+        assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
         MappingMetaData mappingMetaData = indexMetaData.mapping();
         if (mappingMetaData != null) {
@@ -415,7 +420,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, fieldTypes::get);
 
-            if (reason == MergeReason.MAPPING_UPDATE) {
+            if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
                 // this check will only be performed on the master node when there is
                 // a call to the update mapping API. For all other cases like
                 // the master node restoring mappings from disk or data nodes
@@ -430,7 +435,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             results.put(newMapper.type(), newMapper);
         }
 
-        if (reason == MergeReason.MAPPING_UPDATE) {
+        if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
             // this check will only be performed on the master node when there is
             // a call to the update mapping API. For all other cases like
             // the master node restoring mappings from disk or data nodes
@@ -452,6 +457,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         // make structures immutable
         results = Collections.unmodifiableMap(results);
+
+        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+            return results;
+        }
 
         // only need to immutably rewrap these if the previous reference was changed.
         // if not then they are already implicitly immutable.

@@ -61,7 +61,14 @@ abstract class OutboundMessage extends NetworkMessage {
             reference = writeMessage(stream);
         }
         bytesStream.seek(0);
-        TcpHeader.writeHeader(bytesStream, requestId, status, version, reference.length() - TcpHeader.HEADER_SIZE, variableHeaderLength);
+        final int contentSize;
+        // TODO: Change to 7.6 after backport
+        if (version.onOrAfter(Version.CURRENT)) {
+            contentSize = reference.length() - TcpHeader.HEADER_SIZE;
+        } else {
+            contentSize = reference.length() - TcpHeader.PRE_76_HEADER_SIZE;
+        }
+        TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
         return reference;
     }
 

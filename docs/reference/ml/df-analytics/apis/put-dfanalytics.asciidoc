@@ -67,6 +67,26 @@ an array with two or more values are also ignored. Documents in the `dest` index
 that don’t contain a results field are not included in the {reganalysis}.
 
 
+====== {classification-cap}
+
+{classification-cap} supports fields that are numeric, boolean, text, keyword 
+and ip. It is also tolerant of missing values. Fields that are supported are 
+included in the analysis, other fields are ignored. Documents where included 
+fields contain an array with two or more values are also ignored. Documents in 
+the `dest` index that don’t contain a results field are not included in the 
+{classanalysis}.
+
+{classanalysis-cap} can be improved by mapping ordinal variable values to a 
+single number. For example, in case of age ranges, you can model the values as 
+"0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
+
+Fields that are highly correlated to the `dependent_variable` should be excluded 
+from the analysis. For example, if you have a multi-value field as 
+`dependent_variable`, {es} will be mapping it both as text and keyword which 
+results in two fields (`field` and `field.keyword`). It is required to exclude 
+the field with the text mapping to get exact results from the analysis.
+
+
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
@@ -153,6 +173,7 @@ that don’t contain a results field are not included in the {reganalysis}.
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
+
 
 [[ml-put-dfanalytics-example-od]]
 ===== {oldetection-cap} example
@@ -303,3 +324,31 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 
 <1> The `training_percent` defines the percentage of the data set that will be used 
 for training the model.
+
+
+[[ml-put-dfanalytics-example-c]]
+===== {classification-cap} example
+
+The following example creates the `loan_classification` {dfanalytics-job}, the 
+analysis type is `classification`:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/loan_classification
+{
+  "source" : {
+    "index": "loan-applicants"
+  },
+  "dest" : {
+    "index": "loan-applicants-classified"
+  },
+  "analysis" : {
+    "classification": {
+      "dependent_variable": "label",
+      "training_percent": 75,
+      "num_top_classes": 2
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]

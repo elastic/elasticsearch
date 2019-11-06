@@ -352,7 +352,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        for (Type type : List.of(Type.DEB, Type.RPM, Type.DOCKER)) {
+        // Disable DOCKER due to https://github.com/elastic/infra/issues/15864
+        for (Type type : List.of(Type.DEB, Type.RPM /*, Type.DOCKER */)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     // All our Docker images include a bundled JDK so it doesn't make sense to test without one

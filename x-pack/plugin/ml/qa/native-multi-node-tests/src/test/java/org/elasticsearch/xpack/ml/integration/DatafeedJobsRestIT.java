@@ -55,7 +55,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         return true;
     }
 
-    private void setupDataAccessRole(String index) throws IOException {
+    private static void setupDataAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
         request.setJsonEntity("{"
                 + "  \"indices\" : ["
@@ -185,9 +185,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createAirlineDataNested);
 
         bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 1}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}, \"airline\":[{\"name\": \"foo\"}]}\n");
         bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 2}}\n");
-        bulk.append("{\"time\":\"2016-06-01T01:59:00Z\",\"responsetime\":{\"millis\":222.0}}\n");
+        bulk.append("{\"time\":\"2016-06-01T01:59:00Z\", \"responsetime\":{\"millis\":222.00}, \"airline\":[{\"name\": \"bar\"}]}\n");
 
         // Create index with multiple docs per time interval for aggregation testing
         Request createAirlineDataAggs = new Request("PUT", "/airline-data-aggs");
@@ -283,13 +283,15 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         new LookbackOnlyTestHelper("test-lookback-only-with-source-disabled", "airline-data-disabled-source").execute();
     }
 
-    @AwaitsFix(bugUrl = "This test uses painless which is not available in the integTest phase")
     public void testLookbackOnlyWithScriptFields() throws Exception {
-        new LookbackOnlyTestHelper("test-lookback-only-with-script-fields", "airline-data-disabled-source")
-                .setAddScriptedFields(true).execute();
+        new LookbackOnlyTestHelper("test-lookback-only-with-script-fields", "airline-data")
+                .setScriptedFields(
+                    "{\"scripted_airline\":{\"script\":{\"lang\":\"painless\",\"source\":\"doc['airline.keyword'].value\"}}}")
+            .setAirlineVariant("scripted_airline")
+            .execute();
     }
 
-    public void testLookbackOnlyWithNestedFields() throws Exception {
+    public void testLookbackonlyWithNestedFields() throws Exception {
         String jobId = "test-lookback-only-with-nested-fields";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         createJobRequest.setJsonEntity("{\n"
@@ -299,7 +301,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "    \"detectors\": [\n"
                 + "      {\n"
                 + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime.millis\"\n"
+                + "        \"field_name\": \"responsetime.millis\",\n"
+                + "        \"by_field_name\": \"airline.name\"\n"
                 + "      }\n"
                 + "    ]\n"
                 + "  },"
@@ -1088,7 +1091,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         private String jobId;
         private String airlineVariant;
         private String dataIndex;
-        private boolean addScriptedFields;
+        private String scriptedFields;
         private boolean shouldSucceedInput;
         private boolean shouldSucceedProcessing;
 
@@ -1100,8 +1103,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             this.airlineVariant = "airline";
         }
 
-        public LookbackOnlyTestHelper setAddScriptedFields(boolean value) {
-            addScriptedFields = value;
+        public LookbackOnlyTestHelper setScriptedFields(String scriptFields) {
+            this.scriptedFields = scriptFields;
             return this;
         }
 
@@ -1124,10 +1127,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         public void execute() throws Exception {
             createJob(jobId, airlineVariant);
             String datafeedId = "datafeed-" + jobId;
-            new DatafeedBuilder(datafeedId, jobId, dataIndex)
-                    .setScriptedFields(addScriptedFields ?
-                            "{\"airline\":{\"script\":{\"lang\":\"painless\",\"inline\":\"doc['airline'].value\"}}}" : null)
-                    .build();
+            new DatafeedBuilder(datafeedId, jobId, dataIndex).setScriptedFields(scriptedFields).build();
             openJob(client(), jobId);
 
             startDatafeedAndWaitUntilStopped(datafeedId);

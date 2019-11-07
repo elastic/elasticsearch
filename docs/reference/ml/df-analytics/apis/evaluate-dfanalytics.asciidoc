@@ -17,12 +17,13 @@ experimental[]
 
 `POST _ml/data_frame/_evaluate`
 
+
 [[ml-evaluate-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
 * You must have `monitor_ml` privilege to use this API. For more 
-information, see {stack-ov}/security-privileges.html[Security privileges] and 
-{stack-ov}/built-in-roles.html[Built-in roles].
+information, see <<security-privileges>> and <<built-in-roles>>.
+
 
 [[ml-evaluate-dfanalytics-desc]]
 ==== {api-description-title}
@@ -53,6 +54,7 @@ Available evaluation types:
 
 * `binary_soft_classification`
 * `regression`
+* `classification`
 --
 
 
@@ -248,3 +250,87 @@ only. It means that a testing error will be calculated.
 performance. This is required in order to evaluate results.
 <3> The field that contains the predicted value for student performance 
 calculated by the {reganalysis}.
+
+
+===== {classification-cap}
+
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{ 
+   "index": "animal_classification",
+   "evaluation": {
+      "classification": { <1>
+         "actual_field": "animal_class", <2>
+         "predicted_field": "ml.animal_class_prediction.keyword", <3>
+         "metrics": {  
+           "multiclass_confusion_matrix" : {} <4>
+         }
+      }
+   }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The evaluation type.
+<2> The field that contains the ground truth value for the actual animal 
+classification. This is required in order to evaluate results.
+<3> The field that contains the predicted value for animal classification by 
+the {classanalysis}. Since the field storing predicted class is dynamically 
+mapped as text and keyword, you need to add the `.keyword` suffix to the name.
+<4> Specifies the metric for the evaluation.
+
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+   "classification" : {
+      "multiclass_confusion_matrix" : {
+         "confusion_matrix" : [
+         {
+            "actual_class" : "cat", <1>
+            "actual_class_doc_count" : 12, <2>
+            "predicted_classes" : [ <3>
+              {
+                "predicted_class" : "cat",
+                "count" : 12 <4>
+              },
+              {
+                "predicted_class" : "dog",
+                "count" : 0 <5>
+              }
+            ],
+            "other_predicted_class_doc_count" : 0 <6>
+          },
+          {
+            "actual_class" : "dog",
+            "actual_class_doc_count" : 11,
+            "predicted_classes" : [
+              {
+                "predicted_class" : "dog",
+                "count" : 11
+              },
+              {
+                "predicted_class" : "cat",
+                "count" : 4
+              }
+            ],
+            "other_predicted_class_doc_count" : 4
+          }
+        ],
+        "other_actual_class_count" : 0
+      }
+    }
+  }
+--------------------------------------------------
+<1> The name of the actual class that the analysis tried to predict.
+<2> The number of documents in the index that belong to the `actual_class`.
+<3> This object contains the list of the predicted classes and the number of 
+predictions associated with the class.
+<4> The number of cats in the dataset that are correctly identified as cats.
+<5> The number of cats in the dataset that are incorrectly classified as dogs.
+<6> The number of documents that are classified as a class that is not listed as 
+a `predicted_class`.

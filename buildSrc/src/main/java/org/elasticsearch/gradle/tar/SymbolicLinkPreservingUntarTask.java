@@ -27,8 +27,8 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
@@ -69,13 +69,17 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
 
     private Function<String, Path> transform;
 
+    @Internal
+    public Function<String, Path> getTransform() {
+        return transform;
+    }
+
     /**
      * A transform to apply to the tar entry, to derive the relative path from the entry name. If the return value is null, the entry is
      * dropped from the exploded tar archive.
      *
      * @param transform the transform
      */
-    @Input
     public void setTransform(Function<String, Path> transform) {
         this.transform = transform;
     }

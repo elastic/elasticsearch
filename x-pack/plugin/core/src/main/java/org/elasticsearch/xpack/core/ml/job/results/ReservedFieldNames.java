@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -302,13 +304,18 @@ public final class ReservedFieldNames {
             OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName(),
             Regression.NAME.getPreferredName(),
             Regression.DEPENDENT_VARIABLE.getPreferredName(),
-            Regression.LAMBDA.getPreferredName(),
-            Regression.GAMMA.getPreferredName(),
-            Regression.ETA.getPreferredName(),
-            Regression.MAXIMUM_NUMBER_TREES.getPreferredName(),
-            Regression.FEATURE_BAG_FRACTION.getPreferredName(),
             Regression.PREDICTION_FIELD_NAME.getPreferredName(),
             Regression.TRAINING_PERCENT.getPreferredName(),
+            Classification.NAME.getPreferredName(),
+            Classification.DEPENDENT_VARIABLE.getPreferredName(),
+            Classification.PREDICTION_FIELD_NAME.getPreferredName(),
+            Classification.NUM_TOP_CLASSES.getPreferredName(),
+            Classification.TRAINING_PERCENT.getPreferredName(),
+            BoostedTreeParams.LAMBDA.getPreferredName(),
+            BoostedTreeParams.GAMMA.getPreferredName(),
+            BoostedTreeParams.ETA.getPreferredName(),
+            BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName(),
+            BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 

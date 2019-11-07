@@ -685,6 +685,6 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     private DataType randomInterval() {
-        return randomFrom(Stream.of(DataType.values()).filter(DataTypes::isInterval).collect(Collectors.toList()));
+        return randomFrom(Stream.of(DataType.values()).filter(DataType::isInterval).collect(Collectors.toList()));
     }
 }

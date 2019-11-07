@@ -93,6 +93,8 @@ buildRestTests.docs = fileTree(projectDir) {
 
 listSnippets.docs = buildRestTests.docs
 
+listConsoleCandidates.docs = buildRestTests.docs
+
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
@@ -548,14 +550,12 @@ for (int i = 0; i < 5; i++) {
 buildRestTests.setups['library'] = '''
   - do:
         indices.create:
-          include_type_name: true
           index: library
           body:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              book:
                 properties:
                   name:
                     type: text
@@ -574,7 +574,6 @@ buildRestTests.setups['library'] = '''
   - do:
         bulk:
           index: library
-          type: book
           refresh: true
           body: |
             {"index":{"_id": "Leviathan Wakes"}}
@@ -923,7 +922,6 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
   - do:
         bulk:
           index: farequote
-          type: metric
           refresh: true
           body: |
             {"index": {"_id":"1"}}
@@ -972,18 +970,16 @@ buildRestTests.setups['server_metrics_index'] = '''
               number_of_shards: 1
               number_of_replicas: 0
             mappings:
-              metric:
-                properties:
-                  timestamp:
-                    type: date
-                  total:
-                    type: long
+              properties:
+                timestamp:
+                  type: date
+                total:
+                  type: long
 '''
 buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_metrics_index'] + '''
   - do:
         bulk:
           index: server-metrics
-          type: metric
           refresh: true
           body: |
             {"index": {"_id":"1177"}}
@@ -1039,6 +1035,29 @@ buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metr
             }
           }
 '''
+buildRestTests.setups['server_metrics_job-raw'] = buildRestTests.setups['server_metrics_data'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/anomaly_detectors/total-requests
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
 buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
   - do:
       ml.put_datafeed:
@@ -1049,10 +1068,27 @@ buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server
           "indexes":"server-metrics"
           }
 '''
+buildRestTests.setups['server_metrics_datafeed-raw'] = buildRestTests.setups['server_metrics_job-raw'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/datafeeds/datafeed-total-requests
+        body:  >
+          {
+          "job_id":"total-requests",
+          "indexes":"server-metrics"
+          }
+'''
 buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
   - do:
       ml.open_job:
         job_id: "total-requests"
+'''
+buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
+  - do:
+      raw:
+        method: POST 
+        path: _ml/anomaly_detectors/total-requests/_open
 '''
 buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
   - do:
@@ -1189,7 +1225,7 @@ buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups[
   - do:
       raw:
         method: PUT
-        path: _data_frame/transforms/simple-kibana-ecomm-pivot
+        path: _transform/simple-kibana-ecomm-pivot
         body:  >
           {
             "source": {

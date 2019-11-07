@@ -155,7 +155,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
 
                 final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));
                 final ResyncReplicationRequest request = new ResyncReplicationRequest(shardId, 42L, 100,
-                    new Translog.Operation[]{new Translog.Index("type", "id", 0, primaryTerm, 0L, bytes, null, -1)});
+                    new Translog.Operation[]{new Translog.Index("id", 0, primaryTerm, 0L, bytes, null, -1)});
 
                 final PlainActionFuture<ResyncReplicationResponse> listener = new PlainActionFuture<>();
                 action.sync(request, task, allocationId, primaryTerm, listener);

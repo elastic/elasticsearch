@@ -364,7 +364,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 100; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index", "type", id).setSource("field", "value").get();
+            client().prepareIndex("index").setId(id).setSource("field", "value").get();
         }
 
         // Force merge so we know all merges are done before we start deleting:
@@ -400,7 +400,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 100; i++) {
             String id = Integer.toString(i);
-            client().prepareDelete("index", "type", id).get();
+            client().prepareDelete("index", id).get();
         }
 
         final long indexingBufferBytes1 = shard.getIndexBufferRAMBytesUsed();
@@ -424,7 +424,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "test", Integer.toString(i)).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         }
 
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
@@ -451,7 +451,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
 
             assertEquals(1, imc.availableShards().size());
-            assertTrue(newShard.recoverFromStore());
+            assertTrue(IndexShardTestCase.recoverFromStore(newShard));
             assertTrue("we should have flushed in IMC at least once but did: " + flushes.get(), flushes.get() >= 1);
             IndexShardTestCase.updateRoutingEntry(newShard, routing.moveToStarted());
         } finally {

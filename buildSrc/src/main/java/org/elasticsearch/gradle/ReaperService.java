@@ -19,8 +19,9 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.tool.ClasspathUtils;
+import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.GradleException;
+import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
 import org.gradle.internal.jvm.Jvm;
 
@@ -38,14 +39,16 @@ public class ReaperService {
 
     private static final String REAPER_CLASS = "org/elasticsearch/gradle/reaper/Reaper.class";
     private static final Pattern REAPER_JAR_PATH_PATTERN = Pattern.compile("file:(.*)!/" + REAPER_CLASS);
-    private Logger logger;
-    private Path buildDir;
-    private Path inputDir;
-    private Path logFile;
+    private final Logger logger;
+    private final boolean isInternal;
+    private final Path buildDir;
+    private final Path inputDir;
+    private final Path logFile;
     private volatile Process reaperProcess;
 
-    public ReaperService(Logger logger, Path buildDir, Path inputDir) {
-        this.logger = logger;
+    public ReaperService(Project project, Path buildDir, Path inputDir) {
+        this.logger = project.getLogger();
+        this.isInternal = BuildParams.isInternal();
         this.buildDir = buildDir;
         this.inputDir = inputDir;
         this.logFile = inputDir.resolve("reaper.log");
@@ -135,7 +138,7 @@ public class ReaperService {
     }
 
     private Path locateReaperJar() {
-        if (ClasspathUtils.isElasticsearchProject()) {
+        if (isInternal) {
             // when running inside the Elasticsearch build just pull find the jar in the runtime classpath
             URL main = this.getClass().getClassLoader().getResource(REAPER_CLASS);
             String mainPath = main.getFile();

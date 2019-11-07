@@ -806,7 +806,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             disconnectedNodes.forEach(nodeName -> {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
-                    testClusterNodes.nodes.values().forEach(n -> n.transportService.openConnection(node, null));
+                    testClusterNodes.nodes.values().forEach(
+                        n -> n.transportService.openConnection(node, null, ActionListener.wrap(() -> {})));
                 }
             });
         }
@@ -1172,6 +1173,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 snapshotsService.start();
                 snapshotShardsService.start();
+                repositoriesService.start();
                 final CoordinationState.PersistedState persistedState =
                     new InMemoryPersistedState(initialState.term(), stateForNode(initialState, node));
                 coordinator = new Coordinator(node.getName(), clusterService.getSettings(),

@@ -10,20 +10,30 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,9 +53,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
-
-    public static final String INDEX_ACTION_TYPES_DEPRECATION_MESSAGE =
-        "[types removal] Specifying types in a watcher index action is deprecated.";
 
     public static final int UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION = 6;
     public static final int SECURITY_EXPECTED_INDEX_FORMAT_VERSION = 6;
@@ -116,16 +123,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40178")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48381")
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
-            Request createBwcWatch = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_watch");
-            Request createBwcThrottlePeriod = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_throttle_period");
-            if (getOldClusterVersion().onOrAfter(Version.V_7_0_0)) {
-                createBwcWatch.setOptions(expectWarnings(INDEX_ACTION_TYPES_DEPRECATION_MESSAGE));
-                createBwcThrottlePeriod.setOptions(expectWarnings(INDEX_ACTION_TYPES_DEPRECATION_MESSAGE));
-            }
+            Request createBwcWatch = new Request("PUT", "/_watcher/watch/bwc_watch");
+            Request createBwcThrottlePeriod = new Request("PUT", "/_watcher/watch/bwc_throttle_period");
+
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
 
@@ -134,7 +138,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(createBwcThrottlePeriod);
 
             logger.info("Adding a watch with \"fun\" read timeout on old cluster");
-            Request createFunnyTimeout = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_funny_timeout");
+            Request createFunnyTimeout = new Request("PUT", "/_watcher/watch/bwc_funny_timeout");
             createFunnyTimeout.setJsonEntity(loadWatch("funny-timeout-watch.json"));
             client().performRequest(createFunnyTimeout);
 
@@ -225,7 +229,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(bulkRequest);
 
             // create the rollup job
-            final Request createRollupJobRequest = new Request("PUT", getRollupEndpoint() + "/job/rollup-job-test");
+            final Request createRollupJobRequest = new Request("PUT", "/_rollup/job/rollup-job-test");
 
             String intervalType;
             if (getOldClusterVersion().onOrAfter(Version.V_7_2_0)) {
@@ -254,7 +258,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
             // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", getRollupEndpoint() + "/job/rollup-job-test/_start");
+            final Request startRollupJobRequest = new Request("POST", "/_rollup/job/rollup-job-test/_start");
             Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
             assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
 
@@ -273,6 +277,50 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testSlmPolicyAndStats() throws IOException {
+        SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy("test-policy", "test-policy", "* * * 31 FEB ? *", "test-repo",
+            Collections.singletonMap("indices", Collections.singletonList("*")), null);
+        if (isRunningAgainstOldCluster() && getOldClusterVersion().onOrAfter(Version.V_7_4_0)) {
+            Request createRepoRequest = new Request("PUT", "_snapshot/test-repo");
+            String repoCreateJson = "{" +
+                " \"type\": \"fs\"," +
+                " \"settings\": {" +
+                "   \"location\": \"test-repo\"" +
+                "  }" +
+                "}";
+            createRepoRequest.setJsonEntity(repoCreateJson);
+            Request createSlmPolicyRequest = new Request("PUT", "_slm/policy/test-policy");
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                String createSlmPolicyJson = Strings.toString(slmPolicy.toXContent(builder, null));
+                createSlmPolicyRequest.setJsonEntity(createSlmPolicyJson);
+            }
+
+            client().performRequest(createRepoRequest);
+            client().performRequest(createSlmPolicyRequest);
+        }
+
+        if(isRunningAgainstOldCluster() == false && getOldClusterVersion().onOrAfter(Version.V_7_4_0)){
+            Request getSlmPolicyRequest = new Request("GET", "_slm/policy/test-policy");
+            Response response = client().performRequest(getSlmPolicyRequest);
+            Map<String, Object> responseMap = entityAsMap(response);
+            Map<String, Object> policy = (Map<String, Object>) ((Map<String, Object>) responseMap.get("test-policy")).get("policy");
+            assertEquals(slmPolicy.getName(), policy.get("name"));
+            assertEquals(slmPolicy.getRepository(), policy.get("repository"));
+            assertEquals(slmPolicy.getSchedule(), policy.get("schedule"));
+            assertEquals(slmPolicy.getConfig(), policy.get("config"));
+        }
+
+        if (isRunningAgainstOldCluster() == false) {
+            Response response = client().performRequest(new Request("GET", "_slm/stats"));
+            XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+            try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, response.getEntity().getContent())) {
+                assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));
+            }
+        }
+    }
+
     private String loadWatch(String watch) throws IOException {
         return StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/xpack/restart/" + watch);
     }
@@ -286,11 +334,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void assertWatchIndexContentsWork() throws Exception {
         // Fetch a basic watch
         Request getRequest = new Request("GET", "_watcher/watch/bwc_watch");
-        getRequest.setOptions(
-            expectWarnings(
-                INDEX_ACTION_TYPES_DEPRECATION_MESSAGE
-            )
-        );
 
         Map<String, Object> bwcWatch = entityAsMap(client().performRequest(getRequest));
 
@@ -307,11 +350,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Fetch a watch with "fun" throttle periods
         getRequest = new Request("GET", "_watcher/watch/bwc_throttle_period");
-        getRequest.setOptions(
-            expectWarnings(
-                INDEX_ACTION_TYPES_DEPRECATION_MESSAGE
-            )
-        );
 
         bwcWatch = entityAsMap(client().performRequest(getRequest));
         assertThat(bwcWatch.get("found"), equalTo(true));
@@ -419,7 +457,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void createUser(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_user" : "postupgrade_user";
-        Request request = new Request("PUT", getSecurityEndpoint() + "/user/" + id);
+        Request request = new Request("PUT", "/_security/user/" + id);
         request.setJsonEntity(
             "{\n" +
             "   \"password\" : \"j@rV1s\",\n" +
@@ -433,7 +471,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void createRole(final boolean oldCluster) throws Exception {
         final String id = oldCluster ? "preupgrade_role" : "postupgrade_role";
-        Request request = new Request("PUT", getSecurityEndpoint() + "/role/" + id);
+        Request request = new Request("PUT", "/_security/role/" + id);
         request.setJsonEntity(
             "{\n" +
             "  \"run_as\": [ \"abc\" ],\n" +
@@ -454,7 +492,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void assertUserInfo(final boolean oldCluster) throws Exception {
         final String user = oldCluster ? "preupgrade_user" : "postupgrade_user";
-        Request request = new Request("GET", getSecurityEndpoint() + "/user/" + user);;
+        Request request = new Request("GET", "/_security/user/" + user);;
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         @SuppressWarnings("unchecked") Map<String, Object> userInfo = (Map<String, Object>) response.get(user);
         assertEquals(user + "@example.com", userInfo.get("email"));
@@ -462,50 +500,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNotNull(userInfo.get("roles"));
     }
 
-    private String getSecurityEndpoint() {
-        String securityEndpoint;
-        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
-            securityEndpoint = "/_security";
-        } else {
-            securityEndpoint = "/_xpack/security";
-        }
-        return securityEndpoint;
-    }
-
-    private String getSQLEndpoint() {
-        String securityEndpoint;
-        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
-            securityEndpoint = "/_sql";
-        } else {
-            securityEndpoint = "/_xpack/sql";
-        }
-        return securityEndpoint;
-    }
-
-    private String getRollupEndpoint() {
-        String securityEndpoint;
-        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
-            securityEndpoint = "/_rollup";
-        } else {
-            securityEndpoint = "/_xpack/rollup";
-        }
-        return securityEndpoint;
-    }
-
-    private String getWatcherEndpoint() {
-        String securityEndpoint;
-        if (getOldClusterVersion().onOrAfter(Version.V_7_0_0) || isRunningAgainstOldCluster() == false) {
-            securityEndpoint = "/_watcher";
-        } else {
-            securityEndpoint = "/_xpack/watcher";
-        }
-        return securityEndpoint;
-    }
-
     private void assertRoleInfo(final boolean oldCluster) throws Exception {
         final String role = oldCluster ? "preupgrade_role" : "postupgrade_role";
         @SuppressWarnings("unchecked") Map<String, Object> response = (Map<String, Object>) entityAsMap(
-            client().performRequest(new Request("GET", getSecurityEndpoint() + "/role/" + role))
+            client().performRequest(new Request("GET", "/_security/role/" + role))
         ).get(role);
         assertNotNull(response.get("run_as"));
         assertNotNull(response.get("cluster"));
@@ -518,7 +516,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         waitForRollUpJob(rollupJob, expectedStates);
 
         // check that the rollup job is started using the RollUp API
-        final Request getRollupJobRequest = new Request("GET", getRollupEndpoint() + "/job/" + rollupJob);
+        final Request getRollupJobRequest = new Request("GET", "_rollup/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
         assertNotNull(job);
@@ -557,7 +555,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {
         assertBusy(() -> {
-            final Request getRollupJobRequest = new Request("GET", getRollupEndpoint() + "/job/" + rollupJob);
+            final Request getRollupJobRequest = new Request("GET", "/_rollup/job/" + rollupJob);
 
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));

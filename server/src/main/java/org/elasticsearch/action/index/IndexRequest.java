@@ -31,7 +31,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,7 +60,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
  * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
  *
- * The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
+ * The index requires the {@link #index()}, {@link #id(String)} and
  * {@link #source(byte[], XContentType)} to be set.
  *
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
@@ -85,8 +84,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private static final ShardId NO_SHARD_ID = null;
 
-    // Set to null initially so we can know to override in bulk requests that have a default type.
-    private String type;
     private String id;
     @Nullable
     private String routing;
@@ -118,7 +115,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest(StreamInput in) throws IOException {
         super(in);
-        type = in.readOptionalString();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readOptionalString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
         id = in.readOptionalString();
         routing = in.readOptionalString();
         source = in.readBytesReference();
@@ -145,7 +145,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Constructs a new index request against the specific index. The {@link #type(String)}
+     * Constructs a new index request against the specific index. The
      * {@link #source(byte[], XContentType)} must be set.
      */
     public IndexRequest(String index) {
@@ -153,43 +153,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.index = index;
     }
 
-    /**
-     * Constructs a new index request against the specific index and type. The
-     * {@link #source(byte[], XContentType)} must be set.
-     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} instead.
-     */
-    @Deprecated
-    public IndexRequest(String index, String type) {
-        super(NO_SHARD_ID);
-        this.index = index;
-        this.type = type;
-    }
-
-    /**
-     * Constructs a new index request against the index, type, id and using the source.
-     *
-     * @param index The index to index into
-     * @param type  The type to index into
-     * @param id    The id of document
-     *
-     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} with {@link #id(String)} instead.
-     */
-    @Deprecated
-    public IndexRequest(String index, String type, String id) {
-        super(NO_SHARD_ID);
-        this.index = index;
-        this.type = type;
-        this.id = id;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
-        }
-        if (Strings.isEmpty(type())) {
-            validationException = addValidationError("type is missing", validationException);
         }
         if (contentType == null) {
             validationException = addValidationError("content type is missing", validationException);
@@ -246,44 +214,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return contentType;
     }
 
-    /**
-     * The type of the indexed document.
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public String type() {
-        if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;
-        }
-        return type;
-    }
-
-    /**
-     * Sets the type of the indexed document.
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public IndexRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    /**
-     * Set the default type supplied to a bulk
-     * request if this individual request's type is null
-     * or empty
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public IndexRequest defaultTypeIfNull(String defaultType) {
-        if (Strings.isNullOrEmpty(type)) {
-            type = defaultType;
-        }
-        return this;
-    }
     /**
      * The id of the indexed document. If not set, will be automatically generated.
      */
@@ -613,7 +543,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void process(Version indexCreatedVersion, @Nullable MappingMetaData mappingMd, String concreteIndex) {
         if (mappingMd != null) {
             // might as well check for routing here
-            if (mappingMd.routing().required() && routing == null) {
+            if (mappingMd.routingRequired() && routing == null) {
                 throw new RoutingMissingException(concreteIndex, id);
             }
         }
@@ -649,9 +579,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void writeTo(StreamOutput out) throws IOException {
         checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeTo(out);
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc").
-        out.writeOptionalString(type());
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeBytesReference(source);
@@ -687,7 +617,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } catch (Exception e) {
             // ignore
         }
-        return "index {[" + index + "][" + type() + "][" + id + "], source[" + sSource + "]}";
+        return "index {[" + index + "][" + id + "], source[" + sSource + "]}";
     }
 
 

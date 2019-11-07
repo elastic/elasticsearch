@@ -102,8 +102,9 @@ Predicate script used to apply token filters. If a token
 matches this script, the filters in the `filter` parameter are applied to the
 token.
 
-Only inline scripts are supported. For valid parameters, see
-<<_script_parameters>>.
+For valid parameters, see <<_script_parameters>>. Only inline scripts are
+supported. Painless scripts must begin with `token` and are executed in the
+{painless}/painless-analysis-predicate-context.html[analysis predicate context].
 --
 
 [[analysis-condition-tokenfilter-customize]]

@@ -48,10 +48,11 @@ List projects = [
   'server',
   'server:cli',
   'test:framework',
+  'test:fixtures:azure-fixture',
+  'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:old-elasticsearch',
-  'test:fixtures:azure-fixture',
   'test:logger-usage'
 ]
 

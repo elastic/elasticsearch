@@ -262,7 +262,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    private static List<Supplier<TransportAddress>> addresses(final TransportAddress... addresses) {
-        return Arrays.stream(addresses).map(s -> (Supplier<TransportAddress>) () -> s).collect(Collectors.toList());
+    private static List<String> addresses(final TransportAddress... addresses) {
+        return Arrays.stream(addresses).map(TransportAddress::toString).collect(Collectors.toList());
     }
 }

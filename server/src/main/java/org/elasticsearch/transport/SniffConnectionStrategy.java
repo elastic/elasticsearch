@@ -35,8 +35,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,7 +56,35 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.settings.Setting.intSetting;
+import static org.elasticsearch.common.settings.Setting.timeSetting;
+
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
+
+    /**
+     * A list of initial seed nodes to discover eligible nodes from the remote cluster
+     */
+    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
+        "cluster.remote.",
+        "sniff.seeds",
+        key -> Setting.listSetting(key,
+            "_na_".equals(key) ? RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(key)
+                : RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSetting(key.replaceAll("sniff\\.seeds$", "seeds")),
+            s -> {
+                // validate seed address
+                RemoteClusterAware.parsePort(s);
+                return s;
+            }, Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+    /**
+     * The maximum number of node connections that will be established to a remote cluster. For instance if there is only a single
+     * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
+     */
+    public static final Setting.AffixSetting<Integer> REMOTE_NODE_CONNECTIONS = Setting.affixKeySetting(
+        "cluster.remote.",
+        "sniff.node_connections",
+        key -> intSetting(key, RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER, 1,
+            Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     private static final Logger logger = LogManager.getLogger(SniffConnectionStrategy.class);
 
@@ -76,9 +106,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             transportService,
             connectionManager,
             RemoteClusterAware.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER.get(settings),
+            REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             getNodePredicate(settings),
-            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings));
+            REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
     SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,

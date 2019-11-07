@@ -229,7 +229,7 @@ public abstract class RemoteClusterAware {
         return Tuple.tuple(host, port);
     }
 
-    private static int parsePort(String remoteHost) {
+    static int parsePort(String remoteHost) {
         try {
             int port = Integer.valueOf(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
             if (port <= 0) {

@@ -67,4 +67,12 @@ public class SourceFieldTests extends ESTestCase {
 
         assertThat(nested.value(hit), equalTo(new String[] { "bar" }));
     }
+
+    public void testValueGivenNestedArray() {
+        SearchHit hit = new SearchHitBuilder(42).setSource("{\"level_1\":{\"level_2\":[{\"foo\":\"bar\"}]}}").build();
+
+        ExtractedField nested = new SourceField("level_1.level_2.foo", Collections.singleton("text"));
+
+        assertThat(nested.value(hit), equalTo(new String[] { "bar" }));
+    }
 }

@@ -625,9 +625,8 @@ public class IngestServiceTests extends ESTestCase {
         final SetOnce<Boolean> failure = new SetOnce<>();
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline(id);
         final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(e.getCause().getCause(), instanceOf(IllegalStateException.class));
-            assertThat(e.getCause().getCause().getMessage(), equalTo("error"));
+            assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+            assertThat(e.getCause().getMessage(), equalTo("error"));
             failure.set(true);
         };
 
@@ -916,7 +915,7 @@ public class IngestServiceTests extends ESTestCase {
         verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(new ArgumentMatcher<Exception>() {
             @Override
             public boolean matches(final Object o) {
-                return ((Exception)o).getCause().getCause().equals(error);
+                return ((Exception)o).getCause().equals(error);
             }
         }));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);

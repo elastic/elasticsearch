@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
@@ -1779,34 +1780,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return path;
     }
 
-    public boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer,
-                                                List<IndexShard> localShards) throws IOException {
+    public void recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, List<IndexShard> localShards,
+                                       ActionListener<Boolean> listener) throws IOException {
         assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS : "invalid recovery type: " +
             recoveryState.getRecoverySource();
         final List<LocalShardSnapshot> snapshots = new ArrayList<>();
+        final ActionListener<Boolean> recoveryListener = ActionListener.runBefore(listener, () -> IOUtils.close(snapshots));
+        boolean success = false;
         try {
             for (IndexShard shard : localShards) {
                 snapshots.add(new LocalShardSnapshot(shard));
             }
-
             // we are the first primary, recover from the gateway
             // if its post api allocation, the index should exists
             assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
             StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-            return storeRecovery.recoverFromLocalShards(mappingUpdateConsumer, this, snapshots);
+            storeRecovery.recoverFromLocalShards(mappingUpdateConsumer, this, snapshots, recoveryListener);
+            success = true;
         } finally {
-            IOUtils.close(snapshots);
+            if (success == false) {
+                IOUtils.close(snapshots);
+            }
         }
     }
 
-    public boolean recoverFromStore() {
+    public void recoverFromStore(ActionListener<Boolean> listener) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
         assert shardRouting.initializing() : "can only start recovery on initializing shard";
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-        return storeRecovery.recoverFromStore(this);
+        storeRecovery.recoverFromStore(this, listener);
     }
 
     public void restoreFromRepository(Repository repository, ActionListener<Boolean> listener) {
@@ -2476,17 +2481,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         switch (recoveryState.getRecoverySource().getType()) {
             case EMPTY_STORE:
             case EXISTING_STORE:
-                markAsRecovering("from store", recoveryState); // mark the shard as recovering on the cluster state thread
-                threadPool.generic().execute(() -> {
-                    try {
-                        if (recoverFromStore()) {
-                            recoveryListener.onRecoveryDone(recoveryState);
-                        }
-                    } catch (Exception e) {
-                        recoveryListener.onRecoveryFailure(recoveryState,
-                            new RecoveryFailedException(recoveryState, null, e), true);
-                    }
-                });
+                executeRecovery("from store", recoveryState, recoveryListener, this::recoverFromStore);
                 break;
             case PEER:
                 try {
@@ -2499,17 +2494,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 break;
             case SNAPSHOT:
-                markAsRecovering("from snapshot", recoveryState); // mark the shard as recovering on the cluster state thread
-                SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) recoveryState.getRecoverySource();
-                threadPool.generic().execute(
-                    ActionRunnable.<Boolean>wrap(ActionListener.wrap(r -> {
-                            if (r) {
-                                recoveryListener.onRecoveryDone(recoveryState);
-                            }
-                        },
-                        e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)),
-                        restoreListener -> restoreFromRepository(
-                            repositoriesService.repository(recoverySource.snapshot().getRepository()), restoreListener)));
+                final String repo = ((SnapshotRecoverySource) recoveryState.getRecoverySource()).snapshot().getRepository();
+                executeRecovery("from snapshot",
+                    recoveryState, recoveryListener, l -> restoreFromRepository(repositoriesService.repository(repo), l));
                 break;
             case LOCAL_SHARDS:
                 final IndexMetaData indexMetaData = indexSettings().getIndexMetaData();
@@ -2534,18 +2521,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 if (numShards == startedShards.size()) {
                     assert requiredShards.isEmpty() == false;
-                    markAsRecovering("from local shards", recoveryState); // mark the shard as recovering on the cluster state thread
-                    threadPool.generic().execute(() -> {
-                        try {
-                            if (recoverFromLocalShards(mappingUpdateConsumer, startedShards.stream()
-                                .filter((s) -> requiredShards.contains(s.shardId())).collect(Collectors.toList()))) {
-                                recoveryListener.onRecoveryDone(recoveryState);
-                            }
-                        } catch (Exception e) {
-                            recoveryListener.onRecoveryFailure(recoveryState,
-                                new RecoveryFailedException(recoveryState, null, e), true);
-                        }
-                    });
+                    executeRecovery("from local shards", recoveryState, recoveryListener,
+                        l -> recoverFromLocalShards(mappingUpdateConsumer,
+                            startedShards.stream().filter((s) -> requiredShards.contains(s.shardId())).collect(Collectors.toList()), l));
                 } else {
                     final RuntimeException e;
                     if (numShards == -1) {
@@ -2561,6 +2539,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             default:
                 throw new IllegalArgumentException("Unknown recovery source " + recoveryState.getRecoverySource());
         }
+    }
+
+    private void executeRecovery(String reason, RecoveryState recoveryState, PeerRecoveryTargetService.RecoveryListener recoveryListener,
+                                 CheckedConsumer<ActionListener<Boolean>, Exception> action) {
+        markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
+        threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
+                if (r) {
+                    recoveryListener.onRecoveryDone(recoveryState);
+                }
+            },
+            e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));
     }
 
     /**

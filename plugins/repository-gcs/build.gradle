@@ -54,6 +54,8 @@ dependencies {
   compile 'io.opencensus:opencensus-api:0.18.0'
   compile 'io.opencensus:opencensus-contrib-http-util:0.18.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev20190426-1.28.0'
+
+  testCompile project(':test:fixtures:gcs-fixture')
 }
 
 dependencyLicenses {

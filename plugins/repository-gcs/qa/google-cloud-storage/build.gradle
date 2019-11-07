@@ -19,7 +19,6 @@
 
 
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.test.AntFixture
 
 import java.security.KeyPair
 import java.security.KeyPairGenerator
@@ -28,7 +27,14 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
 
+// TODO think about flattening qa:google-cloud-storage project into parent
+dependencies {
+    testCompile project(path: ':plugins:repository-gcs')
+}
+
+testFixtures.useFixture(':test:fixtures:gcs-fixture')
 boolean useFixture = false
 
 String gcsServiceAccount = System.getenv("google_storage_service_account")
@@ -38,7 +44,7 @@ String gcsBasePath = System.getenv("google_storage_base_path")
 File serviceAccountFile = null
 if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
     serviceAccountFile = new File(project.buildDir, 'generated-resources/service_account_test.json')
-    gcsBucket = 'bucket_test'
+    gcsBucket = 'bucket'
     gcsBasePath = 'integration_test'
     useFixture = true
 } else {
@@ -48,12 +54,11 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
     }
 }
 
-/** A task to start the GoogleCloudStorageFixture which emulates a Google Cloud Storage service **/
-task googleCloudStorageFixture(type: AntFixture) {
-    dependsOn testClasses
-    env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    executable = new File(project.runtimeJavaHome, 'bin/java')
-    args 'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture', baseDir, 'bucket_test'
+def fixtureAddress = { fixture ->
+    assert useFixture : 'closure should not be used without a fixture'
+    int ephemeralPort = project(':test:fixtures:gcs-fixture').postProcessFixture.ext."test.fixtures.${fixture}.tcp.80"
+    assert ephemeralPort > 0
+    'http://127.0.0.1:' + ephemeralPort
 }
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
@@ -96,10 +101,10 @@ testClusters.integTest {
     keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
 
     if (useFixture) {
-        tasks.integTest.dependsOn createServiceAccountFile, googleCloudStorageFixture
+        tasks.integTest.dependsOn createServiceAccountFile
         /* Use a closure on the string to delay evaluation until tests are executed */
-        setting 'gcs.client.integration_test.endpoint', { "http://${googleCloudStorageFixture.addressAndPort}" }, IGNORE_VALUE
-        setting 'gcs.client.integration_test.token_uri', { "http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/token" }, IGNORE_VALUE
+        setting 'gcs.client.integration_test.endpoint', { "${ -> fixtureAddress('gcs-fixture') }" }, IGNORE_VALUE
+        setting 'gcs.client.integration_test.token_uri', { "${ -> fixtureAddress('gcs-fixture') }/o/oauth2/token" }, IGNORE_VALUE
     } else {
         println "Using an external service to test the repository-gcs plugin"
     }

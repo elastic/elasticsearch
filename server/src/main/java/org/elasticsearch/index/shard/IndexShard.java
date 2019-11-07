@@ -1343,6 +1343,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * This is the first operation after the local checkpoint of the safe commit if exists.
      */
     public long recoverLocallyUpToGlobalCheckpoint() {
+        assert Thread.holdsLock(mutex) == false : "recover locally under mutex";
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1608,6 +1609,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * called if recovery has to be restarted after network error / delay **
      */
     public void performRecoveryRestart() throws IOException {
+        assert Thread.holdsLock(mutex) == false : "restart recovery under mutex";
         synchronized (engineMutex) {
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
             IOUtils.close(currentEngineReference.getAndSet(null));

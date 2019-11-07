@@ -70,7 +70,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
 
                 // TODO: Change to 7.6 after backport
-                if (remoteVersion.onOrAfter(Version.CURRENT)) {
+                if (remoteVersion.onOrAfter(Version.V_8_0_0)) {
                     // Consume the variable header size
                     streamInput.readInt();
                 }

@@ -43,7 +43,7 @@ public class TcpHeader {
 
     public static int headerSize(Version version) {
         // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.CURRENT)) {
+        if (version.onOrAfter(Version.V_8_0_0)) {
             return HEADER_SIZE;
         } else {
             return PRE_76_HEADER_SIZE;
@@ -56,7 +56,7 @@ public class TcpHeader {
         output.writeByte((byte)'S');
         // write the size, the size indicates the remaining message size, not including the size int
         // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.CURRENT)) {
+        if (version.onOrAfter(Version.V_8_0_0)) {
             output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE + VARIABLE_HEADER_SIZE);
         } else {
             output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE);
@@ -65,7 +65,7 @@ public class TcpHeader {
         output.writeByte(status);
         output.writeInt(version.id);
         // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.CURRENT)) {
+        if (version.onOrAfter(Version.V_8_0_0)) {
             output.writeInt(variableHeaderSize);
         }
     }

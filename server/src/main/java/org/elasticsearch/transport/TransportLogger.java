@@ -86,7 +86,7 @@ public final class TransportLogger {
                 sb.append(", version: ").append(versionString);
 
                 // TODO: Change to 7.6 after backport
-                if (streamInput.getVersion().onOrAfter(Version.CURRENT)) {
+                if (streamInput.getVersion().onOrAfter(Version.V_8_0_0)) {
                     sb.append(", header size: ").append(streamInput.readInt()).append('B');
                 }
 

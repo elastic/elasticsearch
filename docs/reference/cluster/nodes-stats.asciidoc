@@ -5,7 +5,6 @@
 ++++
 
 Returns cluster nodes statistics.
-x
 
 [[cluster-nodes-stats-api-request]]
 ==== {api-request-title}

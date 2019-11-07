@@ -52,8 +52,13 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     private volatile Scheduler.Cancellable cancellable;
     private final Semaphore maintenanceLock = new Semaphore(1);
 
-    EnrichPolicyMaintenanceService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
-                                   EnrichPolicyLocks enrichPolicyLocks) {
+    EnrichPolicyMaintenanceService(
+        Settings settings,
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        EnrichPolicyLocks enrichPolicyLocks
+    ) {
         this.settings = settings;
         this.client = new OriginSettingClient(client, ENRICH_ORIGIN);
         this.clusterService = clusterService;
@@ -146,7 +151,8 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
                     // If executions were kicked off, we can't be sure that the indices we are about to process are a
                     // stable state of the system (they could be new indices created by a policy that hasn't been published yet).
                     if (enrichPolicyLocks.isSameState(executionState)) {
-                        String[] removeIndices = Arrays.stream(getIndexResponse.getIndices())
+                        String[] removeIndices = Arrays
+                            .stream(getIndexResponse.getIndices())
                             .filter(indexName -> shouldRemoveIndex(getIndexResponse, policies, indexName))
                             .toArray(String[]::new);
                         deleteIndices(removeIndices);
@@ -186,24 +192,25 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             logger.debug("Enrich index [{}] is not marked as a live index since it has no alias information", indexName);
             return true;
         }
-        boolean hasAlias = aliasMetadata
-            .stream()
-            .anyMatch((aliasMetaData -> aliasMetaData.getAlias().equals(aliasName)));
+        boolean hasAlias = aliasMetadata.stream().anyMatch((aliasMetaData -> aliasMetaData.getAlias().equals(aliasName)));
         // Index is not currently published to the enrich alias. Should be marked for removal.
         if (hasAlias == false) {
             logger.debug("Enrich index [{}] is not marked as a live index since it lacks the alias [{}]", indexName, aliasName);
             return true;
         }
-        logger.debug("Enrich index [{}] was spared since it is associated with the valid policy [{}] and references alias [{}]",
-            indexName, policyName, aliasName);
+        logger
+            .debug(
+                "Enrich index [{}] was spared since it is associated with the valid policy [{}] and references alias [{}]",
+                indexName,
+                policyName,
+                aliasName
+            );
         return false;
     }
 
     private void deleteIndices(String[] removeIndices) {
         if (removeIndices.length != 0) {
-            DeleteIndexRequest deleteIndices = new DeleteIndexRequest()
-                .indices(removeIndices)
-                .indicesOptions(IGNORE_UNAVAILABLE);
+            DeleteIndexRequest deleteIndices = new DeleteIndexRequest().indices(removeIndices).indicesOptions(IGNORE_UNAVAILABLE);
             client.admin().indices().delete(deleteIndices, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -213,8 +220,13 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> "Enrich maintenance task could not delete abandoned enrich indices [" +
-                        Arrays.toString(removeIndices) + "]", e);
+                    logger
+                        .error(
+                            () -> "Enrich maintenance task could not delete abandoned enrich indices ["
+                                + Arrays.toString(removeIndices)
+                                + "]",
+                            e
+                        );
                     concludeMaintenance();
                 }
             });

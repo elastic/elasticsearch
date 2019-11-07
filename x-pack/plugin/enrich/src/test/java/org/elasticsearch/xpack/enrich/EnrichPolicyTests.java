@@ -61,7 +61,8 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
             return new EnrichPolicy(
                 randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
                 randomBoolean() ? querySource : null,
-                Arrays.stream(generateRandomStringArray(8, 4, false, false))
+                Arrays
+                    .stream(generateRandomStringArray(8, 4, false, false))
                     .map(s -> s.toLowerCase(Locale.ROOT))
                     .collect(Collectors.toList()),
                 randomAlphaOfLength(4),

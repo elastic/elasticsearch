@@ -123,13 +123,13 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
     private void addPolicy(String policyName, EnrichPolicy policy) throws InterruptedException {
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         createSourceIndices(client(), policy);
-        doSyncronously((clusterService, exceptionConsumer) ->
-            EnrichStore.putPolicy(policyName, policy, clusterService, resolver, exceptionConsumer));
+        doSyncronously(
+            (clusterService, exceptionConsumer) -> EnrichStore.putPolicy(policyName, policy, clusterService, resolver, exceptionConsumer)
+        );
     }
 
     private void removePolicy(String policyName) throws InterruptedException {
-        doSyncronously((clusterService, exceptionConsumer) ->
-            EnrichStore.deletePolicy(policyName, clusterService, exceptionConsumer));
+        doSyncronously((clusterService, exceptionConsumer) -> EnrichStore.deletePolicy(policyName, clusterService, exceptionConsumer));
     }
 
     private void doSyncronously(BiConsumer<ClusterService, Consumer<Exception>> function) throws InterruptedException {
@@ -152,7 +152,9 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
         String newIndexName = EnrichPolicy.getBaseName(forPolicy) + "-" + indexNameAutoIncrementingCounter++;
         CreateIndexRequest request = new CreateIndexRequest(newIndexName)
             .mapping(
-                MapperService.SINGLE_MAPPING_NAME, JsonXContent.contentBuilder()
+                MapperService.SINGLE_MAPPING_NAME,
+                JsonXContent
+                    .contentBuilder()
                     .startObject()
                     .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("_meta")

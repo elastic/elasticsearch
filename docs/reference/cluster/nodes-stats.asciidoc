@@ -5,7 +5,7 @@
 ++++
 
 Returns cluster nodes statistics.
-
+x
 
 [[cluster-nodes-stats-api-request]]
 ==== {api-request-title}
@@ -809,11 +809,6 @@ The `ingest` flag can be set to retrieve statistics that concern ingest:
 `ingest.pipelines.<pipeline-id>.<processor>.failed`::
     (integer)
     Number of failed operations for the processor.
-
-
-[[cluster-nodes-stats-api-response-body-adaptive-selection]]
-===== `adaptive_selection` section
-
 
 [[cluster-nodes-stats-api-response-body-adaptive-selection]]
 ===== `adaptive_selection` section

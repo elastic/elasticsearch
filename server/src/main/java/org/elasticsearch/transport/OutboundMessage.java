@@ -50,6 +50,8 @@ abstract class OutboundMessage extends NetworkMessage {
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);
             writeVariableHeader(stream);
+            // We use syncFlush with the deflater so all header bytes will be compressed and written to
+            // bytesStream at this point.
             stream.flush();
             variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
 

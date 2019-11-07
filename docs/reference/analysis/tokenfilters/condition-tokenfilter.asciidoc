@@ -115,7 +115,9 @@ parameters.
 
 For example, the following <<indices-create-index,create index API>> request
 uses a custom `condition` filter to configure a new
-<<analysis-custom-analyzer,custom analyzer>>.
+<<analysis-custom-analyzer,custom analyzer>>. The custom `condition` filter
+matches the first token in a stream. It then reverses that matching token using
+the <<analysis-reverse-tokenfilter,`reverse`>> filter.
 
 [source,console]
 --------------------------------------------------

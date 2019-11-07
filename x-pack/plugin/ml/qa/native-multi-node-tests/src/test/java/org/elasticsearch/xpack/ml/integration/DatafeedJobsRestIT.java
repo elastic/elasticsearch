@@ -185,9 +185,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createAirlineDataNested);
 
         bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 1}}\n");
-        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}}\n");
+        bulk.append("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}, \"airline\":[{\"name\": \"foo\"}]}\n");
         bulk.append("{\"index\": {\"_index\": \"nested-data\", \"_id\": 2}}\n");
-        bulk.append("{\"time\":\"2016-06-01T01:59:00Z\",\"responsetime\":{\"millis\":222.0}}\n");
+        bulk.append("{\"time\":\"2016-06-01T01:59:00Z\", \"responsetime\":{\"millis\":222.00}, \"airline\":[{\"name\": \"bar\"}]}\n");
 
         // Create index with multiple docs per time interval for aggregation testing
         Request createAirlineDataAggs = new Request("PUT", "/airline-data-aggs");
@@ -291,7 +291,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             .execute();
     }
 
-    public void testLookbackOnlyWithNestedFields() throws Exception {
+    public void testLookbackonlyWithNestedFields() throws Exception {
         String jobId = "test-lookback-only-with-nested-fields";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         createJobRequest.setJsonEntity("{\n"
@@ -301,7 +301,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "    \"detectors\": [\n"
                 + "      {\n"
                 + "        \"function\": \"mean\",\n"
-                + "        \"field_name\": \"responsetime.millis\"\n"
+                + "        \"field_name\": \"responsetime.millis\",\n"
+                + "        \"by_field_name\": \"airline.name\"\n"
                 + "      }\n"
                 + "    ]\n"
                 + "  },"

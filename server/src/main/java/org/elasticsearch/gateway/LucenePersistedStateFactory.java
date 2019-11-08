@@ -111,6 +111,8 @@ public class LucenePersistedStateFactory {
                 final Directory directory = createDirectory(getMetaDataIndexPath(path, Version.CURRENT.major));
                 closeables.add(directory);
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+                // start empty since we re-write the whole cluster state to ensure it is all using the same format version
+                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
                 indexWriterConfig.setMergeScheduler(new SerialMergeScheduler());
                 indexWriterConfig.setCommitOnClose(false);
                 final IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig);

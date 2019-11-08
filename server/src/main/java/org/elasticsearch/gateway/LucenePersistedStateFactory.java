@@ -231,6 +231,7 @@ public class LucenePersistedStateFactory {
     private OnDiskState loadOnDiskState(DirectoryReader reader) throws IOException {
 
         final IndexSearcher searcher = new IndexSearcher(reader);
+        searcher.setQueryCache(null);
 
         final SetOnce<MetaData.Builder> builderReference = new SetOnce<>();
         consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes ->

@@ -61,6 +61,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -153,7 +154,7 @@ public class LucenePersistedStateFactory {
     }
 
     private static class OnDiskState {
-        private final String nodeId;
+        final String nodeId;
         final long currentTerm;
         final long lastAcceptedVersion;
         final MetaData metaData;
@@ -178,7 +179,7 @@ public class LucenePersistedStateFactory {
             for (int majorVersion = Version.CURRENT.major - 1; majorVersion <= Version.CURRENT.major; majorVersion++) {
                 final Path indexPath = getMetaDataIndexPath(dataPath, majorVersion);
                 if (Files.exists(indexPath)) {
-                    try (Directory directory = new SimpleFSDirectory(indexPath);
+                    try (Directory directory = createDirectory(indexPath);
                          DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                         final OnDiskState onDiskState = loadOnDiskState(directoryReader);
 
@@ -233,7 +234,6 @@ public class LucenePersistedStateFactory {
     }
 
     private OnDiskState loadOnDiskState(DirectoryReader reader) throws IOException {
-
         final IndexSearcher searcher = new IndexSearcher(reader);
         searcher.setQueryCache(null);
 
@@ -274,8 +274,7 @@ public class LucenePersistedStateFactory {
     }
 
     private static void consumeFromType(IndexSearcher indexSearcher, String type,
-                                        CheckedConsumer<byte[], IOException> docValuesConsumer)
-        throws IOException {
+                                        CheckedConsumer<byte[], IOException> docValuesConsumer) throws IOException {
 
         final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, type));
         final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
@@ -308,6 +307,31 @@ public class LucenePersistedStateFactory {
         FORMAT_PARAMS = new ToXContent.MapParams(params);
     }
 
+    private static Document buildIndexMetadataDocument(IndexMetaData indexMetaData) throws IOException {
+        final Document indexMetaDataDocument = buildDocument(INDEX_TYPE_NAME, indexMetaData);
+        assert indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE) == false;
+        indexMetaDataDocument.add(new StringField(INDEX_UUID_FIELD_NAME, indexMetaData.getIndexUUID(), Field.Store.NO));
+        return indexMetaDataDocument;
+    }
+
+    private static Document buildGlobalMetadataDocument(ClusterState clusterState) throws IOException {
+        return buildDocument(GLOBAL_TYPE_NAME, clusterState.metaData());
+    }
+
+    private static Document buildDocument(String typeName, ToXContent metaData) throws IOException {
+        final Document document = new Document();
+        document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
+
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, outputStream)) {
+            xContentBuilder.startObject();
+            metaData.toXContent(xContentBuilder, FORMAT_PARAMS);
+            xContentBuilder.endObject();
+        }
+        document.add(new StoredField(DATA_FIELD_NAME, new BytesRef(outputStream.toByteArray())));
+        return document;
+    }
+
     private static class MetaDataIndex implements Closeable {
 
         private final Logger logger;
@@ -317,82 +341,39 @@ public class LucenePersistedStateFactory {
         MetaDataIndex(Directory directory, IndexWriter indexWriter) {
             this.directory = directory;
             this.indexWriter = indexWriter;
-            logger = Loggers.getLogger(MetaDataIndex.class, directory.toString());
+            this.logger = Loggers.getLogger(MetaDataIndex.class, directory.toString());
         }
 
-        void persistInitialState(String nodeId, long currentTerm, ClusterState lastAcceptedState) throws IOException {
-            // Write the whole state out again to be sure it's fresh. Called during initialisation, so throwing an IOException is enough
-            // to halt the node.
-
-            // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance, this is
-            // true if there's only one data path on this master node, and the commit we just loaded was already written out by this
-            // version of Elasticsearch. TODO TBD should we avoid indexing when possible?
-
-            overwriteMetaData(lastAcceptedState.metaData());
-            persist(nodeId, currentTerm, lastAcceptedState.version());
+        void deleteAll() throws IOException {
+            this.logger.trace("clearing existing metadata");
+            this.indexWriter.deleteAll();
         }
 
-        void overwriteMetaData(MetaData metaData) throws IOException {
-            logger.trace("clearing existing metadata");
-            indexWriter.deleteAll();
-
-            logger.trace("adding global metadata doc");
-            addGlobalMetaData(metaData);
-
-            for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
-                logger.trace("adding metadata doc for {}", cursor.value.getIndex());
-                addIndexMetaData(cursor.value);
-            }
-
-            // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
-            // gracefully than one that occurs during the commit process.
-            indexWriter.flush();
+        void addIndexMetaDataDocument(Document indexMetaDataDocument, Index index) throws IOException {
+            this.logger.trace("adding index metadata doc for [{}]", index);
+            indexWriter.addDocument(indexMetaDataDocument);
         }
 
-        void updateClusterState(ClusterState oldState, ClusterState newState) throws IOException {
-            assert oldState.term() == newState.term();
-            logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only", newState.term());
-
-            deleteGlobalMetaData();
-            addGlobalMetaData(newState.metaData());
-
-            final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(oldState.metaData().indices().size());
-            for (ObjectCursor<IndexMetaData> cursor : oldState.metaData().indices().values()) {
-                final IndexMetaData indexMetaData = cursor.value;
-                final Long previousValue
-                    = indexMetadataVersionByUUID.putIfAbsent(indexMetaData.getIndexUUID(), indexMetaData.getVersion());
-                assert previousValue == null : indexMetaData.getIndexUUID() + " already mapped to " + previousValue;
-            }
-
-            for (ObjectCursor<IndexMetaData> cursor : newState.metaData().indices().values()) {
-                final IndexMetaData indexMetaData = cursor.value;
-                final Long previousVersion = indexMetadataVersionByUUID.get(indexMetaData.getIndexUUID());
-                if (previousVersion == null || indexMetaData.getVersion() != previousVersion) {
-                    if (previousVersion != null) {
-                        deleteIndexMetaData(indexMetaData);
-                        logger.trace("overwriting metadata for [{}], changing lastAcceptedVersion from [{}] to [{}]",
-                            indexMetaData.getIndex(), previousVersion, indexMetaData.getVersion());
-                    } else {
-                        logger.trace("writing metadata for new [{}]", indexMetaData.getIndex());
-                    }
-                    addIndexMetaData(indexMetaData);
-                } else {
-                    logger.trace("no action required for [{}]", indexMetaData.getIndex());
-                }
-                indexMetadataVersionByUUID.remove(indexMetaData.getIndexUUID());
-            }
-
-            for (final String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
-                logger.trace("removing metadata for [{}]", removedIndexUUID);
-                deleteIndexMetaData(removedIndexUUID);
-            }
-
-            // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
-            // gracefully than one that occurs during the commit process.
-            indexWriter.flush();
+        void addGlobalMetaData(Document globalMetaDataDocument) throws IOException {
+            this.logger.trace("adding global metadata doc");
+            indexWriter.addDocument(globalMetaDataDocument);
         }
 
-        void persist(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
+        void deleteGlobalMetaData() throws IOException {
+            indexWriter.deleteDocuments(new Term(TYPE_FIELD_NAME, GLOBAL_TYPE_NAME));
+        }
+
+        void deleteIndexMetaData(String indexUUID) throws IOException {
+            this.logger.trace("removing metadata for [{}]", indexUUID);
+            indexWriter.deleteDocuments(new Term(INDEX_UUID_FIELD_NAME, indexUUID));
+        }
+
+        void flush() throws IOException {
+            this.logger.trace("flushing");
+            this.indexWriter.flush();
+        }
+
+        void commit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
             final Map<String, String> commitData = new HashMap<>(2);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
@@ -405,43 +386,6 @@ public class LucenePersistedStateFactory {
         @Override
         public void close() throws IOException {
             IOUtils.close(indexWriter, directory);
-        }
-
-        private void deleteGlobalMetaData() throws IOException {
-            indexWriter.deleteDocuments(new Term(TYPE_FIELD_NAME, GLOBAL_TYPE_NAME));
-        }
-
-        private void addGlobalMetaData(MetaData metaData) throws IOException {
-            indexWriter.addDocument(buildDocument(GLOBAL_TYPE_NAME, metaData));
-        }
-
-        private void deleteIndexMetaData(IndexMetaData indexMetaData) throws IOException {
-            deleteIndexMetaData(indexMetaData.getIndexUUID());
-        }
-
-        private void deleteIndexMetaData(String indexUUID) throws IOException {
-            indexWriter.deleteDocuments(new Term(INDEX_UUID_FIELD_NAME, indexUUID));
-        }
-
-        private void addIndexMetaData(IndexMetaData metaData) throws IOException {
-            final Document document = buildDocument(INDEX_TYPE_NAME, metaData);
-            assert metaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE) == false;
-            document.add(new StringField(INDEX_UUID_FIELD_NAME, metaData.getIndexUUID(), Field.Store.NO));
-            indexWriter.addDocument(document);
-        }
-
-        private Document buildDocument(String typeName, ToXContent metaData) throws IOException {
-            final Document document = new Document();
-            document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
-
-            final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, outputStream)) {
-                xContentBuilder.startObject();
-                metaData.toXContent(xContentBuilder, FORMAT_PARAMS);
-                xContentBuilder.endObject();
-            }
-            document.add(new StoredField(DATA_FIELD_NAME, new BytesRef(outputStream.toByteArray())));
-            return document;
         }
     }
 
@@ -470,14 +414,20 @@ public class LucenePersistedStateFactory {
         }
 
         void persistInitialState() throws IOException {
-            for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                metaDataIndex.persistInitialState(nodeId, currentTerm, lastAcceptedState);
-            }
+            // Write the whole state out to be sure it's fresh and using the latest format. Called during initialisation, so that
+            // (1) throwing an IOException is enough to halt the node, and
+            // (2) the index is currently empty since it was opened with IndexWriterConfig.OpenMode.CREATE
+
+            // In the common case it's actually sufficient to commit() the existing state and not do any indexing. For instance, this is
+            // true if there's only one data path on this master node, and the commit we just loaded was already written out by this
+            // version of Elasticsearch. TODO TBD should we avoid indexing when possible?
+            addMetaData(lastAcceptedState);
+            commit(currentTerm, lastAcceptedState.getVersion());
         }
 
         @Override
         public void setCurrentTerm(long currentTerm) {
-            persist(currentTerm, lastAcceptedState.version());
+            commit(currentTerm, lastAcceptedState.version());
             this.currentTerm = currentTerm;
         }
 
@@ -487,32 +437,122 @@ public class LucenePersistedStateFactory {
                 if (clusterState.term() != lastAcceptedState.term()) {
                     assert clusterState.term() > lastAcceptedState.term() : clusterState.term() + " vs " + lastAcceptedState.term();
                     // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state, so
-                    // it's simplest just to write everything again.
-                    for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                        metaDataIndex.overwriteMetaData(clusterState.metaData());
-                    }
+                    // it's simplest to write everything again.
+                    overwriteMetaData(clusterState);
                 } else {
                     // Within the same currentTerm, we _can_ use metadata versions to skip unnecessary writing.
-                    for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                        metaDataIndex.updateClusterState(lastAcceptedState, clusterState);
-                    }
+                    updateMetaData(clusterState);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
 
-            persist(currentTerm, clusterState.version());
+            commit(currentTerm, clusterState.version());
             lastAcceptedState = clusterState;
         }
 
-        private void persist(long currentTerm, long lastAcceptedVersion) {
+        /**
+         * Update the persisted metadata to match the given cluster state by removing any stale or unnecessary documents and adding any
+         * updated documents.
+         */
+        private void updateMetaData(ClusterState clusterState) throws IOException {
+            assert lastAcceptedState.term() == clusterState.term();
+            logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only", clusterState.term());
+
+            final Document globalMetaDataDocument = buildGlobalMetadataDocument(clusterState);
+            for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                metaDataIndex.deleteGlobalMetaData();
+                metaDataIndex.addGlobalMetaData(globalMetaDataDocument);
+            }
+
+            final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(lastAcceptedState.metaData().indices().size());
+            for (ObjectCursor<IndexMetaData> cursor : lastAcceptedState.metaData().indices().values()) {
+                final IndexMetaData indexMetaData = cursor.value;
+                final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetaData.getIndexUUID(), indexMetaData.getVersion());
+                assert previousValue == null : indexMetaData.getIndexUUID() + " already mapped to " + previousValue;
+            }
+
+            for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
+                final IndexMetaData indexMetaData = cursor.value;
+                final Long previousVersion = indexMetadataVersionByUUID.get(indexMetaData.getIndexUUID());
+                if (previousVersion == null || indexMetaData.getVersion() != previousVersion) {
+                    if (previousVersion != null) {
+                        logger.trace("overwriting metadata for [{}], changing lastAcceptedVersion from [{}] to [{}]",
+                            indexMetaData.getIndex(), previousVersion, indexMetaData.getVersion());
+                        for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                            metaDataIndex.deleteIndexMetaData(indexMetaData.getIndexUUID());
+                        }
+                    } else {
+                        logger.trace("writing metadata for new [{}]", indexMetaData.getIndex());
+                    }
+
+                    final Document indexMetaDataDocument = buildIndexMetadataDocument(indexMetaData);
+                    for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                        metaDataIndex.addIndexMetaDataDocument(indexMetaDataDocument, indexMetaData.getIndex());
+                    }
+                } else {
+                    logger.trace("no action required for [{}]", indexMetaData.getIndex());
+                }
+                indexMetadataVersionByUUID.remove(indexMetaData.getIndexUUID());
+            }
+
+            for (String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
+                for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                    metaDataIndex.deleteIndexMetaData(removedIndexUUID);
+                }
+            }
+
+            // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
+            // gracefully than one that occurs during the commit process.
+            for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                metaDataIndex.flush();
+            }
+        }
+
+        /**
+         * Update the persisted metadata to match the given cluster state by removing all existing documents and then adding new documents.
+         */
+        private void overwriteMetaData(ClusterState clusterState) throws IOException {
+            for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                metaDataIndex.deleteAll();
+            }
+            addMetaData(clusterState);
+        }
+
+        /**
+         * Add documents for the metadata of the given cluster state, assuming that there are currently no documents.
+         */
+        private void addMetaData(ClusterState clusterState) throws IOException {
+            final Document globalMetaDataDocument = buildGlobalMetadataDocument(clusterState);
+            for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                metaDataIndex.addGlobalMetaData(globalMetaDataDocument);
+            }
+
+            for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
+                final IndexMetaData indexMetaData = cursor.value;
+                final Document indexMetaDataDocument = buildIndexMetadataDocument(indexMetaData);
+
+                for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                    metaDataIndex.addIndexMetaDataDocument(indexMetaDataDocument, indexMetaData.getIndex());
+                }
+            }
+
+            // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
+            // gracefully than one that occurs during the commit process.
+            for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                metaDataIndex.flush();
+            }
+        }
+
+        private void commit(long currentTerm, long lastAcceptedVersion) {
             try {
                 for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                    metaDataIndex.persist(nodeId, currentTerm, lastAcceptedVersion);
+                    metaDataIndex.commit(nodeId, currentTerm, lastAcceptedVersion);
                 }
             } catch (IOException e) {
-                // The persist() call has similar semantics to a fsync(): although it's atomic, if it fails then we've no idea whether the
-                // data on disk is now the old version or the new version. It's safest to fail the whole node and retry from the beginning.
+                // The commit() call has similar semantics to a fsync(): although it's atomic, if it fails then we've no idea whether the
+                // data on disk is now the old version or the new version, and this is a disaster. It's safest to fail the whole node and
+                // retry from the beginning.
                 throw new IOError(e);
             }
         }

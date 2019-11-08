@@ -156,10 +156,7 @@ public class DockerTests extends PackagingTestCase {
             // we have to disable Log4j from using JMX lest it will hit a security
             // manager exception before we have configured logging; this will fail
             // startup since we detect usages of logging before it is configured
-            final String jvmOptions =
-                "-Xms512m\n" +
-                "-Xmx512m\n" +
-                "-Dlog4j2.disable.jmx=true\n";
+            final String jvmOptions = "-Xms512m\n-Xmx512m\n-Dlog4j2.disable.jmx=true\n";
             append(tempConf.resolve("jvm.options"), jvmOptions);
 
             // Make the temp directory and contents accessible when bind-mounted
@@ -167,9 +164,7 @@ public class DockerTests extends PackagingTestCase {
 
             // Restart the container
             final Map<Path, Path> volumes = Map.of(tempConf, Path.of("/usr/share/elasticsearch/config"));
-            runContainer(distribution(), volumes, Map.of(
-                "ES_JAVA_OPTS", "-XX:-UseCompressedOops"
-            ));
+            runContainer(distribution(), volumes, Map.of("ES_JAVA_OPTS", "-XX:-UseCompressedOops"));
 
             waitForElasticsearch(installation);
 
@@ -186,10 +181,8 @@ public class DockerTests extends PackagingTestCase {
      * which point to files that hold the required values.
      */
     public void test80SetEnvironmentVariablesUsingFiles() throws Exception {
-        final String xpackPassword = "hunter2";
         final Path secretsDir = getTempDir().resolve("secrets");
         final String optionsFilename = "esJavaOpts.txt";
-        final String passwordFilename = "password.txt";
 
         try {
             mkdir(secretsDir);
@@ -197,19 +190,55 @@ public class DockerTests extends PackagingTestCase {
             // ES_JAVA_OPTS_FILE
             Files.writeString(secretsDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
 
-            // ELASTIC_PASSWORD_FILE
-            Files.writeString(secretsDir.resolve(passwordFilename), xpackPassword + "\n");
-
-            Map<String, String> envVars = Map.of(
-                "ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename,
-                "ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename,
-                // Enable security so that we can test that the password has been used
-                "xpack.security.enabled", "true"
-            );
+            Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
 
             // File permissions need to be secured in order for the ES wrapper to accept
             // them for populating env var values
             Files.setPosixFilePermissions(secretsDir.resolve(optionsFilename), p600);
+
+            final Map<Path, Path> volumes = Map.of(secretsDir, Path.of("/run/secrets"));
+
+            // Restart the container
+            runContainer(distribution(), volumes, envVars);
+
+            waitForElasticsearch(installation);
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+
+            assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+        } finally {
+            rm(secretsDir);
+        }
+    }
+
+    /**
+     * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
+     */
+    public void test81ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
+        // Test relies on configuring security
+        assumeTrue(distribution.isDefault());
+
+        final String xpackPassword = "hunter2";
+        final Path secretsDir = getTempDir().resolve("secrets");
+        final String passwordFilename = "password.txt";
+
+        try {
+            mkdir(secretsDir);
+
+            // ELASTIC_PASSWORD_FILE
+            Files.writeString(secretsDir.resolve(passwordFilename), xpackPassword + "\n");
+
+            Map<String, String> envVars = Map
+                .of(
+                    "ELASTIC_PASSWORD_FILE",
+                    "/run/secrets/" + passwordFilename,
+                    // Enable security so that we can test that the password has been used
+                    "xpack.security.enabled",
+                    "true"
+                );
+
+            // File permissions need to be secured in order for the ES wrapper to accept
+            // them for populating env var values
             Files.setPosixFilePermissions(secretsDir.resolve(passwordFilename), p600);
 
             final Map<Path, Path> volumes = Map.of(secretsDir, Path.of("/run/secrets"));
@@ -220,18 +249,9 @@ public class DockerTests extends PackagingTestCase {
             // If we configured security correctly, then this call will only work if we specify the correct credentials.
             waitForElasticsearch("green", null, installation, "elastic", "hunter2");
 
-            // Try to call `/_nodes` first without authentication, and ensure it's rejected.
-            // We don't use the `makeRequest()` helper as it checks the status code.
+            // Also check that an unauthenticated call fails
             final int statusCode = Request.Get("http://localhost:9200/_nodes").execute().returnResponse().getStatusLine().getStatusCode();
             assertThat("Expected server to require authentication", statusCode, equalTo(401));
-
-            // Now try again, but with credentials, to check that ES_JAVA_OPTS_FILE took effect
-            final String nodesResponse = makeRequest(
-                Request.Get("http://localhost:9200/_nodes"),
-                "elastic",
-                xpackPassword);
-
-            assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
         } finally {
             rm(secretsDir);
         }
@@ -313,7 +333,6 @@ public class DockerTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         final Result result = sh.run(bin.elasticsearchNode + " -h");
-        assertThat(result.stdout,
-            containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
+        assertThat(result.stdout, containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
     }
 }

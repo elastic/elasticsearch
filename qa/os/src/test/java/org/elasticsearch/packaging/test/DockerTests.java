@@ -33,7 +33,10 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
@@ -41,6 +44,7 @@ import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getEnabledPlugins;
+import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
@@ -58,6 +62,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
@@ -404,5 +409,72 @@ public class DockerTests extends PackagingTestCase {
         final String findResults = sh.run("find . -not -gid 0").stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
+    }
+
+    public void test110OrgLabelSchemaLabels() throws Exception {
+        final Map<String, String> labels = getImageLabels(distribution);
+
+        final Map<String, String> staticLabels = new HashMap<>();
+        staticLabels.put("name", "Elasticsearch");
+        staticLabels.put("schema-version", "1.0");
+        staticLabels.put("url", "https://www.elastic.co/products/elasticsearch");
+        staticLabels.put("usage", "https://www.elastic.co/guide/en/elasticsearch/reference/index.html");
+        staticLabels.put("vcs-url", "https://github.com/elastic/elasticsearch");
+        staticLabels.put("vendor", "Elastic");
+
+        if (distribution.isOSS()) {
+            staticLabels.put("license", "Apache-2.0");
+        } else {
+            staticLabels.put("license", "Elastic-License");
+        }
+
+        // TODO: we should check the actual version value
+        final Set<String> dynamicLabels = Set.of("build-date", "vcs-ref", "version");
+
+        final String prefix = "org.label-schema";
+
+        staticLabels.forEach((suffix, value) -> {
+            String key = prefix + "." + suffix;
+            assertThat(labels, hasKey(key));
+            assertThat(labels.get(key), equalTo(value));
+        });
+
+        dynamicLabels.forEach(label -> {
+            String key = prefix + "." + label;
+            assertThat(labels, hasKey(key));
+        });
+    }
+
+    public void test110OrgOpencontainersLabels() throws Exception {
+        final Map<String, String> labels = getImageLabels(distribution);
+
+        final Map<String, String> staticLabels = new HashMap<>();
+        staticLabels.put("title", "Elasticsearch");
+        staticLabels.put("url", "https://www.elastic.co/products/elasticsearch");
+        staticLabels.put("documentation", "https://www.elastic.co/guide/en/elasticsearch/reference/index.html");
+        staticLabels.put("source", "https://github.com/elastic/elasticsearch");
+        staticLabels.put("vendor", "Elastic");
+
+        if (distribution.isOSS()) {
+            staticLabels.put("licenses", "Apache-2.0");
+        } else {
+            staticLabels.put("licenses", "Elastic-License");
+        }
+
+        // TODO: we should check the actual version value
+        final Set<String> dynamicLabels = Set.of("created", "revision", "version");
+
+        final String prefix = "org.opencontainers.image";
+
+        staticLabels.forEach((suffix, value) -> {
+            String key = prefix + "." + suffix;
+            assertThat(labels, hasKey(key));
+            assertThat(labels.get(key), equalTo(value));
+        });
+
+        dynamicLabels.forEach(label -> {
+            String key = prefix + "." + label;
+            assertThat(labels, hasKey(key));
+        });
     }
 }

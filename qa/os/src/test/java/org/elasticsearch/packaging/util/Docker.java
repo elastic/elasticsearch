@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -461,5 +462,19 @@ public class Docker {
         }
 
         return pluginClasses;
+    }
+
+    public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
+        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + distribution.flavor.name + ":test").stdout;
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        final JsonNode jsonNode = mapper.readTree(labelsJson);
+
+        Map<String, String> labels = new HashMap<>();
+
+        jsonNode.fieldNames().forEachRemaining(field -> labels.put(field, jsonNode.get(field).asText()));
+
+        return labels;
     }
 }

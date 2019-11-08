@@ -229,4 +229,9 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     public void setMessageListener(TransportMessageListener listener) {
         this.listener = listener;
     }
+
+    @Override
+    public void setLocalNode(DiscoveryNode localNode) {
+
+    }
 }

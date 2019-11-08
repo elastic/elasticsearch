@@ -89,6 +89,34 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    public void testGetFromTranslogWithSourceMappingOptions() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        String docToIndex = "{\"foo\" : \"foo\", \"bar\" : \"bar\"}";
+        boolean noSource = randomBoolean();
+        String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
+        String expectedResult = noSource ? "" : "{\"bar\":\"bar\"}";
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}, \"bar\":  { \"type\": \"text\"}}, \"_source\": { "
+                + sourceOptions + "}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(primary);
+        Engine.IndexResult test = indexDoc(primary, "test", "0", docToIndex);
+        assertTrue(primary.getEngine().refreshNeeded());
+        GetResult testGet = primary.getService().getForUpdate("0", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+        assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
+        assertEquals(new String(testGet.source() == null ? new byte[0] : testGet.source(), StandardCharsets.UTF_8), expectedResult);
+        try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
+        }
+
+        closeShards(primary);
+    }
+
     public void testTypelessGetForUpdate() throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)

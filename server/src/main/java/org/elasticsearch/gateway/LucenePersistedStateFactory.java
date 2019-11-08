@@ -280,9 +280,9 @@ public class LucenePersistedStateFactory {
         for (LeafReaderContext leafReaderContext : indexSearcher.getIndexReader().leaves()) {
             logger.trace("new leafReaderContext: {}", leafReaderContext);
             final Scorer scorer = weight.scorer(leafReaderContext);
-            final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
-            final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
             if (scorer != null) {
+                final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
+                final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
                 final DocIdSetIterator docIdSetIterator = scorer.iterator();
                 while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     if (isLiveDoc.test(docIdSetIterator.docID())) {

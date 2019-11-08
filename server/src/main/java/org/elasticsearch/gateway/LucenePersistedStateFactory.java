@@ -145,6 +145,8 @@ public class LucenePersistedStateFactory {
 
     // exposed for tests
     Directory createDirectory(Path path) throws IOException {
+        // We only read the persisted state at startup (on a single thread) and otherwise we only write to it, so a SimpleFSDirectory is
+        // enough for our needs.
         return new SimpleFSDirectory(path);
     }
 

@@ -288,7 +288,7 @@ public class LucenePersistedStateFactory {
                     if (isLiveDoc.test(docIdSetIterator.docID())) {
                         logger.trace("processing doc {}", docIdSetIterator.docID());
                         docValuesConsumer.accept(
-                            indexSearcher.getIndexReader().document(docIdSetIterator.docID()).getBinaryValue(DATA_FIELD_NAME).bytes);
+                            leafReaderContext.reader().document(docIdSetIterator.docID()).getBinaryValue(DATA_FIELD_NAME).bytes);
                     }
                 }
             }

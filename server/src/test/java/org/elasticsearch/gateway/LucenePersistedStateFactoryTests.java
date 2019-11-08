@@ -35,15 +35,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOError;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -458,6 +461,41 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                 assertThat(indexMetaData.getIndexUUID(), equalTo(indexUUID));
                 assertThat(indexMetaData.getVersion(), equalTo(indexMetaDataVersion + 1));
                 assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetaData.getSettings()), equalTo(3));
+            }
+        }
+    }
+
+    public void testReloadsMetadataAcrossMultipleSegments() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry());
+
+            final int writes = between(10, 100);
+            final List<Index> indices = new ArrayList<>(writes);
+
+            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
+                for (int i = 0; i < writes; i++) {
+                    final Index index = new Index("test-" + i, UUIDs.randomBase64UUID(random()));
+                    indices.add(index);
+                    final ClusterState clusterState = persistedState.getLastAcceptedState();
+                    persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+                        .metaData(MetaData.builder(clusterState.metaData())
+                            .version(i + 2)
+                            .put(IndexMetaData.builder(index.getName())
+                                .settings(Settings.builder()
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID()))))
+                        .incrementVersion().build());
+                }
+            }
+
+            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
+                final ClusterState clusterState = persistedState.getLastAcceptedState();
+                for (Index index : indices) {
+                    final IndexMetaData indexMetaData = clusterState.metaData().index(index.getName());
+                    assertThat(indexMetaData.getIndexUUID(), equalTo(index.getUUID()));
+                }
             }
         }
     }

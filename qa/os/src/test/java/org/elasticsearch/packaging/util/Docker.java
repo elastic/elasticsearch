@@ -124,7 +124,7 @@ public class Docker {
 
         waitForElasticsearchToExit();
 
-        return sh.run("docker logs " + containerId);
+        return getContainerLogs();
     }
 
     private static void executeDockerRun(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
@@ -187,7 +187,7 @@ public class Docker {
         } while (attempt++ < 5);
 
         if (isElasticsearchRunning == false) {
-            final Shell.Result dockerLogs = sh.run("docker logs " + containerId);
+            final Shell.Result dockerLogs = getContainerLogs();
             fail(
                 "Elasticsearch container did not start successfully.\n\nps output:\n"
                     + psOutput
@@ -221,7 +221,7 @@ public class Docker {
         } while (attempt++ < 5);
 
         if (isElasticsearchRunning) {
-            final Shell.Result dockerLogs = sh.run("docker logs " + containerId);
+            final Shell.Result dockerLogs = getContainerLogs();
             fail("Elasticsearch container did exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
         }
     }
@@ -428,7 +428,7 @@ public class Docker {
         try {
             r.run();
         } catch (Exception e) {
-            final Shell.Result logs = sh.run("docker logs " + containerId);
+            final Shell.Result logs = getContainerLogs();
             logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
             throw e;
         }
@@ -465,6 +465,8 @@ public class Docker {
     }
 
     public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
+        // The format below extracts the .Config.Labels value, and prints it as json. Without the json
+        // modifier, a stringified Go map is printed instead, which isn't helpful.
         String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + distribution.flavor.name + ":test").stdout;
 
         ObjectMapper mapper = new ObjectMapper();
@@ -476,5 +478,9 @@ public class Docker {
         jsonNode.fieldNames().forEachRemaining(field -> labels.put(field, jsonNode.get(field).asText()));
 
         return labels;
+    }
+
+    public static Shell.Result getContainerLogs() {
+        return sh.run("docker logs " + containerId);
     }
 }

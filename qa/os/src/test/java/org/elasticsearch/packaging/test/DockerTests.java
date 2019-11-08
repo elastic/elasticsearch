@@ -37,12 +37,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
+import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getEnabledPlugins;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
@@ -59,10 +61,12 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
@@ -476,5 +480,26 @@ public class DockerTests extends PackagingTestCase {
             String key = prefix + "." + label;
             assertThat(labels, hasKey(key));
         });
+    }
+
+    public void test120DockerLogsIncludeElasticsearchLogs() throws Exception {
+        waitForElasticsearch(installation);
+        final Result containerLogs = getContainerLogs();
+
+        assertThat("Container logs don't contain abbreviated class names", containerLogs.stdout, containsString("o.e.n.Node"));
+        assertThat("Container logs don't contain INFO level messages", containerLogs.stdout, containsString("INFO"));
+    }
+
+    public void test130JavaHasCorrectPidAndOwnership() {
+        final List<String> processes = sh.run("ps -o pid,uid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
+
+        assertThat("Expected a single java process", processes, hasSize(1));
+
+        final String[] fields = processes.get(0).trim().split("\\s+");
+
+        assertThat(fields, arrayWithSize(3));
+        assertThat("Incorrect PID", fields[0], equalTo("1"));
+        assertThat("Incorrect UID", fields[1], equalTo("1000"));
+        assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
     }
 }

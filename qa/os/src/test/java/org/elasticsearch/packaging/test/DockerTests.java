@@ -64,6 +64,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -103,6 +104,20 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test10Install() {
         verifyContainerInstallation(installation, distribution());
+    }
+
+    /**
+     * Check that the /_xpack API endpoint's presence is correct for the type of distribution being tested.
+     */
+    public void test11PresenceOfXpack() throws Exception {
+        waitForElasticsearch(installation);
+        final int statusCode = Request.Get("http://localhost:9200/_xpack").execute().returnResponse().getStatusLine().getStatusCode();
+
+        if (distribution.isOSS()) {
+            assertThat(statusCode, greaterThanOrEqualTo(400));
+        } else {
+            assertThat(statusCode, equalTo(200));
+        }
     }
 
     /**
@@ -415,6 +430,10 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
     }
 
+    /**
+     * Check that the Docker image has the expected "Label Schema" labels.
+     * @see <a href="http://label-schema.org/">Label Schema website</a>
+     */
     public void test110OrgLabelSchemaLabels() throws Exception {
         final Map<String, String> labels = getImageLabels(distribution);
 
@@ -449,6 +468,10 @@ public class DockerTests extends PackagingTestCase {
         });
     }
 
+    /**
+     * Check that the Docker image has the expected "Label Schema" labels.
+     * @see <a href="https://github.com/opencontainers/image-spec/blob/master/annotations.md">Opencontainers Annotations</a>
+     */
     public void test110OrgOpencontainersLabels() throws Exception {
         final Map<String, String> labels = getImageLabels(distribution);
 
@@ -482,6 +505,9 @@ public class DockerTests extends PackagingTestCase {
         });
     }
 
+    /**
+     * Check that the container logs contain the expected content for Elasticsearch itself.
+     */
     public void test120DockerLogsIncludeElasticsearchLogs() throws Exception {
         waitForElasticsearch(installation);
         final Result containerLogs = getContainerLogs();
@@ -490,6 +516,9 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Container logs don't contain INFO level messages", containerLogs.stdout, containsString("INFO"));
     }
 
+    /**
+     * Check that the Java process running inside the container has the expect PID, UID and username.
+     */
     public void test130JavaHasCorrectPidAndOwnership() {
         final List<String> processes = sh.run("ps -o pid,uid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
 

@@ -537,7 +537,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 // add a tombstone but do not delete the index metadata from disk
                 .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metaData.index("test").getIndex()).build()).build());
             for (final Path path : paths) {
-                try (final Stream<Path> stateFiles = Files.list(path.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
+                try (Stream<Path> stateFiles = Files.list(path.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
                     for (final Path manifestPath : stateFiles
                         .filter(p -> p.getFileName().toString().startsWith(Manifest.FORMAT.getPrefix())).collect(Collectors.toList())) {
                         IOUtils.rm(manifestPath);

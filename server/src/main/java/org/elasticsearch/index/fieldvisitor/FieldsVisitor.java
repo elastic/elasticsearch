@@ -115,7 +115,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
         if (sourceFieldName.equals(fieldInfo.name)) {
             source = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-            id = Uid.decodeId(value.bytes, value.offset, value.length)
+            id = Uid.decodeId(value.bytes, value.offset, value.length);
         } else {
             addValue(fieldInfo.name, value);
         }

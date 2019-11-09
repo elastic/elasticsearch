@@ -381,6 +381,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.field("master_node", nodes().getMasterNodeId());
         }
 
+        // TODO there's already ClusterBlock.toXContent, add also ClusterBlocks.toXContent?
         if (metrics.contains(Metric.BLOCKS)) {
             builder.startObject("blocks");
 
@@ -408,6 +409,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         // nodes
+        // TODO there's already DicoveryNode.toXContent, add also DicoveryNodes.toXContent?
         if (metrics.contains(Metric.NODES)) {
             builder.startObject("nodes");
             for (DiscoveryNode node : nodes) {
@@ -417,6 +419,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         // meta data
+        // TODO MetaData.toXContent
         if (metrics.contains(Metric.METADATA)) {
             builder.startObject("metadata");
             builder.field("cluster_uuid", metaData().clusterUUID());
@@ -456,6 +459,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.endObject();
 
             builder.startObject("indices");
+            // TODO IndexMetaData.toXContent
             for (IndexMetaData indexMetaData : metaData()) {
                 builder.startObject(indexMetaData.getIndex().getName());
 
@@ -516,6 +520,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         // routing table
+        // TODO there's already ShardRouting.toXContent, add also RoutingTable.toXContent, IndexRoutingTable.toXContent & IndexShardRoutingTable.toXContent ?
         if (metrics.contains(Metric.ROUTING_TABLE)) {
             builder.startObject("routing_table");
             builder.startObject("indices");
@@ -537,6 +542,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         // routing nodes
+        // TODO there's already ShardRouting.toXContent, add also RoutingNodes.toXContent & RoutingNode.toXContent ?
         if (metrics.contains(Metric.ROUTING_NODES)) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");

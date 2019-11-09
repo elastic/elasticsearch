@@ -102,6 +102,8 @@ dependencies {
   // utilities
   compile project(":libs:elasticsearch-cli")
   compile 'com.carrotsearch:hppc:0.8.1'
+  testCompile 'com.fasterxml.jackson.core:jackson-databind:2.8.11'
+  testCompile 'com.fasterxml.jackson.core:jackson-annotations:2.8.11'
 
   // time handling, remove with java 8 time
   compile "joda-time:joda-time:${versions.joda}"

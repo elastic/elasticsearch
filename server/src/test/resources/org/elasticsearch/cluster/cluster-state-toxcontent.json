@@ -1,0 +1,84 @@
+{
+  "cluster_uuid": "clusterUUID",
+  "version": 0,
+  "state_uuid": "stateUUID",
+  "master_node": null,
+  "blocks": {},
+  "nodes": {},
+  "metadata": {
+    "cluster_uuid": "clusterUUID",
+    "cluster_coordination": {
+      "term": 0,
+      "last_committed_config": [],
+      "last_accepted_config": [],
+      "voting_config_exclusions": []
+    },
+    "templates": {},
+    "indices": {
+      "index1": {
+        "state": "open",
+        "settings": {
+          "index": {
+            "number_of_shards": "2",
+            "number_of_replicas": "2",
+            "version": {
+              "created": "8000099"
+            }
+          }
+        },
+        "mappings": {
+          "type1": {
+            "key13": {},
+            "key12": {},
+            "key11": {}
+          }
+        },
+        "aliases": ["alias12", "alias11"],
+        "primary_terms": {
+          "0": 11,
+          "1": 12
+        },
+        "in_sync_allocations": {
+          "1": [],
+          "0": []
+        }
+      },
+      "index2": {
+        "state": "open",
+        "settings": {
+          "index": {
+            "number_of_shards": "3",
+            "number_of_replicas": "3",
+            "version": {
+              "created": "8000099"
+            }
+          }
+        },
+        "mappings": {
+          "type2": {}
+        },
+        "aliases": [],
+        "primary_terms": {
+          "0": 21,
+          "1": 22,
+          "2": 23
+        },
+        "in_sync_allocations": {
+          "1": [],
+          "2": [],
+          "0": []
+        }
+      }
+    },
+    "index-graveyard": {
+      "tombstones": []
+    }
+  },
+  "routing_table": {
+    "indices": {}
+  },
+  "routing_nodes": {
+    "unassigned": [],
+    "nodes": {}
+  }
+}

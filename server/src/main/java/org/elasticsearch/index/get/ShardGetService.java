@@ -214,7 +214,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         // force fetching source if we read from translog and need to recreate stored fields
         boolean forceSourceForComputingTranslogStoredFields = get.isFromTranslog() && storedFields != null &&
-                TranslogLeafReader.ALL_FIELD_NAMES.containsAll(Arrays.asList(storedFields)) == false;
+                Stream.of(storedFields).anyMatch(f -> TranslogLeafReader.ALL_FIELD_NAMES.contains(f) == false);
         FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields,
             forceSourceForComputingTranslogStoredFields ? FetchSourceContext.FETCH_SOURCE : fetchSourceContext);
         if (fieldVisitor != null) {

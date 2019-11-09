@@ -480,12 +480,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             || unwrappedException instanceof TransformConfigReloadingException) {
             failIndexer("task encountered irrecoverable failure: " + e.getMessage());
         } else if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
-            failIndexer(
-                "task encountered more than " + context.getNumFailureRetries() + " failures; latest failure: " + unwrappedException == null
-                    ? e.getMessage()
-                    : unwrappedException.getDetailedMessage()
-            );
+            String failure = unwrappedException != null ? unwrappedException.getDetailedMessage() : e.getMessage();
+            failIndexer("task encountered more than " + context.getNumFailureRetries() + " failures; latest failure: " + failure);
         } else {
+            // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
+            // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
             if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
                 String message = unwrappedException == null ? e.getMessage() : unwrappedException.getDetailedMessage();
 

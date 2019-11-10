@@ -63,6 +63,7 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyString;
@@ -534,6 +535,16 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Incorrect PID", fields[0], equalTo("1"));
         assertThat("Incorrect UID", fields[1], equalTo("1000"));
         assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
+    }
+
+    /**
+     * Check the provided version of Java. This guards against accidentally shipping images with
+     * the wrong version.
+     */
+    public void test131JavaHasExpectedVersion() {
+        final String version = sh.run("jdk/bin/java -version").stdout.trim();
+
+        assertThat("Expected Java version to be 13.0.0 or higher", version, matchesPattern("openjdk 13\\.\\d+\\.\\d+"));
     }
 
     public void test140CgroupOsStatsAreAvailable() throws Exception {

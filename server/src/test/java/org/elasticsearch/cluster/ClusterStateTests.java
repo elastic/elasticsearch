@@ -24,16 +24,19 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 
@@ -41,6 +44,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -157,7 +161,19 @@ public class ClusterStateTests extends ESTestCase {
                                                                     put("allocationId27");
                                                                 }})
                                                                 .numberOfReplicas(3)
-                                                                .putRolloverInfo(new RolloverInfo("rolloveAlias2", new ArrayList<>(), 1L))))
+                                                                .putRolloverInfo(new RolloverInfo("rolloveAlias2", new ArrayList<>(), 1L)))
+                                                            .put(IndexTemplateMetaData.builder("template1")
+                                                                .patterns(List.of("pattern11", "pattern12"))
+                                                                .order(0)
+                                                                .settings(Settings.builder().put(SETTING_VERSION_CREATED, V_8_0_0))
+                                                                .putMapping("type1", "{ \"key13\": {}, \"key12\": {}, \"key11\": {} }")
+                                                                .build())
+                                                            .put(IndexTemplateMetaData.builder("template2")
+                                                                .patterns(List.of("pattern21", "pattern22"))
+                                                                .order(0)
+                                                                .settings(Settings.builder().put(SETTING_VERSION_CREATED, V_8_0_0))
+                                                                .putMapping("type2", "{ \"type2\": {} }")
+                                                                .build()))
                                                         .build();
 
         ToXContent.Params params = new ToXContent.MapParams(new HashMap(){{

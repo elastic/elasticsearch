@@ -13,7 +13,40 @@
       "last_accepted_config": [],
       "voting_config_exclusions": []
     },
-    "templates": {},
+    "templates": {
+      "template2": {
+        "index_patterns": ["pattern21", "pattern22"],
+        "order": 0,
+        "settings": {
+          "index": {
+            "version": {
+              "created": "8000099"
+            }
+          }
+        },
+        "mappings": {
+          "type2": {}
+        }
+      },
+      "template1": {
+        "index_patterns": ["pattern11", "pattern12"],
+        "order": 0,
+        "settings": {
+          "index": {
+            "version": {
+              "created": "8000099"
+            }
+          }
+        },
+        "mappings": {
+          "type1": {
+            "key13": {},
+            "key12": {},
+            "key11": {}
+          }
+        }
+      }
+    },
     "indices": {
       "index1": {
         "version": 2,

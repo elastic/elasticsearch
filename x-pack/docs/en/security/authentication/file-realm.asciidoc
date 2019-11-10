@@ -20,8 +20,8 @@ specify are used for authentication. To use the `file` realm as a fallback, you
 must include it in the realm chain.
 
 To define users, the {security-features} provide the
-{ref}/users-command.html[users] command-line tool. This tool enables you to add
+<<users-command,users>> command-line tool. This tool enables you to add
 and remove users, assign user roles, and manage user passwords.
 
 For more information, see 
-{ref}/configuring-file-realm.html[Configuring a file realm].
+<<configuring-file-realm>>.

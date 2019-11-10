@@ -20,6 +20,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -58,6 +61,16 @@ public class Classification implements DataFrameAnalysis {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
+    private static final Set<String> ALLOWED_DEPENDENT_VARIABLE_TYPES =
+        Stream.of(Types.categorical(), Types.discreteNumerical(), Types.bool())
+            .flatMap(Set::stream)
+            .collect(Collectors.toUnmodifiableSet());
+    /**
+     * As long as we only support binary classification it makes sense to always report both classes with their probabilities.
+     * This way the user can see if the prediction was made with confidence they need.
+     */
+    private static final int DEFAULT_NUM_TOP_CLASSES = 2;
+
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
     private final String predictionFieldName;
@@ -77,8 +90,8 @@ public class Classification implements DataFrameAnalysis {
         }
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
-        this.predictionFieldName = predictionFieldName;
-        this.numTopClasses = numTopClasses == null ? 0 : numTopClasses;
+        this.predictionFieldName = predictionFieldName == null ? dependentVariable + "_prediction" : predictionFieldName;
+        this.numTopClasses = numTopClasses == null ? DEFAULT_NUM_TOP_CLASSES : numTopClasses;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
     }
 
@@ -96,6 +109,14 @@ public class Classification implements DataFrameAnalysis {
 
     public String getDependentVariable() {
         return dependentVariable;
+    }
+
+    public String getPredictionFieldName() {
+        return predictionFieldName;
+    }
+
+    public int getNumTopClasses() {
+        return numTopClasses;
     }
 
     public double getTrainingPercent() {
@@ -148,8 +169,22 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
+    public Set<String> getAllowedCategoricalTypes(String fieldName) {
+        if (dependentVariable.equals(fieldName)) {
+            return ALLOWED_DEPENDENT_VARIABLE_TYPES;
+        }
+        return Types.categorical();
+    }
+
+    @Override
     public List<RequiredField> getRequiredFields() {
-        return Collections.singletonList(new RequiredField(dependentVariable, Types.categorical()));
+        return Collections.singletonList(new RequiredField(dependentVariable, ALLOWED_DEPENDENT_VARIABLE_TYPES));
+    }
+
+    @Override
+    public Map<String, Long> getFieldCardinalityLimits() {
+        // This restriction is due to the fact that currently the C++ backend only supports binomial classification.
+        return Collections.singletonMap(dependentVariable, 2L);
     }
 
     @Override

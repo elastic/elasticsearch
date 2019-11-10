@@ -85,8 +85,7 @@ public class DatafeedConfigProvider {
     private final NamedXContentRegistry xContentRegistry;
 
     public static final Map<String, String> TO_XCONTENT_PARAMS = Map.of(
-        ToXContentParams.FOR_INTERNAL_STORAGE, "true",
-        ToXContentParams.INCLUDE_TYPE, "true");
+        ToXContentParams.FOR_INTERNAL_STORAGE, "true");
 
     public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
@@ -127,7 +126,7 @@ public class DatafeedConfigProvider {
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                     listener::onResponse,
                     e -> {
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             // the dafafeed already exists
                             listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
                         } else {

@@ -80,11 +80,10 @@ public final class Messages {
     public static final String INVALID_GROUP = "Invalid group id ''{0}''; must be non-empty string and may contain lowercase alphanumeric" +
             " (a-z and 0-9), hyphens or underscores; must start and end with alphanumeric";
 
-    public static final String INFERENCE_TRAINED_MODEL_EXISTS = "Trained machine learning model [{0}] with version [{1}] already exists";
+    public static final String INFERENCE_TRAINED_MODEL_EXISTS = "Trained machine learning model [{0}] already exists";
     public static final String INFERENCE_FAILED_TO_STORE_MODEL = "Failed to store trained machine learning model [{0}]";
-    public static final String INFERENCE_FAILED_TO_SERIALIZE_MODEL =
-        "Failed to serialize the trained model [{0}] with version [{1}] for storage";
-    public static final String INFERENCE_NOT_FOUND = "Could not find trained model [{0}] with version [{1}]";
+    public static final String INFERENCE_NOT_FOUND = "Could not find trained model [{0}]";
+    public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
 
     public static final String JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";

@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -70,7 +71,9 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<Double> weights = randomBoolean() ?
             null :
             Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-        OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
+        OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights),
+            new WeightedSum(weights),
+            new LogisticRegression(weights));
         List<String> categoryLabels = null;
         if (randomBoolean()) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
@@ -106,25 +109,6 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         return new NamedWriteableRegistry(entries);
-    }
-
-    public void testEnsembleWithModelsThatHaveDifferentFeatureNames() {
-        List<String> featureNames = Arrays.asList("foo", "bar", "baz", "farequote");
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
-            Ensemble.builder().setFeatureNames(featureNames)
-                .setTrainedModels(Arrays.asList(TreeTests.buildRandomTree(Arrays.asList("bar", "foo", "baz", "farequote"), 6)))
-                .build()
-                .validate();
-        });
-        assertThat(ex.getMessage(), equalTo("[feature_names] must be the same and in the same order for each of the trained_models"));
-
-        ex = expectThrows(ElasticsearchException.class, () -> {
-            Ensemble.builder().setFeatureNames(featureNames)
-                .setTrainedModels(Arrays.asList(TreeTests.buildRandomTree(Arrays.asList("completely_different"), 6)))
-                .build()
-                .validate();
-        });
-        assertThat(ex.getMessage(), equalTo("[feature_names] must be the same and in the same order for each of the trained_models"));
     }
 
     public void testEnsembleWithAggregatedOutputDifferingFromTrainedModels() {
@@ -279,6 +263,17 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         for(int i = 0; i < expected.size(); i++) {
             assertThat(probabilities.get(i), closeTo(expected.get(i), eps));
         }
+
+        // This should handle missing values and take the default_left path
+        featureMap = new HashMap<>(2) {{
+            put("foo", 0.3);
+            put("bar", null);
+        }};
+        expected = Arrays.asList(0.6899744811, 0.3100255188);
+        probabilities = ensemble.classificationProbability(featureMap);
+        for(int i = 0; i < expected.size(); i++) {
+            assertThat(probabilities.get(i), closeTo(expected.get(i), eps));
+        }
     }
 
     public void testClassificationInference() {
@@ -336,6 +331,12 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         featureVector = Arrays.asList(0.0, 1.0);
         featureMap = zipObjMap(featureNames, featureVector);
         assertEquals(1.0, ensemble.infer(featureMap), 0.00001);
+
+        featureMap = new HashMap<>(2) {{
+            put("foo", 0.3);
+            put("bar", null);
+        }};
+        assertEquals(0.0, ensemble.infer(featureMap), 0.00001);
     }
 
     public void testRegressionInference() {
@@ -394,6 +395,12 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
         assertEquals(1.0, ensemble.infer(featureMap), 0.00001);
+
+        featureMap = new HashMap<>(2) {{
+            put("foo", 0.3);
+            put("bar", null);
+        }};
+        assertEquals(1.8, ensemble.infer(featureMap), 0.00001);
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {

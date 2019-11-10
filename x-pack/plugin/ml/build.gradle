@@ -13,7 +13,7 @@ esplugin {
 repositories {
     ivy {
         name "ml-cpp"
-        url "https://prelert-artifacts.s3.amazonaws.com"
+        url System.getProperty('build.ml_cpp.repo', 'https://prelert-artifacts.s3.amazonaws.com')
         metadataSources {
             // no repository metadata, look directly for the artifact
             artifact()

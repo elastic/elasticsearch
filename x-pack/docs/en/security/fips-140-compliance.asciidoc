@@ -114,7 +114,7 @@ features are not available while running in fips mode. The list is as follows:
 
 * Azure Classic Discovery Plugin
 * Ingest Attachment Plugin
-* The {ref}/certutil.html[`elasticsearch-certutil`] tool. However,
+* The <<certutil,`elasticsearch-certutil`>> tool. However,
  `elasticsearch-certutil` can very well be used in a non FIPS 140-2
   enabled JVM (pointing `JAVA_HOME` environment variable to a different java
   installation) in order to generate the keys and certificates that

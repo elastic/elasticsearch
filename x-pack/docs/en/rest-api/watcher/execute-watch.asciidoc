@@ -18,7 +18,7 @@ Forces the execution of a stored watch.
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 [[watcher-api-execute-watch-desc]]
 ==== {api-description-title}
@@ -259,7 +259,6 @@ This is an example of the output:
           "index": {
             "response": {
               "index": "test",
-              "type": "_doc",
               "version": 1,
               "created": true,
               "result": "created",

@@ -6,8 +6,7 @@
 ++++
 
 All of these settings can be added to the `elasticsearch.yml` configuration
-file. For more information, see
-{stack-ov}/auditing.html[Auditing Security Events].
+file. For more information, see <<auditing>>.
 
 [[general-audit-settings]]
 ==== General Auditing Settings
@@ -69,7 +68,7 @@ The default value is `true`.
 [[audit-event-ignore-policies]]
 ==== Audit Logfile Event Ignore Policies
 
-These settings affect the {stack-ov}/audit-log-output.html#audit-log-ignore-policy[ignore policies]
+These settings affect the <<audit-log-ignore-policy,ignore policies>>
 that enable fine-grained control over which audit events are printed to the log file.
 All of the settings with the same policy name combine to form a single policy.
 If an event matches all of the conditions for a specific policy, it is ignored 

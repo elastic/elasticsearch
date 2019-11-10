@@ -45,6 +45,10 @@ public final class Statistics {
         return exps;
     }
 
+    public static double sigmoid(double value) {
+        return 1/(1 + Math.exp(-value));
+    }
+
     public static boolean isInvalid(Double v) {
         return v == null || Double.isInfinite(v) || Double.isNaN(v);
     }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -168,16 +167,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         StopDatafeedAction.Response stopDatafeedResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).actionGet();
         assertTrue(stopDatafeedResponse.isStopped());
 
-        // Can't normal stop an unassigned job
+        // Since 7.5 we can also stop an unassigned job either normally or by force
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
-        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
-                () -> client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet());
-        assertEquals("Cannot close job [" + jobId +
-                        "] because the job does not have an assigned node. Use force close to close the job",
-                statusException.getMessage());
-
-        // Can only force close an unassigned job
-        closeJobRequest.setForce(true);
+        closeJobRequest.setForce(randomBoolean());
         CloseJobAction.Response closeJobResponse = client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertTrue(closeJobResponse.isClosed());
     }

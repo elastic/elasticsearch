@@ -1189,13 +1189,12 @@ public class ElasticsearchMappings {
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {
         List<String> indicesToUpdate = new ArrayList<>();
 
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
-                new String[0], MapperPlugin.NOOP_FIELD_FILTER);
+        ImmutableOpenMap<String, MappingMetaData> currentMapping = state.metaData().findMappings(concreteIndices,
+                MapperPlugin.NOOP_FIELD_FILTER);
 
         for (String index : concreteIndices) {
-            ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
-            if (innerMap != null) {
-                MappingMetaData metaData = innerMap.valuesIt().next();
+            MappingMetaData metaData = currentMapping.get(index);
+            if (metaData != null) {
                 try {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");

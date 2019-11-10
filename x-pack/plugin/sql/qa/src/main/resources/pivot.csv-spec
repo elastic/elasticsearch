@@ -84,6 +84,17 @@ null           |48396.28571428572|62140.666666666664
 5              |39052.875        |46705.555555555555
 ;
 
+averageWithOneValueAndLimit
+schema::languages:bt|'F':d
+SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F')) LIMIT 3;
+
+   languages   |       'F'        
+---------------+------------------
+null           |62140.666666666664
+1              |47073.25          
+2              |50684.4           
+;
+
 averageWithTwoValuesAndLimit
 schema::languages:bt|'M':d|'F':d
 SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F')) LIMIT 3;

@@ -57,7 +57,7 @@ public class MemoryUsageEstimationProcessManager {
                                                DataFrameDataExtractorFactory dataExtractorFactory) {
         DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
         DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-        Set<String> categoricalFields = dataExtractor.getCategoricalFields();
+        Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
         if (dataSummary.rows == 0) {
             return new MemoryUsageEstimationResult(ByteSizeValue.ZERO, ByteSizeValue.ZERO);
         }

@@ -15,17 +15,15 @@ beta[]
 [[start-transform-request]]
 ==== {api-request-title}
 
-`POST _data_frame/transforms/<transform_id>/_start`
+`POST _transform/<transform_id>/_start`
 
 [[start-transform-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`manage_data_frame_transforms` cluster privileges to use this API. You must also
-have `view_index_metadata` privileges on the source index for the
-{transform}. For more information, see
-{stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+* If the {es} {security-features} are enabled, you must have `manage_transform` 
+cluster privileges to use this API. You must also have `view_index_metadata` 
+privileges on the source index for the {transform}. For more information, see 
+<<security-privileges>> and <<built-in-roles>>.
 
 [[start-transform-desc]]
 ==== {api-description-title}
@@ -63,7 +61,7 @@ required privileges on the source and destination indices, the
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/ecommerce_transform/_start
+POST _transform/ecommerce_transform/_start
 --------------------------------------------------
 // TEST[skip:set up kibana samples]
 

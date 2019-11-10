@@ -23,7 +23,7 @@ repositories {
 configurations.create("forbiddenApisCliJar")
 
 dependencies {
-    forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.6'
+    forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.7'
     compileOnly "org.${project.properties.compileOnlyGroup}:${project.properties.compileOnlyVersion}"
     compile "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
 }

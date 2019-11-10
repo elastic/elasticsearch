@@ -23,10 +23,12 @@ import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.test.RunTask
+import org.elasticsearch.gradle.testclusters.RunTask
 
 import java.nio.file.Files
 import java.nio.file.Path
+
+apply plugin: 'elasticsearch.testclusters'
 
 /*****************************************************************************
  *                  Third party dependencies report                          *
@@ -393,7 +395,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       project.jdks {
         "bundled_${platform}" {
           it.platform = platform
-          it.version = VersionProperties.bundledJdk
+          it.version = VersionProperties.getBundledJdk(platform)
           it.vendor = VersionProperties.bundledJdkVendor
         }
       }
@@ -414,26 +416,31 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
 }
 
-task run(type: RunTask) {
-  distribution = System.getProperty('run.distribution', 'default')
-  if (distribution == 'default') {
-    String licenseType = System.getProperty("run.license_type", "basic")
-    if (licenseType == 'trial') {
-      setting 'xpack.ml.enabled', 'true'
-      setting 'xpack.graph.enabled', 'true'
-      setting 'xpack.watcher.enabled', 'true'
-      setting 'xpack.license.self_generated.type', 'trial'
-    } else if (licenseType != 'basic') {
-      throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
+testClusters {
+  runTask {
+    testDistribution = System.getProperty('run.distribution', 'default')
+    if (System.getProperty('run.distribution', 'default') == 'default') {
+      String licenseType = System.getProperty("run.license_type", "basic")
+      if (licenseType == 'trial') {
+        setting 'xpack.ml.enabled', 'true'
+        setting 'xpack.graph.enabled', 'true'
+        setting 'xpack.watcher.enabled', 'true'
+        setting 'xpack.license.self_generated.type', 'trial'
+      } else if (licenseType != 'basic') {
+        throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
+      }
+      setting 'xpack.security.enabled', 'true'
+      setting 'xpack.monitoring.enabled', 'true'
+      setting 'xpack.sql.enabled', 'true'
+      setting 'xpack.rollup.enabled', 'true'
+      keystore 'bootstrap.password', 'password'
+      user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
     }
-    setupCommand 'setupTestAdmin',
-            'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.monitoring.enabled', 'true'
-    setting 'xpack.sql.enabled', 'true'
-    setting 'xpack.rollup.enabled', 'true'
-    keystoreSetting 'bootstrap.password', 'password'
   }
+}
+
+task run(type: RunTask) {
+  useCluster testClusters.runTask;
 }
 
 /**

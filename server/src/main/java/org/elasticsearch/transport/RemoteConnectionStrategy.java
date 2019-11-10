@@ -26,6 +26,9 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,23 +36,41 @@ import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
-    protected static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
+    enum ConnectionStrategy {
+        SNIFF,
+        SIMPLE
+    }
+
+    public static final Setting.AffixSetting<ConnectionStrategy> REMOTE_CONNECTION_MODE = Setting.affixKeySetting(
+        "cluster.remote.", "mode", key -> new Setting<>(
+            key,
+            ConnectionStrategy.SNIFF.name(),
+            value -> ConnectionStrategy.valueOf(value.toUpperCase(Locale.ROOT)),
+            Setting.Property.Dynamic));
+
+
+    private static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
 
     private static final int MAX_LISTENERS = 100;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
-    private final ThreadPool threadPool;
-    protected final RemoteConnectionManager connectionManager;
     private List<ActionListener<Void>> listeners = new ArrayList<>();
 
-    RemoteConnectionStrategy(ThreadPool threadPool, RemoteConnectionManager connectionManager) {
-        this.threadPool = threadPool;
+    protected final TransportService transportService;
+    protected final RemoteConnectionManager connectionManager;
+    protected final String clusterAlias;
+
+    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager) {
+        this.clusterAlias = clusterAlias;
+        this.transportService = transportService;
         this.connectionManager = connectionManager;
         connectionManager.getConnectionManager().addListener(this);
     }
@@ -61,7 +82,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     void connect(ActionListener<Void> connectListener) {
         boolean runConnect = false;
         final ActionListener<Void> listener =
-            ContextPreservingActionListener.wrapPreservingContext(connectListener, threadPool.getThreadContext());
+            ContextPreservingActionListener.wrapPreservingContext(connectListener, transportService.getThreadPool().getThreadContext());
         boolean closed;
         synchronized (mutex) {
             closed = this.closed.get();
@@ -83,7 +104,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             return;
         }
         if (runConnect) {
-            ExecutorService executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+            ExecutorService executor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
             executor.submit(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -107,6 +128,41 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             });
         }
     }
+
+    public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
+        ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        if (mode.equals(ConnectionStrategy.SNIFF)) {
+            List<String> seeds = RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            return seeds.isEmpty() == false;
+        } else {
+            return false;
+        }
+    }
+
+    boolean shouldRebuildConnection(Settings newSettings) {
+        ConnectionStrategy newMode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        if (newMode.equals(strategyType()) == false) {
+            return true;
+        } else {
+            Boolean compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(newSettings);
+            TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(newSettings);
+
+            ConnectionProfile oldProfile = connectionManager.getConnectionManager().getConnectionProfile();
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
+            builder.setCompressionEnabled(compressionEnabled);
+            builder.setPingInterval(pingSchedule);
+            ConnectionProfile newProfile = builder.build();
+            return connectionProfileChanged(oldProfile, newProfile) || strategyMustBeRebuilt(newSettings);
+        }
+    }
+
+    protected abstract boolean strategyMustBeRebuilt(Settings newSettings);
+
+    protected abstract ConnectionStrategy strategyType();
 
     @Override
     public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
@@ -160,5 +216,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             }
         }
         return result;
+    }
+
+    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+        return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
+            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
     }
 }

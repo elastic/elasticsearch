@@ -201,7 +201,6 @@ public class FollowingEngineTests extends ESTestCase {
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
-                        "type",
                         id,
                         new Term("_id", id),
                         seqNo,
@@ -310,7 +309,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     private Engine.Delete deleteForPrimary(String id) {
         final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
-        return new Engine.Delete(parsedDoc.type(), parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get());
+        return new Engine.Delete(parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get());
     }
 
     private Engine.Result applyOperation(Engine engine, Engine.Operation op,
@@ -324,7 +323,7 @@ public class FollowingEngineTests extends ESTestCase {
                 index.getIfSeqNo(), index.getIfPrimaryTerm()));
         } else if (op instanceof Engine.Delete) {
             Engine.Delete delete = (Engine.Delete) op;
-            result = engine.delete(new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(), primaryTerm,
+            result = engine.delete(new Engine.Delete(delete.id(), delete.uid(), delete.seqNo(), primaryTerm,
                 delete.version(), versionType, origin, delete.startTime(), delete.getIfSeqNo(), delete.getIfPrimaryTerm()));
         } else {
             Engine.NoOp noOp = (Engine.NoOp) op;
@@ -594,7 +593,7 @@ public class FollowingEngineTests extends ESTestCase {
                     VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(), -1, true,
                     SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
             } else if (randomBoolean()) {
-                operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), i, primaryTerm.get(), 1L,
+                operations.add(new Engine.Delete(doc.id(), EngineTestCase.newUid(doc), i, primaryTerm.get(), 1L,
                     VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(),
                     SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
             } else {

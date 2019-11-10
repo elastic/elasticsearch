@@ -47,9 +47,9 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Respo
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
-import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
@@ -66,7 +66,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     private static final Logger logger = LogManager.getLogger(TransportUpdateTransformAction.class);
     private final XPackLicenseState licenseState;
     private final Client client;
-    private final TransformConfigManager transformsConfigManager;
+    private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
 
@@ -74,13 +74,22 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     public TransportUpdateTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                           ClusterService clusterService, XPackLicenseState licenseState,
-                                          TransformConfigManager transformsConfigManager, Client client,
+                                          TransformConfigManager transformConfigManager, Client client,
                                           TransformAuditor auditor) {
-        super(UpdateTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
+        this(UpdateTransformAction.NAME, settings, transportService, threadPool, actionFilters, indexNameExpressionResolver, clusterService,
+             licenseState, transformConfigManager, client, auditor);
+    }
+
+    protected TransportUpdateTransformAction(String name, Settings settings, TransportService transportService, ThreadPool threadPool,
+                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                             ClusterService clusterService, XPackLicenseState licenseState,
+                                             TransformConfigManager transformConfigManager, Client client,
+                                             TransformAuditor auditor) {
+        super(name, transportService, clusterService, threadPool, actionFilters,
+              Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
-        this.transformsConfigManager = transformsConfigManager;
+        this.transformConfigManager = transformConfigManager;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.auditor = auditor;
@@ -116,7 +125,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
 
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX
-        transformsConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(
+        transformConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(
             configAndVersion -> {
                 final TransformConfig config = configAndVersion.v1();
                 // If it is a noop don't bother even writing the doc, save the cycles, just return here.
@@ -197,7 +206,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
             putTransformConfigurationResult -> {
                 auditor.info(config.getId(), "updated transform.");
-                transformsConfigManager.deleteOldTransformConfigurations(request.getId(), ActionListener.wrap(
+                transformConfigManager.deleteOldTransformConfigurations(request.getId(), ActionListener.wrap(
                     r -> {
                         logger.trace("[{}] successfully deleted old transform configurations", request.getId());
                         listener.onResponse(new Response(config));
@@ -217,7 +226,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
 
         // <2> Update our transform
         ActionListener<Void> createDestinationListener = ActionListener.wrap(
-            createDestResponse -> transformsConfigManager.updateTransformConfiguration(config,
+            createDestResponse -> transformConfigManager.updateTransformConfiguration(config,
                 seqNoPrimaryTermAndIndex,
                 putTransformConfigurationListener),
             listener::onFailure

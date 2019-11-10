@@ -100,7 +100,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
-        return client().prepareIndex(idx, "type").setSource(jsonBuilder()
+        return client().prepareIndex(idx).setSource(jsonBuilder()
                 .startObject()
                 .timeField("date", date)
                 .field("value", value)
@@ -109,7 +109,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
-        return client().prepareIndex("idx", "type").setSource(jsonBuilder()
+        return client().prepareIndex("idx").setSource(jsonBuilder()
                 .startObject()
                 .field("value", value)
                 .field("constant", 1)
@@ -125,7 +125,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer"));
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i * 2)
                     .endObject()));
@@ -165,26 +165,26 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("sort_idx")
             .addMapping("type", "date", "type=date").get());
         for (int i = 1; i <= 3; i++) {
-            builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().timeField("date", date(1, 1)).field("l", 1).field("d", i).endObject()));
-            builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().timeField("date", date(1, 2)).field("l", 2).field("d", i).endObject()));
         }
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().timeField("date", date(1, 3)).field("l", 3).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().timeField("date", date(1, 3).plusHours(1)).field("l", 3).field("d", 2).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().timeField("date", date(1, 4)).field("l", 3).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().timeField("date", date(1, 4).plusHours(2)).field("l", 3).field("d", 3).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().timeField("date", date(1, 5)).field("l", 5).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().timeField("date", date(1, 5).plusHours(12)).field("l", 5).field("d", 2).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().timeField("date", date(1, 6)).field("l", 5).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().timeField("date", date(1, 7)).field("l", 5).field("d", 1).endObject()));
     }
 
@@ -977,7 +977,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         ZonedDateTime date = date("2014-03-11T00:00:00+00:00");
         for (int i = 0; i < reqs.length; i++) {
-            reqs[i] = client().prepareIndex("idx2", "type", "" + i)
+            reqs[i] = client().prepareIndex("idx2").setId("" + i)
                     .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
             date = date.plusHours(1);
         }
@@ -1244,7 +1244,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         prepareCreate("idx2").addMapping("type", mappingJson, XContentType.JSON).get();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         for (int i = 0; i < reqs.length; i++) {
-            reqs[i] = client().prepareIndex("idx2", "type", "" + i)
+            reqs[i] = client().prepareIndex("idx2").setId("" + i)
                     .setSource(jsonBuilder().startObject().field("date", "10-03-2014").endObject());
         }
         indexRandom(true, reqs);
@@ -1310,8 +1310,8 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     public void testDSTBoundaryIssue9491() throws InterruptedException, ExecutionException {
         assertAcked(client().admin().indices().prepareCreate("test9491").addMapping("type", "d", "type=date").get());
-        indexRandom(true, client().prepareIndex("test9491", "type").setSource("d", "2014-10-08T13:00:00Z"),
-                client().prepareIndex("test9491", "type").setSource("d", "2014-11-08T13:00:00Z"));
+        indexRandom(true, client().prepareIndex("test9491").setSource("d", "2014-10-08T13:00:00Z"),
+                client().prepareIndex("test9491").setSource("d", "2014-11-08T13:00:00Z"));
         ensureSearchable("test9491");
         SearchResponse response = client().prepareSearch("test9491")
                 .addAggregation(dateHistogram("histo").field("d").dateHistogramInterval(DateHistogramInterval.YEAR)
@@ -1327,9 +1327,9 @@ public class DateHistogramIT extends ESIntegTestCase {
     public void testIssue8209() throws InterruptedException, ExecutionException {
         assertAcked(client().admin().indices().prepareCreate("test8209").addMapping("type", "d", "type=date").get());
         indexRandom(true,
-                client().prepareIndex("test8209", "type").setSource("d", "2014-01-01T00:00:00Z"),
-                client().prepareIndex("test8209", "type").setSource("d", "2014-04-01T00:00:00Z"),
-                client().prepareIndex("test8209", "type").setSource("d", "2014-04-30T00:00:00Z"));
+                client().prepareIndex("test8209").setSource("d", "2014-01-01T00:00:00Z"),
+                client().prepareIndex("test8209").setSource("d", "2014-04-01T00:00:00Z"),
+                client().prepareIndex("test8209").setSource("d", "2014-04-30T00:00:00Z"));
         ensureSearchable("test8209");
         SearchResponse response = client().prepareSearch("test8209")
                 .addAggregation(dateHistogram("histo").field("d").dateHistogramInterval(DateHistogramInterval.MONTH)
@@ -1372,7 +1372,7 @@ public class DateHistogramIT extends ESIntegTestCase {
      */
     public void testFormatIndexUnmapped() throws InterruptedException, ExecutionException {
         String indexDateUnmapped = "test31760";
-        indexRandom(true, client().prepareIndex(indexDateUnmapped, "_doc").setSource("foo", "bar"));
+        indexRandom(true, client().prepareIndex(indexDateUnmapped).setSource("foo", "bar"));
         ensureSearchable(indexDateUnmapped);
 
         SearchResponse response = client().prepareSearch(indexDateUnmapped)
@@ -1396,7 +1396,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     public void testRewriteTimeZone_EpochMillisFormat() throws InterruptedException, ExecutionException {
         String index = "test31392";
         assertAcked(client().admin().indices().prepareCreate(index).addMapping("type", "d", "type=date,format=epoch_millis").get());
-        indexRandom(true, client().prepareIndex(index, "type").setSource("d", "1477954800000"));
+        indexRandom(true, client().prepareIndex(index).setSource("d", "1477954800000"));
         ensureSearchable(index);
         SearchResponse response = client().prepareSearch(index).addAggregation(dateHistogram("histo").field("d")
                 .dateHistogramInterval(DateHistogramInterval.MONTH).timeZone(ZoneId.of("Europe/Berlin"))).get();
@@ -1475,8 +1475,8 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .get());
         String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(1, 1));
         String date2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(2, 1));
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("d", date),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("d", date2));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("d", date),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("d", date2));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -1586,9 +1586,9 @@ public class DateHistogramIT extends ESIntegTestCase {
     public void testDateNanosHistogram() throws Exception {
         assertAcked(prepareCreate("nanos").addMapping("_doc", "date", "type=date_nanos").get());
         indexRandom(true,
-            client().prepareIndex("nanos", "_doc", "1").setSource("date", "2000-01-01"));
+            client().prepareIndex("nanos").setId("1").setSource("date", "2000-01-01"));
         indexRandom(true,
-            client().prepareIndex("nanos", "_doc", "2").setSource("date", "2000-01-02"));
+            client().prepareIndex("nanos").setId("2").setSource("date", "2000-01-02"));
 
         //Search interval 24 hours
         SearchResponse r = client().prepareSearch("nanos")

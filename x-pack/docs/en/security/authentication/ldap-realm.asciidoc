@@ -23,7 +23,7 @@ and a mode with specific templates for user DNs.
 [[ldap-user-search]]
 ==== User search mode and user DN templates mode
 
-See {ref}/configuring-ldap-realm.html[Configuring an LDAP Realm].
+See <<configuring-ldap-realm>>.
 
 [[ldap-load-balancing]]
 ==== Load balancing and failover
@@ -32,12 +32,12 @@ the {security-features} should interact with multiple LDAP servers. The
 {security-features} support both failover and load balancing modes of operation.
 
 See
-{ref}/security-settings.html#load-balancing[Load balancing and failover settings].
+<<load-balancing>>.
 
 [[ldap-settings]]
 ==== LDAP realm settings
 
-See {ref}/security-settings.html#ref-ldap-settings[LDAP realm settings].
+See <<ref-ldap-settings>>.
 
 [[mapping-roles-ldap]]
 ==== Mapping LDAP groups to roles
@@ -53,11 +53,11 @@ systems in the organization.
 
 The `ldap` realm enables you to map LDAP users to roles via their LDAP
 groups, or other metadata. This role mapping can be configured via the
-{ref}/security-api-put-role-mapping.html[add role mapping API] or by using a
+<<security-api-put-role-mapping,add role mapping API>> or by using a
 file stored on each node. When a user authenticates with LDAP, the privileges
 for that user are the union of all privileges defined by the roles to which
 the user is mapped. For more information, see 
-{ref}/configuring-ldap-realm.html[Configuring an LDAP realm].
+<<configuring-ldap-realm>>.
 
 [[ldap-user-metadata]]
 ==== User metadata in LDAP realms
@@ -73,7 +73,7 @@ populated in the user's _metadata_:
 |=======================
 
 This metadata is returned in the
-{ref}/security-api-authenticate.html[authenticate API], and can be used with
+<<security-api-authenticate,authenticate API>>, and can be used with
 <<templating-role-query, templated queries>> in roles.
 
 Additional fields can be included in the user's metadata by  configuring
@@ -85,4 +85,4 @@ with the <<mapping-roles-api, role mapping API>> or in
 ==== Setting up SSL between Elasticsearch and LDAP
 
 See
-{ref}/configuring-tls.html#tls-ldap[Encrypting communications between {es} and LDAP]. 
+<<tls-ldap>>. 

@@ -729,7 +729,7 @@ public final class SamlRealm extends Realm implements Releasable {
             try {
                 onChange.run();
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("An error occurred while reloading file {}", file), e);
+                logger.warn(new ParameterizedMessage("An error occurred while reloading file [{}]", file), e);
             }
         }
     }

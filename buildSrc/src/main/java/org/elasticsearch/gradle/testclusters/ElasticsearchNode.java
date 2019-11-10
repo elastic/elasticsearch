@@ -42,6 +42,7 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -147,6 +148,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private volatile Process esProcess;
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
+    private String httpPort = "0";
+    private String transportPort = "0";
 
     ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase) {
         this.path = path;
@@ -169,15 +172,18 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         setVersion(VersionProperties.getElasticsearch());
     }
 
+    @Input
+    @Optional
     public String getName() {
         return nameCustomization.apply(name);
     }
 
     @Internal
     public Version getVersion() {
-        return distributions.get(currentDistro).getVersion();
+        return Version.fromString(distributions.get(currentDistro).getVersion());
     }
 
+    @Internal
     public Path getDistroDir() {
         return workingDir.resolve("distro").resolve(getVersion() + "-" + testDistribution);
     }
@@ -348,14 +354,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         jvmArgs.addAll(Arrays.asList(values));
     }
 
+    @Internal
     public Path getConfigDir() {
         return configFile.getParent();
     }
 
     @Override
     public void freeze() {
-        requireNonNull(distributions, "null distribution passed when configuring test cluster `" + this + "`");
-        requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
+        requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
     }
@@ -370,6 +376,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.javaHome = javaHome;
     }
 
+    @Internal
     public File getJavaHome() {
         return javaHome;
     }
@@ -631,7 +638,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private Map<String, String> getESEnvironment() {
         Map<String, String> defaultEnv = new HashMap<>();
-        defaultEnv.put("JAVA_HOME", getJavaHome().getAbsolutePath());
+        if ( getJavaHome() != null) {
+            defaultEnv.put("JAVA_HOME", getJavaHome().getAbsolutePath());
+        }
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
@@ -651,7 +660,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 })
                 .collect(Collectors.joining(" "));
         }
-        defaultEnv.put("ES_JAVA_OPTS", "-Xms512m -Xmx512m -ea -esa " +
+        String heapSize = System.getProperty("tests.heap.size", "512m");
+        defaultEnv.put("ES_JAVA_OPTS", "-Xms" + heapSize + " -Xmx" + heapSize + " -ea -esa " +
             systemPropertiesString + " " +
             jvmArgsString + " " +
             // Support  passing in additional JVM arguments
@@ -690,9 +700,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't inherit anything from the environment for as that would  lack reproducibility
         environment.clear();
         environment.putAll(getESEnvironment());
+
         // don't buffer all in memory, make sure we don't block on the default pipes
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
         processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
+
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
             esProcess = processBuilder.start();
@@ -703,31 +715,37 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    @Internal
     public String getHttpSocketURI() {
         return getHttpPortInternal().get(0);
     }
 
     @Override
+    @Internal
     public String getTransportPortURI() {
         return getTransportPortInternal().get(0);
     }
 
     @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return getHttpPortInternal();
     }
 
     @Override
+    @Internal
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return getTransportPortInternal();
     }
 
+    @Internal
     public File getServerLog() {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
     }
 
+    @Internal
     public File getAuditLog() {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
     }
@@ -976,11 +994,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
         defaultConfig.put("node.attr.testattr", "test");
         defaultConfig.put("node.portsfile", "true");
-        defaultConfig.put("http.port", "0");
+        defaultConfig.put("http.port", httpPort);
         if (getVersion().onOrAfter(Version.fromString("6.7.0"))) {
-            defaultConfig.put("transport.port", "0");
+            defaultConfig.put("transport.port", transportPort);
         } else {
-            defaultConfig.put("transport.tcp.port", "0");
+            defaultConfig.put("transport.tcp.port", transportPort);
         }
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         defaultConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
@@ -1098,30 +1116,30 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Input
-    private Set<URI> getRemotePlugins() {
+    public Set<URI> getRemotePlugins() {
         Set<URI> file = plugins.stream().filter(uri -> uri.getScheme().equalsIgnoreCase("file") == false).collect(Collectors.toSet());
         return file;
     }
 
     @Classpath
-    private List<File> getInstalledClasspath() {
+    public List<File> getInstalledClasspath() {
         return getInstalledFileSet(filter -> filter.include("**/*.jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    private List<File> getInstalledFiles() {
+    public List<File> getInstalledFiles() {
         return getInstalledFileSet(filter -> filter.exclude("**/*.jar"));
     }
 
     @Classpath
-    private Set<File> getDistributionClasspath() {
+    public Set<File> getDistributionClasspath() {
         return getDistributionFiles(filter -> filter.include("**/*.jar"));
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    private Set<File> getDistributionFiles() {
+    public Set<File> getDistributionFiles() {
         return getDistributionFiles(filter -> filter.exclude("**/*.jar"));
     }
 
@@ -1138,41 +1156,42 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Nested
-    private Map<String, CharSequence> getKeystoreSettings() {
-        return keystoreSettings;
+    public List<?> getKeystoreSettings() {
+        return keystoreSettings.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, File> getKeystoreFiles() {
-        return keystoreFiles;
+    public List<?> getKeystoreFiles() {
+        return keystoreFiles.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, CharSequence> getSettings() {
-        return settings;
+    public List<?> getSettings() {
+        return settings.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, CharSequence> getSystemProperties() {
-        return systemProperties;
+    public List<?> getSystemProperties() {
+        return systemProperties.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, CharSequence> getEnvironment() {
-        return environment;
+    public List<?> getEnvironment() {
+        return environment.getNormalizedCollection();
     }
 
     @Nested
-    private List<CharSequence> getJvmArgs() {
-        return jvmArgs;
+    public List<?> getJvmArgs() {
+        return jvmArgs.getNormalizedCollection();
     }
 
     @Nested
-    private Map<String, File> getExtraConfigFiles() {
-        return extraConfigFiles;
+    public List<?> getExtraConfigFiles() {
+        return extraConfigFiles.getNormalizedCollection();
     }
 
     @Override
+    @Internal
     public boolean isProcessAlive() {
         requireNonNull(
             esProcess,
@@ -1238,6 +1257,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return Files.exists(httpPortsFile) && Files.exists(transportPortFile);
     }
 
+    @Internal
     public boolean isHttpSslEnabled() {
         return Boolean.valueOf(
             settings.getOrDefault("xpack.security.http.ssl.enabled", "false").toString()
@@ -1271,6 +1291,24 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString()
             );
         }
+    }
+
+    void setHttpPort(String httpPort) {
+        this.httpPort = httpPort;
+    }
+
+    void setTransportPort(String transportPort) {
+        this.transportPort = transportPort;
+    }
+
+    @Internal
+    Path getEsStdoutFile() {
+        return esStdoutFile;
+    }
+
+    @Internal
+    Path getEsStderrFile() {
+        return esStderrFile;
     }
 
     private static class FileEntry implements Named {

@@ -70,7 +70,7 @@ POST /<leader_index>/_ccr/forget_follower
 
 * If the {es} {security-features} are enabled, you must have `manage_leader_index`
 index privileges for the leader index. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ccr-post-forget-follower-desc]]
 ==== {api-description-title}

@@ -35,7 +35,7 @@ public class ListenerActionIT extends ESIntegTestCase {
         final AtomicReference<String> threadName = new AtomicReference<>();
         Client client = client();
 
-        IndexRequest request = new IndexRequest("test", "type", "1");
+        IndexRequest request = new IndexRequest("test").id("1");
         if (randomBoolean()) {
             // set the source, without it, we will have a verification failure
             request.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");

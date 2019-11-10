@@ -19,6 +19,7 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.redline_rpm.header.Flags
+import org.elasticsearch.gradle.OS
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -105,6 +106,9 @@ addProcessFilesTask('rpm', false, false)
 // is the same
 Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
   return {
+    onlyIf {
+      OS.current().equals(OS.WINDOWS) == false
+    }
     dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
     arch (type == 'deb' ? 'amd64' : 'X86_64')

@@ -308,7 +308,7 @@ public class GeoUtils {
         assert lonLat != null && lonLat.length == 2;
 
         normLat = normLat && (lonLat[1] > 90 || lonLat[1] < -90);
-        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180);
+        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180 || normLat);
 
         if (normLat) {
             lonLat[1] = centeredModulus(lonLat[1], 360);
@@ -337,7 +337,7 @@ public class GeoUtils {
         }
     }
 
-    private static double centeredModulus(double dividend, double divisor) {
+    public static double centeredModulus(double dividend, double divisor) {
         double rtn = dividend % divisor;
         if (rtn <= 0) {
             rtn += divisor;

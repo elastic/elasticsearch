@@ -285,7 +285,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         ALLOWED_OPERATIONS.release(numDocs);
 
         indexRandom(true, false, true, IntStream.range(0, numDocs)
-            .mapToObj(i -> client().prepareIndex(INDEX_NAME, "_doc", Integer.toString(i)).setSource("n", Integer.toString(i)))
+            .mapToObj(i -> client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
             .collect(Collectors.toList()));
 
         // Checks that the all documents have been indexed and correctly counted
@@ -293,7 +293,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
         ReindexRequestBuilder builder = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source(INDEX_NAME)
-            .destination("target_index", "_doc");
+            .destination("target_index");
         // Scroll by 1 so that cancellation is easier to control
         builder.source().setSize(1);
 
@@ -326,16 +326,16 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
 
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
-            return preCheck(index, index.type());
+            return preCheck(index);
         }
 
         @Override
         public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-            return preCheck(delete, delete.type());
+            return preCheck(delete);
         }
 
-        private <T extends Engine.Operation> T preCheck(T operation, String type) {
-            if (("_doc".equals(type) == false) || (operation.origin() != Engine.Operation.Origin.PRIMARY)) {
+        private <T extends Engine.Operation> T preCheck(T operation) {
+            if (operation.origin() != Engine.Operation.Origin.PRIMARY) {
                 return operation;
             }
 

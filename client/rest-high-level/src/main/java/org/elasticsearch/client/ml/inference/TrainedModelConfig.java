@@ -30,22 +30,23 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class TrainedModelConfig implements ToXContentObject {
 
-    public static final String NAME = "trained_model_doc";
+    public static final String NAME = "trained_model_config";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField CREATED_BY = new ParseField("created_by");
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField DESCRIPTION = new ParseField("description");
-    public static final ParseField CREATED_TIME = new ParseField("created_time");
-    public static final ParseField MODEL_VERSION = new ParseField("model_version");
+    public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField DEFINITION = new ParseField("definition");
-    public static final ParseField MODEL_TYPE = new ParseField("model_type");
+    public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
+    public static final ParseField INPUT = new ParseField("input");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
             true,
@@ -55,16 +56,16 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareString(TrainedModelConfig.Builder::setCreatedBy, CREATED_BY);
         PARSER.declareString(TrainedModelConfig.Builder::setVersion, VERSION);
         PARSER.declareString(TrainedModelConfig.Builder::setDescription, DESCRIPTION);
-        PARSER.declareField(TrainedModelConfig.Builder::setCreatedTime,
-            (p, c) -> TimeUtil.parseTimeFieldToInstant(p, CREATED_TIME.getPreferredName()),
-            CREATED_TIME,
+        PARSER.declareField(TrainedModelConfig.Builder::setCreateTime,
+            (p, c) -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
+            CREATE_TIME,
             ObjectParser.ValueType.VALUE);
-        PARSER.declareLong(TrainedModelConfig.Builder::setModelVersion, MODEL_VERSION);
-        PARSER.declareString(TrainedModelConfig.Builder::setModelType, MODEL_TYPE);
-        PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
         PARSER.declareObject(TrainedModelConfig.Builder::setDefinition,
             (p, c) -> TrainedModelDefinition.fromXContent(p),
             DEFINITION);
+        PARSER.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
+        PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
+        PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> TrainedModelInput.fromXContent(p), INPUT);
     }
 
     public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
@@ -75,30 +76,30 @@ public class TrainedModelConfig implements ToXContentObject {
     private final String createdBy;
     private final Version version;
     private final String description;
-    private final Instant createdTime;
-    private final Long modelVersion;
-    private final String modelType;
-    private final Map<String, Object> metadata;
+    private final Instant createTime;
     private final TrainedModelDefinition definition;
+    private final List<String> tags;
+    private final Map<String, Object> metadata;
+    private final TrainedModelInput input;
 
     TrainedModelConfig(String modelId,
                        String createdBy,
                        Version version,
                        String description,
-                       Instant createdTime,
-                       Long modelVersion,
-                       String modelType,
+                       Instant createTime,
                        TrainedModelDefinition definition,
-                       Map<String, Object> metadata) {
+                       List<String> tags,
+                       Map<String, Object> metadata,
+                       TrainedModelInput input) {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
-        this.createdTime = Instant.ofEpochMilli(createdTime.toEpochMilli());
-        this.modelType = modelType;
+        this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
         this.definition = definition;
         this.description = description;
+        this.tags = tags == null ? null : Collections.unmodifiableList(tags);
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
-        this.modelVersion = modelVersion;
+        this.input = input;
     }
 
     public String getModelId() {
@@ -117,16 +118,12 @@ public class TrainedModelConfig implements ToXContentObject {
         return description;
     }
 
-    public Instant getCreatedTime() {
-        return createdTime;
+    public Instant getCreateTime() {
+        return createTime;
     }
 
-    public Long getModelVersion() {
-        return modelVersion;
-    }
-
-    public String getModelType() {
-        return modelType;
+    public List<String> getTags() {
+        return tags;
     }
 
     public Map<String, Object> getMetadata() {
@@ -135,6 +132,10 @@ public class TrainedModelConfig implements ToXContentObject {
 
     public TrainedModelDefinition getDefinition() {
         return definition;
+    }
+
+    public TrainedModelInput getInput() {
+        return input;
     }
 
     public static Builder builder() {
@@ -156,20 +157,20 @@ public class TrainedModelConfig implements ToXContentObject {
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        if (createdTime != null) {
-            builder.timeField(CREATED_TIME.getPreferredName(), CREATED_TIME.getPreferredName() + "_string", createdTime.toEpochMilli());
-        }
-        if (modelVersion != null) {
-            builder.field(MODEL_VERSION.getPreferredName(), modelVersion);
-        }
-        if (modelType != null) {
-            builder.field(MODEL_TYPE.getPreferredName(), modelType);
+        if (createTime != null) {
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
         }
         if (definition != null) {
             builder.field(DEFINITION.getPreferredName(), definition);
         }
+        if (tags != null) {
+            builder.field(TAGS.getPreferredName(), tags);
+        }
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
+        }
+        if (input != null) {
+            builder.field(INPUT.getPreferredName(), input);
         }
         builder.endObject();
         return builder;
@@ -189,10 +190,10 @@ public class TrainedModelConfig implements ToXContentObject {
             Objects.equals(createdBy, that.createdBy) &&
             Objects.equals(version, that.version) &&
             Objects.equals(description, that.description) &&
-            Objects.equals(createdTime, that.createdTime) &&
-            Objects.equals(modelVersion, that.modelVersion) &&
-            Objects.equals(modelType, that.modelType) &&
+            Objects.equals(createTime, that.createTime) &&
             Objects.equals(definition, that.definition) &&
+            Objects.equals(tags, that.tags) &&
+            Objects.equals(input, that.input) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -201,12 +202,12 @@ public class TrainedModelConfig implements ToXContentObject {
         return Objects.hash(modelId,
             createdBy,
             version,
-            createdTime,
-            modelType,
+            createTime,
             definition,
             description,
+            tags,
             metadata,
-            modelVersion);
+            input);
     }
 
 
@@ -216,11 +217,11 @@ public class TrainedModelConfig implements ToXContentObject {
         private String createdBy;
         private Version version;
         private String description;
-        private Instant createdTime;
-        private Long modelVersion;
-        private String modelType;
+        private Instant createTime;
         private Map<String, Object> metadata;
-        private TrainedModelDefinition.Builder definition;
+        private List<String> tags;
+        private TrainedModelDefinition definition;
+        private TrainedModelInput input;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -246,18 +247,13 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        private Builder setCreatedTime(Instant createdTime) {
-            this.createdTime = createdTime;
+        private Builder setCreateTime(Instant createTime) {
+            this.createTime = createTime;
             return this;
         }
 
-        public Builder setModelVersion(Long modelVersion) {
-            this.modelVersion = modelVersion;
-            return this;
-        }
-
-        public Builder setModelType(String modelType) {
-            this.modelType = modelType;
+        public Builder setTags(List<String> tags) {
+            this.tags = tags;
             return this;
         }
 
@@ -267,7 +263,17 @@ public class TrainedModelConfig implements ToXContentObject {
         }
 
         public Builder setDefinition(TrainedModelDefinition.Builder definition) {
+            this.definition = definition == null ? null : definition.build();
+            return this;
+        }
+
+        public Builder setDefinition(TrainedModelDefinition definition) {
             this.definition = definition;
+            return this;
+        }
+
+        public Builder setInput(TrainedModelInput input) {
+            this.input = input;
             return this;
         }
 
@@ -277,11 +283,12 @@ public class TrainedModelConfig implements ToXContentObject {
                 createdBy,
                 version,
                 description,
-                createdTime,
-                modelVersion,
-                modelType,
-                definition == null ? null : definition.build(),
-                metadata);
+                createTime,
+                definition,
+                tags,
+                metadata,
+                input);
         }
     }
+
 }

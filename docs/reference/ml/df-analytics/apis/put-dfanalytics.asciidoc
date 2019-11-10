@@ -23,8 +23,7 @@ experimental[]
 * You must have `machine_learning_admin` built-in role to use this API. You must 
 also have `read` and `view_index_metadata` privileges on the source index and 
 `read`, `create_index`, and `index` privileges on the destination index. For 
-more information, see {stack-ov}/security-privileges.html[Security privileges] 
-and {stack-ov}/built-in-roles.html[Built-in roles].
+more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-put-dfanalytics-desc]]
@@ -47,6 +46,46 @@ If the destination index already exists, then it will be use as is. This makes
 it possible to set up the destination index in advance with custom settings 
 and mappings.
 
+[[ml-put-dfanalytics-supported-fields]]
+===== Supported fields
+
+====== {oldetection-cap}
+
+{oldetection-cap} requires numeric or boolean data to analyze. The algorithms 
+don't support missing values therefore fields that have data types other than 
+numeric or boolean are ignored. Documents where included fields contain missing 
+values, null values, or an array are also ignored. Therefore the `dest` index 
+may contain documents that don't have an {olscore}.
+
+
+====== {regression-cap}
+
+{regression-cap} supports fields that are numeric, boolean, text, keyword and ip. It 
+is also tolerant of missing values. Fields that are supported are included in 
+the analysis, other fields are ignored. Documents where included fields contain 
+an array with two or more values are also ignored. Documents in the `dest` index 
+that don’t contain a results field are not included in the {reganalysis}.
+
+
+====== {classification-cap}
+
+{classification-cap} supports fields that are numeric, boolean, text, keyword 
+and ip. It is also tolerant of missing values. Fields that are supported are 
+included in the analysis, other fields are ignored. Documents where included 
+fields contain an array with two or more values are also ignored. Documents in 
+the `dest` index that don’t contain a results field are not included in the 
+{classanalysis}.
+
+{classanalysis-cap} can be improved by mapping ordinal variable values to a 
+single number. For example, in case of age ranges, you can model the values as 
+"0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
+
+Fields that are highly correlated to the `dependent_variable` should be excluded 
+from the analysis. For example, if you have a multi-value field as 
+`dependent_variable`, {es} will be mapping it both as text and keyword which 
+results in two fields (`field` and `field.keyword`). It is required to exclude 
+the field with the text mapping to get exact results from the analysis.
+
 
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -62,19 +101,21 @@ and mappings.
 ==== {api-request-body-title}
 
 `analysis`::
-  (Required, object) Defines the type of {dfanalytics} you want to perform on your source 
-  index. For example: `outlier_detection`. See <<dfanalytics-types>>.
+  (Required, object) Defines the type of {dfanalytics} you want to perform on 
+  your source index. For example: `outlier_detection`. See 
+  <<dfanalytics-types>>.
   
 `analyzed_fields`::
   (Optional, object) You can specify both `includes` and/or `excludes` patterns. 
   If `analyzed_fields` is not set, only the relevant fields will be included. 
-  For example, all the numeric fields for {oldetection}.
+  For example, all the numeric fields for {oldetection}. For the supported field 
+  types, see <<ml-put-dfanalytics-supported-fields>>.
   
-  `analyzed_fields.includes`:::
+  `includes`:::
     (Optional, array) An array of strings that defines the fields that will be 
     included in the analysis.
     
-  `analyzed_fields.excludes`:::
+  `excludes`:::
     (Optional, array) An array of strings that defines the fields that will be 
     excluded from the analysis.
 
@@ -117,9 +158,22 @@ and mappings.
       as this object is passed verbatim to {es}. By default, this property has 
       the following value: `{"match_all": {}}`.
 
+`allow_lazy_start`::
+  (Optional, boolean) Whether this job should be allowed to start when there
+  is insufficient {ml} node capacity for it to be immediately assigned to a node.
+  The default is `false`, which means that the <<start-dfanalytics>>
+  will return an error if a {ml} node with capacity to run the
+  job cannot immediately be found. (However, this is also subject to
+  the cluster-wide `xpack.ml.max_lazy_ml_nodes` setting - see
+  <<advanced-ml-settings>>.) If this option is set to `true` then
+  the <<start-dfanalytics>> will not return an error, and the job will
+  wait in the `starting` state until sufficient {ml} node capacity
+  is available.
+
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
+
 
 [[ml-put-dfanalytics-example-od]]
 ===== {oldetection-cap} example
@@ -140,6 +194,9 @@ PUT _ml/data_frame/analytics/loganalytics
   },
   "analysis": {
     "outlier_detection": {
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
     }
   }
 }
@@ -165,11 +222,16 @@ The API returns the following result:
         "results_field": "ml"
     },
     "analysis": {
-        "outlier_detection": {}
+        "outlier_detection": {
+            "compute_feature_influence": true,
+            "outlier_fraction": 0.05,
+            "standardization_enabled": true
+        }
     },
     "model_memory_limit": "1gb",
     "create_time" : 1562265491319,
-    "version" : "8.0.0"
+    "version" : "8.0.0",
+    "allow_lazy_start" : false
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
@@ -229,7 +291,8 @@ The API returns the following result:
   },
   "model_memory_limit" : "1gb",
   "create_time" : 1567168659127,
-  "version" : "8.0.0"
+  "version" : "8.0.0",
+  "allow_lazy_start" : false
 }
 ----
 // TESTRESPONSE[s/1567168659127/$body.$_path/]
@@ -261,3 +324,31 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 
 <1> The `training_percent` defines the percentage of the data set that will be used 
 for training the model.
+
+
+[[ml-put-dfanalytics-example-c]]
+===== {classification-cap} example
+
+The following example creates the `loan_classification` {dfanalytics-job}, the 
+analysis type is `classification`:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/loan_classification
+{
+  "source" : {
+    "index": "loan-applicants"
+  },
+  "dest" : {
+    "index": "loan-applicants-classified"
+  },
+  "analysis" : {
+    "classification": {
+      "dependent_variable": "label",
+      "training_percent": 75,
+      "num_top_classes": 2
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]

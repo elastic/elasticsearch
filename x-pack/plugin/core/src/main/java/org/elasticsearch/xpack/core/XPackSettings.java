@@ -35,6 +35,11 @@ public class XPackSettings {
     }
 
     /**
+     * Setting for controlling whether or not enrich is enabled.
+     */
+    public static final Setting<Boolean> ENRICH_ENABLED_SETTING = Setting.boolSetting("xpack.enrich.enabled", true, Property.NodeScope);
+
+    /**
      * Setting for controlling whether or not CCR is enabled.
      */
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);

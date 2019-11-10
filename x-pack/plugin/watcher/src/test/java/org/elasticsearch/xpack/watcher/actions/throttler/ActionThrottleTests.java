@@ -394,7 +394,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         INDEX {
             @Override
             public Action.Builder<IndexAction> action() throws Exception {
-                return IndexAction.builder("test_index", "test_type");
+                return IndexAction.builder("test_index");
             }
 
             @Override

@@ -26,7 +26,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -65,10 +65,10 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         condition.expected = boolean.class;
-        condition.analyze(functions, locals);
-        condition = condition.cast(functions, locals);
+        condition.analyze(scriptRoot, locals);
+        condition = condition.cast(scriptRoot, locals);
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous conditional statement."));
@@ -82,8 +82,8 @@ public final class EConditional extends AExpression {
         right.internal = internal;
         actual = expected;
 
-        left.analyze(functions, locals);
-        right.analyze(functions, locals);
+        left.analyze(scriptRoot, locals);
+        right.analyze(scriptRoot, locals);
 
         if (expected == null) {
             Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
@@ -93,8 +93,8 @@ public final class EConditional extends AExpression {
             actual = promote;
         }
 
-        left = left.cast(functions, locals);
-        right = right.cast(functions, locals);
+        left = left.cast(scriptRoot, locals);
+        right = right.cast(scriptRoot, locals);
     }
 
     @Override

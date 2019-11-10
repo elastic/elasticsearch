@@ -17,8 +17,7 @@ Deletes an existing {anomaly-job}.
 ==== {api-prereq-title}
 
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
-cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+cluster privileges to use this API. See <<security-privileges>>.
 
 [[ml-delete-job-desc]]
 ==== {api-description-title}

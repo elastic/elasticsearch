@@ -35,7 +35,7 @@
             ]
           }
   - do:
-      transform.put_transform:
+      data_frame_transform_deprecated.put_transform:
         transform_id: "old-simple-transform"
         body: >
           {
@@ -49,7 +49,7 @@
   - match: { acknowledged: true }
 
   - do:
-      transform.get_transform:
+      data_frame_transform_deprecated.get_transform:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
@@ -57,29 +57,29 @@
   - is_true: transforms.0.create_time
 
   - do:
-      transform.start_transform:
+      data_frame_transform_deprecated.start_transform:
         transform_id: "old-simple-transform"
   - match: { acknowledged: true }
   - do:
-      transform.get_transform_stats:
+      data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
 
   - do:
-      transform.stop_transform:
+      data_frame_transform_deprecated.stop_transform:
         transform_id: "old-simple-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
-      transform.get_transform_stats:
+      data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
 
   - do:
-      transform.put_transform:
+      data_frame_transform_deprecated.put_transform:
         transform_id: "old-complex-transform"
         body: >
           {
@@ -107,29 +107,29 @@
   - match: { acknowledged: true }
 
   - do:
-      transform.get_transform:
+      data_frame_transform_deprecated.get_transform:
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
 
   - do:
-      transform.start_transform:
+      data_frame_transform_deprecated.start_transform:
         transform_id: "old-complex-transform"
   - match: { acknowledged: true }
   - do:
-      transform.get_transform_stats:
+      data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
 
   - do:
-      transform.stop_transform:
+      data_frame_transform_deprecated.stop_transform:
         transform_id: "old-complex-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
-      transform.get_transform_stats:
+      data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
@@ -157,7 +157,7 @@
         timeout: 70s
 
   - do:
-      transform.put_transform:
+      data_frame_transform_deprecated.put_transform:
         transform_id: "old-simple-continuous-transform"
         body: >
           {
@@ -177,7 +177,7 @@
   - match: { acknowledged: true }
 
   - do:
-      transform.get_transform:
+      data_frame_transform_deprecated.get_transform:
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
@@ -187,23 +187,23 @@
   - is_true: transforms.0.create_time
 
   - do:
-      transform.start_transform:
+      data_frame_transform_deprecated.start_transform:
         transform_id: "old-simple-continuous-transform"
   - match: { acknowledged: true }
   - do:
-      transform.get_transform_stats:
+      data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
 
   - do:
-      transform.stop_transform:
+      data_frame_transform_deprecated.stop_transform:
         transform_id: "old-simple-continuous-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
-      transform.get_transform_stats:
+      data_frame_transform_deprecated.get_transform_stats:
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }

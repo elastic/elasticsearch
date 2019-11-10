@@ -259,7 +259,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(simulateDocumentBaseResult.getFailure(), instanceOf(RuntimeException.class));
         Exception exception = simulateDocumentBaseResult.getFailure();
         assertThat(exception, instanceOf(ElasticsearchException.class));
-        assertThat(exception.getMessage(), equalTo("java.lang.IllegalArgumentException: java.lang.RuntimeException: processor failed"));
+        assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: processor failed"));
     }
 
     public void testDropDocument() throws Exception {

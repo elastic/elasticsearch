@@ -42,9 +42,9 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
@@ -73,7 +73,15 @@ public class TransportPreviewTransformAction extends
                                                     Client client, ThreadPool threadPool, XPackLicenseState licenseState,
                                                     IndexNameExpressionResolver indexNameExpressionResolver,
                                                     ClusterService clusterService) {
-        super(PreviewTransformAction.NAME,transportService, actionFilters, PreviewTransformAction.Request::new);
+        this(PreviewTransformAction.NAME,transportService, actionFilters, client, threadPool, licenseState, indexNameExpressionResolver,
+             clusterService);
+    }
+
+    protected TransportPreviewTransformAction(String name, TransportService transportService, ActionFilters actionFilters,
+                                              Client client, ThreadPool threadPool, XPackLicenseState licenseState,
+                                              IndexNameExpressionResolver indexNameExpressionResolver,
+                                              ClusterService clusterService) {
+        super(name, transportService, actionFilters, PreviewTransformAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
         this.threadPool = threadPool;

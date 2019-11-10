@@ -1,5 +1,5 @@
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.test.NodeInfo
+
 import org.elasticsearch.gradle.http.WaitForHttpResource
 
 apply plugin: 'elasticsearch.testclusters'

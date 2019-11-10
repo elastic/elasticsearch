@@ -19,6 +19,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Docker.DockerShell;
@@ -47,6 +48,7 @@ import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getEnabledPlugins;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
+import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
@@ -59,8 +61,9 @@ import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,6 +71,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
@@ -530,5 +534,19 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Incorrect PID", fields[0], equalTo("1"));
         assertThat("Incorrect UID", fields[1], equalTo("1000"));
         assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
+    }
+
+    public void test140CgroupOsStatsAreAvailable() throws Exception {
+        waitForElasticsearch(installation);
+
+        final JsonNode nodes = getJson("_nodes/stats/os").get("nodes");
+
+        final String nodeName = nodes.fieldNames().next();
+
+        final JsonNode cgroupStats = nodes.at("/" + nodeName + "/os/cgroup");
+        assertFalse("Couldn't find /nodes/{nodeName}/os/cgroup in API response", cgroupStats.isMissingNode());
+
+        assertThat("Failed to find [cpu] in node OS cgroup stats", cgroupStats.get("cpu"), not(nullValue()));
+        assertThat("Failed to find [cpuacct] in node OS cgroup stats", cgroupStats.get("cpuacct"), not(nullValue()));
     }
 }

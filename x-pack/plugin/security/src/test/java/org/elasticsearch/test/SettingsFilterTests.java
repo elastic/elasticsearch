@@ -71,6 +71,7 @@ public class SettingsFilterTests extends ESTestCase {
         configureFilteredSetting("xpack.security.authc.realms.pki.pki1.truststore.algorithm", "SunX509");
 
 
+        configureUnfilteredSetting("xpack.security.transport.ssl.enabled", "true");
         configureFilteredSetting("xpack.security.transport.ssl.cipher_suites",
                 Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray()));
         configureFilteredSetting("xpack.security.transport.ssl.supported_protocols", randomFrom("TLSv1", "TLSv1.1", "TLSv1.2"));

@@ -271,7 +271,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
         } else {
             this.failedNodeIds = Collections.emptySet();
@@ -287,7 +287,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeCollection(failedNodeIds, StreamOutput::writeString);
         }
     }

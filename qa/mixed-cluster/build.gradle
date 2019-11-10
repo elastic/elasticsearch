@@ -19,6 +19,7 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -58,7 +59,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       numberOfNodes = 4
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = project.file(project.ext.runtimeJavaHome)
+      javaHome = BuildParams.runtimeJavaHome
     }
   }
 

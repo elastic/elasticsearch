@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -122,7 +123,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) project.child();
                 QueryContainer queryC = exec.queryContainer();
 
-                Map<Attribute, Attribute> aliases = new LinkedHashMap<>(queryC.aliases());
+                Map<ExpressionId, Attribute> aliases = new LinkedHashMap<>(queryC.aliases());
                 Map<Attribute, Pipe> processors = new LinkedHashMap<>(queryC.scalarFunctions());
 
                 for (NamedExpression pj : project.projections()) {
@@ -132,7 +133,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                         if (e instanceof NamedExpression) {
                             Attribute attr = ((NamedExpression) e).toAttribute();
-                            aliases.put(aliasAttr, attr);
+                            aliases.put(aliasAttr.id(), attr);
                             // add placeholder for each scalar function
                             if (e instanceof ScalarFunction) {
                                 processors.put(attr, Expressions.pipe(e));
@@ -153,7 +154,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
 
                 QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.fields(),
-                        new AttributeMap<>(aliases),
+                        new HashMap<>(aliases),
                         queryC.pseudoFunctions(),
                         new AttributeMap<>(processors),
                         queryC.sort(),
@@ -234,7 +235,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 queryC = queryC.addGroups(groupingContext.groupMap.values());
             }
 
-            Map<Attribute, Attribute> aliases = new LinkedHashMap<>();
+            Map<ExpressionId, Attribute> aliases = new LinkedHashMap<>();
             // tracker for compound aggs seen in a group
             Map<CompoundNumericAggregate, String> compoundAggMap = new LinkedHashMap<>();
 
@@ -262,7 +263,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // record aliases in case they are later referred in the tree
                     if (as != null && as.child() instanceof NamedExpression) {
-                        aliases.put(as.toAttribute(), ((NamedExpression) as.child()).toAttribute());
+                        aliases.put(as.toAttribute().id(), ((NamedExpression) as.child()).toAttribute());
                     }
 
                     //
@@ -392,9 +393,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
 
             if (!aliases.isEmpty()) {
-                Map<Attribute, Attribute> newAliases = new LinkedHashMap<>(queryC.aliases());
+                Map<ExpressionId, Attribute> newAliases = new LinkedHashMap<>(queryC.aliases());
                 newAliases.putAll(aliases);
-                queryC = queryC.withAliases(new AttributeMap<>(newAliases));
+                queryC = queryC.withAliases(new HashMap<>(newAliases));
             }
             return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
         }
@@ -481,20 +482,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     // check whether sorting is on an group (and thus nested agg) or field
                     Attribute attr = ((NamedExpression) order.child()).toAttribute();
                     // check whether there's an alias (occurs with scalar functions which are not named)
-                    attr = qContainer.aliases().getOrDefault(attr, attr);
-                    String lookup = attr.id().toString();
-                    GroupByKey group = qContainer.findGroupForAgg(lookup);
+                    attr = qContainer.aliases().getOrDefault(attr.id(), attr);
+                    GroupByKey group = qContainer.findGroupForAgg(attr);
 
                     // TODO: might need to validate whether the target field or group actually exist
                     if (group != null && group != Aggs.IMPLICIT_GROUP_KEY) {
-                        // check whether the lookup matches a group
-                        if (group.id().equals(lookup)) {
-                            qContainer = qContainer.updateGroup(group.with(direction));
-                        }
-                        // else it's a leafAgg
-                        else {
-                            qContainer = qContainer.updateGroup(group.with(direction));
-                        }
+                        qContainer = qContainer.updateGroup(group.with(direction));
                     }
                     else {
                         // scalar functions typically require script ordering
@@ -504,7 +497,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             if (sfa.orderBy() != null) {
                                 if (sfa.orderBy() instanceof NamedExpression) {
                                     Attribute at = ((NamedExpression) sfa.orderBy()).toAttribute();
-                                    at = qContainer.aliases().getOrDefault(at, at);
+                                    at = qContainer.aliases().getOrDefault(at.id(), at);
                                     qContainer = qContainer.addSort(new AttributeSort(at, direction, missing));
                                 } else if (!sfa.orderBy().foldable()) {
                                     // ignore constant

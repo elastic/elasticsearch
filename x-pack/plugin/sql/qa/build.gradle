@@ -7,13 +7,13 @@ dependencies {
   compile project(":test:framework")
 
   // JDBC testing dependencies
-  compile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+  compile project(path: xpackModule('sql:jdbc'))
 
   compile project(path: xpackModule('sql:sql-action'))
   compile "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
 
   // CLI testing dependencies
-  compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
+  compile project(path: xpackModule('sql:sql-cli'))
   
   // H2GIS testing dependencies
   compile ("org.orbisgis:h2gis:${h2gisVersion}") {
@@ -82,7 +82,7 @@ subprojects {
       exclude group: "com.fasterxml.jackson.core"
     }
   
-    testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
+    testRuntime project(path: xpackModule('sql:jdbc'))
     testRuntime xpackProject('plugin:sql:sql-client')
 
     // TODO check if needed
@@ -91,7 +91,7 @@ subprojects {
     }
 
     // CLI testing dependencies
-    testRuntime project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
+    testRuntime project(path: xpackModule('sql:sql-cli'))
     testRuntime (xpackProject('plugin:sql:sql-action')) {
       transitive = false
     }

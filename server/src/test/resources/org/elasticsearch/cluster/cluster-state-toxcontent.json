@@ -16,57 +16,69 @@
     "templates": {},
     "indices": {
       "index1": {
+        "version": 2,
+        "mapping_version": 1,
+        "settings_version": 1,
+        "aliases_version": 1,
+        "routing_num_shards": 2,
         "state": "open",
         "settings": {
-          "index": {
-            "number_of_shards": "2",
-            "number_of_replicas": "2",
-            "version": {
-              "created": "8000099"
-            }
+          "index.number_of_replicas": "2",
+          "index.number_of_shards": "2",
+          "index.version.created": "8000099"
+        },
+        "mappings": [{
+          "key13": {},
+          "key12": {},
+          "key11": {}
+        }],
+        "aliases": {
+          "alias12": {
+            "index_routing": "indexRouting12"
+          },
+          "alias11": {
+            "index_routing": "indexRouting11"
           }
         },
-        "mappings": {
-          "type1": {
-            "key13": {},
-            "key12": {},
-            "key11": {}
-          }
-        },
-        "aliases": ["alias12", "alias11"],
-        "primary_terms": {
-          "0": 11,
-          "1": 12
-        },
+        "primary_terms": [11, 12],
         "in_sync_allocations": {
           "1": [],
           "0": []
+        },
+        "rollover_info": {
+          "rolloveAlias1": {
+            "met_conditions": {},
+            "time": 1
+          }
         }
       },
       "index2": {
+        "version": 2,
+        "mapping_version": 1,
+        "settings_version": 1,
+        "aliases_version": 1,
+        "routing_num_shards": 3,
         "state": "open",
         "settings": {
-          "index": {
-            "number_of_shards": "3",
-            "number_of_replicas": "3",
-            "version": {
-              "created": "8000099"
-            }
-          }
+          "index.number_of_replicas": "3",
+          "index.number_of_shards": "3",
+          "index.version.created": "8000099"
         },
-        "mappings": {
+        "mappings": [{
           "type2": {}
-        },
-        "aliases": [],
-        "primary_terms": {
-          "0": 21,
-          "1": 22,
-          "2": 23
-        },
+        }],
+        "aliases": {},
+        "primary_terms": [21, 22, 23],
         "in_sync_allocations": {
           "1": [],
           "2": [],
           "0": []
+        },
+        "rollover_info": {
+          "rolloveAlias2": {
+            "met_conditions": {},
+            "time": 1
+          }
         }
       }
     },

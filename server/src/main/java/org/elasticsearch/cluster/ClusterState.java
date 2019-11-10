@@ -461,52 +461,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.startObject("indices");
             // TODO IndexMetaData.toXContent
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.getIndex().getName());
-
-                builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
-
-                builder.startObject("settings");
-                Settings settings = indexMetaData.getSettings();
-                settings.toXContent(builder, params);
-                builder.endObject();
-
-                builder.startObject("mappings");
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
-                    Map<String, Object> mapping = XContentHelper
-                            .convertToMap(new BytesArray(cursor.value.source().uncompressed()), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor.key);
-                    }
-                    builder.field(cursor.key);
-                    builder.map(mapping);
-                }
-                builder.endObject();
-
-                builder.startArray("aliases");
-                for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
-                    builder.value(cursor.value);
-                }
-                builder.endArray();
-
-                builder.startObject(IndexMetaData.KEY_PRIMARY_TERMS);
-                for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
-                    builder.field(Integer.toString(shard), indexMetaData.primaryTerm(shard));
-                }
-                builder.endObject();
-
-                builder.startObject(IndexMetaData.KEY_IN_SYNC_ALLOCATIONS);
-                for (IntObjectCursor<Set<String>> cursor : indexMetaData.getInSyncAllocationIds()) {
-                    builder.startArray(String.valueOf(cursor.key));
-                    for (String allocationId : cursor.value) {
-                        builder.value(allocationId);
-                    }
-                    builder.endArray();
-                }
-                builder.endObject();
-
-                // index metadata
-                builder.endObject();
+                indexMetaData.toXContent(builder, params);
             }
             builder.endObject();
 

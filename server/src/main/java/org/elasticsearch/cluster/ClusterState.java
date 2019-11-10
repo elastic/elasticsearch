@@ -421,33 +421,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         // meta data
         // TODO MetaData.toXContent
         if (metrics.contains(Metric.METADATA)) {
-            builder.startObject("metadata");
-            builder.field("cluster_uuid", metaData().clusterUUID());
-
-            builder.startObject("cluster_coordination");
-            coordinationMetaData().toXContent(builder, params);
-            builder.endObject();
-
-            builder.startObject("templates");
-            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
-                IndexTemplateMetaData.Builder.toXContent(cursor.value, builder, params);
-            }
-            builder.endObject();
-
-            builder.startObject("indices");
-            // TODO IndexMetaData.toXContent
-            for (IndexMetaData indexMetaData : metaData()) {
-                indexMetaData.toXContent(builder, params);
-            }
-            builder.endObject();
-
-            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
-                builder.startObject(cursor.key);
-                cursor.value.toXContent(builder, params);
-                builder.endObject();
-            }
-
-            builder.endObject();
+            MetaData.Builder.toXContent(metaData, builder, params);
         }
 
         // routing table

@@ -5,8 +5,10 @@
   "master_node": null,
   "blocks": {},
   "nodes": {},
-  "metadata": {
+  "meta-data": {
+    "version": 0,
     "cluster_uuid": "clusterUUID",
+    "cluster_uuid_committed": false,
     "cluster_coordination": {
       "term": 0,
       "last_committed_config": [],

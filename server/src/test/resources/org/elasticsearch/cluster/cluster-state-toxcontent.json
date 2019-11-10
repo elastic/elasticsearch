@@ -24,9 +24,10 @@
             }
           }
         },
-        "mappings": {
+        "mappings": [{
           "type2": {}
-        }
+        }],
+        "aliases": {}
       },
       "template1": {
         "index_patterns": ["pattern11", "pattern12"],
@@ -38,13 +39,12 @@
             }
           }
         },
-        "mappings": {
-          "type1": {
-            "key13": {},
-            "key12": {},
-            "key11": {}
-          }
-        }
+        "mappings": [{
+          "key13": {},
+          "key12": {},
+          "key11": {}
+        }],
+        "aliases": {}
       }
     },
     "indices": {

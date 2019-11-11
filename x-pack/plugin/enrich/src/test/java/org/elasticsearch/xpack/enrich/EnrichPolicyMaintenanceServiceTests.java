@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
@@ -149,18 +150,20 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
     }
 
     private String fakeRunPolicy(String forPolicy) throws IOException {
+        XContentBuilder source = JsonXContent.contentBuilder();
+        source.startObject();
+        {
+            source.startObject(MapperService.SINGLE_MAPPING_NAME);
+            {
+                source.startObject("_meta");
+                source.field(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME, forPolicy);
+                source.endObject();
+            }
+            source.endObject();
+        }
+        source.endObject();
         String newIndexName = EnrichPolicy.getBaseName(forPolicy) + "-" + indexNameAutoIncrementingCounter++;
-        CreateIndexRequest request = new CreateIndexRequest(newIndexName).mapping(
-            MapperService.SINGLE_MAPPING_NAME,
-            JsonXContent.contentBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME, forPolicy)
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        CreateIndexRequest request = new CreateIndexRequest(newIndexName).mapping(MapperService.SINGLE_MAPPING_NAME, source);
         client().admin().indices().create(request).actionGet();
         promoteFakePolicyIndex(newIndexName, forPolicy);
         return newIndexName;

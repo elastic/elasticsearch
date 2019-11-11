@@ -151,8 +151,8 @@ class PluginBuildPlugin implements Plugin<Project> {
             // always configure publishing for client jars
             project.plugins.apply(MavenScmPlugin.class)
             project.publishing.publications.nebula(MavenPublication).artifactId(extension.name + "-client")
-            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
-                generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
+            project.tasks.withType(GenerateMavenPom.class).configureEach { GenerateMavenPom generatePOMTask ->
+                generatePOMTask.destination = "${project.buildDir}/distributions/${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
             }
         } else {
             if (project.plugins.hasPlugin(MavenPublishPlugin)) {

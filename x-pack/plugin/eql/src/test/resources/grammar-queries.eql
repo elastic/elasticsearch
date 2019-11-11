@@ -1,0 +1,95 @@
+process where process_name == "svchost.exe" and command_line != "* -k *";
+process where process_name in ('ipconfig.exe', 'netstat.exe', 'systeminfo.exe', 'route.exe');
+process where subtype.create and wildcard(command_line, "*.ost *", "*.pst *")
+;
+
+process where subtype.create and
+  process_name == "attrib.exe" and command_line == "* +h*"
+;
+
+file where file_name == "*Library/Preferences/*.plist";
+
+
+//
+// Pipes
+//
+
+process where true | count;
+process where true | count process_name;
+process where true | count parent_process_name, process_name;
+process where true | unique process_name;
+process where true | unique process_name, command_line;
+
+
+network where true
+| unique destination_address, destination_port
+| filter timestamp_utc >= "2018-05-01";
+
+
+process where true | unique_count process_name | filter count < 5;
+
+process where process_name == "powershell.exe"
+| unique command_line
+| head 50
+;
+
+security where event_id == 4624
+| tail 10
+;
+
+file where true | sort file_name
+;
+
+network where total_out_bytes > 100000000
+| sort total_out_bytes
+| tail 5
+;
+
+//
+// Sequences
+// 
+
+sequence by user_name
+  [process where process_name == "whoami"]
+  [process where process_name == "hostname"]
+  [process where process_name == "ifconfig"]
+;
+
+sequence with maxspan=30s
+  [network where destination_port==3389 and event_subtype_full="*_accept_event*"]
+  [security where event_id in (4624, 4625) and logon_type == 10]
+;
+  
+sequence with maxspan=30s
+  [network where destination_port==3389 and event_subtype_full="*_accept_event"] by source_address
+  [security where event_id in (4624, 4625) and logon_type == 10] by ip_address
+;
+  
+sequence with maxspan=5m
+  [ file where file_name == "*.exe"] by user_name, file_path
+  [ process where true] by user_name, process_path
+;
+  
+sequence by user_name with maxspan=5m
+  [ file where file_name == "*.exe"] by file_path
+  [ process where true] by process_path
+;
+
+//
+// Joins
+//
+  
+join by source_ip, destination_ip
+  [network where destination_port == 3389]  // RDP
+  [network where destination_port == 135]   // RPC
+  [network where destination_port == 445]   // SMB
+;
+
+join by pid
+  [process where true]
+  [network where true]
+  [registry where true]
+  [file where true]
+
+until [process where event_subtype_full == "termination_event"]
+;

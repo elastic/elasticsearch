@@ -25,10 +25,12 @@ import org.elasticsearch.packaging.util.Docker.DockerShell;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -48,7 +50,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
-import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -59,6 +60,7 @@ import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
     protected DockerShell sh;
+    private Path tempDir;
 
     @BeforeClass
     public static void filterDistros() {
@@ -74,9 +76,15 @@ public class DockerTests extends PackagingTestCase {
     }
 
     @Before
-    public void setupTest() {
+    public void setupTest() throws IOException {
         sh = new DockerShell();
         installation = runContainer(distribution());
+        tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
+    }
+
+    @After
+    public void teardownTest() {
+        rm(tempDir);
     }
 
     /**
@@ -146,34 +154,27 @@ public class DockerTests extends PackagingTestCase {
      * Check that the default config can be overridden using a bind mount, and that env vars are respected
      */
     public void test70BindMountCustomPathConfAndJvmOptions() throws Exception {
-        final Path tempConf = getTempDir().resolve("esconf-alternate");
+        copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
+        copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
 
-        try {
-            mkdir(tempConf);
-            copyFromContainer(installation.config("elasticsearch.yml"), tempConf.resolve("elasticsearch.yml"));
-            copyFromContainer(installation.config("log4j2.properties"), tempConf.resolve("log4j2.properties"));
+        // we have to disable Log4j from using JMX lest it will hit a security
+        // manager exception before we have configured logging; this will fail
+        // startup since we detect usages of logging before it is configured
+        final String jvmOptions = "-Xms512m\n-Xmx512m\n-Dlog4j2.disable.jmx=true\n";
+        append(tempDir.resolve("jvm.options"), jvmOptions);
 
-            // we have to disable Log4j from using JMX lest it will hit a security
-            // manager exception before we have configured logging; this will fail
-            // startup since we detect usages of logging before it is configured
-            final String jvmOptions = "-Xms512m\n-Xmx512m\n-Dlog4j2.disable.jmx=true\n";
-            append(tempConf.resolve("jvm.options"), jvmOptions);
+        // Make the temp directory and contents accessible when bind-mounted
+        Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
 
-            // Make the temp directory and contents accessible when bind-mounted
-            Files.setPosixFilePermissions(tempConf, fromString("rwxrwxrwx"));
+        // Restart the container
+        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/usr/share/elasticsearch/config"));
+        runContainer(distribution(), volumes, Map.of("ES_JAVA_OPTS", "-XX:-UseCompressedOops"));
 
-            // Restart the container
-            final Map<Path, Path> volumes = Map.of(tempConf, Path.of("/usr/share/elasticsearch/config"));
-            runContainer(distribution(), volumes, Map.of("ES_JAVA_OPTS", "-XX:-UseCompressedOops"));
+        waitForElasticsearch(installation);
 
-            waitForElasticsearch(installation);
-
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
-            assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
-        } finally {
-            rm(tempConf);
-        }
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+        assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+        assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
     }
 
     /**
@@ -181,34 +182,27 @@ public class DockerTests extends PackagingTestCase {
      * which point to files that hold the required values.
      */
     public void test80SetEnvironmentVariablesUsingFiles() throws Exception {
-        final Path secretsDir = getTempDir().resolve("secrets");
         final String optionsFilename = "esJavaOpts.txt";
 
-        try {
-            mkdir(secretsDir);
+        // ES_JAVA_OPTS_FILE
+        Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
 
-            // ES_JAVA_OPTS_FILE
-            Files.writeString(secretsDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+        Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
 
-            Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
+        // File permissions need to be secured in order for the ES wrapper to accept
+        // them for populating env var values
+        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p600);
 
-            // File permissions need to be secured in order for the ES wrapper to accept
-            // them for populating env var values
-            Files.setPosixFilePermissions(secretsDir.resolve(optionsFilename), p600);
+        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
-            final Map<Path, Path> volumes = Map.of(secretsDir, Path.of("/run/secrets"));
+        // Restart the container
+        runContainer(distribution(), volumes, envVars);
 
-            // Restart the container
-            runContainer(distribution(), volumes, envVars);
+        waitForElasticsearch(installation);
 
-            waitForElasticsearch(installation);
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-
-            assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
-        } finally {
-            rm(secretsDir);
-        }
+        assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
     }
 
     /**
@@ -219,42 +213,43 @@ public class DockerTests extends PackagingTestCase {
         assumeTrue(distribution.isDefault());
 
         final String xpackPassword = "hunter2";
-        final Path secretsDir = getTempDir().resolve("secrets");
         final String passwordFilename = "password.txt";
 
+        // ELASTIC_PASSWORD_FILE
+        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        Map<String, String> envVars = Map
+            .of(
+                "ELASTIC_PASSWORD_FILE",
+                "/run/secrets/" + passwordFilename,
+                // Enable security so that we can test that the password has been used
+                "xpack.security.enabled",
+                "true"
+            );
+
+        // File permissions need to be secured in order for the ES wrapper to accept
+        // them for populating env var values
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
+
+        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
+
+        // Restart the container
+        runContainer(distribution(), volumes, envVars);
+
+        // If we configured security correctly, then this call will only work if we specify the correct credentials.
         try {
-            mkdir(secretsDir);
-
-            // ELASTIC_PASSWORD_FILE
-            Files.writeString(secretsDir.resolve(passwordFilename), xpackPassword + "\n");
-
-            Map<String, String> envVars = Map
-                .of(
-                    "ELASTIC_PASSWORD_FILE",
-                    "/run/secrets/" + passwordFilename,
-                    // Enable security so that we can test that the password has been used
-                    "xpack.security.enabled",
-                    "true"
-                );
-
-            // File permissions need to be secured in order for the ES wrapper to accept
-            // them for populating env var values
-            Files.setPosixFilePermissions(secretsDir.resolve(passwordFilename), p600);
-
-            final Map<Path, Path> volumes = Map.of(secretsDir, Path.of("/run/secrets"));
-
-            // Restart the container
-            runContainer(distribution(), volumes, envVars);
-
-            // If we configured security correctly, then this call will only work if we specify the correct credentials.
             waitForElasticsearch("green", null, installation, "elastic", "hunter2");
-
-            // Also check that an unauthenticated call fails
-            final int statusCode = Request.Get("http://localhost:9200/_nodes").execute().returnResponse().getStatusLine().getStatusCode();
-            assertThat("Expected server to require authentication", statusCode, equalTo(401));
-        } finally {
-            rm(secretsDir);
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
         }
+
+        // Also check that an unauthenticated call fails
+        final int statusCode = Request.Get("http://localhost:9200/_nodes").execute().returnResponse().getStatusLine().getStatusCode();
+        assertThat("Expected server to require authentication", statusCode, equalTo(401));
     }
 
     /**
@@ -262,34 +257,25 @@ public class DockerTests extends PackagingTestCase {
      * the files' permissions are checked.
      */
     public void test81EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
-        final Path secretsDir = getTempDir().resolve("secrets");
         final String optionsFilename = "esJavaOpts.txt";
 
-        try {
-            mkdir(secretsDir);
+        // ES_JAVA_OPTS_FILE
+        Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
 
-            // ES_JAVA_OPTS_FILE
-            Files.writeString(secretsDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+        Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
 
-            Map<String, String> envVars = Map.of("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
+        // Set invalid file permissions
+        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p660);
 
-            // Set invalid file permissions
-            Files.setPosixFilePermissions(secretsDir.resolve(optionsFilename), p660);
+        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
-            final Map<Path, Path> volumes = Map.of(secretsDir, Path.of("/run/secrets"));
+        // Restart the container
+        final Result dockerLogs = runContainerExpectingFailure(distribution(), volumes, envVars);
 
-            // Restart the container
-            final Result dockerLogs = runContainerExpectingFailure(distribution(), volumes, envVars);
-
-            assertThat(
-                dockerLogs.stderr,
-                containsString(
-                    "ERROR: File /run/secrets/" + optionsFilename + " from ES_JAVA_OPTS_FILE must have file permissions 400 or 600"
-                )
-            );
-        } finally {
-            rm(secretsDir);
-        }
+        assertThat(
+            dockerLogs.stderr,
+            containsString("ERROR: File /run/secrets/" + optionsFilename + " from ES_JAVA_OPTS_FILE must have file permissions 400 or 600")
+        );
     }
 
     /**

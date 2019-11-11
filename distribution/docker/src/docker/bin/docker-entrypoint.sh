@@ -46,7 +46,7 @@ for VAR_NAME_FILE in $(env | cut -f1 -d= | grep '_FILE$'); do
   if [[ -n "$VAR_NAME_FILE" ]]; then
     VAR_NAME="${VAR_NAME_FILE%_FILE}"
 
-    if [[ -n "${!VAR_NAME}" ]]; then
+    if env | grep "^${VAR_NAME}="; then
       echo "ERROR: Both $VAR_NAME_FILE and $VAR_NAME are set. These are mutually exclusive." >&2
       exit 1
     fi

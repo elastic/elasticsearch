@@ -253,10 +253,38 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that environment variables cannot be used with _FILE environment variables.
+     */
+    public void test81CannotUseEnvVarsAndFiles() throws Exception {
+        final String optionsFilename = "esJavaOpts.txt";
+
+        // ES_JAVA_OPTS_FILE
+        Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+
+        Map<String, String> envVars = Map.of(
+            "ES_JAVA_OPTS", "-XX:+UseCompressedOops",
+            "ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename
+        );
+
+        // File permissions need to be secured in order for the ES wrapper to accept
+        // them for populating env var values
+        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p600);
+
+        final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
+
+        final Result dockerLogs = runContainerExpectingFailure(distribution, volumes, envVars);
+
+        assertThat(
+            dockerLogs.stderr,
+            containsString("ERROR: Both ES_JAVA_OPTS_FILE and ES_JAVA_OPTS are set. These are mutually exclusive.")
+        );
+    }
+
+    /**
      * Check that when populating environment variables by setting variables with the suffix "_FILE",
      * the files' permissions are checked.
      */
-    public void test81EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
+    public void test82EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
         final String optionsFilename = "esJavaOpts.txt";
 
         // ES_JAVA_OPTS_FILE

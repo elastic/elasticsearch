@@ -576,7 +576,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testUnfollowNonExistingIndex() {
         PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request("non-existing-index");
-        expectThrows(IllegalArgumentException.class,
+        expectThrows(IndexNotFoundException.class,
             () -> followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).actionGet());
     }
 

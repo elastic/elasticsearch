@@ -89,10 +89,10 @@ bin/elasticsearch-keystore add xpack.security.transport.ssl.secure_key_passphras
 . Restart {es}.
 +
 --
-You must perform a <<restart-cluster,full cluster restart>>. Nodes which are 
-configured to use TLS cannot communicate with nodes that are using unencrypted 
-networking (and vice-versa). After enabling TLS you must restart all nodes in 
-order to maintain communication across the cluster.
+You must perform a full cluster restart. Nodes which are configured to use TLS 
+cannot communicate with nodes that are using unencrypted networking 
+(and vice-versa). After enabling TLS you must restart all nodes in order to 
+maintain communication across the cluster.
 --
 
 [NOTE]

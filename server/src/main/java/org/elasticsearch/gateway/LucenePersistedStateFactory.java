@@ -44,6 +44,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -249,7 +250,7 @@ public class LucenePersistedStateFactory {
         consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes ->
         {
             final MetaData metaData = MetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
-                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes));
+                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found global metadata with last-accepted term [{}]", metaData.coordinationMetaData().term());
             builderReference.set(MetaData.builder(metaData));
         });
@@ -263,7 +264,7 @@ public class LucenePersistedStateFactory {
         consumeFromType(searcher, INDEX_TYPE_NAME, bytes ->
         {
             final IndexMetaData indexMetaData = IndexMetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
-                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes));
+                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found index metadata for {}", indexMetaData.getIndex());
             //noinspection AssertWithSideEffects
             assert indexUUIDsForAssertions.add(indexMetaData.getIndexUUID());
@@ -282,7 +283,7 @@ public class LucenePersistedStateFactory {
     }
 
     private static void consumeFromType(IndexSearcher indexSearcher, String type,
-                                        CheckedConsumer<byte[], IOException> docValuesConsumer) throws IOException {
+                                        CheckedConsumer<BytesRef, IOException> bytesRefConsumer) throws IOException {
 
         final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, type));
         final Weight weight = indexSearcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
@@ -298,8 +299,8 @@ public class LucenePersistedStateFactory {
                 while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     if (isLiveDoc.test(docIdSetIterator.docID())) {
                         logger.trace("processing doc {}", docIdSetIterator.docID());
-                        docValuesConsumer.accept(
-                            leafReaderContext.reader().document(docIdSetIterator.docID()).getBinaryValue(DATA_FIELD_NAME).bytes);
+                        bytesRefConsumer.accept(
+                            leafReaderContext.reader().document(docIdSetIterator.docID()).getBinaryValue(DATA_FIELD_NAME));
                     }
                 }
             }

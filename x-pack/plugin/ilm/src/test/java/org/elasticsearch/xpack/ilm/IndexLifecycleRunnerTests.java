@@ -214,7 +214,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         RolloverAction action = RolloverActionTests.randomInstance();
         actions.put(RolloverAction.NAME, action);
         Phase phase = new Phase(phaseName, after, actions);
-        Map<String, Phase> phases = Map.of(phaseName, phase);
         PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policyName, phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(phaseExecutionInfo);
         NoOpClient client = new NoOpClient(threadPool);

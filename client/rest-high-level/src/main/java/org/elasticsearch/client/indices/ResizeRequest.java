@@ -35,7 +35,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Request class to shrink an index into a single shard
+ * Request class to resize an index
  */
 public class ResizeRequest extends TimedRequest implements Validatable, ToXContentObject {
 

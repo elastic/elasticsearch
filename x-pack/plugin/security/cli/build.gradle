@@ -1,4 +1,5 @@
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 
@@ -19,7 +20,7 @@ dependencyLicenses {
 }
 
 rootProject.globalInfo.ready {
-    if (project.inFipsJvm) {
+    if (BuildParams.inFipsJvm) {
         test.enabled = false
         testingConventions.enabled = false
         // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are

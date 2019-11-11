@@ -1,0 +1,70 @@
+tag::dependent_variable[]
+`dependent_variable`::
+(Required, string) Defines which field of the document is to be predicted. 
+This parameter is supplied by field name and must match one of the fields in 
+the index being used to train. If this field is missing from a document, then 
+that document will not be used for training, but a prediction with the trained 
+model will be generated for it. It is also known as continuous target variable.
+end::dependent_variable[]
+
+
+tag::eta[]
+`eta`::
+(Optional, double) The shrinkage applied to the weights. Smaller values result 
+in larger forests which have better generalization error. However, the smaller 
+the value the longer the training will take. For more information, see 
+https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article] 
+about shrinkage.
+end::eta[]
+
+
+tag::feature_bag_fraction[]
+`feature_bag_fraction`::
+(Optional, double) Defines the fraction of features that will be used when 
+selecting a random bag for each candidate split. 
+end::feature_bag_fraction[]
+
+
+tag::gamma[]
+`gamma`::
+(Optional, double) Regularization parameter to prevent overfitting on the 
+training dataset. Multiplies a linear penalty associated with the size of 
+individual trees in the forest. The higher the value the more training will 
+prefer smaller trees. The smaller this parameter the larger individual trees 
+will be and the longer train will take.
+end::gamma[]
+
+
+tag::lambda[] 
+`lambda`::
+(Optional, double) Regularization parameter to prevent overfitting on the 
+training dataset. Multiplies an L2 regularisation term which applies to leaf 
+weights of the individual trees in the forest. The higher the value the more 
+training will attempt to keep leaf weights small. This makes the prediction  
+function smoother at the expense of potentially not being able to capture 
+relevant relationships between the features and the {depvar}. The smaller this 
+parameter the larger individual trees will be and the longer train will take.
+end::lambda[]
+
+
+tag::maximum_number_trees[]
+`maximum_number_trees`::
+(Optional, integer) Defines the maximum number of trees the forest is allowed 
+to contain. The maximum value is 2000.
+end::maximum_number_trees[]
+
+
+tag::prediction_field_name[]
+`prediction_field_name`::
+(Optional, string) Defines the name of the prediction field in the results. 
+Defaults to `<dependent_variable>_prediction`.
+end::prediction_field_name[]
+
+
+tag::training_percent[]
+`training_percent`::
+(Optional, integer) Defines what percentage of the eligible documents that will 
+be used for training. Documents that are ignored by the analysis (for example 
+those that contain arrays) won’t be included in the calculation for used 
+percentage. Defaults to `100`.
+end::training_percent[]

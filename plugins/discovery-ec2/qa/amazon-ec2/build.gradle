@@ -19,6 +19,7 @@
 
 
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
@@ -60,7 +61,7 @@ integTest.enabled = false
     AntFixture fixture = tasks.create(name: "ec2Fixture${action}", type: AntFixture) {
         dependsOn compileTestJava
         env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-        executable = new File(project.runtimeJavaHome, 'bin/java')
+        executable = "${BuildParams.runtimeJavaHome}/bin/java"
         args 'org.elasticsearch.discovery.ec2.AmazonEC2Fixture', baseDir, "${buildDir}/testclusters/integTest${action}-1/config/unicast_hosts.txt"
     }
 

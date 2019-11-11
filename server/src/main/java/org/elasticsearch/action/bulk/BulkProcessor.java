@@ -260,7 +260,6 @@ public class BulkProcessor implements Closeable {
     private BulkRequest bulkRequest;
     private final Supplier<BulkRequest> bulkRequestSupplier;
     private final BulkRequestHandler bulkRequestHandler;
-    private final Scheduler scheduler;
     private final Runnable onClose;
 
     private volatile boolean closed = false;
@@ -270,7 +269,6 @@ public class BulkProcessor implements Closeable {
                   Scheduler flushScheduler, Scheduler retryScheduler, Runnable onClose, Supplier<BulkRequest> bulkRequestSupplier) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
-        this.scheduler = scheduler;
         this.bulkRequest = bulkRequestSupplier.get();
         this.bulkRequestSupplier = bulkRequestSupplier;
         this.bulkRequestHandler = new BulkRequestHandler(consumer, backoffPolicy, listener, retryScheduler, concurrentRequests);

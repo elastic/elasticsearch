@@ -352,8 +352,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        // Disable DOCKER due to https://github.com/elastic/infra/issues/15864
-        for (Type type : List.of(Type.DEB, Type.RPM /*, Type.DOCKER */)) {
+        for (Type type : List.of(Type.DEB, Type.RPM, Type.DOCKER)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     // All our Docker images include a bundled JDK so it doesn't make sense to test without one
@@ -364,12 +363,21 @@ public class DistroTestPlugin implements Plugin<Project> {
                     }
                 }
             }
-            // upgrade version is always bundled jdk
-            // NOTE: this is mimicking the old VagrantTestPlugin upgrade behavior. It will eventually be replaced
-            // witha dedicated upgrade test from every bwc version like other bwc tests
-            addDistro(distributions, type, null, Flavor.DEFAULT, true, upgradeVersion.toString(), upgradeDistros);
-            if (upgradeVersion.onOrAfter("6.3.0")) {
-                addDistro(distributions, type, null, Flavor.OSS, true, upgradeVersion.toString(), upgradeDistros);
+
+            // We don't configure distributions for prior versions for Docker. This is because doing
+            // so prompts Gradle to try and resolve the Docker dependencies, which doesn't work as
+            // they can't be downloaded via Ivy (configured in DistributionDownloadPlugin). Since we
+            // need these for the BATS upgrade tests, and those tests only cover .rpm and .deb, it's
+            // OK to omit creating such distributions in the first place. We may need to revisit
+            // this in the future, so allow upgrade testing using Docker containers.
+            if (type != Type.DOCKER) {
+                // upgrade version is always bundled jdk
+                // NOTE: this is mimicking the old VagrantTestPlugin upgrade behavior. It will eventually be replaced
+                // witha dedicated upgrade test from every bwc version like other bwc tests
+                addDistro(distributions, type, null, Flavor.DEFAULT, true, upgradeVersion.toString(), upgradeDistros);
+                if (upgradeVersion.onOrAfter("6.3.0")) {
+                    addDistro(distributions, type, null, Flavor.OSS, true, upgradeVersion.toString(), upgradeDistros);
+                }
             }
         }
 

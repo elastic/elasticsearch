@@ -280,7 +280,8 @@ public class RelocationIT extends ESIntegTestCase {
                 Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", numberOfReplicas)
-                        .put("index.refresh_interval", -1) // we want to control refreshes
+                        // we want to control refreshes
+                        .put("index.refresh_interval", -1)
                ).get();
 
         for (int i = 1; i < numberOfNodes; i++) {

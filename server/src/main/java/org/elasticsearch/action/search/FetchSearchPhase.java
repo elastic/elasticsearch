@@ -110,10 +110,12 @@ final class FetchSearchPhase extends SearchPhase {
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
             final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
-            if (scoreDocs.length == 0) { // no docs to fetch -- sidestep everything and return
+            // no docs to fetch -- sidestep everything and return
+            if (scoreDocs.length == 0) {
+                // we have to release contexts here to free up resources
                 phaseResults.stream()
                     .map(SearchPhaseResult::queryResult)
-                    .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
+                    .forEach(this::releaseIrrelevantSearchContext);
                 finishPhase.run();
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollSearch ?

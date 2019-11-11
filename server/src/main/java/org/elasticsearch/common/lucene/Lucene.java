@@ -256,7 +256,8 @@ public class Lucene {
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
                 .setCommitOnClose(false) // no commits
-                .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE) // force creation - don't append...
+        ))
         {
             // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
         }

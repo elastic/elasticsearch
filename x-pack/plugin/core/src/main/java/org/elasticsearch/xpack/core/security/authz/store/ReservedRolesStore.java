@@ -153,6 +153,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null, new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices("apm-*")
                             .privileges("read", "view_index_metadata").build(),
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".apm-agent-configuration")
+                            .privileges("read", "write", "view_index_metadata").build(),
                         RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*")
                             .privileges("view_index_metadata", "read").build(),
                     }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))

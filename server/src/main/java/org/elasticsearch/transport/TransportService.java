@@ -266,8 +266,9 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                     }
                     @Override
                     public void doRun() {
-                        TransportException ex = new LocalTransportException("transport stopped, action: " + holderToNotify.action(),
-                            new NodeClosedException(localNode));
+                        TransportException ex =
+                            new SendRequestTransportException(localNode, holderToNotify.action(), new NodeClosedException(localNode));
+
                         holderToNotify.handler().handleException(ex);
                     }
                 });
@@ -622,11 +623,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 /*
                  * If we are not started the exception handling will remove the request holder again and calls the handler to notify the
                  * caller. It will only notify if toStop hasn't done the work yet.
-                 *
-                 * Do not edit this exception message, it is currently relied upon in production code!
                  */
-                throw new LocalTransportException("TransportService is closed stopped can't send request",
-                    new NodeClosedException(localNode));
+                throw new NodeClosedException(localNode);
             }
             if (timeoutHandler != null) {
                 assert options.timeout() != null;

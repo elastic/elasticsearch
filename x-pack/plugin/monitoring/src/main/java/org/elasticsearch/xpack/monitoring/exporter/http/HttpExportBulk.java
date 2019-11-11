@@ -99,7 +99,8 @@ class HttpExportBulk extends ExportBulk {
             try {
                 request.setEntity(new InputStreamEntity(payload.streamInput(), payload.length(), ContentType.APPLICATION_JSON));
             } catch (IOException e) {
-                throw new AssertionError("No actual IO happens here", e);
+                listener.onFailure(e);
+                return;
             }
             // null out serialized docs to make things easier on the GC
             payload = null;

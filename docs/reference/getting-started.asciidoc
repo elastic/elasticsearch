@@ -197,7 +197,7 @@ Installing {es} from an archive file enables you to easily install and run
 multiple instances locally so you can try things out. To run a single instance,
 you can  run {es} in a Docker container, install {es} using the DEB or RPM
 packages on Linux, install using Homebrew on macOS, or install using the MSI
-package installer on Windows. See <<install-elasticsearch>> for more information.
+package installer on Windows. See <<setup/install.asciidoc#install-elasticsearch>> for more information.
 
 [[getting-started-index]]
 == Index some documents

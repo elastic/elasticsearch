@@ -257,6 +257,12 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         detectCycle();
     }
 
+    @Override
+    public long estimatedNumOperations() {
+        // Grabbing the features from the doc + the depth of the tree
+        return (long)Math.ceil(Math.log(nodes.size())) + featureNames.size();
+    }
+
     private void checkTargetType() {
         if ((this.targetType == TargetType.CLASSIFICATION) != (this.classificationLabels != null)) {
             throw ExceptionsHelper.badRequestException(

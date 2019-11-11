@@ -174,6 +174,7 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(weights);
+        long weightSize = weights == null ? 0L : RamUsageEstimator.sizeOf(weights);
+        return SHALLOW_SIZE + weightSize;
     }
 }

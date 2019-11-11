@@ -74,7 +74,9 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             null, // is not parsed so should not be provided
             tags,
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            TrainedModelInputTests.createRandomInput());
+            TrainedModelInputTests.createRandomInput(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong());
     }
 
     @Override
@@ -117,7 +119,9 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelDefinitionTests.createRandomBuilder(randomAlphaOfLength(10)).build(),
             Collections.emptyList(),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            TrainedModelInputTests.createRandomInput());
+            TrainedModelInputTests.createRandomInput(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong());
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("definition"));

@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,6 +48,8 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
     public static final ParseField INPUT = new ParseField("input");
+    public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
+    public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
             true,
@@ -66,6 +69,8 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
         PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> TrainedModelInput.fromXContent(p), INPUT);
+        PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
+        PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
     }
 
     public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
@@ -81,6 +86,8 @@ public class TrainedModelConfig implements ToXContentObject {
     private final List<String> tags;
     private final Map<String, Object> metadata;
     private final TrainedModelInput input;
+    private final Long estimatedHeapMemory;
+    private final Long estimatedOperations;
 
     TrainedModelConfig(String modelId,
                        String createdBy,
@@ -90,7 +97,9 @@ public class TrainedModelConfig implements ToXContentObject {
                        TrainedModelDefinition definition,
                        List<String> tags,
                        Map<String, Object> metadata,
-                       TrainedModelInput input) {
+                       TrainedModelInput input,
+                       Long estimatedHeapMemory,
+                       Long estimatedOperations) {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
@@ -100,6 +109,8 @@ public class TrainedModelConfig implements ToXContentObject {
         this.tags = tags == null ? null : Collections.unmodifiableList(tags);
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
         this.input = input;
+        this.estimatedHeapMemory = estimatedHeapMemory;
+        this.estimatedOperations = estimatedOperations;
     }
 
     public String getModelId() {
@@ -138,6 +149,18 @@ public class TrainedModelConfig implements ToXContentObject {
         return input;
     }
 
+    public ByteSizeValue getEstimatedHeapMemory() {
+        return estimatedHeapMemory == null ? null : new ByteSizeValue(estimatedHeapMemory);
+    }
+
+    public Long getEstimatedHeapMemoryBytes() {
+        return estimatedHeapMemory;
+    }
+
+    public Long getEstimatedOperations() {
+        return estimatedOperations;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -172,6 +195,12 @@ public class TrainedModelConfig implements ToXContentObject {
         if (input != null) {
             builder.field(INPUT.getPreferredName(), input);
         }
+        if (estimatedHeapMemory != null) {
+            builder.field(ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(), estimatedHeapMemory);
+        }
+        if (estimatedOperations != null) {
+            builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
+        }
         builder.endObject();
         return builder;
     }
@@ -194,6 +223,8 @@ public class TrainedModelConfig implements ToXContentObject {
             Objects.equals(definition, that.definition) &&
             Objects.equals(tags, that.tags) &&
             Objects.equals(input, that.input) &&
+            Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
+            Objects.equals(estimatedOperations, that.estimatedOperations) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -206,6 +237,8 @@ public class TrainedModelConfig implements ToXContentObject {
             definition,
             description,
             tags,
+            estimatedHeapMemory,
+            estimatedOperations,
             metadata,
             input);
     }
@@ -222,6 +255,8 @@ public class TrainedModelConfig implements ToXContentObject {
         private List<String> tags;
         private TrainedModelDefinition definition;
         private TrainedModelInput input;
+        private Long estimatedHeapMemory;
+        private Long estimatedOperations;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -277,6 +312,16 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
+            this.estimatedHeapMemory = estimatedHeapMemory;
+            return this;
+        }
+
+        public Builder setEstimatedOperations(Long estimatedOperations) {
+            this.estimatedOperations = estimatedOperations;
+            return this;
+        }
+
         public TrainedModelConfig build() {
             return new TrainedModelConfig(
                 modelId,
@@ -287,7 +332,9 @@ public class TrainedModelConfig implements ToXContentObject {
                 definition,
                 tags,
                 metadata,
-                input);
+                input,
+                estimatedHeapMemory,
+                estimatedOperations);
         }
     }
 

@@ -1036,7 +1036,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
                 org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
                 156,
-                Version.V_7_5_0);
+                Version.V_7_5_0),
+        LOCAL_TRANSPORT_EXCEPTION(
+            org.elasticsearch.transport.LocalTransportException.class,
+            org.elasticsearch.transport.LocalTransportException::new,
+            157,
+            Version.V_7_6_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

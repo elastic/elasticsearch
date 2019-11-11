@@ -77,6 +77,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -334,8 +335,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 ActionListener.wrap(
                     r -> {},
                     e -> {
-                        if (ExceptionsHelper.isTransportStoppedForAction(e, RetentionLeaseBackgroundSyncAction.ACTION_NAME + "[p]")) {
-                            // we are likely shutting down
+                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null ) {
+                            // node shutting down
                             return;
                         }
                         if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {

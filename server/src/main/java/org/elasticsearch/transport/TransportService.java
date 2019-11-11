@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
@@ -265,8 +266,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                     }
                     @Override
                     public void doRun() {
-                        // cf. ExceptionsHelper#isTransportStoppedForAction
-                        TransportException ex = new TransportException("transport stopped, action: " + holderToNotify.action());
+                        TransportException ex = new LocalTransportException("transport stopped, action: " + holderToNotify.action(),
+                            new NodeClosedException(localNode));
                         holderToNotify.handler().handleException(ex);
                     }
                 });
@@ -624,8 +625,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                  *
                  * Do not edit this exception message, it is currently relied upon in production code!
                  */
-                // TODO: make a dedicated exception for a stopped transport service? cf. ExceptionsHelper#isTransportStoppedForAction
-                throw new TransportException("TransportService is closed stopped can't send request");
+                throw new LocalTransportException("TransportService is closed stopped can't send request",
+                    new NodeClosedException(localNode));
             }
             if (timeoutHandler != null) {
                 assert options.timeout() != null;

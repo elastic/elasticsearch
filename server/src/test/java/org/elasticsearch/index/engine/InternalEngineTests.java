@@ -1569,7 +1569,7 @@ public class InternalEngineTests extends EngineTestCase {
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        final MapperService mapperService = createMapperService("test");
+        final MapperService mapperService = createMapperService();
         final Set<String> liveDocs = new HashSet<>();
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null,
@@ -1642,7 +1642,7 @@ public class InternalEngineTests extends EngineTestCase {
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        final MapperService mapperService = createMapperService("test");
+        final MapperService mapperService = createMapperService();
         final boolean omitSourceAllTheTime = randomBoolean();
         final Set<String> liveDocs = new HashSet<>();
         final Set<String> liveDocsWithSource = new HashSet<>();
@@ -3638,7 +3638,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(1, topDocs.totalHits.value);
         }
         if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            List<Translog.Operation> ops = readAllOperationsInLucene(engine, createMapperService("test"));
+            List<Translog.Operation> ops = readAllOperationsInLucene(engine, createMapperService());
             assertThat(ops.stream().map(o -> o.seqNo()).collect(Collectors.toList()), hasItem(20L));
         }
     }
@@ -4333,7 +4333,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(noOp.primaryTerm(), equalTo(primaryTerm.get()));
             assertThat(noOp.reason(), equalTo(reason));
             if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-                MapperService mapperService = createMapperService("test");
+                MapperService mapperService = createMapperService();
                 List<Translog.Operation> operationsFromLucene = readAllOperationsInLucene(noOpEngine, mapperService);
                 assertThat(operationsFromLucene, hasSize(maxSeqNo + 2 - localCheckpoint)); // fills n gap and 2 manual noop.
                 for (int i = 0; i < operationsFromLucene.size(); i++) {
@@ -4408,7 +4408,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
         }
         if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            List<Translog.Operation> operations = readAllOperationsInLucene(engine, createMapperService("test"));
+            List<Translog.Operation> operations = readAllOperationsInLucene(engine, createMapperService());
             assertThat(operations, hasSize(numOps));
         }
     }
@@ -4561,7 +4561,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat("restore from local translog must not add operations to translog", snapshot, SnapshotMatchers.size(0));
                 }
             }
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService());
         }
     }
 
@@ -5345,7 +5345,7 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.forceMerge(true);
                 }
             }
-            MapperService mapperService = createMapperService("test");
+            MapperService mapperService = createMapperService();
             List<Translog.Operation> actualOps = readAllOperationsInLucene(engine, mapperService);
             assertThat(actualOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
@@ -5428,7 +5428,7 @@ public class InternalEngineTests extends EngineTestCase {
                 long minRetainSeqNos = engine.getMinRetainedSeqNo();
                 assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get() + 1));
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
-                Set<Long> actualOps = readAllOperationsInLucene(engine, createMapperService("test")).stream()
+                Set<Long> actualOps = readAllOperationsInLucene(engine, createMapperService()).stream()
                     .map(Translog.Operation::seqNo).collect(Collectors.toSet());
                 assertThat(actualOps, containsInAnyOrder(expectedOps));
             }
@@ -5477,7 +5477,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testLuceneSnapshotRefreshesOnlyOnce() throws Exception {
-        final MapperService mapperService = createMapperService("test");
+        final MapperService mapperService = createMapperService();
         final long maxSeqNo = randomLongBetween(10, 50);
         final AtomicLong refreshCounter = new AtomicLong();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
@@ -5706,7 +5706,7 @@ public class InternalEngineTests extends EngineTestCase {
                     put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build());
             try (InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))) {
                 IllegalStateException error = expectThrows(IllegalStateException.class,
-                    () -> engine.newChangesSnapshot("test", createMapperService("test"), 0, randomNonNegativeLong(), randomBoolean()));
+                    () -> engine.newChangesSnapshot("test", createMapperService(), 0, randomNonNegativeLong(), randomBoolean()));
                 assertThat(error.getMessage(), equalTo("accessing changes snapshot requires soft-deletes enabled"));
             }
         }

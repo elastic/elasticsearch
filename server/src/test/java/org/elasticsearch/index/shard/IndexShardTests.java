@@ -2428,7 +2428,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\", \"fielddata\": true }}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\", \"fielddata\": true }}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, wrapper);
@@ -2555,7 +2555,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -2600,7 +2600,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE)).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -2657,7 +2657,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -2706,7 +2706,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -2781,7 +2781,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("source")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
 
@@ -3320,7 +3320,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3364,7 +3364,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3433,7 +3433,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3469,7 +3469,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3539,7 +3539,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -3635,7 +3635,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         ShardRouting shardRouting =
@@ -3932,7 +3932,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testResetEngineWithBrokenTranslog() throws Exception {
         IndexShard shard = newStartedShard(false);
         updateMappings(shard, IndexMetaData.builder(shard.indexSettings.getIndexMetaData())
-            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}").build());
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}").build());
         final List<Translog.Operation> operations = Stream.concat(
             IntStream.range(0, randomIntBetween(0, 10)).mapToObj(n -> new Translog.Index("1", 0, shard.getPendingPrimaryTerm(), 1,
                 "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1)),
@@ -4032,7 +4032,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .build();
         IndexMetaData metaData = IndexMetaData.builder("index")
-                .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+                .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
                 .settings(settings)
                 .primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);

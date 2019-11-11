@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Request the mappings of specific fields
@@ -54,7 +55,10 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         super(in);
         indices = in.readStringArray();
         if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readStringArray();
+            String[] types = in.readStringArray();
+            if (types != Strings.EMPTY_ARRAY) {
+                throw new IllegalArgumentException("Expected empty type array but received [" + Arrays.toString(types) + "]");
+            }
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         local = in.readBoolean();

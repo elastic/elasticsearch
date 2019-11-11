@@ -92,6 +92,15 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
     }
 
+    public void testGetNonExistentFieldMapping() {
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index1").setFields("non-existent").get();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings = response.mappings();
+        assertEquals(1, mappings.size());
+        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldmapping = mappings.get("index1");
+        assertEquals(1, fieldmapping.size());
+        assertEquals(GetFieldMappingsResponse.FieldMappingMetaData.NULL, fieldmapping.get("non-existent"));
+    }
+
     public void testFieldCapabilities() {
         List<String> allFields = new ArrayList<>(ALL_FLAT_FIELDS);
         allFields.addAll(ALL_OBJECT_FIELDS);
@@ -126,9 +135,10 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
     }
 
-    private static void assertFieldMappings(Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields,
+    private static void assertFieldMappings(Map<String, GetFieldMappingsResponse.FieldMappingMetaData> actual,
                                             Collection<String> expectedFields) {
         Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
+        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(actual);
         for (String field : builtInMetaDataFields) {
             GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);
             assertNotNull(" expected field [" + field + "] not found", fieldMappingMetaData);

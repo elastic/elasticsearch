@@ -423,9 +423,10 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
     }
 
-    private static void assertExpectedFields(Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields,
+    private static void assertExpectedFields(Map<String, GetFieldMappingsResponse.FieldMappingMetaData> actual,
                                             String... expectedFields) {
         Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
+        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(actual);
         for (String field : builtInMetaDataFields) {
             GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);
             assertNotNull(" expected field [" + field + "] not found", fieldMappingMetaData);

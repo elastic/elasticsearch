@@ -42,7 +42,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
@@ -154,9 +154,7 @@ public class LucenePersistedStateFactory {
 
     // exposed for tests
     Directory createDirectory(Path path) throws IOException {
-        // We only read the persisted state at startup (on a single thread) and otherwise we only write to it, so a SimpleFSDirectory is
-        // enough for our needs.
-        return new SimpleFSDirectory(path);
+        return FSDirectory.open(path);
     }
 
     private static class OnDiskState {

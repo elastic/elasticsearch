@@ -19,10 +19,10 @@
 package org.elasticsearch.gateway;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -318,7 +318,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
             final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
-                    return new FilterDirectory(new SimpleFSDirectory(path)) {
+                    return new FilterDirectory(FSDirectory.open(path)) {
                         @Override
                         public IndexOutput createOutput(String name, IOContext context) throws IOException {
                             if (throwException.get()) {
@@ -354,7 +354,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
             final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
-                    return new FilterDirectory(new SimpleFSDirectory(path)) {
+                    return new FilterDirectory(FSDirectory.open(path)) {
                         @Override
                         public void sync(Collection<String> names) throws IOException {
                             if (throwException.get() && names.stream().anyMatch(n -> n.startsWith("pending_segments_"))) {
@@ -469,7 +469,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry());
 
-            final int writes = between(10, 100);
+            final int writes = between(5, 20);
             final List<Index> indices = new ArrayList<>(writes);
 
             try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {

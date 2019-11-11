@@ -111,11 +111,17 @@ public class LucenePersistedStateFactory {
             for (final Path path : nodeEnvironment.nodeDataPaths()) {
                 final Directory directory = createDirectory(getMetaDataIndexPath(path, Version.CURRENT.major));
                 closeables.add(directory);
+
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
                 // start empty since we re-write the whole cluster state to ensure it is all using the same format version
                 indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-                indexWriterConfig.setMergeScheduler(new SerialMergeScheduler());
+                // only commit when specifically instructed, we must not write any intermediate states
                 indexWriterConfig.setCommitOnClose(false);
+                // most of the data goes into stored fields which are not buffered, so we only really need a tiny buffer
+                indexWriterConfig.setRAMBufferSizeMB(1.0);
+                // TODO TBD do we want background merging?
+                indexWriterConfig.setMergeScheduler(new SerialMergeScheduler());
+
                 final IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig);
                 closeables.add(indexWriter);
                 metaDataIndices.add(new MetaDataIndex(directory, indexWriter));

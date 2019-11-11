@@ -44,7 +44,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -52,7 +51,10 @@ import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -63,7 +65,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOError;
 import java.io.IOException;
@@ -93,10 +94,12 @@ public class LucenePersistedStateFactory {
 
     private final NodeEnvironment nodeEnvironment;
     private final NamedXContentRegistry namedXContentRegistry;
+    private final BigArrays bigArrays;
 
-    public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry) {
+    public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
         this.nodeEnvironment = nodeEnvironment;
         this.namedXContentRegistry = namedXContentRegistry;
+        this.bigArrays = bigArrays;
     }
 
     CoordinationState.PersistedState loadPersistedState(BiFunction<Long, MetaData, ClusterState> clusterStateFromMetaData)
@@ -135,7 +138,7 @@ public class LucenePersistedStateFactory {
 
         final ClusterState clusterState = clusterStateFromMetaData.apply(onDiskState.lastAcceptedVersion, onDiskState.metaData);
         final LucenePersistedState lucenePersistedState
-            = new LucenePersistedState(nodeEnvironment.nodeId(), metaDataIndices, onDiskState.currentTerm, clusterState);
+            = new LucenePersistedState(nodeEnvironment.nodeId(), metaDataIndices, onDiskState.currentTerm, clusterState, bigArrays);
         success = false;
         try {
             lucenePersistedState.persistInitialState();
@@ -311,31 +314,32 @@ public class LucenePersistedStateFactory {
         FORMAT_PARAMS = new ToXContent.MapParams(params);
     }
 
-    private static Document buildIndexMetadataDocument(IndexMetaData indexMetaData) throws IOException {
-        final Document indexMetaDataDocument = buildDocument(INDEX_TYPE_NAME, indexMetaData);
-        assert indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE) == false;
-        indexMetaDataDocument.add(new StringField(INDEX_UUID_FIELD_NAME, indexMetaData.getIndexUUID(), Field.Store.NO));
-        return indexMetaDataDocument;
-    }
+    /**
+     * A {@link Document} with a stored field containing serialized metadata written to a {@link ReleasableBytesStreamOutput} which must be
+     * released when no longer needed.
+     */
+    private static class ReleasableDocument implements Releasable {
+        private final Document document;
+        private final Releasable releasable;
 
-    private static Document buildGlobalMetadataDocument(ClusterState clusterState) throws IOException {
-        return buildDocument(GLOBAL_TYPE_NAME, clusterState.metaData());
-    }
-
-    private static Document buildDocument(String typeName, ToXContent metaData) throws IOException {
-        final Document document = new Document();
-        document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
-
-        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, outputStream)) {
-            xContentBuilder.startObject();
-            metaData.toXContent(xContentBuilder, FORMAT_PARAMS);
-            xContentBuilder.endObject();
+        ReleasableDocument(Document document, Releasable releasable) {
+            this.document = document;
+            this.releasable = releasable;
         }
-        document.add(new StoredField(DATA_FIELD_NAME, new BytesRef(outputStream.toByteArray())));
-        return document;
+
+        Document getDocument() {
+            return document;
+        }
+
+        @Override
+        public void close() {
+            releasable.close();
+        }
     }
 
+    /**
+     * Encapsulates a single {@link IndexWriter}. There is one of these for each data path.
+     */
     private static class MetaDataIndex implements Closeable {
 
         private final Logger logger;
@@ -393,18 +397,24 @@ public class LucenePersistedStateFactory {
         }
     }
 
-    static class LucenePersistedState implements CoordinationState.PersistedState, Closeable {
+    /**
+     * Encapsulates the incremental writing of metadata to a collection of {@link MetaDataIndex}es.
+     */
+    private static class LucenePersistedState implements CoordinationState.PersistedState, Closeable {
 
         private long currentTerm;
         private ClusterState lastAcceptedState;
         private final List<MetaDataIndex> metaDataIndices;
         private final String nodeId;
+        private final BigArrays bigArrays;
 
-        LucenePersistedState(String nodeId, List<MetaDataIndex> metaDataIndices, long currentTerm, ClusterState lastAcceptedState) {
+        LucenePersistedState(String nodeId, List<MetaDataIndex> metaDataIndices, long currentTerm, ClusterState lastAcceptedState,
+                             BigArrays bigArrays) {
             this.currentTerm = currentTerm;
             this.lastAcceptedState = lastAcceptedState;
             this.metaDataIndices = metaDataIndices;
             this.nodeId = nodeId;
+            this.bigArrays = bigArrays;
         }
 
         @Override
@@ -463,10 +473,11 @@ public class LucenePersistedStateFactory {
             assert lastAcceptedState.term() == clusterState.term();
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only", clusterState.term());
 
-            final Document globalMetaDataDocument = buildGlobalMetadataDocument(clusterState);
-            for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                metaDataIndex.deleteGlobalMetaData();
-                metaDataIndex.addGlobalMetaData(globalMetaDataDocument);
+            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetadataDocument(clusterState)) {
+                for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                    metaDataIndex.deleteGlobalMetaData();
+                    metaDataIndex.addGlobalMetaData(globalMetaDataDocument.getDocument());
+                }
             }
 
             final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(lastAcceptedState.metaData().indices().size());
@@ -490,9 +501,10 @@ public class LucenePersistedStateFactory {
                         logger.trace("writing metadata for new [{}]", indexMetaData.getIndex());
                     }
 
-                    final Document indexMetaDataDocument = buildIndexMetadataDocument(indexMetaData);
-                    for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                        metaDataIndex.addIndexMetaDataDocument(indexMetaDataDocument, indexMetaData.getIndex());
+                    try (ReleasableDocument indexMetaDataDocument = makeIndexMetadataDocument(indexMetaData)) {
+                        for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                            metaDataIndex.addIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
+                        }
                     }
                 } else {
                     logger.trace("no action required for [{}]", indexMetaData.getIndex());
@@ -527,17 +539,18 @@ public class LucenePersistedStateFactory {
          * Add documents for the metadata of the given cluster state, assuming that there are currently no documents.
          */
         private void addMetaData(ClusterState clusterState) throws IOException {
-            final Document globalMetaDataDocument = buildGlobalMetadataDocument(clusterState);
-            for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                metaDataIndex.addGlobalMetaData(globalMetaDataDocument);
+            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetadataDocument(clusterState)) {
+                for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                    metaDataIndex.addGlobalMetaData(globalMetaDataDocument.getDocument());
+                }
             }
 
             for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
                 final IndexMetaData indexMetaData = cursor.value;
-                final Document indexMetaDataDocument = buildIndexMetadataDocument(indexMetaData);
-
-                for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                    metaDataIndex.addIndexMetaDataDocument(indexMetaDataDocument, indexMetaData.getIndex());
+                try (ReleasableDocument indexMetaDataDocument = makeIndexMetadataDocument(indexMetaData)) {
+                    for (MetaDataIndex metaDataIndex : metaDataIndices) {
+                        metaDataIndex.addIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
+                    }
                 }
             }
 
@@ -565,6 +578,49 @@ public class LucenePersistedStateFactory {
         public void close() throws IOException {
             logger.trace("closing");
             IOUtils.close(metaDataIndices);
+        }
+
+        private ReleasableDocument makeIndexMetadataDocument(IndexMetaData indexMetaData) throws IOException {
+            final ReleasableDocument indexMetaDataDocument = makeDocument(INDEX_TYPE_NAME, indexMetaData);
+            boolean success = false;
+            try {
+                final String indexUUID = indexMetaData.getIndexUUID();
+                assert indexUUID.equals(IndexMetaData.INDEX_UUID_NA_VALUE) == false;
+                indexMetaDataDocument.getDocument().add(new StringField(INDEX_UUID_FIELD_NAME, indexUUID, Field.Store.NO));
+                success = true;
+                return indexMetaDataDocument;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(indexMetaDataDocument);
+                }
+            }
+        }
+
+        private ReleasableDocument makeGlobalMetadataDocument(ClusterState clusterState) throws IOException {
+            return makeDocument(GLOBAL_TYPE_NAME, clusterState.metaData());
+        }
+
+        private ReleasableDocument makeDocument(String typeName, ToXContent metaData) throws IOException {
+            final Document document = new Document();
+            document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
+
+            boolean success = false;
+            final ReleasableBytesStreamOutput releasableBytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
+            try {
+                try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, releasableBytesStreamOutput)) {
+                    xContentBuilder.startObject();
+                    metaData.toXContent(xContentBuilder, FORMAT_PARAMS);
+                    xContentBuilder.endObject();
+                }
+                document.add(new StoredField(DATA_FIELD_NAME, releasableBytesStreamOutput.bytes().toBytesRef()));
+                final ReleasableDocument releasableDocument = new ReleasableDocument(document, releasableBytesStreamOutput);
+                success = true;
+                return releasableDocument;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(releasableBytesStreamOutput);
+                }
+            }
         }
     }
 }

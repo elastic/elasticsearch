@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -57,9 +58,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LucenePersistedStateFactoryTests extends ESTestCase {
 
+    private LucenePersistedStateFactory newPersistedStateFactory(NodeEnvironment nodeEnvironment) {
+        return new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
     public void testPersistsAndReloadsTerm() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry());
+            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
             final long newTerm = randomNonNegativeLong();
 
             try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
@@ -76,7 +81,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
     public void testPersistsAndReloadsGlobalMetadata() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry());
+            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
             final String clusterUUID = UUIDs.randomBase64UUID(random());
             final long version = randomLongBetween(1L, Long.MAX_VALUE);
 
@@ -126,7 +131,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths)) {
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 final ClusterState clusterState = persistedState.getLastAcceptedState();
                 persistedState.setCurrentTerm(randomLongBetween(1L, Long.MAX_VALUE));
                 persistedState.setLastAcceptedState(
@@ -139,7 +144,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[]{randomFrom(dataPaths)})) {
             unimportantPaths.remove(nodeEnvironment.nodeDataPaths()[0]);
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 final ClusterState clusterState = persistedState.getLastAcceptedState();
                 persistedState.setLastAcceptedState(
                     ClusterState.builder(clusterState).version(freshVersion)
@@ -155,7 +160,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         // verify that the freshest state is chosen
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths)) {
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 assertThat(persistedState.getLastAcceptedState().term(), equalTo(freshTerm));
                 assertThat(persistedState.getLastAcceptedState().version(), equalTo(freshVersion));
             }
@@ -164,7 +169,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         // verify that the freshest state was rewritten to each data path
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[]{randomFrom(dataPaths)})) {
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 assertThat(persistedState.getLastAcceptedState().term(), equalTo(freshTerm));
                 assertThat(persistedState.getLastAcceptedState().version(), equalTo(freshVersion));
             }
@@ -180,7 +185,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
             nodeIds[0] = nodeEnvironment.nodeId();
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 persistedState.setLastAcceptedState(
                     ClusterState.builder(persistedState.getLastAcceptedState()).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
             }
@@ -189,7 +194,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
             nodeIds[1] = nodeEnvironment.nodeId();
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 persistedState.setLastAcceptedState(
                     ClusterState.builder(persistedState.getLastAcceptedState()).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
             }
@@ -203,7 +208,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
             assertThat(expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))).getMessage(),
+                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage(),
                 allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
         }
     }
@@ -219,14 +224,14 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         // first establish consistent node IDs and write initial metadata
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 assertFalse(persistedState.getLastAcceptedState().metaData().clusterUUIDCommitted());
             }
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 final ClusterState clusterState = persistedState.getLastAcceptedState();
                 persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
@@ -239,7 +244,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 final ClusterState clusterState = persistedState.getLastAcceptedState();
                 persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData())
@@ -252,7 +257,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
             assertThat(expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))).getMessage(),
+                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage(),
                 allOf(containsString("mismatched cluster UUIDs in metadata"), containsString(clusterUUID1), containsString(clusterUUID2)));
         }
     }
@@ -272,7 +277,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 final ClusterState clusterState = persistedState.getLastAcceptedState();
                 persistedState.setCurrentTerm(staleCurrentTerm);
                 persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
@@ -285,14 +290,14 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 persistedState.setCurrentTerm(freshCurrentTerm);
             }
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
             try (CoordinationState.PersistedState persistedState
-                     = loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))) {
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
                 final ClusterState clusterState = persistedState.getLastAcceptedState();
                 persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
                     .metaData(MetaData.builder(clusterState.metaData()).version(2)
@@ -304,7 +309,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
             assertThat(expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()))).getMessage(), allOf(
+                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage(), allOf(
                     containsString("inconsistent terms found"),
                     containsString(Long.toString(staleCurrentTerm)),
                     containsString(Long.toString(freshCurrentTerm))));
@@ -315,7 +320,8 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         final AtomicBoolean throwException = new AtomicBoolean();
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()) {
+            final LucenePersistedStateFactory persistedStateFactory
+                = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(FSDirectory.open(path)) {
@@ -351,7 +357,8 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         final AtomicBoolean throwException = new AtomicBoolean();
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry()) {
+            final LucenePersistedStateFactory persistedStateFactory
+                = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(FSDirectory.open(path)) {
@@ -384,7 +391,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
     public void testPersistsAndReloadsIndexMetadataIffVersionOrTermChanges() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry());
+            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
             final long globalVersion = randomLongBetween(1L, Long.MAX_VALUE);
             final String indexUUID = UUIDs.randomBase64UUID(random());
             final long indexMetaDataVersion = randomLongBetween(1L, Long.MAX_VALUE);
@@ -467,7 +474,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
 
     public void testReloadsMetadataAcrossMultipleSegments() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final LucenePersistedStateFactory persistedStateFactory = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry());
+            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
 
             final int writes = between(5, 20);
             final List<Index> indices = new ArrayList<>(writes);

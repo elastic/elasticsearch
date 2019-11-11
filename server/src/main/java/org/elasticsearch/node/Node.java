@@ -407,7 +407,7 @@ public class Node implements Closeable {
                 .flatMap(Function.identity()).collect(toList()));
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
             final LucenePersistedStateFactory lucenePersistedStateFactory
-                = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry);
+                = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry, bigArrays);
 
             // collect engine factory providers from server and from plugins
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);

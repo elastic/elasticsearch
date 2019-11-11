@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -57,7 +59,7 @@ if (!isEclipse && !isIdea) {
 
   forbiddenApisJava12 {
     doFirst {
-      if (project.runtimeJavaVersion < JavaVersion.VERSION_12) {
+      if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_12) {
         targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()
       }
     }
@@ -135,6 +137,22 @@ dependencies {
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
+
+// Until this project is always being formatted with spotless, we need to
+// guard against `spotless()` not existing.
+try {
+  spotless {
+    java {
+      // Contains large data tables that do not format well.
+      targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
+    }
+  }
+}
+catch (Exception e) {
+  if (e.getMessage().contains("Could not find method spotless") == false) {
+    throw e;
+  }
+}
 
 forbiddenPatterns {
   exclude '**/*.json'

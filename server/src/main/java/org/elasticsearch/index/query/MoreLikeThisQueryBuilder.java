@@ -458,14 +458,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (this == o) return true;
             if (!(o instanceof Item)) return false;
             Item other = (Item) o;
-            return Objects.equals(index, other.index) &&
-                    Objects.equals(id, other.id) &&
-                    Objects.equals(doc, other.doc) &&
-                    Arrays.equals(fields, other.fields) &&  // otherwise we are comparing pointers
-                    Objects.equals(perFieldAnalyzer, other.perFieldAnalyzer) &&
-                    Objects.equals(routing, other.routing) &&
-                    Objects.equals(version, other.version) &&
-                    Objects.equals(versionType, other.versionType);
+            return Objects.equals(index, other.index)
+                && Objects.equals(id, other.id)
+                && Objects.equals(doc, other.doc)
+                && Arrays.equals(fields, other.fields) // otherwise we are comparing pointers
+                && Objects.equals(perFieldAnalyzer, other.perFieldAnalyzer)
+                && Objects.equals(routing, other.routing)
+                && Objects.equals(version, other.version)
+                && Objects.equals(versionType, other.versionType);
         }
     }
 
@@ -1139,23 +1139,23 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
 
     @Override
     protected boolean doEquals(MoreLikeThisQueryBuilder other) {
-        return Arrays.equals(fields, other.fields) &&
-                Arrays.equals(likeTexts, other.likeTexts) &&
-                Arrays.equals(unlikeTexts, other.unlikeTexts) &&
-                Arrays.equals(likeItems, other.likeItems) &&
-                Arrays.equals(unlikeItems, other.unlikeItems) &&
-                Objects.equals(maxQueryTerms, other.maxQueryTerms) &&
-                Objects.equals(minTermFreq, other.minTermFreq) &&
-                Objects.equals(minDocFreq, other.minDocFreq) &&
-                Objects.equals(maxDocFreq, other.maxDocFreq) &&
-                Objects.equals(minWordLength, other.minWordLength) &&
-                Objects.equals(maxWordLength, other.maxWordLength) &&
-                Arrays.equals(stopWords, other.stopWords) &&  // otherwise we are comparing pointers
-                Objects.equals(analyzer, other.analyzer) &&
-                Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(boostTerms, other.boostTerms) &&
-                Objects.equals(include, other.include) &&
-                Objects.equals(failOnUnsupportedField, other.failOnUnsupportedField);
+        return Arrays.equals(fields, other.fields)
+            && Arrays.equals(likeTexts, other.likeTexts)
+            && Arrays.equals(unlikeTexts, other.unlikeTexts)
+            && Arrays.equals(likeItems, other.likeItems)
+            && Arrays.equals(unlikeItems, other.unlikeItems)
+            && Objects.equals(maxQueryTerms, other.maxQueryTerms)
+            && Objects.equals(minTermFreq, other.minTermFreq)
+            && Objects.equals(minDocFreq, other.minDocFreq)
+            && Objects.equals(maxDocFreq, other.maxDocFreq)
+            && Objects.equals(minWordLength, other.minWordLength)
+            && Objects.equals(maxWordLength, other.maxWordLength)
+            && Arrays.equals(stopWords, other.stopWords) // otherwise we are comparing pointers
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+            && Objects.equals(boostTerms, other.boostTerms)
+            && Objects.equals(include, other.include)
+            && Objects.equals(failOnUnsupportedField, other.failOnUnsupportedField);
     }
 
     @Override

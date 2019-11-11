@@ -21,7 +21,7 @@
     configuration of classes that aren't in packages. -->
   <suppress files="test[/\\]framework[/\\]src[/\\]test[/\\]java[/\\]Dummy.java" checks="PackageDeclaration" />
 
-  <!-- Intentionally has long example curl commands to coinncide with sibling Painless tests. -->
+  <!-- Intentionally has long example curl commands to coincide with sibling Painless tests. -->
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]ContextExampleTests.java" checks="LineLength" />
 
   <!--

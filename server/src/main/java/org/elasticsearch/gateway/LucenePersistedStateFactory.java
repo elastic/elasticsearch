@@ -66,6 +66,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
 import java.io.Closeable;
+import java.io.FilterOutputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -607,7 +608,13 @@ public class LucenePersistedStateFactory {
             boolean success = false;
             final ReleasableBytesStreamOutput releasableBytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
             try {
-                try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, releasableBytesStreamOutput)) {
+                final FilterOutputStream outputStream = new FilterOutputStream(releasableBytesStreamOutput) {
+                    @Override
+                    public void close() {
+                        // closing the XContentBuilder should not release the bytes yet
+                    }
+                };
+                try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, outputStream)) {
                     xContentBuilder.startObject();
                     metaData.toXContent(xContentBuilder, FORMAT_PARAMS);
                     xContentBuilder.endObject();

@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.ml.extractor;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.util.Collection;
@@ -22,16 +25,14 @@ import java.util.stream.Collectors;
  */
 public class ExtractedFields {
 
-    private static final String TEXT = "text";
-
     private final List<ExtractedField> allFields;
     private final List<ExtractedField> docValueFields;
     private final String[] sourceFields;
 
     public ExtractedFields(List<ExtractedField> allFields) {
         this.allFields = Collections.unmodifiableList(allFields);
-        this.docValueFields = filterFields(ExtractedField.ExtractionMethod.DOC_VALUE, allFields);
-        this.sourceFields = filterFields(ExtractedField.ExtractionMethod.SOURCE, allFields).stream().map(ExtractedField::getName)
+        this.docValueFields = filterFields(ExtractedField.Method.DOC_VALUE, allFields);
+        this.sourceFields = filterFields(ExtractedField.Method.SOURCE, allFields).stream().map(ExtractedField::getSearchField)
             .toArray(String[]::new);
     }
 
@@ -47,14 +48,22 @@ public class ExtractedFields {
         return docValueFields;
     }
 
-    private static List<ExtractedField> filterFields(ExtractedField.ExtractionMethod method, List<ExtractedField> fields) {
-        return fields.stream().filter(field -> field.getExtractionMethod() == method).collect(Collectors.toList());
+    private static List<ExtractedField> filterFields(ExtractedField.Method method, List<ExtractedField> fields) {
+        return fields.stream().filter(field -> field.getMethod() == method).collect(Collectors.toList());
     }
 
     public static ExtractedFields build(Collection<String> allFields, Set<String> scriptFields,
                                         FieldCapabilitiesResponse fieldsCapabilities) {
         ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
         return new ExtractedFields(allFields.stream().map(field -> extractionMethodDetector.detect(field)).collect(Collectors.toList()));
+    }
+
+    public static TimeField newTimeField(String name, ExtractedField.Method method) {
+        return new TimeField(name, method);
+    }
+
+    public static <T> ExtractedField applyBooleanMapping(ExtractedField field, T trueValue, T falseValue) {
+        return new BooleanMapper<>(field, trueValue, falseValue);
     }
 
     public static class ExtractionMethodDetector {
@@ -68,38 +77,37 @@ public class ExtractedFields {
         }
 
         public ExtractedField detect(String field) {
-            String internalField = field;
-            ExtractedField.ExtractionMethod method = ExtractedField.ExtractionMethod.SOURCE;
-            Set<String> types = getTypes(field);
             if (scriptFields.contains(field)) {
-                method = ExtractedField.ExtractionMethod.SCRIPT_FIELD;
-            } else if (isAggregatable(field)) {
-                method = ExtractedField.ExtractionMethod.DOC_VALUE;
-                if (isFieldOfType(field, "date")) {
-                    return ExtractedField.newTimeField(field, types, method);
-                }
-            } else if (isFieldOfType(field, TEXT)) {
-                String parentField = MlStrings.getParentField(field);
-                // Field is text so check if it is a multi-field
-                if (Objects.equals(parentField, field) == false && fieldsCapabilities.getField(parentField) != null) {
-                    // Field is a multi-field which means it won't be available in source. Let's take the parent instead.
-                    internalField = parentField;
-                    method = isAggregatable(parentField) ? ExtractedField.ExtractionMethod.DOC_VALUE
-                            : ExtractedField.ExtractionMethod.SOURCE;
+                return new ScriptField(field);
+            }
+            ExtractedField extractedField = detectNonScriptField(field);
+            String parentField = MlStrings.getParentField(field);
+            if (isMultiField(field, parentField)) {
+                if (isAggregatable(field)) {
+                    return new MultiField(parentField, extractedField);
+                } else {
+                    ExtractedField parentExtractionField = detectNonScriptField(parentField);
+                    return new MultiField(field, parentField, parentField, parentExtractionField);
                 }
             }
+            return extractedField;
+        }
 
-            if (isFieldOfType(field, "geo_point")) {
-                if (method != ExtractedField.ExtractionMethod.DOC_VALUE) {
+        private ExtractedField detectNonScriptField(String field) {
+            if (isFieldOfType(field, TimeField.TYPE) && isAggregatable(field)) {
+                return new TimeField(field, ExtractedField.Method.DOC_VALUE);
+            }
+            if (isFieldOfType(field, GeoPointField.TYPE)) {
+                if (isAggregatable(field) == false) {
                     throw new IllegalArgumentException("cannot use [geo_point] field with disabled doc values");
                 }
-                return ExtractedField.newGeoPointField(field, internalField);
+                return new GeoPointField(field);
             }
-            if (isFieldOfType(field, "geo_shape")) {
-                return ExtractedField.newGeoShapeField(field, internalField);
+            if (isFieldOfType(field, GeoShapeField.TYPE)) {
+                return new GeoShapeField(field);
             }
-
-            return ExtractedField.newField(field, internalField, types, method);
+            Set<String> types = getTypes(field);
+            return isAggregatable(field) ? new DocValueField(field, types) : new SourceField(field, types);
         }
 
         private Set<String> getTypes(String field) {
@@ -126,6 +134,58 @@ public class ExtractedFields {
                 return fieldCaps.containsKey(type);
             }
             return false;
+        }
+
+        private boolean isMultiField(String field, String parent) {
+            if (Objects.equals(field, parent)) {
+                return false;
+            }
+            Map<String, FieldCapabilities> parentFieldCaps = fieldsCapabilities.getField(parent);
+            if (parentFieldCaps == null || (parentFieldCaps.size() == 1 && parentFieldCaps.containsKey("object"))) {
+                // We check if the parent is an object which is indicated by field caps containing an "object" entry.
+                // If an object, it's not a multi field
+                return false;
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Makes boolean fields behave as a field of different type.
+     */
+    private static final class BooleanMapper<T> extends DocValueField {
+
+        private static final Set<String> TYPES = Collections.singleton(BooleanFieldMapper.CONTENT_TYPE);
+
+        private final T trueValue;
+        private final T falseValue;
+
+        BooleanMapper(ExtractedField field, T trueValue, T falseValue) {
+            super(field.getName(), TYPES);
+            if (field.getMethod() != Method.DOC_VALUE || field.getTypes().contains(BooleanFieldMapper.CONTENT_TYPE) == false) {
+                throw new IllegalArgumentException("cannot apply boolean mapping to field [" + field.getName() + "]");
+            }
+            this.trueValue = trueValue;
+            this.falseValue = falseValue;
+        }
+
+        @Override
+        public Object[] value(SearchHit hit) {
+            DocumentField keyValue = hit.field(getName());
+            if (keyValue != null) {
+                return keyValue.getValues().stream().map(v -> Boolean.TRUE.equals(v) ? trueValue : falseValue).toArray();
+            }
+            return new Object[0];
+        }
+
+        @Override
+        public boolean supportsFromSource() {
+            return false;
+        }
+
+        @Override
+        public ExtractedField newFromSource() {
+            throw new UnsupportedOperationException();
         }
     }
 }

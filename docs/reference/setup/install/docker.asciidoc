@@ -119,7 +119,7 @@ By default you can access logs with `docker logs`.
 
 To stop the cluster, run `docker-compose down`. 
 The data in the Docker volumes is preserved and loaded 
-when when you restart the cluster with `docker-compose up`.
+when you restart the cluster with `docker-compose up`.
 To **delete the data volumes** when you bring down the cluster, 
 specify the `-v` option: `docker-compose down -v`.
 

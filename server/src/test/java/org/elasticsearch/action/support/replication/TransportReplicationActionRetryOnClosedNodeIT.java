@@ -100,8 +100,9 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         private static final ActionType<Response> TYPE = new ActionType<>(ACTION_NAME, Response::new);
 
         @Inject
-        public TestAction(Settings settings, TransportService transportService, ClusterService clusterService, IndicesService indicesService,
-                          ThreadPool threadPool, ShardStateAction shardStateAction, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        public TestAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                          IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
+                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
                 indexNameExpressionResolver, Request::new, Request::new, ThreadPool.Names.GENERIC);
         }
@@ -137,13 +138,16 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         }
 
         @Override
-        public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+        public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                   ThreadContext threadContext) {
             return List.of(new TransportInterceptor() {
                 @Override
                 public AsyncSender interceptSender(AsyncSender sender) {
                     return new AsyncSender() {
                         @Override
-                        public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                        public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                                                                              TransportRequest request, TransportRequestOptions options,
+                                                                              TransportResponseHandler<T> handler) {
                             // only activated on primary
                             if (action.equals(testActionName)) {
                                 actionRunningLatch.countDown();

@@ -290,7 +290,7 @@ https://docs.docker.com/engine/extend/plugins/#volume-plugins[Docker volume plug
 
 ===== Avoid using `loop-lvm` mode
 
-If you are using the devicemapper storage driver, do not use the default `loop-lvm` mode. 
+If you are using the devicemapper storage driver, do not use the default `loop-lvm` mode.
 Configure docker-engine to use 
 https://docs.docker.com/engine/userguide/storagedriver/device-mapper-driver/#configure-docker-with-devicemapper[direct-lvm].
 
@@ -312,7 +312,16 @@ over the configuration files in the image.
 
 You can set individual {es} configuration parameters using Docker environment variables. 
 The <<docker-compose-file, sample compose file>> and the 
-<<docker-cli-run-dev-mode, single-node example>>  use this method. 
+<<docker-cli-run-dev-mode, single-node example>>  use this method.
+
+If you are providing secrets e.g. passwords to {es} and you do not want to pass them
+directly via environment variables, you can instead supply environment variables suffixed with
+"_FILE". The variable value specifies a file, whose contents are used for the secret.
+
+For example, if you specified the environment variable "ELASTIC_PASSWORD_FILE" with value
+"/run/secrets/password.txt", and bind-mounted a file at this location in the container with
+the contents "PleaseChangeMe", then this would be equivalent to specifying the environment
+variable "ELASTIC_PASSWORD" with the value "PleaseChangeMe".
 
 You can also override the default command for the image to pass {es} configuration
 parameters as command line options. For example:

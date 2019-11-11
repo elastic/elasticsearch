@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.SourceField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
@@ -295,9 +296,10 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     }
 
     public void testIncludeSourceIsFalseAndAtLeastOneSourceField() throws IOException {
+        // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
         extractedFields = new ExtractedFields(Arrays.asList(
-            new DocValueField("field_1", Collections.singleton("keyword")),
-            new SourceField("field_2", Collections.singleton("text"))));
+            (ExtractedField) new DocValueField("field_1", Collections.singleton("keyword")),
+            (ExtractedField) new SourceField("field_2", Collections.singleton("text"))));
 
         TestExtractor dataExtractor = createExtractor(false, false);
 
@@ -391,16 +393,17 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     }
 
     public void testGetCategoricalFields() {
+        // Explicit cast of ExtractedField args necessary for Eclipse due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=530915
         extractedFields = new ExtractedFields(Arrays.asList(
-            new DocValueField("field_boolean", Collections.singleton("boolean")),
-            new DocValueField("field_float", Collections.singleton("float")),
-            new DocValueField("field_double", Collections.singleton("double")),
-            new DocValueField("field_byte", Collections.singleton("byte")),
-            new DocValueField("field_short", Collections.singleton("short")),
-            new DocValueField("field_integer", Collections.singleton("integer")),
-            new DocValueField("field_long", Collections.singleton("long")),
-            new DocValueField("field_keyword", Collections.singleton("keyword")),
-            new SourceField("field_text", Collections.singleton("text"))));
+            (ExtractedField) new DocValueField("field_boolean", Collections.singleton("boolean")),
+            (ExtractedField) new DocValueField("field_float", Collections.singleton("float")),
+            (ExtractedField) new DocValueField("field_double", Collections.singleton("double")),
+            (ExtractedField) new DocValueField("field_byte", Collections.singleton("byte")),
+            (ExtractedField) new DocValueField("field_short", Collections.singleton("short")),
+            (ExtractedField) new DocValueField("field_integer", Collections.singleton("integer")),
+            (ExtractedField) new DocValueField("field_long", Collections.singleton("long")),
+            (ExtractedField) new DocValueField("field_keyword", Collections.singleton("keyword")),
+            (ExtractedField) new SourceField("field_text", Collections.singleton("text"))));
         TestExtractor dataExtractor = createExtractor(true, true);
 
         assertThat(dataExtractor.getCategoricalFields(OutlierDetectionTests.createRandom()), empty());

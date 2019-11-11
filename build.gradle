@@ -106,7 +106,6 @@ subprojects {
     // is greater than the number of unformatted projects, this can be
     // switched to an exclude list, and eventualy removed completely.
     def projectPathsToFormat = [
-//       ':build-tools'
        ':x-pack:plugin:enrich'
     ]
 

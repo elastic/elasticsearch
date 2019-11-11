@@ -195,7 +195,8 @@ public class LeaderCheckerTests extends ESTestCase {
 
             assertThat(deterministicTaskQueue.getCurrentTimeMillis() - failureTime,
                 lessThanOrEqualTo((leaderCheckIntervalMillis + leaderCheckTimeoutMillis) * leaderCheckRetryCount
-                    + leaderCheckTimeoutMillis // needed because a successful check response might be in flight at the time of failure
+                    // needed because a successful check response might be in flight at the time of failure
+                    + leaderCheckTimeoutMillis
                 ));
         }
         leaderChecker.updateLeader(null);

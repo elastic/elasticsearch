@@ -114,11 +114,6 @@ subprojects {
 
       spotless {
         java {
-          if (project.path.equals(':server')) {
-            // Contains large data tables that do not format well.
-            targetExclude 'src/main/java/org/elasticsearch/search/aggregations/metrics/HyperLogLogPlusPlus.java'
-          }
-
           removeUnusedImports()
           eclipse().configFile rootProject.file('.eclipseformat.xml')
           trimTrailingWhitespace()

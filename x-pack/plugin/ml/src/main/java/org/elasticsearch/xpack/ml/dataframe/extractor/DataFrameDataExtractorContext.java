@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.util.List;
 import java.util.Map;

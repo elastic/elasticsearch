@@ -1,5 +1,7 @@
 import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -23,6 +25,7 @@ plugins {
     id 'elasticsearch.global-build-info'
 }
 boolean internal = Boolean.parseBoolean(System.getProperty("tests.internal", "true"))
+BuildParams.init { it.setIsInternal(internal) }
 
 project.gradle.projectsEvaluated {
     // wire the download service url to wiremock
@@ -39,10 +42,6 @@ project.gradle.projectsEvaluated {
             repository.setUrl(fakeDownloadService)
         }
     }
-}
-
-allprojects {
-    ext.isInternal = internal
 }
 
 if (internal) {

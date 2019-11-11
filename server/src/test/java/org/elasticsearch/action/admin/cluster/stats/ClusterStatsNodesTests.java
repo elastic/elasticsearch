@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +38,6 @@ import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests.createNodeStats;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -67,10 +67,8 @@ public class ClusterStatsNodesTests extends ESTestCase {
         + "}", toXContent(stats, XContentType.JSON, randomBoolean()).utf8ToString());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48684")
     public void testIngestStats() throws Exception {
-        NodeStats nodeStats = createNodeStats();
-
+        NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, NodeStatsTests::createNodeStats);
         SortedMap<String, long[]> processorStats = new TreeMap<>();
         nodeStats.getIngestStats().getProcessorStats().values().forEach(l -> l.forEach(s -> processorStats.put(s.getType(),
             new long[] { s.getStats().getIngestCount(), s.getStats().getIngestFailedCount(),

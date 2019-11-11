@@ -72,7 +72,7 @@ public class TransportPauseFollowAction extends TransportMasterNodeAction<PauseF
         }
         PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (persistentTasksMetaData == null) {
-            listener.onFailure(new IllegalArgumentException("no shard follow tasks for [" + request.getFollowIndex() + "]"));
+            listener.onFailure(new IllegalArgumentException("no shard follow tasks found"));
             return;
         }
 

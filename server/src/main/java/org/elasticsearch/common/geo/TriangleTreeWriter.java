@@ -300,8 +300,6 @@ public class TriangleTreeWriter implements Writeable {
             } else if (component.type == TriangleTreeLeaf.TYPE.LINE) {
                 metadata |= (1 << 3);
             } else {
-                metadata |= (1 << 2);
-                metadata |= (1 << 3);
                 metadata |= (component.ab) ? (1 << 4) : 0;
                 metadata |= (component.bc) ? (1 << 5) : 0;
                 metadata |= (component.ca) ? (1 << 6) : 0;

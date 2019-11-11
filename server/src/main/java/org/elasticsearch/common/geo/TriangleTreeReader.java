@@ -73,16 +73,13 @@ public class TriangleTreeReader {
         if ((thisMinX > maxX || thisMaxX < minX || thisMinY > maxY || thisMaxY < minY) == false) {
             Rectangle component = new Rectangle(minX, maxX, minY, maxY);
             byte metadata = input.readByte();
-            boolean bit1 = (metadata & 1 << 2) == 1 << 2;
-            boolean bit2 = (metadata & 1 << 3) == 1 << 3;
-            assert bit1 || bit2;
-            if (bit1 && bit2 == false) {
+            if ((metadata & 1 << 2) == 1 << 2) {
                 int x = Math.toIntExact(thisMaxX - input.readVLong());
                 int y = Math.toIntExact(thisMaxY - input.readVLong());
                 if (component.contains(x, y)) {
                     return true;
                 }
-            } else if (bit1 == false && bit2) {
+            } else if ((metadata & 1 << 3) == 1 << 3) {
                 int aX =  Math.toIntExact(thisMaxX - input.readVLong());
                 int aY =  Math.toIntExact(thisMaxY - input.readVLong());
                 int bX =  Math.toIntExact(thisMaxX - input.readVLong());
@@ -101,12 +98,12 @@ public class TriangleTreeReader {
                     return true;
                 }
             }
-            if ((metadata & 1 << 0) == 1 << 0) {
+            if ((metadata & 1 << 0) == 1 << 0) { // left != null
                 if (intersects(component, true, thisMaxX, thisMaxY)) {
                     return true;
                 }
             }
-            if ((metadata & 1 << 1) == 1 << 1) {
+            if ((metadata & 1 << 1) == 1 << 1) { // right != null
                 if (intersects(component, true, thisMaxX, thisMaxY)) {
                     return true;
                 }
@@ -123,10 +120,7 @@ public class TriangleTreeReader {
             byte metadata = input.readByte();
             int thisMinX;
             int thisMinY;
-            boolean bit1 = (metadata & 1 << 2) == 1 << 2;
-            boolean bit2 = (metadata & 1 << 3) == 1 << 3;
-            assert bit1 || bit2;
-            if (bit1 && bit2 == false) {
+            if ((metadata & 1 << 2) == 1 << 2) {
                 int x = Math.toIntExact(thisMaxX - input.readVLong());
                 int y = Math.toIntExact(thisMaxY - input.readVLong());
                 if (component.contains(x, y)) {
@@ -134,7 +128,7 @@ public class TriangleTreeReader {
                 }
                 thisMinX = x;
                 thisMinY = y;
-            } else if (bit1 == false && bit2) {
+            } else if ((metadata & 1 << 3) == 1 << 3) {
                 int aX =  Math.toIntExact(thisMaxX - input.readVLong());
                 int aY =  Math.toIntExact(thisMaxY - input.readVLong());
                 int bX =  Math.toIntExact(thisMaxX - input.readVLong());
@@ -196,16 +190,13 @@ public class TriangleTreeReader {
         if ((thisMinX > maxX || thisMaxX < minX || thisMinY > maxY || thisMaxY < minY) == false) {
             Rectangle component = new Rectangle(minX, maxX, minY, maxY);
             byte metadata = input.readByte();
-            boolean bit1 = (metadata & 1 << 2) == 1 << 2;
-            boolean bit2 = (metadata & 1 << 3) == 1 << 3;
-            assert bit1 || bit2;
-            if (bit1 && bit2 == false) {
+            if ((metadata & 1 << 2) == 1 << 2) {
                 int x = Math.toIntExact(thisMaxX - input.readVLong());
                 int y = Math.toIntExact(thisMaxY - input.readVLong());
                 if (component.contains(x, y)) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
-            } else if (bit1 == false && bit2) {
+            } else if ((metadata & 1 << 3) == 1 << 3) {
                 int aX =  Math.toIntExact(thisMaxX - input.readVLong());
                 int aY =  Math.toIntExact(thisMaxY - input.readVLong());
                 int bX =  Math.toIntExact(thisMaxX - input.readVLong());
@@ -228,7 +219,7 @@ public class TriangleTreeReader {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
             }
-            if ((metadata & 1 << 0) == 1 << 0) {
+            if ((metadata & 1 << 0) == 1 << 0) { // left != null
                 PointValues.Relation left = relate(component, true, thisMaxX, thisMaxY);
                 if (left == PointValues.Relation.CELL_CROSSES_QUERY) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
@@ -236,7 +227,7 @@ public class TriangleTreeReader {
                     rel = left;
                 }
             }
-            if ((metadata & 1 << 1) == 1 << 1) {
+            if ((metadata & 1 << 1) == 1 << 1) { // right != null
                 PointValues.Relation right = relate(component, true, thisMaxX, thisMaxY);
                 if (right == PointValues.Relation.CELL_CROSSES_QUERY) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
@@ -252,15 +243,12 @@ public class TriangleTreeReader {
         int thisMaxX = Math.toIntExact(parentMaxX - input.readVLong());
         int thisMaxY = Math.toIntExact(parentMaxY - input.readVLong());
         PointValues.Relation rel = PointValues.Relation.CELL_OUTSIDE_QUERY;
-        int size =  input.readVInt();
+        int size = input.readVInt();
         if (component.minY <= thisMaxY && component.minX <= thisMaxX) {
             byte metadata = input.readByte();
-            boolean bit1 = (metadata & 1 << 2) == 1 << 2;
-            boolean bit2 = (metadata & 1 << 3) == 1 << 3;
-            assert bit1 || bit2;
             int thisMinX;
             int thisMinY;
-            if (bit1 && bit2 == false) {
+            if ((metadata & 1 << 2) == 1 << 2) {
                 int x = Math.toIntExact(thisMaxX - input.readVLong());
                 int y = Math.toIntExact(thisMaxY - input.readVLong());
                 if (component.contains(x, y)) {
@@ -268,7 +256,7 @@ public class TriangleTreeReader {
                 }
                 thisMinX = x;
                 thisMinY = y;
-            } else if (bit1 == false && bit2) {
+            } else if ((metadata & 1 << 3) == 1 << 3) {
                 int aX =  Math.toIntExact(thisMaxX - input.readVLong());
                 int aY =  Math.toIntExact(thisMaxY - input.readVLong());
                 int bX =  Math.toIntExact(thisMaxX - input.readVLong());

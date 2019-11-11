@@ -1,12 +1,9 @@
 [[restart-cluster]]
-== Full-cluster restart and rolling restart
+== Restart a cluster
  
-There may be {ref}/configuring-tls.html#tls-transport[situations where you want 
-to perform a full-cluster restart] or a rolling restart. In the first case, you 
-shut down and restart all the nodes in the cluster while in the second, you shut 
-down only one node at a time, so the service remains uninterrupted. The 
-following description guides you through the process step by step and marks the 
-differences in the two possible methods.
+There may be situations where you want to perform a full-cluster restart, which 
+means you shut down and restart all the nodes in the cluster. The following 
+description guides you through the process step by step.
 
 . *Disable shard allocation.*
 +
@@ -52,15 +49,9 @@ saves the model state at the time of closure. When you reopen the jobs after the
 cluster restart, they use the exact same model. However, saving the latest model 
 state takes longer than using upgrade mode, especially if you have a lot of jobs 
 or jobs with large model states.
-+
-* If you perform a rolling restart, you can also leave your machine learning 
-jobs running. When you shut down a machine learning node, its jobs automatically 
-move to another node and restore the model states. This option enables your jobs 
-to continue running during the shutdown but it puts increased load on the 
-cluster.
 --
 
-. *Shut down all nodes in case of full-cluster restart. Shut down a single node in case of rolling restart.*
+. *Shut down all nodes.*
 +
 --
 include::{docdir}/upgrade/shut-down-node.asciidoc[]
@@ -68,7 +59,7 @@ include::{docdir}/upgrade/shut-down-node.asciidoc[]
 
 . *Perform any needed changes.*
 
-. *Restart nodes if you perform full-cluster restart. Restart the node you changed if you perform rolling restart.*
+. *Restart nodes.*
 +
 --
 If you have dedicated master nodes, start them first and wait for them to
@@ -90,9 +81,6 @@ GET _cat/nodes
 
 The `status` column returned by `_cat/health` shows the health of each node
 in the cluster: `red`, `yellow`, or `green`.
-
-If you restarted a singe node, confirm that it joins the cluster by checking the 
-log file or by submitting a `_cat/nodes` request (see above).
 --
 
 . *Wait for all nodes to join the cluster and report a status of yellow.*
@@ -143,13 +131,6 @@ GET _cat/health
 
 GET _cat/recovery
 --------------------------------------------------
---
-
-. *Repeat in case of rolling restart.*
-+
---
-When  the node has recovered and the cluster is stable, repeat these steps
-for each node that needs to be updated.
 --
 
 . *Restart machine learning jobs.* (Optional)

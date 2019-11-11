@@ -1072,7 +1072,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startObject()
                 .field("somefield", "somevalue")
                 .endObject()
-        ).get(); // we have 2 docs in a segment...
+        ).get();
         ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();

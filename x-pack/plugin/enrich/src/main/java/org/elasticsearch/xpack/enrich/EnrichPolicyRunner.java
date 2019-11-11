@@ -243,26 +243,35 @@ public class EnrichPolicyRunner implements Runnable {
         // Enable _source on enrich index. Explicitly mark key mapping type.
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            builder = builder.startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .field("dynamic", false)
-                .startObject("_source")
-                .field("enabled", true)
-                .endObject()
-                .startObject("properties")
-                .startObject(policy.getMatchField());
-            builder = matchFieldMapping.apply(builder)
-                .endObject()
-                .endObject()
-                .startObject("_meta")
-                .field(ENRICH_README_FIELD_NAME, ENRICH_INDEX_README_TEXT)
-                .field(ENRICH_POLICY_NAME_FIELD_NAME, policyName)
-                .field(ENRICH_MATCH_FIELD_NAME, policy.getMatchField())
-                .field(ENRICH_POLICY_TYPE_FIELD_NAME, policy.getType())
-                .endObject()
-                .endObject()
-                .endObject();
-
+            builder.startObject();
+            {
+                builder.startObject(MapperService.SINGLE_MAPPING_NAME);
+                {
+                    builder.field("dynamic", false);
+                    builder.startObject("_source");
+                    {
+                        builder.field("enabled", true);
+                    }
+                    builder.endObject();
+                    builder.startObject("properties");
+                    {
+                        builder.startObject(policy.getMatchField());
+                        matchFieldMapping.apply(builder);
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                    builder.startObject("_meta");
+                    {
+                        builder.field(ENRICH_README_FIELD_NAME, ENRICH_INDEX_README_TEXT);
+                        builder.field(ENRICH_POLICY_NAME_FIELD_NAME, policyName);
+                        builder.field(ENRICH_MATCH_FIELD_NAME, policy.getMatchField());
+                        builder.field(ENRICH_POLICY_TYPE_FIELD_NAME, policy.getType());
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
             return builder;
         } catch (IOException ioe) {
             throw new UncheckedIOException("Could not render enrich mapping", ioe);

@@ -33,10 +33,13 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOError;
@@ -59,7 +62,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class LucenePersistedStateFactoryTests extends ESTestCase {
 
     private LucenePersistedStateFactory newPersistedStateFactory(NodeEnvironment nodeEnvironment) {
-        return new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE);
+        return new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(),
+            usually()
+                ? BigArrays.NON_RECYCLING_INSTANCE
+                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()));
     }
 
     public void testPersistsAndReloadsTerm() throws IOException {

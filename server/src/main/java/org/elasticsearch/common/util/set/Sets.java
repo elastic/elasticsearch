@@ -55,6 +55,7 @@ public final class Sets {
     }
 
     @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> HashSet<T> newHashSet(T... elements) {
         Objects.requireNonNull(elements);
         HashSet<T> set = new HashSet<>(elements.length);

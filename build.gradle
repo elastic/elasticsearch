@@ -114,7 +114,6 @@ subprojects {
 
       spotless {
         java {
-
           removeUnusedImports()
           eclipse().configFile rootProject.file('.eclipseformat.xml')
           trimTrailingWhitespace()

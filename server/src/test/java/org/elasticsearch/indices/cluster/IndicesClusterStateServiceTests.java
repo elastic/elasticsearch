@@ -120,8 +120,7 @@ public class IndicesClusterStateServiceTests extends ESTestCase {
                     final Exception e = randomFrom(
                         new AlreadyClosedException("closed"),
                         new IndexShardClosedException(indexShard.shardId()),
-                        new TransportException(randomFrom(
-                            "failed")),
+                        new TransportException("failed"),
                         new SendRequestTransportException(null, randomFrom(
                             "some-action",
                             "indices:admin/seq_no/retention_lease_background_sync[p]"

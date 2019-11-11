@@ -185,21 +185,12 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         logger.info("--> Test action {}, primary {}, replica {}", primaryTestPlugin.testActionName, primary, replica);
 
         AtomicReference<Object> response = new AtomicReference<>();
-        CountDownLatch responseLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(1);
         client(coordinator).execute(TestAction.TYPE, new Request(new ShardId(resolveIndex("test"), 0)),
-            ActionListener.wrap(
-                r -> {
-                    assertTrue(response.compareAndSet(null, r));
-                    responseLatch.countDown();
-                    doneLatch.countDown();
-                },
-                e -> {
-                    assertTrue(response.compareAndSet(null, e));
-                    responseLatch.countDown();
-                    doneLatch.countDown();
-                }));
-
+            ActionListener.runAfter(ActionListener.wrap(
+                r -> assertTrue(response.compareAndSet(null, r)),
+                e -> assertTrue(response.compareAndSet(null, e))),
+                doneLatch::countDown));
 
         assertTrue(primaryTestPlugin.actionRunningLatch.await(10, TimeUnit.SECONDS));
 
@@ -217,7 +208,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         });
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
 
-        assertTrue(responseLatch.await(10, TimeUnit.SECONDS));
+        assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
         if (response.get() instanceof Exception) {
             throw new AssertionError(response.get());
         }

@@ -335,7 +335,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 ActionListener.wrap(
                     r -> {},
                     e -> {
-                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null ) {
+                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
                             // node shutting down
                             return;
                         }

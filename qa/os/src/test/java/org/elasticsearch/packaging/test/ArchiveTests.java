@@ -34,12 +34,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
-import static org.elasticsearch.packaging.util.FileMatcher.file;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
@@ -106,39 +102,12 @@ public class ArchiveTests extends PackagingTestCase {
 
     }
 
-    public void test40CreateKeystoreManually() throws Exception {
-        final Installation.Executables bin = installation.executables();
-
-        Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
-
-        // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
-        // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
-        // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
-        // when we run these commands as a role user we won't have to do this
-        Platforms.onWindows(() -> {
-            sh.run(bin.elasticsearchKeystore + " create");
-            sh.chown(installation.config("elasticsearch.keystore"));
-        });
-
-        assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
-
-        Platforms.onLinux(() -> {
-            final Result r = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
-            assertThat(r.stdout, containsString("keystore.seed"));
-        });
-
-        Platforms.onWindows(() -> {
-            final Result r = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(r.stdout, containsString("keystore.seed"));
-        });
-    }
-
     public void test50StartAndStop() throws Exception {
         // cleanup from previous test
         rm(installation.config("elasticsearch.keystore"));
 
         try {
-            Archives.runElasticsearch(installation, sh);
+            awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
         } catch (Exception e ){
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
@@ -151,7 +120,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
         ServerUtils.runElasticsearchTests();
 
-        Archives.stopElasticsearch(installation);
+        Archives.stopElasticsearch(installation, sh);
     }
 
     public void test51JavaHomeOverride() throws Exception {
@@ -164,9 +133,9 @@ public class ArchiveTests extends PackagingTestCase {
             sh.getEnv().put("JAVA_HOME", systemJavaHome1);
         });
 
-        Archives.runElasticsearch(installation, sh);
+        awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
         ServerUtils.runElasticsearchTests();
-        Archives.stopElasticsearch(installation);
+        Archives.stopElasticsearch(installation, sh);
 
         String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
@@ -188,9 +157,9 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("JAVA_HOME", systemJavaHome1);
             });
 
-            Archives.runElasticsearch(installation, sh);
+            awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
             ServerUtils.runElasticsearchTests();
-            Archives.stopElasticsearch(installation);
+            Archives.stopElasticsearch(installation, sh);
 
             String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
             assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
@@ -211,9 +180,9 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
                 //verify ES can start, stop and run plugin list
-                Archives.runElasticsearch(installation, sh);
+                awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
 
-                Archives.stopElasticsearch(installation);
+                Archives.stopElasticsearch(installation, sh);
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
                 Result result = sh.run(pluginListCommand);
@@ -237,9 +206,9 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("JAVA_HOME", testJavaHome);
 
                 //verify ES can start, stop and run plugin list
-                Archives.runElasticsearch(installation, sh);
+                awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
 
-                Archives.stopElasticsearch(installation);
+                Archives.stopElasticsearch(installation, sh);
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
                 Result result = sh.run(pluginListCommand);
@@ -247,22 +216,6 @@ public class ArchiveTests extends PackagingTestCase {
             } finally {
                 FileUtils.rm(Paths.get(testJavaHome));
             }
-        });
-    }
-
-    public void test60AutoCreateKeystore() throws Exception {
-        sh.chown(installation.config("elasticsearch.keystore"));
-        assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
-
-        final Installation.Executables bin = installation.executables();
-        Platforms.onLinux(() -> {
-            final Result result = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
-            assertThat(result.stdout, containsString("keystore.seed"));
-        });
-
-        Platforms.onWindows(() -> {
-            final Result result = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(result.stdout, containsString("keystore.seed"));
         });
     }
 
@@ -290,13 +243,13 @@ public class ArchiveTests extends PackagingTestCase {
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
 
-            Archives.runElasticsearch(installation, sh);
+            awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
-            Archives.stopElasticsearch(installation);
+            Archives.stopElasticsearch(installation, sh);
 
         } finally {
             rm(tempConf);
@@ -323,12 +276,12 @@ public class ArchiveTests extends PackagingTestCase {
 
             sh.setWorkingDirectory(temp);
             sh.getEnv().put("ES_PATH_CONF", "config");
-            Archives.runElasticsearch(installation, sh);
+            awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"name\":\"relative\""));
 
-            Archives.stopElasticsearch(installation);
+            Archives.stopElasticsearch(installation, sh);
 
         } finally {
             rm(tempConf);
@@ -393,8 +346,8 @@ public class ArchiveTests extends PackagingTestCase {
 
         sh.setWorkingDirectory(getTempDir());
 
-        Archives.runElasticsearch(installation, sh);
-        Archives.stopElasticsearch(installation);
+        awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
+        Archives.stopElasticsearch(installation, sh);
 
         Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));

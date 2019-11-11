@@ -206,7 +206,7 @@ public class TreeNode implements ToXContentObject {
         private Integer rightChild;
 
         public Builder(int nodeIndex) {
-            nodeIndex = nodeIndex;
+            this.nodeIndex = nodeIndex;
         }
 
         private Builder() {

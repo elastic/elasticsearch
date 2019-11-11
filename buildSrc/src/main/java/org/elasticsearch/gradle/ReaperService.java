@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.tool.ClasspathUtils;
+import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
@@ -48,7 +48,7 @@ public class ReaperService {
 
     public ReaperService(Project project, Path buildDir, Path inputDir) {
         this.logger = project.getLogger();
-        this.isInternal = ClasspathUtils.isElasticsearchProject(project);
+        this.isInternal = BuildParams.isInternal();
         this.buildDir = buildDir;
         this.inputDir = inputDir;
         this.logFile = inputDir.resolve("reaper.log");

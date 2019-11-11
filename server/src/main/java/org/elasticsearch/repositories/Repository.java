@@ -211,9 +211,10 @@ public interface Repository extends LifecycleComponent {
      * @param indexId         id of the index in the repository from which the restore is occurring
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
+     * @param listener        listener to invoke once done
      */
-    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
-
+    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
+                      ActionListener<Void> listener);
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *

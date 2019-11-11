@@ -366,7 +366,7 @@ public class AnalyticsProcessManager {
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
             resultProcessor = new AnalyticsResultProcessor(config, dataFrameRowsJoiner, this::isProcessKilled, task.getProgressTracker(),
-                trainedModelProvider, auditor);
+                trainedModelProvider, auditor, dataExtractor.getFieldNames());
             return true;
         }
 

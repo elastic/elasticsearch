@@ -1931,7 +1931,7 @@ public class DateFormatters {
             } else {
                 return LocalDate.of(year, accessor.get(MONTH_OF_YEAR), 1);
             }
-        } else
+        }
 
         return LOCALDATE_EPOCH;
     }
@@ -1943,7 +1943,6 @@ public class DateFormatters {
         if(accessor.isSupported(ChronoField.YEAR_OF_ERA)){
             return accessor.get(ChronoField.YEAR_OF_ERA);
         }
-
         return 1970;
     }
 

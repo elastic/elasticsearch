@@ -88,7 +88,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
-            indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec))
+            indexRequests.add(client().prepareIndex("test").setId(Integer.toString(rec))
                 .setTimeout(TimeValue.timeValueMinutes(5)).setSource(fieldName, "some_value"));
         }
         indexRandom(true, false, indexRequests);

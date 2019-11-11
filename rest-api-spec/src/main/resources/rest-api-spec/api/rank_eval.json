@@ -48,6 +48,14 @@
         ],
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "search_type":{
+        "type":"enum",
+        "options":[
+          "query_then_fetch",
+          "dfs_query_then_fetch"
+        ],
+        "description":"Search operation type"
       }
     },
     "body":{

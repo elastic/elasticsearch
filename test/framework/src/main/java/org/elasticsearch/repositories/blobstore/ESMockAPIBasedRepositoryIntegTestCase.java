@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockHttpServer;
@@ -37,6 +36,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Map;
@@ -52,6 +52,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
 public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreRepositoryIntegTestCase {
+
+    private static final byte[] BUFFER = new byte[1024];
 
     private static HttpServer httpServer;
     private Map<String, HttpHandler> handlers;
@@ -128,6 +130,15 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     }
 
     /**
+     * Consumes and closes the given {@link InputStream}
+     */
+    protected static void drainInputStream(final InputStream inputStream) throws IOException {
+        try (InputStream is = inputStream) {
+            while (is.read(BUFFER) >= 0);
+        }
+    }
+
+    /**
      * HTTP handler that injects random service errors
      *
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
@@ -166,7 +177,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         }
 
         protected void handleAsError(final HttpExchange exchange) throws IOException {
-            Streams.readFully(exchange.getRequestBody());
+            drainInputStream(exchange.getRequestBody());
             exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
             exchange.close();
         }

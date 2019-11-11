@@ -19,6 +19,7 @@
 
 
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
@@ -36,7 +37,7 @@ dependencies {
 task gceFixture(type: AntFixture) {
     dependsOn compileTestJava
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    executable = new File(project.runtimeJavaHome, 'bin/java')
+    executable = "${BuildParams.runtimeJavaHome}/bin/java"
     args 'org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/integTest-1/config/unicast_hosts.txt"
 }
 

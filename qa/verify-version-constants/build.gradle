@@ -19,6 +19,7 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -36,7 +37,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
         "${baseName}" {
             version = bwcVersion.toString()
             setting 'http.content_type.required', 'true'
-            javaHome = project.file(project.ext.runtimeJavaHome)
+            javaHome = BuildParams.runtimeJavaHome
         }
     }
 

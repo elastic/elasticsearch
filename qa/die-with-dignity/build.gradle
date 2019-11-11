@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -29,7 +31,7 @@ integTest.runner {
     systemProperty 'tests.security.manager', 'false'
     systemProperty 'tests.system_call_filter', 'false'
     nonInputProperties.systemProperty 'log', "${-> testClusters.integTest.singleNode().getServerLog()}"
-    systemProperty 'runtime.java.home', "${project.runtimeJavaHome}"
+    systemProperty 'runtime.java.home', BuildParams.runtimeJavaHome
 }
 
 testClusters.integTest {

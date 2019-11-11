@@ -581,6 +581,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot) {
+        if (snapshot.useShardGenerations() == false) {
+            return ShardGenerations.EMPTY;
+        }
         ShardGenerations.Builder builder = ShardGenerations.builder();
         final Map<String, IndexId> indexLookup = new HashMap<>();
         snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));

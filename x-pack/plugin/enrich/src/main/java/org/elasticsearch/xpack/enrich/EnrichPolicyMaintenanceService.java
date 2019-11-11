@@ -138,8 +138,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
     void cleanUpEnrichIndices() {
         final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
-        GetIndexRequest indices = new GetIndexRequest()
-            .indices(EnrichPolicy.ENRICH_INDEX_NAME_BASE + "*")
+        GetIndexRequest indices = new GetIndexRequest().indices(EnrichPolicy.ENRICH_INDEX_NAME_BASE + "*")
             .indicesOptions(IndicesOptions.lenientExpand());
         // Check that no enrich policies are being executed
         final EnrichPolicyLocks.EnrichPolicyExecutionState executionState = enrichPolicyLocks.captureExecutionState();
@@ -151,8 +150,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
                     // If executions were kicked off, we can't be sure that the indices we are about to process are a
                     // stable state of the system (they could be new indices created by a policy that hasn't been published yet).
                     if (enrichPolicyLocks.isSameState(executionState)) {
-                        String[] removeIndices = Arrays
-                            .stream(getIndexResponse.getIndices())
+                        String[] removeIndices = Arrays.stream(getIndexResponse.getIndices())
                             .filter(indexName -> shouldRemoveIndex(getIndexResponse, policies, indexName))
                             .toArray(String[]::new);
                         deleteIndices(removeIndices);
@@ -198,13 +196,12 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             logger.debug("Enrich index [{}] is not marked as a live index since it lacks the alias [{}]", indexName, aliasName);
             return true;
         }
-        logger
-            .debug(
-                "Enrich index [{}] was spared since it is associated with the valid policy [{}] and references alias [{}]",
-                indexName,
-                policyName,
-                aliasName
-            );
+        logger.debug(
+            "Enrich index [{}] was spared since it is associated with the valid policy [{}] and references alias [{}]",
+            indexName,
+            policyName,
+            aliasName
+        );
         return false;
     }
 
@@ -220,13 +217,10 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger
-                        .error(
-                            () -> "Enrich maintenance task could not delete abandoned enrich indices ["
-                                + Arrays.toString(removeIndices)
-                                + "]",
-                            e
-                        );
+                    logger.error(
+                        () -> "Enrich maintenance task could not delete abandoned enrich indices [" + Arrays.toString(removeIndices) + "]",
+                        e
+                    );
                     concludeMaintenance();
                 }
             });

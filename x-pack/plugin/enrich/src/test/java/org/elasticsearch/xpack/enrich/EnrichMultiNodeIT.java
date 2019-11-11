@@ -77,11 +77,10 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
-            EnrichPolicy.NamedPolicy result = client()
-                .execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request(new String[] { policyName }))
-                .actionGet()
-                .getPolicies()
-                .get(0);
+            EnrichPolicy.NamedPolicy result = client().execute(
+                GetEnrichPolicyAction.INSTANCE,
+                new GetEnrichPolicyAction.Request(new String[] { policyName })
+            ).actionGet().getPolicies().get(0);
             assertThat(result, equalTo(new EnrichPolicy.NamedPolicy(policyName, enrichPolicy)));
             String enrichIndexPrefix = EnrichPolicy.getBaseName(policyName) + "*";
             refresh(enrichIndexPrefix);
@@ -90,8 +89,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsInSourceIndex));
         }
 
-        GetEnrichPolicyAction.Response response = client()
-            .execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())
+        GetEnrichPolicyAction.Response response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())
             .actionGet();
         assertThat(response.getPolicies().size(), equalTo(numPolicies));
 
@@ -114,8 +112,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
     public void testEnrichDedicatedIngestNode() {
         internalCluster().startNode();
-        Settings settings = Settings
-            .builder()
+        Settings settings = Settings.builder()
             .put(Node.NODE_MASTER_SETTING.getKey(), false)
             .put(Node.NODE_DATA_SETTING.getKey(), false)
             .put(Node.NODE_INGEST_SETTING.getKey(), true)
@@ -129,8 +126,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     public void testEnrichNoIngestNodes() {
-        Settings settings = Settings
-            .builder()
+        Settings settings = Settings.builder()
             .put(Node.NODE_MASTER_SETTING.getKey(), true)
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(Node.NODE_INGEST_SETTING.getKey(), false)
@@ -170,8 +166,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             }
         }
 
-        EnrichStatsAction.Response statsResponse = client()
-            .execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
+        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
             .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
         String nodeId = internalCluster().getInstance(ClusterService.class, coordinatingNode).localNode().getId();
@@ -192,20 +187,18 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             IndexRequest indexRequest = new IndexRequest(SOURCE_INDEX_NAME);
             indexRequest.create(true);
             indexRequest.id(key);
-            indexRequest
-                .source(
-                    Map
-                        .of(
-                            MATCH_FIELD,
-                            key,
-                            DECORATE_FIELDS[0],
-                            randomAlphaOfLength(4),
-                            DECORATE_FIELDS[1],
-                            randomAlphaOfLength(4),
-                            DECORATE_FIELDS[2],
-                            randomAlphaOfLength(4)
-                        )
-                );
+            indexRequest.source(
+                Map.of(
+                    MATCH_FIELD,
+                    key,
+                    DECORATE_FIELDS[0],
+                    randomAlphaOfLength(4),
+                    DECORATE_FIELDS[1],
+                    randomAlphaOfLength(4),
+                    DECORATE_FIELDS[2],
+                    randomAlphaOfLength(4)
+                )
+            );
             client().index(indexRequest).actionGet();
         }
         client().admin().indices().refresh(new RefreshRequest(SOURCE_INDEX_NAME)).actionGet();

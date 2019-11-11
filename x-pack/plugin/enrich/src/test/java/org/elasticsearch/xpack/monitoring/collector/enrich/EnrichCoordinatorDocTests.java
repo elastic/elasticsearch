@@ -128,10 +128,15 @@ public class EnrichCoordinatorDocTests extends BaseMonitoringDocTestCase<EnrichC
         builder.endObject();
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
-        Map<String, Object> template = XContentHelper
-            .convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
-        Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues
-            .extractValue("mappings._doc.properties.enrich_coordinator_stats.properties", template);
+        Map<String, Object> template = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            MonitoringTemplateUtils.loadTemplate("es"),
+            false
+        );
+        Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues.extractValue(
+            "mappings._doc.properties.enrich_coordinator_stats.properties",
+            template
+        );
         assertThat(serializedStatus.size(), equalTo(followStatsMapping.size()));
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {
             String fieldName = entry.getKey();

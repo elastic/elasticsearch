@@ -124,8 +124,7 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
                     + "\"cancellable\":"
                     + executingPolicy.getTaskInfo().isCancellable()
                     + ","
-                    + header
-                        .map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
+                    + header.map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
                         .orElse("\"headers\":{}")
                     + "}"
                     + "}"
@@ -141,10 +140,15 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
         builder.endObject();
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
-        Map<String, Object> template = XContentHelper
-            .convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
-        Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues
-            .extractValue("mappings._doc.properties.enrich_executing_policy_stats.properties", template);
+        Map<String, Object> template = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            MonitoringTemplateUtils.loadTemplate("es"),
+            false
+        );
+        Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues.extractValue(
+            "mappings._doc.properties.enrich_executing_policy_stats.properties",
+            template
+        );
         assertThat(serializedStatus.size(), equalTo(followStatsMapping.size()));
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {
             String fieldName = entry.getKey();

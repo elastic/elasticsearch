@@ -60,11 +60,10 @@ public final class EnrichStore {
         }
         // The policy name is used to create the enrich index name and
         // therefor a policy name has the same restrictions as an index name
-        MetaDataCreateIndexService
-            .validateIndexOrAliasName(
-                name,
-                (policyName, error) -> new IllegalArgumentException("Invalid policy name [" + policyName + "], " + error)
-            );
+        MetaDataCreateIndexService.validateIndexOrAliasName(
+            name,
+            (policyName, error) -> new IllegalArgumentException("Invalid policy name [" + policyName + "], " + error)
+        );
         if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
             throw new IllegalArgumentException("Invalid policy name [" + name + "], must be lowercase");
         }
@@ -94,8 +93,11 @@ public final class EnrichStore {
         updateClusterState(clusterService, handler, current -> {
             for (String indexExpression : finalPolicy.getIndices()) {
                 // indices field in policy can contain wildcards, aliases etc.
-                String[] concreteIndices = indexNameExpressionResolver
-                    .concreteIndexNames(current, IndicesOptions.strictExpandOpen(), indexExpression);
+                String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
+                    current,
+                    IndicesOptions.strictExpandOpen(),
+                    indexExpression
+                );
                 for (String concreteIndex : concreteIndices) {
                     IndexMetaData imd = current.getMetaData().index(concreteIndex);
                     assert imd != null;
@@ -184,8 +186,7 @@ public final class EnrichStore {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 Map<String, EnrichPolicy> policies = function.apply(currentState);
-                MetaData metaData = MetaData
-                    .builder(currentState.metaData())
+                MetaData metaData = MetaData.builder(currentState.metaData())
                     .putCustom(EnrichMetadata.TYPE, new EnrichMetadata(policies))
                     .build();
                 return ClusterState.builder(currentState).metaData(metaData).build();

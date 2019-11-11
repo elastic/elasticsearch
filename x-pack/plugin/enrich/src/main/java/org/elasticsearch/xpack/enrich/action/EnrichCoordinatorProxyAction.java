@@ -179,8 +179,10 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 int slot = 0;
                 final Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex = new HashMap<>();
                 for (SearchRequest searchRequest : request.requests()) {
-                    List<Tuple<Integer, SearchRequest>> items = itemsPerIndex
-                        .computeIfAbsent(searchRequest.indices()[0], k -> new ArrayList<>());
+                    List<Tuple<Integer, SearchRequest>> items = itemsPerIndex.computeIfAbsent(
+                        searchRequest.indices()[0],
+                        k -> new ArrayList<>()
+                    );
                     items.add(new Tuple<>(slot, searchRequest));
                     slot++;
                 }

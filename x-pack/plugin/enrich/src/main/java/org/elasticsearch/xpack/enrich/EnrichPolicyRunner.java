@@ -247,8 +247,7 @@ public class EnrichPolicyRunner implements Runnable {
         // Enable _source on enrich index. Explicitly mark key mapping type.
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            builder = builder
-                .startObject()
+            builder = builder.startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
                 .field("dynamic", false)
                 .startObject("_source")
@@ -256,8 +255,7 @@ public class EnrichPolicyRunner implements Runnable {
                 .endObject()
                 .startObject("properties")
                 .startObject(policy.getMatchField());
-            builder = matchFieldMapping
-                .apply(builder)
+            builder = matchFieldMapping.apply(builder)
                 .endObject()
                 .endObject()
                 .startObject("_meta")
@@ -278,8 +276,7 @@ public class EnrichPolicyRunner implements Runnable {
     private void prepareAndCreateEnrichIndex() {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
-        Settings enrichIndexSettings = Settings
-            .builder()
+        Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             // No changes will be made to an enrich index after policy execution, so need to enable automatic refresh interval:
@@ -334,8 +331,7 @@ public class EnrichPolicyRunner implements Runnable {
         if (policy.getQuery() != null) {
             searchSourceBuilder.query(QueryBuilders.wrapperQuery(policy.getQuery().getQuery()));
         }
-        ReindexRequest reindexRequest = new ReindexRequest()
-            .setDestIndex(destinationIndexName)
+        ReindexRequest reindexRequest = new ReindexRequest().setDestIndex(destinationIndexName)
             .setSourceIndices(policy.getIndices().toArray(new String[0]));
         reindexRequest.getSearchRequest().source(searchSourceBuilder);
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
@@ -350,13 +346,12 @@ public class EnrichPolicyRunner implements Runnable {
                 } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
                     listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
                 } else {
-                    logger
-                        .info(
-                            "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
-                            policyName,
-                            bulkByScrollResponse.getCreated(),
-                            destinationIndexName
-                        );
+                    logger.info(
+                        "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
+                        policyName,
+                        bulkByScrollResponse.getCreated(),
+                        destinationIndexName
+                    );
                     forceMergeEnrichIndex(destinationIndexName, 1);
                 }
             }
@@ -369,14 +364,13 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void forceMergeEnrichIndex(final String destinationIndexName, final int attempt) {
-        logger
-            .debug(
-                "Policy [{}]: Force merging newly created enrich index [{}] (Attempt {}/{})",
-                policyName,
-                destinationIndexName,
-                attempt,
-                maxForceMergeAttempts
-            );
+        logger.debug(
+            "Policy [{}]: Force merging newly created enrich index [{}] (Attempt {}/{})",
+            policyName,
+            destinationIndexName,
+            attempt,
+            maxForceMergeAttempts
+        );
         client.admin().indices().forceMerge(new ForceMergeRequest(destinationIndexName).maxNumSegments(1), new ActionListener<>() {
             @Override
             public void onResponse(ForceMergeResponse forceMergeResponse) {
@@ -424,24 +418,22 @@ public class EnrichPolicyRunner implements Runnable {
                 if (primarySegments.getSegments().size() > 1) {
                     int nextAttempt = attempt + 1;
                     if (nextAttempt > maxForceMergeAttempts) {
-                        listener
-                            .onFailure(
-                                new ElasticsearchException(
-                                    "Force merging index [{}] attempted [{}] times but did not result in one segment.",
-                                    destinationIndexName,
-                                    attempt,
-                                    maxForceMergeAttempts
-                                )
-                            );
-                    } else {
-                        logger
-                            .debug(
-                                "Policy [{}]: Force merge result contains more than one segment [{}], retrying (attempt {}/{})",
-                                policyName,
-                                primarySegments.getSegments().size(),
-                                nextAttempt,
+                        listener.onFailure(
+                            new ElasticsearchException(
+                                "Force merging index [{}] attempted [{}] times but did not result in one segment.",
+                                destinationIndexName,
+                                attempt,
                                 maxForceMergeAttempts
-                            );
+                            )
+                        );
+                    } else {
+                        logger.debug(
+                            "Policy [{}]: Force merge result contains more than one segment [{}], retrying (attempt {}/{})",
+                            policyName,
+                            primarySegments.getSegments().size(),
+                            nextAttempt,
+                            maxForceMergeAttempts
+                        );
                         forceMergeEnrichIndex(destinationIndexName, nextAttempt);
                     }
                 } else {
@@ -459,8 +451,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void setIndexReadOnly(final String destinationIndexName) {
         logger.debug("Policy [{}]: Setting new enrich index [{}] to be read only", policyName, destinationIndexName);
-        UpdateSettingsRequest request = new UpdateSettingsRequest(destinationIndexName)
-            .setPreserveExisting(true)
+        UpdateSettingsRequest request = new UpdateSettingsRequest(destinationIndexName).setPreserveExisting(true)
             .settings(Settings.builder().put("index.auto_expand_replicas", "0-all").put("index.blocks.write", "true"));
         client.admin().indices().updateSettings(request, new ActionListener<>() {
             @Override
@@ -495,8 +486,7 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterService.state(), aliasRequest);
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = clusterService
-            .state()
+        ImmutableOpenMap<String, List<AliasMetaData>> aliases = clusterService.state()
             .metaData()
             .findAliases(aliasRequest, concreteIndices);
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();

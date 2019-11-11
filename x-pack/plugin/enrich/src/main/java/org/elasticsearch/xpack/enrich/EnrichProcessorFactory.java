@@ -44,8 +44,10 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
         String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
-        String policyType = (String) XContentMapValues
-            .extractValue("_meta." + EnrichPolicyRunner.ENRICH_POLICY_TYPE_FIELD_NAME, mappingAsMap);
+        String policyType = (String) XContentMapValues.extractValue(
+            "_meta." + EnrichPolicyRunner.ENRICH_POLICY_TYPE_FIELD_NAME,
+            mappingAsMap
+        );
         String matchField = (String) XContentMapValues.extractValue("_meta." + EnrichPolicyRunner.ENRICH_MATCH_FIELD_NAME, mappingAsMap);
 
         boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);

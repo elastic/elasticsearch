@@ -88,14 +88,12 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 return;
             }
 
-            List<CoordinatorStats> coordinatorStats = response
-                .getNodes()
+            List<CoordinatorStats> coordinatorStats = response.getNodes()
                 .stream()
                 .map(EnrichCoordinatorStatsAction.NodeResponse::getCoordinatorStats)
                 .sorted(Comparator.comparing(CoordinatorStats::getNodeId))
                 .collect(Collectors.toList());
-            List<ExecutingPolicy> policyExecutionTasks = taskManager
-                .getTasks()
+            List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks()
                 .values()
                 .stream()
                 .filter(t -> t.getAction().equals(EnrichPolicyExecutor.TASK_ACTION))

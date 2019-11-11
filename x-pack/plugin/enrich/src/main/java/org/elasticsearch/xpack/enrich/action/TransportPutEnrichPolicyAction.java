@@ -91,8 +91,7 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
     ) {
 
         if (licenseState.isAuthAllowed()) {
-            RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges
-                .builder()
+            RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(request.getPolicy().getIndices())
                 .privileges("read")
                 .build();
@@ -109,15 +108,13 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
                 if (r.isCompleteMatch()) {
                     putPolicy(request, listener);
                 } else {
-                    listener
-                        .onFailure(
-                            Exceptions
-                                .authorizationError(
-                                    "unable to store policy because no indices match with the " + "specified index patterns {}",
-                                    request.getPolicy().getIndices(),
-                                    username
-                                )
-                        );
+                    listener.onFailure(
+                        Exceptions.authorizationError(
+                            "unable to store policy because no indices match with the " + "specified index patterns {}",
+                            request.getPolicy().getIndices(),
+                            username
+                        )
+                    );
                 }
             }, listener::onFailure);
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, wrappedListener);

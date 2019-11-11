@@ -72,8 +72,7 @@ public class EnrichPolicyReindexPipeline {
 
     private static XContentBuilder currentEnrichPipelineDefinition(XContentType xContentType) {
         try {
-            return XContentBuilder
-                .builder(xContentType.xContent())
+            return XContentBuilder.builder(xContentType.xContent())
                 .startObject()
                 .field(
                     "description",

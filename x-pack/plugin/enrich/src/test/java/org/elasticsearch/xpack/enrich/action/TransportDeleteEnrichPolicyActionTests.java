@@ -119,8 +119,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         createIndex(EnrichPolicy.getBaseName(name) + "-foo1");
         createIndex(EnrichPolicy.getBaseName(name) + "-foo2");
 
-        client()
-            .admin()
+        client().admin()
             .indices()
             .prepareGetIndex()
             .setIndices(EnrichPolicy.getBaseName(name) + "-foo1", EnrichPolicy.getBaseName(name) + "-foo2")
@@ -146,8 +145,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         expectThrows(
             IndexNotFoundException.class,
-            () -> client()
-                .admin()
+            () -> client().admin()
                 .indices()
                 .prepareGetIndex()
                 .setIndices(EnrichPolicy.getBaseName(name) + "-foo1", EnrichPolicy.getBaseName(name) + "-foo2")

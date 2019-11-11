@@ -171,12 +171,11 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
         return (req, handler) -> {
-            client
-                .execute(
-                    EnrichCoordinatorProxyAction.INSTANCE,
-                    req,
-                    ActionListener.wrap(resp -> { handler.accept(resp, null); }, e -> { handler.accept(null, e); })
-                );
+            client.execute(
+                EnrichCoordinatorProxyAction.INSTANCE,
+                req,
+                ActionListener.wrap(resp -> { handler.accept(resp, null); }, e -> { handler.accept(null, e); })
+            );
         };
     }
 }

@@ -203,23 +203,21 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     }
 
     static MetaData createMetaData(String name, EnrichPolicy policy) throws IOException {
-        Settings settings = Settings
-            .builder()
+        Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
         IndexMetaData.Builder builder = IndexMetaData.builder(EnrichPolicy.getBaseName(name) + "-1");
         builder.settings(settings);
-        builder
-            .putMapping(
-                "_doc",
-                "{\"_meta\": {\"enrich_match_field\": \""
-                    + policy.getMatchField()
-                    + "\", \"enrich_policy_type\": \""
-                    + policy.getType()
-                    + "\"}}"
-            );
+        builder.putMapping(
+            "_doc",
+            "{\"_meta\": {\"enrich_match_field\": \""
+                + policy.getMatchField()
+                + "\", \"enrich_policy_type\": \""
+                + policy.getType()
+                + "\"}}"
+        );
         builder.putAlias(AliasMetaData.builder(EnrichPolicy.getBaseName(name)).build());
         return MetaData.builder().put(builder).build();
     }

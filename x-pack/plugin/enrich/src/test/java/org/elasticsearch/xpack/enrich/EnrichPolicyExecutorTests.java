@@ -147,8 +147,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);
-        final CountDownLatch firstTaskBlock = testExecutor
-            .testRunPolicy(testPolicyName, testPolicy, new LatchedActionListener<>(noOpListener, firstTaskComplete));
+        final CountDownLatch firstTaskBlock = testExecutor.testRunPolicy(
+            testPolicyName,
+            testPolicy,
+            new LatchedActionListener<>(noOpListener, firstTaskComplete)
+        );
 
         // Launch a second fake run that should fail immediately because the lock is obtained.
         EsRejectedExecutionException expected = expectThrows(
@@ -176,8 +179,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
         // Ensure that the lock from the previous run has been cleared
         CountDownLatch secondTaskComplete = new CountDownLatch(1);
-        CountDownLatch secondTaskBlock = testExecutor
-            .testRunPolicy(testPolicyName, testPolicy, new LatchedActionListener<>(noOpListener, secondTaskComplete));
+        CountDownLatch secondTaskBlock = testExecutor.testRunPolicy(
+            testPolicyName,
+            testPolicy,
+            new LatchedActionListener<>(noOpListener, secondTaskComplete)
+        );
         secondTaskBlock.countDown();
         secondTaskComplete.await();
     }
@@ -198,12 +204,18 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
         // Launch a two fake policy runs that will block until counted down to use up the maximum concurrent
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);
-        final CountDownLatch firstTaskBlock = testExecutor
-            .testRunPolicy(testPolicyBaseName + "1", testPolicy, new LatchedActionListener<>(noOpListener, firstTaskComplete));
+        final CountDownLatch firstTaskBlock = testExecutor.testRunPolicy(
+            testPolicyBaseName + "1",
+            testPolicy,
+            new LatchedActionListener<>(noOpListener, firstTaskComplete)
+        );
 
         final CountDownLatch secondTaskComplete = new CountDownLatch(1);
-        final CountDownLatch secondTaskBlock = testExecutor
-            .testRunPolicy(testPolicyBaseName + "2", testPolicy, new LatchedActionListener<>(noOpListener, secondTaskComplete));
+        final CountDownLatch secondTaskBlock = testExecutor.testRunPolicy(
+            testPolicyBaseName + "2",
+            testPolicy,
+            new LatchedActionListener<>(noOpListener, secondTaskComplete)
+        );
 
         // Launch a third fake run that should fail immediately because the lock is obtained.
         EsRejectedExecutionException expected = expectThrows(
@@ -237,8 +249,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
         // Ensure that the lock from the previous run has been cleared
         CountDownLatch finalTaskComplete = new CountDownLatch(1);
-        CountDownLatch finalTaskBlock = testExecutor
-            .testRunPolicy(testPolicyBaseName + "1", testPolicy, new LatchedActionListener<>(noOpListener, finalTaskComplete));
+        CountDownLatch finalTaskBlock = testExecutor.testRunPolicy(
+            testPolicyBaseName + "1",
+            testPolicy,
+            new LatchedActionListener<>(noOpListener, finalTaskComplete)
+        );
         finalTaskBlock.countDown();
         finalTaskComplete.await();
     }

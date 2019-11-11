@@ -150,19 +150,17 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
 
     private String fakeRunPolicy(String forPolicy) throws IOException {
         String newIndexName = EnrichPolicy.getBaseName(forPolicy) + "-" + indexNameAutoIncrementingCounter++;
-        CreateIndexRequest request = new CreateIndexRequest(newIndexName)
-            .mapping(
-                MapperService.SINGLE_MAPPING_NAME,
-                JsonXContent
-                    .contentBuilder()
-                    .startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject("_meta")
-                    .field(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME, forPolicy)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            );
+        CreateIndexRequest request = new CreateIndexRequest(newIndexName).mapping(
+            MapperService.SINGLE_MAPPING_NAME,
+            JsonXContent.contentBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("_meta")
+                .field(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME, forPolicy)
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         client().admin().indices().create(request).actionGet();
         promoteFakePolicyIndex(newIndexName, forPolicy);
         return newIndexName;

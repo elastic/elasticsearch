@@ -45,8 +45,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
         assertThat(
             "Execute failed",
-            client()
-                .execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("my_policy"))
+            client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("my_policy"))
                 .actionGet()
                 .getStatus()
                 .isCompleted(),

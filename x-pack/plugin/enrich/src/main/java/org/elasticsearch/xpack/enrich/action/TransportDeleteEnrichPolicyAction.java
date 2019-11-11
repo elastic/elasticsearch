@@ -103,8 +103,10 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             List<String> pipelinesWithProcessors = new ArrayList<>();
 
             for (PipelineConfiguration pipelineConfiguration : pipelines) {
-                List<AbstractEnrichProcessor> enrichProcessors = ingestService
-                    .getProcessorsInPipeline(pipelineConfiguration.getId(), AbstractEnrichProcessor.class);
+                List<AbstractEnrichProcessor> enrichProcessors = ingestService.getProcessorsInPipeline(
+                    pipelineConfiguration.getId(),
+                    AbstractEnrichProcessor.class
+                );
                 for (AbstractEnrichProcessor processor : enrichProcessors) {
                     if (processor.getPolicyName().equals(request.getName())) {
                         pipelinesWithProcessors.add(pipelineConfiguration.getId());
@@ -137,20 +139,18 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
 
     private void deleteIndicesAndPolicy(String name, ActionListener<AcknowledgedResponse> listener) {
         // delete all enrich indices for this policy
-        DeleteIndexRequest deleteRequest = new DeleteIndexRequest()
-            .indices(EnrichPolicy.getBaseName(name) + "-*")
+        DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(EnrichPolicy.getBaseName(name) + "-*")
             .indicesOptions(LENIENT_OPTIONS);
 
         client.admin().indices().delete(deleteRequest, ActionListener.wrap((response) -> {
             if (response.isAcknowledged() == false) {
-                listener
-                    .onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not fetch indices to delete during policy delete of [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            name
-                        )
-                    );
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Could not fetch indices to delete during policy delete of [{}]",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        name
+                    )
+                );
             } else {
                 deletePolicy(name, listener);
             }

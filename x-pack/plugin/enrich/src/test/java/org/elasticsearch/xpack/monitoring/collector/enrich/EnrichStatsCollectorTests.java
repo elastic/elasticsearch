@@ -140,16 +140,15 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         int numCoordinatorStats = randomIntBetween(0, 8);
         List<CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatorStats);
         for (int i = 0; i < numCoordinatorStats; i++) {
-            coordinatorStats
-                .add(
-                    new CoordinatorStats(
-                        randomAlphaOfLength(4),
-                        randomIntBetween(0, Integer.MAX_VALUE),
-                        randomIntBetween(0, Integer.MAX_VALUE),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong()
-                    )
-                );
+            coordinatorStats.add(
+                new CoordinatorStats(
+                    randomAlphaOfLength(4),
+                    randomIntBetween(0, Integer.MAX_VALUE),
+                    randomIntBetween(0, Integer.MAX_VALUE),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+            );
         }
 
         @SuppressWarnings("unchecked")

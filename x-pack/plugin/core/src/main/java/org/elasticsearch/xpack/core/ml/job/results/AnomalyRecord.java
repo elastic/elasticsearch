@@ -302,11 +302,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             builder.field(OVER_FIELD_VALUE.getPreferredName(), overFieldValue);
         }
         if (causes != null) {
-            builder.startArray(CAUSES.getPreferredName());
-            for (AnomalyCause cause : causes) {
-                builder.value(cause, params);
-            }
-            builder.endArray();
+            builder.field(CAUSES.getPreferredName(), causes);
         }
         if (influences != null) {
             builder.field(INFLUENCERS.getPreferredName(), influences);

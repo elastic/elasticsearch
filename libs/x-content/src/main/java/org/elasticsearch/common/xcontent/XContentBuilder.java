@@ -850,7 +850,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         return value(value, ToXContent.EMPTY_PARAMS);
     }
 
-    public XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
+    private XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
         if (value == null) {
             return nullValue();
         }

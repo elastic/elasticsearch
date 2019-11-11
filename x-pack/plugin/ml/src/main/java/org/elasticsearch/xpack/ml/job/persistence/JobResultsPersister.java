@@ -69,9 +69,6 @@ public class JobResultsPersister {
 
     private static final Logger logger = LogManager.getLogger(JobResultsPersister.class);
 
-    private static final ToXContent.Params FOR_INTERNAL_STORAGE =
-        new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
-
     private final Client client;
 
     public JobResultsPersister(Client client) {
@@ -137,7 +134,7 @@ public class JobResultsPersister {
             indexResult(
                 TimingStats.documentId(timingStats.getJobId()),
                 timingStats,
-                FOR_INTERNAL_STORAGE,
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
                 TimingStats.TYPE.getPreferredName());
             return this;
         }
@@ -151,7 +148,7 @@ public class JobResultsPersister {
         public Builder persistRecords(List<AnomalyRecord> records) {
             for (AnomalyRecord record : records) {
                 logger.trace("[{}] ES BULK ACTION: index record to index [{}] with ID [{}]", jobId, indexName, record.getId());
-                indexResult(record.getId(), record, FOR_INTERNAL_STORAGE, "record");
+                indexResult(record.getId(), record, "record");
             }
 
             return this;

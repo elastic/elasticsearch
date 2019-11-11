@@ -38,6 +38,9 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
         super(description);
     }
 
+    /** Arbitrarily chosen maximum passphrase length */
+    public static final int MAX_PASSPHRASE_LENGTH = 128;
+
     /**
      * Reads the keystore password from the {@link Terminal}, prompting for verification where applicable and returns it as a
      * {@link SecureString}.
@@ -50,8 +53,10 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
     protected static SecureString readPassword(Terminal terminal, boolean withVerification) throws UserException {
         final char[] passwordArray;
         if (withVerification) {
-            passwordArray = terminal.readSecret("Enter new password for the elasticsearch keystore (empty for no password): ");
-            char[] passwordVerification = terminal.readSecret("Enter same password again: ");
+            passwordArray = terminal.readSecret("Enter new password for the elasticsearch keystore (empty for no password): ",
+                MAX_PASSPHRASE_LENGTH);
+            char[] passwordVerification = terminal.readSecret("Enter same password again: ",
+                MAX_PASSPHRASE_LENGTH);
             if (Arrays.equals(passwordArray, passwordVerification) == false) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Passwords are not equal, exiting.");
             }

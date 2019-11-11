@@ -25,6 +25,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+
 public class MultiCommandTests extends CommandTestCase {
 
     static class DummyMultiCommand extends MultiCommand {
@@ -171,6 +175,57 @@ public class MultiCommandTests extends CommandTestCase {
         }
         assertTrue("SubCommand1 was not closed when close method is invoked", subCommand1.closeCalled.get());
         assertTrue("SubCommand2 was not closed when close method is invoked", subCommand2.closeCalled.get());
+    }
+
+    // Tests for multicommand error logging
+
+    static class ErrorHandlingMultiCommand extends MultiCommand {
+        ErrorHandlingMultiCommand() {
+            super("error catching", () -> {});
+        }
+
+        @Override
+        protected boolean addShutdownHook() {
+            return false;
+        }
+    }
+
+    static class ErrorThrowingSubCommand extends Command {
+        ErrorThrowingSubCommand() {
+            super("error throwing", () -> {});
+        }
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            throw new UserException(1, "Dummy error");
+        }
+
+        @Override
+        protected boolean addShutdownHook() {
+            return false;
+        }
+    }
+
+    public void testErrorDisplayedWithDefault() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        MultiCommand mc = new ErrorHandlingMultiCommand();
+        mc.subcommands.put("throw", new ErrorThrowingSubCommand());
+        mc.main(new String[]{"throw", "--silent"}, terminal);
+        assertThat(terminal.getOutput(), is(emptyString()));
+        assertThat(terminal.getErrorOutput(), equalTo("ERROR: Dummy error\n"));
+    }
+
+    public void testNullErrorMessageSuppressesErrorOutput() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        MultiCommand mc = new ErrorHandlingMultiCommand();
+        mc.subcommands.put("throw", new ErrorThrowingSubCommand() {
+            @Override
+            protected void execute(Terminal terminal, OptionSet options) throws Exception {
+                throw new UserException(1, null);
+            }
+        });
+        mc.main(new String[]{"throw", "--silent"}, terminal);
+        assertThat(terminal.getOutput(), is(emptyString()));
+        assertThat(terminal.getErrorOutput(), is(emptyString()));
     }
 
 }

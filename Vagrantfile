@@ -471,6 +471,7 @@ JAVA
     ensure curl
     ensure unzip
     ensure rsync
+    ensure expect
 
     installed bats || {
       # Bats lives in a git repository....

@@ -73,6 +73,7 @@ public class Point2DTests extends ESTestCase {
             assertThat(reader.getExtent(), equalTo(reader.getExtent()));
             assertThat(reader.getExtent(), equalTo(writer.getExtent()));
             assertTrue(reader.intersects(extent));
+            assertTrue(reader.within(extent));
         }
     }
 }

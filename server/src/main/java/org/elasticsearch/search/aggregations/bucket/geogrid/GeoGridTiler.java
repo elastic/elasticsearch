@@ -23,6 +23,11 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
+import java.util.Deque;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.DelayQueue;
+
 /**
  * The tiler to use to convert a geo value into long-encoded bucket keys for aggregating.
  */
@@ -121,24 +126,47 @@ public interface GeoGridTiler {
 
         @Override
         public int setValues(long[] values, MultiGeoValues.GeoValue geoValue, int precision) {
-            MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
+            return setValuesForCell(new int[] { 0, 0, 0 }, values, 0, precision, geoValue);
+        }
 
-            final double tiles = 1 << precision;
-            int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
-            int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
-            int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
-            int maxYTile = GeoTileUtils.getYTile(bounds.minY(), (long) tiles);
-            int idx = 0;
-            for (int i = minXTile; i <= maxXTile; i++) {
-                for (int j = minYTile; j <= maxYTile; j++) {
-                    Rectangle rectangle = GeoTileUtils.toBoundingBox(i, j, precision);
-                    if (geoValue.intersects(rectangle)) {
-                        values[idx++] = GeoTileUtils.longEncodeTiles(precision, i, j);
-                    }
+        private int setValuesForCell(int[] tile, long[] values, int valuesIndex, int precision, MultiGeoValues.GeoValue geoValue) {
+            if (tile[2] == precision) {
+                Rectangle rectangle = GeoTileUtils.toBoundingBox(tile[0], tile[1], tile[2]);
+                if (geoValue.intersects(rectangle)) {
+                    values[valuesIndex++] = GeoTileUtils.longEncodeTiles(tile[2], tile[0], tile[1]);
+                }
+                return valuesIndex;
+            }
+
+            Rectangle rectangle = GeoTileUtils.toBoundingBox(tile[0], tile[1], tile[2]);
+            boolean within = geoValue.within(rectangle);
+            if (within) {
+                return setValuesForFullyContainedTile(tile, values, valuesIndex, precision);
+            }
+            boolean intersects = geoValue.intersects(rectangle);
+
+            if (intersects) {
+                int[][] subTiles = GeoTileUtils.getSubTiles(tile[0], tile[1], tile[2]);
+                for (int[] subTile : subTiles) {
+                    valuesIndex = setValuesForCell(subTile, values, valuesIndex, precision, geoValue);
                 }
             }
 
-            return idx;
+            return valuesIndex;
+        }
+
+        private int setValuesForFullyContainedTile(int[] tile, long[] values, int valuesIndex, int precision) {
+            if (tile[2] == precision) {
+                values[valuesIndex] = GeoTileUtils.longEncodeTiles(tile[2], tile[0], tile[1]);
+                return valuesIndex + 1;
+            }
+
+            int[][] subTiles = GeoTileUtils.getSubTiles(tile[0], tile[1], tile[2]);
+            for (int[] subTile : subTiles) {
+                valuesIndex = setValuesForFullyContainedTile(subTile, values, valuesIndex, precision);
+            }
+
+            return valuesIndex;
         }
     }
 }

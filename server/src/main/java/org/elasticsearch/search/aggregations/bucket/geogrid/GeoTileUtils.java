@@ -256,6 +256,18 @@ public final class GeoTileUtils {
         return new Rectangle(minX, maxX, maxY, minY);
     }
 
+    static int[][] getSubTiles(int xTile, int yTile, int precision) {
+        int xTile2 = xTile * 2;
+        int yTile2 = yTile * 2;
+        int nextPrecision = precision + 1;
+        return new int[][] {
+            new int[] { xTile2, yTile2, nextPrecision },
+            new int[] { xTile2 + 1, yTile2, nextPrecision },
+            new int[] { xTile2, yTile2 + 1, nextPrecision },
+            new int[] { xTile2 + 1, yTile2 + 1, nextPrecision }
+        };
+    }
+
     /**
      * Validates Zoom, X, and Y values, and returns the total number of allowed tiles along the x/y axis.
      */

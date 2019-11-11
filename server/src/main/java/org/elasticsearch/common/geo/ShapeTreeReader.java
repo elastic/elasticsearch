@@ -29,4 +29,5 @@ public interface ShapeTreeReader {
 
     Extent getExtent() throws IOException;
     boolean intersects(Extent extent) throws IOException;
+    boolean within(Extent extent) throws IOException;
 }

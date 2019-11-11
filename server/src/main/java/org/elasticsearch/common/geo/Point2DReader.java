@@ -50,6 +50,7 @@ class Point2DReader implements ShapeTreeReader {
         }
     }
 
+    @Override
     public boolean intersects(Extent extent) throws IOException {
         Deque<Integer> stack = new ArrayDeque<>();
         stack.push(0);
@@ -91,6 +92,11 @@ class Point2DReader implements ShapeTreeReader {
         }
 
         return false;
+    }
+
+    @Override
+    public boolean within(Extent extent) throws IOException {
+        return intersects(extent);
     }
 
     private int readX(int pointIdx) throws IOException {

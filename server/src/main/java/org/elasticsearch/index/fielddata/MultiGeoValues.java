@@ -101,6 +101,11 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public boolean within(Rectangle rectangle) {
+            throw new UnsupportedOperationException("within is unsupported for geo_point doc values");
+        }
+
+        @Override
         public double lat() {
             return geoPoint.lat();
         }
@@ -155,6 +160,20 @@ public abstract class MultiGeoValues {
         }
 
         @Override
+        public boolean within(Rectangle rectangle) {
+            int minX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMinX());
+            int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
+            int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
+            int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
+            Extent extent = new Extent(maxY, minY, minX, maxX, minX, maxX);
+            try {
+                return reader.within(extent);
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to check intersection", e);
+            }
+        }
+
+        @Override
         public double lat() {
             try {
                 return reader.getCentroidY();
@@ -195,6 +214,7 @@ public abstract class MultiGeoValues {
         double lon();
         BoundingBox boundingBox();
         boolean intersects(Rectangle rectangle);
+        boolean within(Rectangle rectangle);
     }
 
     public static class BoundingBox {

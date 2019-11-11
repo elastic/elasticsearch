@@ -48,12 +48,18 @@ public class EdgeTreeReader implements ShapeTreeReader {
     /**
      * Returns true if the rectangle query and the edge tree's shape overlap
      */
+    @Override
     public boolean intersects(Extent extent) throws IOException {
         if (hasArea) {
             return containsBottomLeft(extent) || crosses(extent);
         } else {
             return crosses(extent);
         }
+    }
+
+    @Override
+    public boolean within(Extent extent) throws IOException {
+        return containsFully(extent);
     }
 
     static Optional<Boolean> checkExtent(Extent treeExtent, Extent extent) throws IOException {
@@ -172,11 +178,11 @@ public class EdgeTreeReader implements ShapeTreeReader {
             }
 
             if (root.rightOffset > 0) { /* has left node */
-                res ^= containsBottomLeft(readLeft(root), extent);
+                res ^= containsFully(readLeft(root), extent);
             }
 
             if (root.rightOffset >= 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
-                res ^= containsBottomLeft(readRight(root), extent);
+                res ^= containsFully(readRight(root), extent);
             }
         }
         return res;

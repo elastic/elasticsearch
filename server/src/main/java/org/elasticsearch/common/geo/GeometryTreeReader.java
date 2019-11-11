@@ -86,6 +86,27 @@ public class GeometryTreeReader {
         return false;
     }
 
+    public boolean within(Extent extent) throws IOException {
+        input.position(extentOffset);
+        boolean hasExtent = input.readBoolean();
+        if (hasExtent) {
+            Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(new Extent(input), extent);
+            if (extentCheck.isPresent()) {
+                return extentCheck.get();
+            }
+        }
+
+        int numTrees = input.readVInt();
+        for (int i = 0; i < numTrees; i++) {
+            ShapeType shapeType = input.readEnum(ShapeType.class);
+            ShapeTreeReader reader = getReader(shapeType, input);
+            if (reader.within(extent)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static ShapeTreeReader getReader(ShapeType shapeType, ByteBufferStreamInput input) throws IOException {
         switch (shapeType) {
             case POLYGON:

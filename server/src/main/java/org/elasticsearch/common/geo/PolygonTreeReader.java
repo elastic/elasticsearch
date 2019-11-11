@@ -60,4 +60,9 @@ public class PolygonTreeReader implements ShapeTreeReader {
         }
         return outerShell.intersects(extent);
     }
+
+    @Override
+    public boolean within(Extent extent) throws IOException {
+        return outerShell.containsFully(extent);
+    }
 }

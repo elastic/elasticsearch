@@ -21,17 +21,18 @@ package org.elasticsearch.common.geo;
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-
 
 /**
  * Basic Tests for {@link GeoExtent}
  */
-public class GeoExtentTests extends ESTestCase {
+public class GeoExtentTests extends AbstractWireSerializingTestCase<GeoExtent> {
 
-    private GeoExtent randomExtent() {
+    @Override
+    protected GeoExtent createTestInstance() {
         GeoExtent extent = new GeoExtent();
         // we occasionally want to test empty extents
         if (frequently()) {
@@ -43,8 +44,13 @@ public class GeoExtentTests extends ESTestCase {
         return extent;
     }
 
+    @Override
+    protected Writeable.Reader<GeoExtent> instanceReader() {
+        return GeoExtent::new;
+    }
+
     public void testExtentSerialization() throws IOException  {
-        GeoExtent extent = randomExtent();
+        GeoExtent extent = createTestInstance();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             extent.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -68,7 +74,7 @@ public class GeoExtentTests extends ESTestCase {
     }
 
     public void testAddExtent() {
-        GeoExtent extent = randomExtent();
+        GeoExtent extent = createTestInstance();
         GeoExtent copy = new GeoExtent();
         copy.addExtent(extent);
         assertEquals(extent.toString() + " vs. " + copy.toString(), extent, copy);
@@ -82,21 +88,6 @@ public class GeoExtentTests extends ESTestCase {
         assertEquals(extent.maxLon(false), Double.NEGATIVE_INFINITY, 0.0);
         assertEquals(extent.minLon(true), Double.POSITIVE_INFINITY, 0.0);
         assertEquals(extent.maxLon(true), Double.NEGATIVE_INFINITY, 0.0);
-    }
-
-    public void testEqualsAndHashCode() {
-        GeoExtent extent = new GeoExtent();
-        double lat = GeoTestUtil.nextLatitude();
-        double lon = GeoTestUtil.nextLongitude();
-        extent.addPoint(lat, lon);
-        GeoExtent copy = new GeoExtent();
-        copy.addExtent(extent);
-        assertEquals(extent.toString() + " vs. " + copy.toString(), extent, copy);
-        assertEquals(extent.toString() + " vs. " + copy.toString(), extent.hashCode(), copy.hashCode());
-        GeoExtent other = new GeoExtent();
-        other.addPoint(lat + 1, lon);
-        assertNotEquals(extent.toString() + " vs. " + copy.toString(), extent, other);
-        assertNotEquals(extent.toString() + " vs. " + copy.toString(), extent.hashCode(), other.hashCode());
     }
 
     public void testWrapLongitude() {

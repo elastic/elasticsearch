@@ -80,7 +80,7 @@ public class GeoExtent implements Writeable {
         this.negLeft = Math.min(this.negLeft,  extent.negLeft);
         this.negRight = Math.max(this.negRight,  extent.negRight);
         this.posLeft = Math.min(this.posLeft,  extent.posLeft);
-        this.posRight =Math.max(this.posRight,  extent.posRight);
+        this.posRight = Math.max(this.posRight,  extent.posRight);
     }
 
     /**

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
+import org.elasticsearch.xpack.core.ml.job.results.GeoResults;
 import org.elasticsearch.xpack.core.ml.job.results.Influence;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
@@ -131,6 +132,7 @@ public class ElasticsearchMappings {
     public static final String BOOLEAN = "boolean";
     public static final String DATE = "date";
     public static final String DOUBLE = "double";
+    public static final String GEO_POINT = "geo_point";
     public static final String INTEGER = "integer";
     public static final String KEYWORD = "keyword";
     public static final String LONG = "long";
@@ -885,6 +887,16 @@ public class ElasticsearchMappings {
                     .field(TYPE, KEYWORD)
                     .field(COPY_TO, ALL_FIELD_VALUES)
                 .endObject()
+                .startObject(AnomalyCause.GEO_RESULTS.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
+                            .field(TYPE, GEO_POINT)
+                        .endObject()
+                        .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
+                            .field(TYPE, GEO_POINT)
+                        .endObject()
+                    .endObject()
+                .endObject()
             .endObject()
         .endObject()
         .startObject(AnomalyRecord.INFLUENCERS.getPreferredName())
@@ -897,6 +909,16 @@ public class ElasticsearchMappings {
                 .startObject(Influence.INFLUENCER_FIELD_VALUES.getPreferredName())
                     .field(TYPE, KEYWORD)
                     .field(COPY_TO, ALL_FIELD_VALUES)
+                .endObject()
+            .endObject()
+        .endObject()
+        .startObject(AnomalyRecord.GEO_RESULTS.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
+                    .field(TYPE, GEO_POINT)
+                .endObject()
+                .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
+                    .field(TYPE, GEO_POINT)
                 .endObject()
             .endObject()
         .endObject();

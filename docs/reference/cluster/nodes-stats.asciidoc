@@ -140,9 +140,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 [[cluster-nodes-stats-api-response-body-indices]]
 ===== `indices` section
 
-The `indices` flag can be set 
-to retrieve information about indices:
-
 `indices.docs.count`::
 (integer)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
@@ -543,8 +540,6 @@ recovery operations were delayed due to throttling.
 [[cluster-nodes-stats-api-response-body-fs]]
 ===== `fs` section
 
-The `fs` flag can be set to retrieve information that concern the file system:
-
 `fs.timestamp`::
     Last time the file stores statistics have been refreshed.
 
@@ -631,9 +626,6 @@ The `fs` flag can be set to retrieve information that concern the file system:
 
 [[cluster-nodes-stats-api-response-body-os]]
 ===== `os` section
-
-The `os` flag can be set to retrieve statistics that concern
-the operating system:
 
 `os.timestamp`::
     Last time the operating system statistics have been refreshed.
@@ -733,9 +725,6 @@ must be readable from `/sys/fs/cgroup/cpu` and `/sys/fs/cgroup/cpuacct`.
 [[cluster-nodes-stats-api-response-body-process]]
 ===== `process` section
 
-The `process` flag can be set to retrieve statistics that concern
-the current running process:
-
 `process.timestamp`::
     Last time the process statistics have been refreshed.
 
@@ -761,8 +750,6 @@ the current running process:
 
 [[cluster-nodes-stats-api-response-body-ingest]]
 ===== `ingest` section
-
-The `ingest` flag can be set to retrieve statistics that concern ingest:
 
 `ingest.total.count`::
     (integer)
@@ -812,9 +799,7 @@ The `ingest` flag can be set to retrieve statistics that concern ingest:
 [[cluster-nodes-stats-api-response-body-adaptive-selection]]
 ===== `adaptive_selection` section
 
-The `adaptive_selection` flag can be set to retrieve statistics that concern
-<<search-adaptive-replica,adaptive replica selection>>. These statistics are
-keyed by node. For each node:
+The `adaptive_selection` statistics are keyed by node. For each node:
 
 `adaptive_selection.outgoing_searches`::
     The number of outstanding search requests from the node these stats are for 

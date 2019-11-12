@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -214,9 +215,12 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            assertThat(expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage(),
+            final String message = expectThrows(IllegalStateException.class,
+                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+            assertThat(message,
                 allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
+            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
+                Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
         }
     }
 
@@ -263,9 +267,14 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            assertThat(expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage(),
+            final String message = expectThrows(IllegalStateException.class,
+                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+            assertThat(message,
                 allOf(containsString("mismatched cluster UUIDs in metadata"), containsString(clusterUUID1), containsString(clusterUUID2)));
+            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths1),
+                Arrays.stream(dataPaths1).anyMatch(p -> message.contains(p.toString())));
+            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
+                Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
         }
     }
 
@@ -315,11 +324,16 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
         }
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            assertThat(expectThrows(IllegalStateException.class,
-                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage(), allOf(
+            final String message = expectThrows(IllegalStateException.class,
+                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+            assertThat(message, allOf(
                     containsString("inconsistent terms found"),
                     containsString(Long.toString(staleCurrentTerm)),
                     containsString(Long.toString(freshCurrentTerm))));
+            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths1),
+                Arrays.stream(dataPaths1).anyMatch(p -> message.contains(p.toString())));
+            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
+                Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
         }
     }
 

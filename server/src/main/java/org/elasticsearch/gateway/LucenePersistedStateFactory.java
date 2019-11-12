@@ -187,12 +187,14 @@ public class LucenePersistedStateFactory {
 
     private static class OnDiskState {
         final String nodeId;
+        final Path dataPath;
         final long currentTerm;
         final long lastAcceptedVersion;
         final MetaData metaData;
 
-        private OnDiskState(String nodeId, long currentTerm, long lastAcceptedVersion, MetaData metaData) {
+        private OnDiskState(String nodeId, Path dataPath, long currentTerm, long lastAcceptedVersion, MetaData metaData) {
             this.nodeId = nodeId;
+            this.dataPath = dataPath;
             this.currentTerm = currentTerm;
             this.lastAcceptedVersion = lastAcceptedVersion;
             this.metaData = metaData;
@@ -200,9 +202,10 @@ public class LucenePersistedStateFactory {
     }
 
     private OnDiskState loadBestOnDiskState() throws IOException {
-        long maxCurrentTerm = 0L;
         String committedClusterUuid = null;
-        OnDiskState bestOnDiskState = new OnDiskState(null, 0L, 0L, MetaData.EMPTY_META_DATA);
+        Path committedClusterUuidPath = null;
+        OnDiskState bestOnDiskState = new OnDiskState(null, null, 0L, 0L, MetaData.EMPTY_META_DATA);
+        OnDiskState maxCurrentTermOnDiskState = bestOnDiskState;
 
         // We use a write-all-read-one strategy: metadata is written to every data path when accepting it, which means it is mostly
         // sufficient to read _any_ copy. "Mostly" sufficient because the user can change the set of data paths when restarting, and may
@@ -212,24 +215,27 @@ public class LucenePersistedStateFactory {
             if (Files.exists(indexPath)) {
                 try (Directory directory = createDirectory(indexPath);
                      DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                    final OnDiskState onDiskState = loadOnDiskState(directoryReader);
+                    final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
                     if (nodeEnvironment.nodeId().equals(onDiskState.nodeId) == false) {
                         throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-                            "] but expected [" + nodeEnvironment.nodeId() + "]");
+                            "] in [" + dataPath + "] but expected [" + nodeEnvironment.nodeId() + "]");
                     }
 
                     if (onDiskState.metaData.clusterUUIDCommitted()) {
                         if (committedClusterUuid == null) {
                             committedClusterUuid = onDiskState.metaData.clusterUUID();
+                            committedClusterUuidPath = dataPath;
                         } else if (committedClusterUuid.equals(onDiskState.metaData.clusterUUID()) == false) {
                             throw new IllegalStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
-                                "] and [" + onDiskState.metaData.clusterUUID() +
-                                "]");
+                                "] in [" + committedClusterUuidPath + "] and [" + onDiskState.metaData.clusterUUID() + "] in ["
+                                + dataPath + "]");
                         }
                     }
 
-                    maxCurrentTerm = Math.max(maxCurrentTerm, onDiskState.currentTerm);
+                    if (maxCurrentTermOnDiskState.currentTerm < onDiskState.currentTerm || maxCurrentTermOnDiskState.dataPath == null) {
+                        maxCurrentTermOnDiskState = onDiskState;
+                    }
 
                     long acceptedTerm = onDiskState.metaData.coordinationMetaData().term();
                     long maxAcceptedTerm = bestOnDiskState.metaData.coordinationMetaData().term();
@@ -246,15 +252,16 @@ public class LucenePersistedStateFactory {
             }
         }
 
-        if (bestOnDiskState.currentTerm != maxCurrentTerm) {
-            throw new IllegalStateException("inconsistent terms found: best state is in term [" + bestOnDiskState.currentTerm +
-                "] but there is a stale state with greater term [" + maxCurrentTerm + "]");
+        if (bestOnDiskState.currentTerm != maxCurrentTermOnDiskState.currentTerm) {
+            throw new IllegalStateException("inconsistent terms found: best state is from [" + bestOnDiskState.dataPath +
+                "] in term [" + bestOnDiskState.currentTerm + "] but there is a stale state in [" + maxCurrentTermOnDiskState.dataPath +
+                "] with greater term [" + maxCurrentTermOnDiskState.currentTerm + "]");
         }
 
         return bestOnDiskState;
     }
 
-    private OnDiskState loadOnDiskState(DirectoryReader reader) throws IOException {
+    private OnDiskState loadOnDiskState(Path dataPath, DirectoryReader reader) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(reader);
         searcher.setQueryCache(null);
 
@@ -290,7 +297,7 @@ public class LucenePersistedStateFactory {
         assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;
         assert userData.get(NODE_ID_KEY) != null;
         assert userData.get(NODE_VERSION_KEY) != null;
-        return new OnDiskState(userData.get(NODE_ID_KEY), Long.parseLong(userData.get(CURRENT_TERM_KEY)),
+        return new OnDiskState(userData.get(NODE_ID_KEY), dataPath, Long.parseLong(userData.get(CURRENT_TERM_KEY)),
             Long.parseLong(userData.get(LAST_ACCEPTED_VERSION_KEY)), builder.build());
     }
 

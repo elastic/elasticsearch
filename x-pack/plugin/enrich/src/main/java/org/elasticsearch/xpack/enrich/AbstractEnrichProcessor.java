@@ -35,15 +35,19 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     protected final String matchField;
     protected final int maxMatches;
 
-    protected AbstractEnrichProcessor(String tag, Client client, String policyName, String field, String targetField,
-                                      boolean ignoreMissing, boolean overrideEnabled, String matchField, int maxMatches) {
+    protected AbstractEnrichProcessor(
+        String tag, Client client, String policyName, String field, String targetField,
+        boolean ignoreMissing, boolean overrideEnabled, String matchField, int maxMatches
+    ) {
         this(tag, createSearchRunner(client), policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
     }
 
-    protected AbstractEnrichProcessor(String tag,
-                                      BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
-                                      String policyName, String field, String targetField, boolean ignoreMissing, boolean overrideEnabled,
-                                      String matchField, int maxMatches) {
+    protected AbstractEnrichProcessor(
+        String tag,
+        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
+        String policyName, String field, String targetField, boolean ignoreMissing, boolean overrideEnabled,
+        String matchField, int maxMatches
+    ) {
         super(tag);
         this.policyName = policyName;
         this.searchRunner = searchRunner;
@@ -155,13 +159,18 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
         return (req, handler) -> {
-            client.execute(EnrichCoordinatorProxyAction.INSTANCE, req, ActionListener.wrap(
-                resp -> {
-                    handler.accept(resp, null);
-                },
-                e -> {
-                    handler.accept(null, e);
-                }));
+            client.execute(
+                EnrichCoordinatorProxyAction.INSTANCE,
+                req,
+                ActionListener.wrap(
+                    resp -> {
+                        handler.accept(resp, null);
+                    },
+                    e -> {
+                        handler.accept(null, e);
+                    }
+                )
+            );
         };
     }
 }

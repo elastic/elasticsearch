@@ -45,13 +45,15 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
     }
 
     @Override
-    protected ExecutingPolicyDoc createMonitoringDoc(String cluster,
-                                                     long timestamp,
-                                                     long interval,
-                                                     MonitoringDoc.Node node,
-                                                     MonitoredSystem system,
-                                                     String type,
-                                                     String id) {
+    protected ExecutingPolicyDoc createMonitoringDoc(
+        String cluster,
+        long timestamp,
+        long interval,
+        MonitoringDoc.Node node,
+        MonitoredSystem system,
+        String type,
+        String id
+    ) {
 
         return new ExecutingPolicyDoc(cluster, timestamp, interval, node, executingPolicy);
     }
@@ -75,38 +77,41 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         Optional<Map.Entry<String, String>> header =
             executingPolicy.getTaskInfo().getHeaders().entrySet().stream().findAny();
-        assertThat(xContent.utf8ToString(), equalTo(
-            "{"
-                + "\"cluster_uuid\":\"_cluster\","
-                + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(timestamp) + "\","
-                + "\"interval_ms\":" + intervalMillis + ","
-                + "\"type\":\"enrich_executing_policy_stats\","
-                + "\"source_node\":{"
+        assertThat(
+            xContent.utf8ToString(),
+            equalTo(
+                "{"
+                    + "\"cluster_uuid\":\"_cluster\","
+                    + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(timestamp) + "\","
+                    + "\"interval_ms\":" + intervalMillis + ","
+                    + "\"type\":\"enrich_executing_policy_stats\","
+                    + "\"source_node\":{"
                     + "\"uuid\":\"_uuid\","
                     + "\"host\":\"_host\","
                     + "\"transport_address\":\"_addr\","
                     + "\"ip\":\"_ip\","
                     + "\"name\":\"_name\","
-                    + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp) +  "\""
-                + "},"
-                + "\"enrich_executing_policy_stats\":{"
+                    + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp) + "\""
+                    + "},"
+                    + "\"enrich_executing_policy_stats\":{"
                     + "\"name\":\"" + executingPolicy.getName() + "\","
                     + "\"task\":{"
-                        + "\"node\":\"" + executingPolicy.getTaskInfo().getTaskId().getNodeId() + "\","
-                        + "\"id\":" + executingPolicy.getTaskInfo().getTaskId().getId() + ","
-                        + "\"type\":\"" + executingPolicy.getTaskInfo().getType() + "\","
-                        + "\"action\":\"" + executingPolicy.getTaskInfo().getAction() + "\","
-                        + "\"description\":\"" + executingPolicy.getTaskInfo().getDescription() + "\","
-                        + "\"start_time_in_millis\":" + executingPolicy.getTaskInfo().getStartTime() + ","
-                        + "\"running_time_in_nanos\":" + executingPolicy.getTaskInfo().getRunningTimeNanos() + ","
-                        + "\"cancellable\":" + executingPolicy.getTaskInfo().isCancellable() + ","
-                        + header
-                            .map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
-                            .orElse("\"headers\":{}")
+                    + "\"node\":\"" + executingPolicy.getTaskInfo().getTaskId().getNodeId() + "\","
+                    + "\"id\":" + executingPolicy.getTaskInfo().getTaskId().getId() + ","
+                    + "\"type\":\"" + executingPolicy.getTaskInfo().getType() + "\","
+                    + "\"action\":\"" + executingPolicy.getTaskInfo().getAction() + "\","
+                    + "\"description\":\"" + executingPolicy.getTaskInfo().getDescription() + "\","
+                    + "\"start_time_in_millis\":" + executingPolicy.getTaskInfo().getStartTime() + ","
+                    + "\"running_time_in_nanos\":" + executingPolicy.getTaskInfo().getRunningTimeNanos() + ","
+                    + "\"cancellable\":" + executingPolicy.getTaskInfo().isCancellable() + ","
+                    + header
+                        .map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
+                        .orElse("\"headers\":{}")
                     + "}"
-                + "}"
-            + "}"
-        ));
+                    + "}"
+                    + "}"
+            )
+        );
     }
 
     public void testEnrichCoordinatorStatsFieldsMapped() throws IOException {
@@ -129,11 +134,17 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
             Object fieldValue = entry.getValue();
             String fieldType = (String) fieldMapping.get("type");
             if (fieldValue instanceof Long || fieldValue instanceof Integer) {
-                assertThat("expected long field type for field [" + fieldName + "]", fieldType,
-                    anyOf(equalTo("long"), equalTo("integer")));
+                assertThat(
+                    "expected long field type for field [" + fieldName + "]",
+                    fieldType,
+                    anyOf(equalTo("long"), equalTo("integer"))
+                );
             } else if (fieldValue instanceof String) {
-                assertThat("expected keyword field type for field [" + fieldName + "]", fieldType,
-                    anyOf(equalTo("keyword"), equalTo("text")));
+                assertThat(
+                    "expected keyword field type for field [" + fieldName + "]",
+                    fieldType,
+                    anyOf(equalTo("keyword"), equalTo("text"))
+                );
             } else {
                 if (fieldName.equals("task")) {
                     assertThat(fieldType, equalTo("object"));

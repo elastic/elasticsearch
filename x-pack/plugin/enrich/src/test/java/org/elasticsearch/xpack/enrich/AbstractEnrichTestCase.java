@@ -26,18 +26,27 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
         return Collections.singletonList(LocalStateEnrich.class);
     }
 
-    protected AtomicReference<Exception> saveEnrichPolicy(String name, EnrichPolicy policy,
-                                                          ClusterService clusterService) throws InterruptedException {
+    protected AtomicReference<Exception> saveEnrichPolicy(
+        String name,
+        EnrichPolicy policy,
+        ClusterService clusterService
+    ) throws InterruptedException {
         if (policy != null) {
             createSourceIndices(policy);
         }
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.putPolicy(name, policy, clusterService, resolver, e -> {
-            error.set(e);
-            latch.countDown();
-        });
+        EnrichStore.putPolicy(
+            name,
+            policy,
+            clusterService,
+            resolver,
+            e -> {
+                error.set(e);
+                latch.countDown();
+            }
+        );
         latch.await();
         return error;
     }
@@ -45,12 +54,16 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
     protected void deleteEnrichPolicy(String name, ClusterService clusterService) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.deletePolicy(name, clusterService, e -> {
-            error.set(e);
-            latch.countDown();
-        });
+        EnrichStore.deletePolicy(
+            name,
+            clusterService,
+            e -> {
+                error.set(e);
+                latch.countDown();
+            }
+        );
         latch.await();
-        if (error.get() != null){
+        if (error.get() != null) {
             throw error.get();
         }
     }

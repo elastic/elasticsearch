@@ -104,7 +104,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         public Request(MultiSearchRequest multiSearchRequest) {
             super(multiSearchRequest.requests().get(0).indices()[0]);
             this.multiSearchRequest = multiSearchRequest;
-            assert multiSearchRequest.requests().stream()
+            assert multiSearchRequest.requests()
+                .stream()
                 .map(SearchRequest::indices)
                 .flatMap(Arrays::stream)
                 .distinct()
@@ -121,8 +122,10 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = validateNonNullIndex();
             if (index.startsWith(EnrichPolicy.ENRICH_INDEX_NAME_BASE) == false) {
-                validationException = ValidateActions.addValidationError("index [" + index + "] is not an enrich index",
-                    validationException);
+                validationException = ValidateActions.addValidationError(
+                    "index [" + index + "] is not an enrich index",
+                    validationException
+                );
             }
             return validationException;
         }
@@ -168,7 +171,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
         private static final SearchSourceBuilder EMPTY_SOURCE = new SearchSourceBuilder()
             // can't set -1 to indicate not specified
-            .from(0).size(10);
+            .from(0)
+            .size(10);
     }
 
     public static class TransportAction extends TransportSingleShardAction<Request, MultiSearchResponse> {
@@ -176,11 +180,21 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         private final IndicesService indicesService;
 
         @Inject
-        public TransportAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               IndicesService indicesService) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request::new, ThreadPool.Names.SEARCH);
+        public TransportAction(
+            ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+            IndicesService indicesService
+        ) {
+            super(
+                NAME,
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                indexNameExpressionResolver,
+                Request::new,
+                ThreadPool.Names.SEARCH
+            );
             this.indicesService = indicesService;
         }
 
@@ -204,7 +218,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             }
 
             GroupShardsIterator<ShardIterator> result =
-                clusterService.operationRouting().searchShards(state, new String[] {index}, null, Preference.LOCAL.type());
+                clusterService.operationRouting().searchShards(state, new String[] { index }, null, Preference.LOCAL.type());
             return result.get(0);
         }
 
@@ -214,8 +228,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             final IndexShard indexShard = indicesService.getShardOrNull(shardId);
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
-                final QueryShardContext context = indexService.newQueryShardContext(shardId.id(),
-                    searcher, () -> {throw new UnsupportedOperationException();}, null);
+                final QueryShardContext context = indexService.newQueryShardContext(
+                    shardId.id(),
+                    searcher,
+                    () -> { throw new UnsupportedOperationException(); },
+                    null
+                );
                 final MapperService mapperService = context.getMapperService();
                 final Text typeText = mapperService.documentMapper().typeText();
 
@@ -261,8 +279,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
         XContentBuilder builder =
             new XContentBuilder(XContentType.SMILE.xContent(), new BytesStreamOutput(source.length()), includes, excludes);
-        XContentParser sourceParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, XContentType.SMILE);
+        XContentParser sourceParser = XContentHelper.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            source,
+            XContentType.SMILE
+        );
         builder.copyCurrentStructure(sourceParser);
         return BytesReference.bytes(builder);
     }
@@ -271,7 +293,13 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         SearchHits searchHits = new SearchHits(hits, topDocs.totalHits, 0);
         return new SearchResponse(
             new InternalSearchResponse(searchHits, null, null, null, false, null, 0),
-            null, 1, 1, 0, 1L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY
+            null,
+            1,
+            1,
+            0,
+            1L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
         );
     }
 

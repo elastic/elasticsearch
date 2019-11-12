@@ -55,20 +55,42 @@ public class GeoMatchProcessorTests extends ESTestCase {
         testBasicsForFieldValue("37.386637, -122.084110", expectedPoint);
         testBasicsForFieldValue("POINT (-122.084110 37.386637)", expectedPoint);
         testBasicsForFieldValue(Arrays.asList(-122.084110, 37.386637), expectedPoint);
-        testBasicsForFieldValue(Arrays.asList(Arrays.asList(-122.084110, 37.386637),
-            "37.386637, -122.084110", "POINT (-122.084110 37.386637)"),
-            new MultiPoint(Arrays.asList(expectedPoint, expectedPoint, expectedPoint)));
+        testBasicsForFieldValue(
+            Arrays.asList(
+                Arrays.asList(-122.084110, 37.386637),
+                "37.386637, -122.084110",
+                "POINT (-122.084110 37.386637)"
+            ),
+            new MultiPoint(Arrays.asList(expectedPoint, expectedPoint, expectedPoint))
+        );
 
         testBasicsForFieldValue("not a point", null);
     }
 
     private void testBasicsForFieldValue(Object fieldValue, Geometry expectedGeometry) {
         int maxMatches = randomIntBetween(1, 8);
-        MockSearchFunction mockSearch = mockedSearchFunction(mapOf("key", mapOf("shape", "object", "zipcode",94040)));
-        GeoMatchProcessor processor = new GeoMatchProcessor("_tag", mockSearch, "_name", "location", "entry",
-            false, false, "shape", maxMatches, ShapeRelation.INTERSECTS);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
-            mapOf("location", fieldValue));
+        MockSearchFunction mockSearch = mockedSearchFunction(mapOf("key", mapOf("shape", "object", "zipcode", 94040)));
+        GeoMatchProcessor processor = new GeoMatchProcessor(
+            "_tag",
+            mockSearch,
+            "_name",
+            "location",
+            "entry",
+            false,
+            false,
+            "shape",
+            maxMatches,
+            ShapeRelation.INTERSECTS
+        );
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index",
+            "_type",
+            "_id",
+            "_routing",
+            1L,
+            VersionType.INTERNAL,
+            mapOf("location", fieldValue)
+        );
         // Run
         IngestDocument[] holder = new IngestDocument[1];
         processor.execute(ingestDocument, (result, e) -> holder[0] = result);
@@ -107,7 +129,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
 
     }
 
-    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>>  {
+    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> {
         private final SearchResponse mockResponse;
         private final SetOnce<SearchRequest> capturedRequest;
         private final Exception exception;
@@ -153,8 +175,12 @@ public class GeoMatchProcessorTests extends ESTestCase {
 
     public SearchResponse mockResponse(Map<String, Map<String, ?>> documents) {
         SearchHit[] searchHits = documents.entrySet().stream().map(e -> {
-            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), new Text(MapperService.SINGLE_MAPPING_NAME),
-                Collections.emptyMap());
+            SearchHit searchHit = new SearchHit(
+                randomInt(100),
+                e.getKey(),
+                new Text(MapperService.SINGLE_MAPPING_NAME),
+                Collections.emptyMap()
+            );
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(e.getValue());
                 builder.flush();
@@ -165,9 +191,23 @@ public class GeoMatchProcessorTests extends ESTestCase {
             }
             return searchHit;
         }).toArray(SearchHit[]::new);
-        return new SearchResponse(new SearchResponseSections(
-            new SearchHits(searchHits, new TotalHits(documents.size(), TotalHits.Relation.EQUAL_TO), 1.0f),
-            new Aggregations(Collections.emptyList()), new Suggest(Collections.emptyList()),
-            false, false, null, 1), null, 1, 1, 0, 1, ShardSearchFailure.EMPTY_ARRAY, new SearchResponse.Clusters(1, 1, 0));
+        return new SearchResponse(
+            new SearchResponseSections(
+                new SearchHits(searchHits, new TotalHits(documents.size(), TotalHits.Relation.EQUAL_TO), 1.0f),
+                new Aggregations(Collections.emptyList()),
+                new Suggest(Collections.emptyList()),
+                false,
+                false,
+                null,
+                1
+            ),
+            null,
+            1,
+            1,
+            0,
+            1,
+            ShardSearchFailure.EMPTY_ARRAY,
+            new SearchResponse.Clusters(1, 1, 0)
+        );
     }
 }

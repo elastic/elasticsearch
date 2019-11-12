@@ -57,7 +57,7 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
             request.add(searchRequest);
         }
 
-        MultiSearchResponse result  =
+        MultiSearchResponse result =
             client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet();
         assertThat(result.getResponses().length, equalTo(numSearches));
         for (int i = 0; i < numSearches; i++) {
@@ -72,8 +72,10 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
         createIndex("index");
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(new SearchRequest("index"));
-        Exception e = expectThrows(ActionRequestValidationException.class,
-            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet());
+        Exception e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet()
+        );
         assertThat(e.getMessage(), equalTo("Validation Failed: 1: index [index] is not an enrich index;"));
     }
 
@@ -82,8 +84,10 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 2).build());
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(new SearchRequest(indexName));
-        Exception e = expectThrows(IllegalStateException.class,
-            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet());
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet()
+        );
         assertThat(e.getMessage(), equalTo("index [.enrich-1] should have 1 shard, but has 2 shards"));
     }
 

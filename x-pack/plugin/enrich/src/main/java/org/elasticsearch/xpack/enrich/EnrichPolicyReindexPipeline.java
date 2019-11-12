@@ -74,17 +74,20 @@ public class EnrichPolicyReindexPipeline {
         try {
             return XContentBuilder.builder(xContentType.xContent())
                 .startObject()
-                    .field("description", "This pipeline sanitizes documents that will be stored in enrich indices for ingest lookup " +
-                        "purposes. It is an internal pipeline and should not be modified.")
-                    .field("version", ENRICH_PIPELINE_LAST_UPDATED_VERSION)
-                    .startArray("processors")
-                        .startObject()
-                            // remove the id from the document so that documents from multiple indices will always be unique.
-                            .startObject("remove")
-                                .field("field", "_id")
-                            .endObject()
-                        .endObject()
-                    .endArray()
+                .field(
+                    "description",
+                    "This pipeline sanitizes documents that will be stored in enrich indices for ingest lookup " +
+                        "purposes. It is an internal pipeline and should not be modified."
+                )
+                .field("version", ENRICH_PIPELINE_LAST_UPDATED_VERSION)
+                .startArray("processors")
+                .startObject()
+                // remove the id from the document so that documents from multiple indices will always be unique.
+                .startObject("remove")
+                .field("field", "_id")
+                .endObject()
+                .endObject()
+                .endArray()
                 .endObject();
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to create pipeline for enrich document sanitization", e);

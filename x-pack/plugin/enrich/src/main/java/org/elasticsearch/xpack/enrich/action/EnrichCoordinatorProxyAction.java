@@ -87,8 +87,10 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             );
         }
 
-        Coordinator(BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction,
-                    int maxLookupsPerRequest, int maxNumberOfConcurrentRequests, int queueCapacity) {
+        Coordinator(
+            BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction,
+            int maxLookupsPerRequest, int maxNumberOfConcurrentRequests, int queueCapacity
+        ) {
             this.lookupFunction = lookupFunction;
             this.maxLookupsPerRequest = maxLookupsPerRequest;
             this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
@@ -110,8 +112,13 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         }
 
         CoordinatorStats getStats(String nodeId) {
-            return new CoordinatorStats(nodeId, queue.size(), remoteRequestsCurrent.get(), remoteRequestsTotal,
-                executedSearchesTotal.get());
+            return new CoordinatorStats(
+                nodeId,
+                queue.size(),
+                remoteRequestsCurrent.get(),
+                remoteRequestsTotal,
+                executedSearchesTotal.get()
+            );
         }
 
         synchronized void coordinateLookups() {
@@ -125,9 +132,12 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
                 remoteRequestsCurrent.incrementAndGet();
                 remoteRequestsTotal++;
-                lookupFunction.accept(multiSearchRequest, (response, e) -> {
-                    handleResponse(slots, response, e);
-                });
+                lookupFunction.accept(
+                    multiSearchRequest,
+                    (response, e) -> {
+                        handleResponse(slots, response, e);
+                    }
+                );
             }
         }
 
@@ -206,9 +216,11 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             };
         }
 
-        static MultiSearchResponse reduce(int numRequest,
-                                          Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex,
-                                          Map<String, Tuple<MultiSearchResponse, Exception>> shardResponses) {
+        static MultiSearchResponse reduce(
+            int numRequest,
+            Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex,
+            Map<String, Tuple<MultiSearchResponse, Exception>> shardResponses
+        ) {
             MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequest];
             for (Map.Entry<String, Tuple<MultiSearchResponse, Exception>> rspEntry : shardResponses.entrySet()) {
                 List<Tuple<Integer, SearchRequest>> reqSlots = itemsPerIndex.get(rspEntry.getKey());

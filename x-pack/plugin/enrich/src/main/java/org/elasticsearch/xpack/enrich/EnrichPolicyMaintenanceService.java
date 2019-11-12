@@ -54,8 +54,10 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     private volatile Scheduler.Cancellable cancellable;
     private final Semaphore maintenanceLock = new Semaphore(1);
 
-    EnrichPolicyMaintenanceService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
-                                   EnrichPolicyLocks enrichPolicyLocks) {
+    EnrichPolicyMaintenanceService(
+        Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
+        EnrichPolicyLocks enrichPolicyLocks
+    ) {
         this.settings = settings;
         this.client = new OriginSettingClient(client, ENRICH_ORIGIN);
         this.clusterService = clusterService;
@@ -197,8 +199,12 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             logger.debug("Enrich index [{}] is not marked as a live index since it lacks the alias [{}]", indexName, aliasName);
             return true;
         }
-        logger.debug("Enrich index [{}] was spared since it is associated with the valid policy [{}] and references alias [{}]",
-            indexName, policyName, aliasName);
+        logger.debug(
+            "Enrich index [{}] was spared since it is associated with the valid policy [{}] and references alias [{}]",
+            indexName,
+            policyName,
+            aliasName
+        );
         return false;
     }
 
@@ -216,8 +222,11 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> "Enrich maintenance task could not delete abandoned enrich indices [" +
-                        Arrays.toString(removeIndices) + "]", e);
+                    logger.error(
+                        () -> "Enrich maintenance task could not delete abandoned enrich indices [" +
+                            Arrays.toString(removeIndices) + "]",
+                        e
+                    );
                     concludeMaintenance();
                 }
             });

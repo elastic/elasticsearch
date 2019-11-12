@@ -89,14 +89,16 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         Setting.intSetting("enrich.max_force_merge_attempts", 3, 1, 10, Setting.Property.NodeScope);
 
     private static final String QUEUE_CAPACITY_SETTING_NAME = "enrich.coordinator_proxy.queue_capacity";
-    public static final Setting<Integer> COORDINATOR_PROXY_QUEUE_CAPACITY = new Setting<>(QUEUE_CAPACITY_SETTING_NAME,
-            settings -> {
-                int maxConcurrentRequests = COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings);
-                int maxLookupsPerRequest = COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings);
-                return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
-            },
-            val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME),
-            Setting.Property.NodeScope);
+    public static final Setting<Integer> COORDINATOR_PROXY_QUEUE_CAPACITY = new Setting<>(
+        QUEUE_CAPACITY_SETTING_NAME,
+        settings -> {
+            int maxConcurrentRequests = COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings);
+            int maxLookupsPerRequest = COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings);
+            return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
+        },
+        val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME),
+        Setting.Property.NodeScope
+    );
 
     private final Settings settings;
     private final Boolean enabled;
@@ -119,7 +121,9 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         return Collections.singletonMap(EnrichProcessorFactory.TYPE, factory);
     }
 
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
@@ -138,10 +142,15 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         );
     }
 
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (enabled == false) {
             return emptyList();
         }
@@ -156,17 +165,29 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
 
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
-        EnrichPolicyMaintenanceService enrichPolicyMaintenanceService = new EnrichPolicyMaintenanceService(settings, client,
-            clusterService, threadPool, enrichPolicyLocks);
+        EnrichPolicyMaintenanceService enrichPolicyMaintenanceService = new EnrichPolicyMaintenanceService(
+            settings,
+            client,
+            clusterService,
+            threadPool,
+            enrichPolicyLocks
+        );
         enrichPolicyMaintenanceService.initialize();
         return Arrays.asList(
             enrichPolicyLocks,
@@ -188,8 +209,11 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
             new NamedWriteableRegistry.Entry(MetaData.Custom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, EnrichMetadata.TYPE,
-                in -> EnrichMetadata.readDiffFrom(MetaData.Custom.class, EnrichMetadata.TYPE, in))
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                EnrichMetadata.TYPE,
+                in -> EnrichMetadata.readDiffFrom(MetaData.Custom.class, EnrichMetadata.TYPE, in)
+            )
         );
     }
 

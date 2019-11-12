@@ -34,11 +34,20 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
     private final Client client;
 
     @Inject
-    public TransportEnrichStatsAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      Client client) {
-        super(EnrichStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            EnrichStatsAction.Request::new, indexNameExpressionResolver);
+    public TransportEnrichStatsAction(
+        TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client
+    ) {
+        super(
+            EnrichStatsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            EnrichStatsAction.Request::new,
+            indexNameExpressionResolver
+        );
         this.client = client;
     }
 
@@ -53,9 +62,11 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
     }
 
     @Override
-    protected void masterOperation(EnrichStatsAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<EnrichStatsAction.Response> listener) throws Exception {
+    protected void masterOperation(
+        EnrichStatsAction.Request request,
+        ClusterState state,
+        ActionListener<EnrichStatsAction.Response> listener
+    ) throws Exception {
         EnrichCoordinatorStatsAction.Request statsRequest = new EnrichCoordinatorStatsAction.Request();
         ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = ActionListener.wrap(
             response -> {
@@ -73,11 +84,14 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                     return;
                 }
 
-                List<CoordinatorStats> coordinatorStats = response.getNodes().stream()
+                List<CoordinatorStats> coordinatorStats = response.getNodes()
+                    .stream()
                     .map(EnrichCoordinatorStatsAction.NodeResponse::getCoordinatorStats)
                     .sorted(Comparator.comparing(CoordinatorStats::getNodeId))
                     .collect(Collectors.toList());
-                List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks().values().stream()
+                List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks()
+                    .values()
+                    .stream()
                     .filter(t -> t.getAction().equals(EnrichPolicyExecutor.TASK_ACTION))
                     .map(t -> t.taskInfo(clusterService.localNode().getId(), true))
                     .map(t -> new ExecutingPolicy(t.getDescription(), t))

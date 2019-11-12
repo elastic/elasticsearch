@@ -36,8 +36,4 @@ public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpda
         return source;
     }
 
-    @Override
-    public String toString() {
-        return "put-mapping";
-    }
 }

@@ -81,7 +81,10 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readOptionalString();
+            String type = in.readOptionalString();
+            if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                throw new IllegalArgumentException("Expected type [_doc] but received [" + type + "]");
+            }
         }
         source = in.readString();
         concreteIndex = in.readOptionalWriteable(Index::new);

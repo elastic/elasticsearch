@@ -122,12 +122,8 @@ public class PutMappingRequestTests extends ESTestCase {
      */
     private static PutMappingRequest createTestItem() throws IOException {
         String index = randomAlphaOfLength(5);
-
         PutMappingRequest request = new PutMappingRequest(index);
-
-        String type = randomAlphaOfLength(5);
-        request.source(RandomCreateIndexGenerator.randomMapping(type));
-
+        request.source(RandomCreateIndexGenerator.randomMapping("_doc"));
         return request;
     }
 }

@@ -82,6 +82,31 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.IntPredicate;
 
+/**
+ * Stores cluster metadata in a bare Lucene index (per data path) split across a number of documents. This is used by master-eligible nodes
+ * to record the last-accepted cluster state during publication. The metadata is written incrementally where possible, leaving alone any
+ * documents that have not changed. The index has the following fields:
+ *
+ * +------------------------------+-----------------------------+----------------------------------------------+
+ * | "type" (string field)        | "index_uuid" (string field) | "data" (stored binary field in SMILE format) |
+ * +------------------------------+-----------------------------+----------------------------------------------+
+ * | GLOBAL_TYPE_NAME == "global" | (omitted)                   | Global metadata                              |
+ * | INDEX_TYPE_NAME  == "index"  | Index UUID                  | Index metadata                               |
+ * +------------------------------+-----------------------------+----------------------------------------------+
+ *
+ * Additionally each commit has the following user data:
+ *
+ * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
+ * |        Key symbol         |       Key literal       |                                     Value                                     |
+ * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
+ * | CURRENT_TERM_KEY          | "current_term"          | Node's "current" term (≥ last-accepted term and the terms of all sent joins)  |
+ * | LAST_ACCEPTED_VERSION_KEY | "last_accepted_version" | The cluster state version corresponding with the persisted metadata           |
+ * | NODE_ID_KEY               | "node_id"               | The (persistent) ID of the node that wrote this metadata                      |
+ * | NODE_VERSION_KEY          | "node_version"          | The (ID of the) version of the node that wrote this metadata                  |
+ * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
+ *
+ * (the last-accepted term is recorded in MetaData → CoordinationMetaData so does not need repeating here)
+ */
 public class LucenePersistedStateFactory {
     private static final Logger logger = LogManager.getLogger(LucenePersistedStateFactory.class);
     private static final String CURRENT_TERM_KEY = "current_term";
@@ -124,7 +149,7 @@ public class LucenePersistedStateFactory {
                 indexWriterConfig.setCommitOnClose(false);
                 // most of the data goes into stored fields which are not buffered, so we only really need a tiny buffer
                 indexWriterConfig.setRAMBufferSizeMB(1.0);
-                // TODO TBD do we want background merging?
+                // merge on the write thread (e.g. while flushing)
                 indexWriterConfig.setMergeScheduler(new SerialMergeScheduler());
 
                 final IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig);

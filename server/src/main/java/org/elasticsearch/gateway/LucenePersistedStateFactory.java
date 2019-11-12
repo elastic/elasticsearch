@@ -476,23 +476,23 @@ public class LucenePersistedStateFactory {
             assert lastAcceptedState.term() == clusterState.term();
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only", clusterState.term());
 
-            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetadataDocument(clusterState)) {
+            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(clusterState)) {
                 for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                     metaDataIndexWriter.deleteGlobalMetaData();
                     metaDataIndexWriter.addGlobalMetaData(globalMetaDataDocument.getDocument());
                 }
             }
 
-            final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(lastAcceptedState.metaData().indices().size());
+            final Map<String, Long> indexMetaDataVersionByUUID = new HashMap<>(lastAcceptedState.metaData().indices().size());
             for (ObjectCursor<IndexMetaData> cursor : lastAcceptedState.metaData().indices().values()) {
                 final IndexMetaData indexMetaData = cursor.value;
-                final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetaData.getIndexUUID(), indexMetaData.getVersion());
+                final Long previousValue = indexMetaDataVersionByUUID.putIfAbsent(indexMetaData.getIndexUUID(), indexMetaData.getVersion());
                 assert previousValue == null : indexMetaData.getIndexUUID() + " already mapped to " + previousValue;
             }
 
             for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
                 final IndexMetaData indexMetaData = cursor.value;
-                final Long previousVersion = indexMetadataVersionByUUID.get(indexMetaData.getIndexUUID());
+                final Long previousVersion = indexMetaDataVersionByUUID.get(indexMetaData.getIndexUUID());
                 if (previousVersion == null || indexMetaData.getVersion() != previousVersion) {
                     if (previousVersion != null) {
                         logger.trace("overwriting metadata for [{}], changing lastAcceptedVersion from [{}] to [{}]",
@@ -504,7 +504,7 @@ public class LucenePersistedStateFactory {
                         logger.trace("writing metadata for new [{}]", indexMetaData.getIndex());
                     }
 
-                    try (ReleasableDocument indexMetaDataDocument = makeIndexMetadataDocument(indexMetaData)) {
+                    try (ReleasableDocument indexMetaDataDocument = makeIndexMetaDataDocument(indexMetaData)) {
                         for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                             metaDataIndexWriter.addIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
                         }
@@ -512,10 +512,10 @@ public class LucenePersistedStateFactory {
                 } else {
                     logger.trace("no action required for [{}]", indexMetaData.getIndex());
                 }
-                indexMetadataVersionByUUID.remove(indexMetaData.getIndexUUID());
+                indexMetaDataVersionByUUID.remove(indexMetaData.getIndexUUID());
             }
 
-            for (String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
+            for (String removedIndexUUID : indexMetaDataVersionByUUID.keySet()) {
                 for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                     metaDataIndexWriter.deleteIndexMetaData(removedIndexUUID);
                 }
@@ -542,7 +542,7 @@ public class LucenePersistedStateFactory {
          * Add documents for the metadata of the given cluster state, assuming that there are currently no documents.
          */
         private void addMetaData(ClusterState clusterState) throws IOException {
-            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetadataDocument(clusterState)) {
+            try (ReleasableDocument globalMetaDataDocument = makeGlobalMetaDataDocument(clusterState)) {
                 for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                     metaDataIndexWriter.addGlobalMetaData(globalMetaDataDocument.getDocument());
                 }
@@ -550,7 +550,7 @@ public class LucenePersistedStateFactory {
 
             for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
                 final IndexMetaData indexMetaData = cursor.value;
-                try (ReleasableDocument indexMetaDataDocument = makeIndexMetadataDocument(indexMetaData)) {
+                try (ReleasableDocument indexMetaDataDocument = makeIndexMetaDataDocument(indexMetaData)) {
                     for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
                         metaDataIndexWriter.addIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
                     }
@@ -583,7 +583,7 @@ public class LucenePersistedStateFactory {
             IOUtils.close(metaDataIndexWriters);
         }
 
-        private ReleasableDocument makeIndexMetadataDocument(IndexMetaData indexMetaData) throws IOException {
+        private ReleasableDocument makeIndexMetaDataDocument(IndexMetaData indexMetaData) throws IOException {
             final ReleasableDocument indexMetaDataDocument = makeDocument(INDEX_TYPE_NAME, indexMetaData);
             boolean success = false;
             try {
@@ -599,7 +599,7 @@ public class LucenePersistedStateFactory {
             }
         }
 
-        private ReleasableDocument makeGlobalMetadataDocument(ClusterState clusterState) throws IOException {
+        private ReleasableDocument makeGlobalMetaDataDocument(ClusterState clusterState) throws IOException {
             return makeDocument(GLOBAL_TYPE_NAME, clusterState.metaData());
         }
 

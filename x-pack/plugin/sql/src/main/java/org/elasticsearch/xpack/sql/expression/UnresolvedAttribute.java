@@ -99,6 +99,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         return unresolvedMsg;
     }
 
+    @Override
+    public Attribute withQualifier(String qualifier) {
+        return this;
+    }
+
     public static String errorMessage(String name, List<String> potentialMatches) {
         String msg = "Unknown column [" + name + "]";
         if (!CollectionUtils.isEmpty(potentialMatches)) {

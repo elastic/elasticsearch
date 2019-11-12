@@ -41,14 +41,6 @@ public class Pivot extends UnaryPlan {
         this.aggregates = aggregates;
     }
 
-    private static Expression withQualifierNull(Expression e) {
-        if (e instanceof Attribute) {
-            Attribute fa = (Attribute) e;
-            return fa.withQualifier(null);
-        }
-        return e;
-    }
-
     @Override
     protected NodeInfo<Pivot> info() {
         return NodeInfo.create(this, Pivot::new, child(), column, values, aggregates);
@@ -65,9 +57,9 @@ public class Pivot extends UnaryPlan {
             // to be changed to null like the attributes of EsRelation
             // otherwise they don't equal and aren't removed
             // when calculating the groupingSet
-            newColumn = column.transformUp(Pivot::withQualifierNull);
+            newColumn = column.transformUp(a -> a.withQualifier(null), Attribute.class);
             newAggregates = aggregates.stream().map((NamedExpression aggregate) ->
-                (NamedExpression) aggregate.transformUp(Pivot::withQualifierNull)
+                (NamedExpression) aggregate.transformUp(a -> a.withQualifier(null), Attribute.class)
             ).collect(Collectors.toUnmodifiableList());
         }
 
@@ -85,7 +77,7 @@ public class Pivot extends UnaryPlan {
     public List<NamedExpression> aggregates() {
         return aggregates;
     }
-    
+
     public AttributeSet groupingSet() {
         if (groupingSet == null) {
             AttributeSet columnSet = Expressions.references(singletonList(column));
@@ -125,7 +117,7 @@ public class Pivot extends UnaryPlan {
         }
         return valueOutput;
     }
-    
+
     @Override
     public List<Attribute> output() {
         if (output == null) {
@@ -146,17 +138,17 @@ public class Pivot extends UnaryPlan {
     public int hashCode() {
         return Objects.hash(column, values, aggregates, child());
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         Pivot other = (Pivot) obj;
         return Objects.equals(column, other.column)
                 && Objects.equals(values, other.values)

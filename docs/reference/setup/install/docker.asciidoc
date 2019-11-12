@@ -314,14 +314,18 @@ You can set individual {es} configuration parameters using Docker environment va
 The <<docker-compose-file, sample compose file>> and the 
 <<docker-cli-run-dev-mode, single-node example>> use this method.
 
-If you are providing secrets, such as passwords, to {es} and do not want to pass them
-directly via environment variables, you can supply environment variables suffixed with
-"_FILE". The variable value specifies a file whose contents are used for the secret.
+To use the contents of a file to set an environment variable, suffix the environment
+variable name with `_FILE`. This is useful for passing secrets such as passwords to {es}
+without specifying them directly.
 
-For example, if you specified the environment variable "ELASTIC_PASSWORD_FILE" with value
-"/run/secrets/password.txt" and bind-mounted a file at this location in the container with
-the contents "PleaseChangeMe", this would be equivalent to specifying the environment
-variable "ELASTIC_PASSWORD" with the value "PleaseChangeMe".
+For example, to set the {es} bootstrap password from a file, you can bind mount the
+file and set the `ELASTIC_PASSWORD_FILE` environment variable to the mount location.
+If you mount the password file to `/run/secrets/password.txt`, specify:
+
+[source,sh]
+--------------------------------------------
+-e ELASTIC_PASSWORD_FILE=/run/secrets/bootstrapPassword.txt
+--------------------------------------------
 
 You can also override the default command for the image to pass {es} configuration
 parameters as command line options. For example:

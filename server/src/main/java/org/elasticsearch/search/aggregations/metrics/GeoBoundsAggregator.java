@@ -46,6 +46,8 @@ final class GeoBoundsAggregator extends MetricsAggregator {
     private final ValuesSource.GeoPoint valuesSource;
     private final boolean wrapLongitude;
     private ObjectArray<GeoExtent> extents;
+    // size in bytes of an extent object for accounting
+    private static int EXTENT_WEIGHT = 6 * Double.BYTES;
 
     GeoBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
             ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, List<PipelineAggregator> pipelineAggregators,
@@ -56,10 +58,15 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             extents = bigArrays.newObjectArray(1);
-            extents.set(0, new GeoExtent());
+            extents.set(0, createGeoExtentAndAccount());
         } else {
             extents = null;
         }
+    }
+
+    private GeoExtent createGeoExtentAndAccount() {
+        addRequestCircuitBreakerBytes(EXTENT_WEIGHT);
+        return new GeoExtent();
     }
 
     @Override
@@ -77,7 +84,7 @@ final class GeoBoundsAggregator extends MetricsAggregator {
                     long from = extents.size();
                     extents = bigArrays.grow(extents, bucket + 1);
                     for (long i = from; i < extents.size(); i++) {
-                        extents.set(i, new GeoExtent());
+                        extents.set(i, createGeoExtentAndAccount());
                     }
                 }
 
@@ -109,6 +116,9 @@ final class GeoBoundsAggregator extends MetricsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(extents);
+        if (extents != null) {
+            addRequestCircuitBreakerBytes(-1 * EXTENT_WEIGHT * extents.size());
+            Releasables.close(extents);
+        }
     }
 }

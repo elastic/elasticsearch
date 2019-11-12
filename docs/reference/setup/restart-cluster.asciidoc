@@ -20,7 +20,6 @@ time, so the service remains uninterrupted.
 include::{docdir}/upgrade/disable-shard-alloc.asciidoc[]
 --
 // end::disable_shard_alloc[]
-
 // tag::stop_indexing[]
 . *Stop indexing and perform a synced flush.*
 +
@@ -31,7 +30,6 @@ recovery.
 include::{docdir}/upgrade/synced-flush.asciidoc[]
 --
 // end::stop_indexing[]
-
 //tag::stop_ml[]
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +
@@ -143,7 +141,6 @@ GET _cat/health
 GET _cat/recovery
 --------------------------------------------------
 --
-
 // tag::restart_ml[]
 . *Restart machine learning jobs.* (Optional)
 +

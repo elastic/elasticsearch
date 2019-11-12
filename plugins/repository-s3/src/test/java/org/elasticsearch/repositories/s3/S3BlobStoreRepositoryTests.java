@@ -194,7 +194,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     }
 
                 } else if (Regex.simpleMatch("POST /bucket/*?uploadId=*", request)) {
-                    Streams.readFully(exchange.getRequestBody());
+                    drainInputStream(exchange.getRequestBody());
                     final Map<String, String> params = new HashMap<>();
                     RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
                     final String uploadId = params.get("uploadId");

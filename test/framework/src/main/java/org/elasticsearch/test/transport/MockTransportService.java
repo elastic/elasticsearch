@@ -505,27 +505,26 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
-        Transport.Connection connection = super.openConnection(node, profile);
-
-        synchronized (openConnections) {
-            openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
-            connection.addCloseListener(ActionListener.wrap(() -> {
-                synchronized (openConnections) {
-                    List<Transport.Connection> connections = openConnections.get(node);
-                    boolean remove = connections.remove(connection);
-                    assert remove : "Should have removed connection";
-                    if (connections.isEmpty()) {
-                        openConnections.remove(node);
+    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
+        super.openConnection(node, connectionProfile, ActionListener.delegateFailure(listener, (l, connection) -> {
+            synchronized (openConnections) {
+                openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
+                connection.addCloseListener(ActionListener.wrap(() -> {
+                    synchronized (openConnections) {
+                        List<Transport.Connection> connections = openConnections.get(node);
+                        boolean remove = connections.remove(connection);
+                        assert remove : "Should have removed connection";
+                        if (connections.isEmpty()) {
+                            openConnections.remove(node);
+                        }
+                        if (openConnections.isEmpty()) {
+                            openConnections.notifyAll();
+                        }
                     }
-                    if (openConnections.isEmpty()) {
-                        openConnections.notifyAll();
-                    }
-                }
-            }));
-        }
-
-        return connection;
+                }));
+            }
+            l.onResponse(connection);
+        }));
     }
 
     @Override

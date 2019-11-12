@@ -1,5 +1,4 @@
 import java.nio.file.Files
-import org.elasticsearch.gradle.OS
 
 String buildNumber = System.getenv('BUILD_NUMBER')
 
@@ -11,22 +10,12 @@ if (buildNumber) {
       project.delete(uploadFile)
     }
 
-    def isWindows = OS.current() == OS.WINDOWS
-    if (OS.current() == OS.LINUX) {
-      project.exec {
-        ignoreExitValue = true
-        workingDir projectDir
-        commandLine 'bash', '-c', 'journalctl --since "1 hour ago" 2>&1 > journalctl.log'
-      }
-    }
-
     try {
       ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
         fileset(dir: projectDir) {
           fileTree(projectDir)
             .include("**/*.hprof")
             .include("**/reaper.log")
-            .include("**/journalctl.log")
             .include("**/build/testclusters/**")
             .exclude("**/build/testclusters/**/data/**")
             .exclude("**/build/testclusters/**/distro/**")
@@ -40,16 +29,6 @@ if (buildNumber) {
 
         fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
           include(name: "**/daemon-${ProcessHandle.current().pid()}*.log")
-        }
-
-        if (Files.isReadable(file("/var/log/").toPath())) {
-          Files.list(file("/var/log/").toPath())
-            .filter { it.fileName.endsWith(".log") }
-            .filter { Files.isReadable(it) }
-            .filter { Files.isRegularFile(it) }
-            .forEach {
-              fileset(file: it)
-            }
         }
       }
     } catch (Exception e) {

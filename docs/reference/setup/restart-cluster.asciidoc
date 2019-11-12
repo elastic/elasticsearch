@@ -34,7 +34,7 @@ include::{docdir}/upgrade/synced-flush.asciidoc[]
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +
 --
-{ml-cap} features require platinum license. For more information about Elastic 
+{ml-cap} features require a platinum license or higher. For more information about Elastic 
 license levels, see https://www.elastic.co/subscriptions[the subscription page].
 
 You have two options to handle {ml} jobs and {dfeeds} when you shut down a 

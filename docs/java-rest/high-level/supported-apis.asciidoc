@@ -120,6 +120,7 @@ Alias Management::
 * <<{upid}-update-aliases>>
 * <<{upid}-exists-alias>>
 * <<{upid}-get-alias>>
+* <<{upid}-delete-alias>>
 
 Template Management::
 * <<{upid}-get-templates>>
@@ -145,6 +146,7 @@ include::indices/put_mapping.asciidoc[]
 include::indices/get_mappings.asciidoc[]
 include::indices/get_field_mappings.asciidoc[]
 include::indices/update_aliases.asciidoc[]
+include::indices/delete_alias.asciidoc[]
 include::indices/exists_alias.asciidoc[]
 include::indices/get_alias.asciidoc[]
 include::indices/put_settings.asciidoc[]
@@ -198,6 +200,7 @@ The Java High Level REST Client supports the following Snapshot APIs:
 * <<java-rest-high-snapshot-get-snapshots>>
 * <<java-rest-high-snapshot-snapshots-status>>
 * <<java-rest-high-snapshot-delete-snapshot>>
+* <<java-rest-high-snapshot-restore-snapshot>>
 
 include::snapshot/get_repository.asciidoc[]
 include::snapshot/create_repository.asciidoc[]
@@ -207,6 +210,7 @@ include::snapshot/create_snapshot.asciidoc[]
 include::snapshot/get_snapshots.asciidoc[]
 include::snapshot/snapshots_status.asciidoc[]
 include::snapshot/delete_snapshot.asciidoc[]
+include::snapshot/restore_snapshot.asciidoc[]
 
 == Tasks APIs
 

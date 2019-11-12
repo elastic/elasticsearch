@@ -43,6 +43,7 @@ setup:
   - do:
       rank_eval:
         index: foo,
+        search_type: query_then_fetch
         body: {
           "requests" : [
             {

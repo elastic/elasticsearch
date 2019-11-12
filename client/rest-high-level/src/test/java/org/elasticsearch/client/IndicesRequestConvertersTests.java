@@ -46,6 +46,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
@@ -80,7 +81,6 @@ import static org.elasticsearch.client.indices.RandomCreateIndexGenerator.random
 import static org.elasticsearch.client.indices.RandomCreateIndexGenerator.randomMapping;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -124,34 +124,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             -> IndicesRequestConverters.indicesExist(new GetIndexRequest((String[]) null)));
     }
 
-    public void testIndicesExistEmptyIndicesWithTypes() {
-        LuceneTestCase.expectThrows(IllegalArgumentException.class,
-                () -> IndicesRequestConverters.indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest()));
-        LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> IndicesRequestConverters
-                .indicesExist(new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices((String[]) null)));
-    }
-
-    public void testIndicesExistWithTypes() {
-        String[] indices = RequestConvertersTests.randomIndicesNames(1, 10);
-
-        org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
-                new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(indices);
-
-        Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
-        RequestConvertersTests.setRandomLocal(getIndexRequest::local, expectedParams);
-        RequestConvertersTests.setRandomHumanReadable(getIndexRequest::humanReadable, expectedParams);
-        RequestConvertersTests.setRandomIncludeDefaults(getIndexRequest::includeDefaults, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-
-        final Request request = IndicesRequestConverters.indicesExist(getIndexRequest);
-
-        Assert.assertEquals(HttpHead.METHOD_NAME, request.getMethod());
-        Assert.assertEquals("/" + String.join(",", indices), request.getEndpoint());
-        Assert.assertThat(expectedParams, equalTo(request.getParameters()));
-        Assert.assertNull(request.getEntity());
-    }
-
     public void testCreateIndex() throws IOException {
         CreateIndexRequest createIndexRequest = RandomCreateIndexGenerator.randomCreateIndexRequest();
 
@@ -159,23 +131,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomTimeout(createIndexRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(createIndexRequest, expectedParams);
         RequestConvertersTests.setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
-
-        Request request = IndicesRequestConverters.createIndex(createIndexRequest);
-        Assert.assertEquals("/" + createIndexRequest.index(), request.getEndpoint());
-        Assert.assertEquals(expectedParams, request.getParameters());
-        Assert.assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        RequestConvertersTests.assertToXContentBody(createIndexRequest, request.getEntity());
-    }
-
-    public void testCreateIndexWithTypes() throws IOException {
-        org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
-            org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
-
-        Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(createIndexRequest, expectedParams);
-        RequestConvertersTests.setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         Request request = IndicesRequestConverters.createIndex(createIndexRequest);
         Assert.assertEquals("/" + createIndexRequest.index(), request.getEndpoint());
@@ -222,37 +177,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         endpoint.add("_mapping");
 
         Assert.assertEquals(endpoint.toString(), request.getEndpoint());
-        Assert.assertEquals(expectedParams, request.getParameters());
-        Assert.assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        RequestConvertersTests.assertToXContentBody(putMappingRequest, request.getEntity());
-    }
-
-    public void testPutMappingWithTypes() throws IOException {
-        org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest =
-            new org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest();
-
-        String[] indices = RequestConvertersTests.randomIndicesNames(0, 5);
-        putMappingRequest.indices(indices);
-
-        String type = ESTestCase.randomAlphaOfLengthBetween(3, 10);
-        putMappingRequest.type(type);
-
-        Map<String, String> expectedParams = new HashMap<>();
-
-        RequestConvertersTests.setRandomTimeout(putMappingRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-
-        Request request = IndicesRequestConverters.putMapping(putMappingRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        String index = String.join(",", indices);
-        if (Strings.hasLength(index)) {
-            endpoint.add(index);
-        }
-        endpoint.add("_mapping");
-        endpoint.add(type);
-        Assert.assertEquals(endpoint.toString(), request.getEndpoint());
-
         Assert.assertEquals(expectedParams, request.getParameters());
         Assert.assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         RequestConvertersTests.assertToXContentBody(putMappingRequest, request.getEntity());
@@ -327,64 +251,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             endpoint.add(String.join(",", fields));
         }
         Assert.assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
-        Assert.assertThat(expectedParams, equalTo(request.getParameters()));
-        Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
-    }
-
-    public void testGetFieldMappingWithTypes() {
-        org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest getFieldMappingsRequest =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest();
-
-        String[] indices = Strings.EMPTY_ARRAY;
-        if (randomBoolean()) {
-            indices = RequestConvertersTests.randomIndicesNames(0, 5);
-            getFieldMappingsRequest.indices(indices);
-        } else if (randomBoolean()) {
-            getFieldMappingsRequest.indices((String[]) null);
-        }
-
-        String type = null;
-        if (randomBoolean()) {
-            type = randomAlphaOfLengthBetween(3, 10);
-            getFieldMappingsRequest.types(type);
-        } else if (randomBoolean()) {
-            getFieldMappingsRequest.types((String[]) null);
-        }
-
-        String[] fields = null;
-        if (randomBoolean()) {
-            fields = new String[randomIntBetween(1, 5)];
-            for (int i = 0; i < fields.length; i++) {
-                fields[i] = randomAlphaOfLengthBetween(3, 10);
-            }
-            getFieldMappingsRequest.fields(fields);
-        } else if (randomBoolean()) {
-            getFieldMappingsRequest.fields((String[]) null);
-        }
-
-        Map<String, String> expectedParams = new HashMap<>();
-
-        RequestConvertersTests.setRandomIndicesOptions(getFieldMappingsRequest::indicesOptions, getFieldMappingsRequest::indicesOptions,
-            expectedParams);
-        RequestConvertersTests.setRandomLocal(getFieldMappingsRequest::local, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-
-        Request request = IndicesRequestConverters.getFieldMapping(getFieldMappingsRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        String index = String.join(",", indices);
-        if (Strings.hasLength(index)) {
-            endpoint.add(index);
-        }
-        endpoint.add("_mapping");
-        if (type != null) {
-            endpoint.add(type);
-        }
-        endpoint.add("field");
-        if (fields != null) {
-            endpoint.add(String.join(",", fields));
-        }
-        Assert.assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
-
         Assert.assertThat(expectedParams, equalTo(request.getParameters()));
         Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
     }
@@ -465,41 +331,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         RequestConvertersTests.setRandomLocal(getIndexRequest::local, expectedParams);
         RequestConvertersTests.setRandomHumanReadable(getIndexRequest::humanReadable, expectedParams);
-
-        if (ESTestCase.randomBoolean()) {
-            // the request object will not have include_defaults present unless it is set to
-            // true
-            getIndexRequest.includeDefaults(ESTestCase.randomBoolean());
-            if (getIndexRequest.includeDefaults()) {
-                expectedParams.put("include_defaults", Boolean.toString(true));
-            }
-        }
-
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indicesUnderTest != null && indicesUnderTest.length > 0) {
-            endpoint.add(String.join(",", indicesUnderTest));
-        }
-
-        Request request = IndicesRequestConverters.getIndex(getIndexRequest);
-
-        Assert.assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
-        Assert.assertThat(request.getParameters(), equalTo(expectedParams));
-        Assert.assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        Assert.assertThat(request.getEntity(), nullValue());
-    }
-
-    public void testGetIndexWithTypes() throws IOException {
-        String[] indicesUnderTest = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
-
-        org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
-                new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(indicesUnderTest);
-
-        Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomMasterTimeout(getIndexRequest, expectedParams);
-        RequestConvertersTests.setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
-        RequestConvertersTests.setRandomLocal(getIndexRequest::local, expectedParams);
-        RequestConvertersTests.setRandomHumanReadable(getIndexRequest::humanReadable, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
 
         if (ESTestCase.randomBoolean()) {
             // the request object will not have include_defaults present unless it is set to
@@ -889,49 +720,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertEquals(expectedParams, request.getParameters());
     }
 
-    public void testRolloverWithTypes() throws IOException {
-        org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
-            new  org.elasticsearch.action.admin.indices.rollover.RolloverRequest(ESTestCase.randomAlphaOfLengthBetween(3, 10),
-            ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLengthBetween(3, 10));
-        Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomTimeout(rolloverRequest::timeout, rolloverRequest.timeout(), expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(rolloverRequest, expectedParams);
-        if (ESTestCase.randomBoolean()) {
-            rolloverRequest.dryRun(ESTestCase.randomBoolean());
-            if (rolloverRequest.isDryRun()) {
-                expectedParams.put("dry_run", "true");
-            }
-        }
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        if (ESTestCase.randomBoolean()) {
-            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(ESTestCase.randomNonNegativeLong()));
-        }
-        if (ESTestCase.randomBoolean()) {
-            String type = ESTestCase.randomAlphaOfLengthBetween(3, 10);
-            rolloverRequest.getCreateIndexRequest().mapping(type,
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomMapping(type));
-        }
-        if (ESTestCase.randomBoolean()) {
-            org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
-        }
-        if (ESTestCase.randomBoolean()) {
-            rolloverRequest.getCreateIndexRequest().settings(
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings());
-        }
-        RequestConvertersTests.setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards, expectedParams);
-
-        Request request = IndicesRequestConverters.rollover(rolloverRequest);
-        if (rolloverRequest.getNewIndexName() == null) {
-            Assert.assertEquals("/" + rolloverRequest.getAlias() + "/_rollover", request.getEndpoint());
-        } else {
-            Assert.assertEquals("/" + rolloverRequest.getAlias() + "/_rollover/" + rolloverRequest.getNewIndexName(),
-                request.getEndpoint());
-        }
-        Assert.assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        RequestConvertersTests.assertToXContentBody(rolloverRequest, request.getEntity());
-        Assert.assertEquals(expectedParams, request.getParameters());
-    }
-
     public void testGetAlias() {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
 
@@ -988,52 +776,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         RequestConvertersTests.assertToXContentBody(updateSettingsRequest, request.getEntity());
         Assert.assertEquals(expectedParams, request.getParameters());
-    }
-
-    public void testPutTemplateRequestWithTypes() throws Exception {
-        Map<String, String> names = new HashMap<>();
-        names.put("log", "log");
-        names.put("template#1", "template%231");
-        names.put("-#template", "-%23template");
-        names.put("foo^bar", "foo%5Ebar");
-
-        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
-                new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()
-                .name(ESTestCase.randomFrom(names.keySet()))
-                .patterns(Arrays.asList(ESTestCase.generateRandomStringArray(20, 100, false, false)));
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.order(ESTestCase.randomInt());
-        }
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.version(ESTestCase.randomInt());
-        }
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.settings(Settings.builder().put("setting-" + ESTestCase.randomInt(), ESTestCase.randomTimeValue()));
-        }
-        Map<String, String> expectedParams = new HashMap<>();
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.mapping("doc-" + ESTestCase.randomInt(),
-                "field-" + ESTestCase.randomInt(), "type=" + ESTestCase.randomFrom("text", "keyword"));
-        }
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        if (ESTestCase.randomBoolean()) {
-            putTemplateRequest.alias(new Alias("alias-" + ESTestCase.randomInt()));
-        }
-        if (ESTestCase.randomBoolean()) {
-            expectedParams.put("create", Boolean.TRUE.toString());
-            putTemplateRequest.create(true);
-        }
-        if (ESTestCase.randomBoolean()) {
-            String cause = ESTestCase.randomUnicodeOfCodepointLengthBetween(1, 50);
-            putTemplateRequest.cause(cause);
-            expectedParams.put("cause", cause);
-        }
-        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest, expectedParams);
-
-        Request request = IndicesRequestConverters.putTemplate(putTemplateRequest);
-        Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
-        Assert.assertThat(request.getParameters(), equalTo(expectedParams));
-        RequestConvertersTests.assertToXContentBody(putTemplateRequest, request.getEntity());
     }
 
     public void testPutTemplateRequest() throws Exception {
@@ -1122,8 +864,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomMasterTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
         RequestConvertersTests.setRandomLocal(getTemplatesRequest::setLocal, expectedParams);
 
-        Request request = IndicesRequestConverters.getTemplatesWithDocumentTypes(getTemplatesRequest);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        Request request = IndicesRequestConverters.getTemplates(getTemplatesRequest);
         Assert.assertThat(request.getEndpoint(),
             equalTo("/_template/" + names.stream().map(encodes::get).collect(Collectors.joining(","))));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
@@ -1191,6 +932,20 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Request request = IndicesRequestConverters.reloadAnalyzers(reloadRequest);
         Assert.assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         Assert.assertThat(request.getEndpoint(), equalTo(endpoint + "/_reload_search_analyzers"));
+        Assert.assertThat(request.getParameters(), equalTo(expectedParams));
+        Assert.assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testDeleteAlias() {
+        DeleteAliasRequest deleteAliasRequest = new DeleteAliasRequest(randomAlphaOfLength(4), randomAlphaOfLength(4));
+
+        Map<String, String> expectedParams = new HashMap<>();
+        RequestConvertersTests.setRandomMasterTimeout(deleteAliasRequest, expectedParams);
+        RequestConvertersTests.setRandomTimeout(deleteAliasRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request request = IndicesRequestConverters.deleteAlias(deleteAliasRequest);
+        Assert.assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        Assert.assertThat(request.getEndpoint(), equalTo("/" + deleteAliasRequest.getIndex() + "/_alias/" + deleteAliasRequest.getAlias()));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
         Assert.assertThat(request.getEntity(), nullValue());
     }

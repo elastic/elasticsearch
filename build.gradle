@@ -106,7 +106,7 @@ subprojects {
     // is greater than the number of unformatted projects, this can be
     // switched to an exclude list, and eventualy removed completely.
     def projectPathsToFormat = [
-      // ':build-tools'
+       ':x-pack:plugin:enrich'
     ]
 
     if (projectPathsToFormat.contains(project.path)) {
@@ -114,7 +114,6 @@ subprojects {
 
       spotless {
         java {
-
           removeUnusedImports()
           eclipse().configFile rootProject.file('.eclipseformat.xml')
           trimTrailingWhitespace()
@@ -291,16 +290,17 @@ allprojects {
       project.configurations.compile.dependencies
           .findAll()
           .toSorted(sortClosure)
-          .each({ c -> depJavadocClosure(false, c) })
+          .each({ c -> depJavadocClosure(hasShadow, c) })
       project.configurations.compileOnly.dependencies
           .findAll()
           .toSorted(sortClosure)
           .each({ c -> depJavadocClosure(false, c) })
       if (hasShadow) {
-        project.configurations.bundle.dependencies
+        // include any dependencies for shadow JAR projects that are *not* bundled in the shadow JAR
+        project.configurations.shadow.dependencies
             .findAll()
             .toSorted(sortClosure)
-            .each({ c -> depJavadocClosure(true, c) })
+            .each({ c -> depJavadocClosure(false, c) })
       }
     }
   }
@@ -420,24 +420,6 @@ allprojects {
   tasks.named('cleanEclipse') { dependsOn 'wipeEclipseSettings' }
   // otherwise the eclipse merging is *super confusing*
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
-}
-
-allprojects {
-  /*
-   * IntelliJ and Eclipse don't know about the shadow plugin so when we're
-   * in "IntelliJ mode" or "Eclipse mode" switch "bundle" dependencies into
-   * regular "compile" dependencies. This isn't needed for the project
-   * itself because the IDE configuration is done by SourceSets but it is
-   * *is* needed for projects that depends on the project doing the shadowing.
-   * Without this they won't properly depend on the shadowed project.
-   */
-  if (isEclipse || isIdea) {
-    project.plugins.withType(ShadowPlugin).whenPluginAdded {
-      project.afterEvaluate {
-        project.configurations.compile.extendsFrom project.configurations.bundle
-      }
-    }
-  }
 }
 
 // we need to add the same --debug-jvm option as

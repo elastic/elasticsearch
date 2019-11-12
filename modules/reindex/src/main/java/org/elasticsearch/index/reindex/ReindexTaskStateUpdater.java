@@ -46,20 +46,20 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private final String persistentTaskId;
     private final long allocationId;
     private final ActionListener<ReindexTaskStateDoc> finishedListener;
-    private final Runnable onCancel;
+    private final Runnable onCheckpointAssignmentConflict;
     private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
 
     private ReindexTaskState lastState;
     private AtomicBoolean isDone = new AtomicBoolean();
 
     public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String persistentTaskId, long allocationId,
-                                   ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCancel) {
+                                   ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCheckpointAssignmentConflict) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
         this.persistentTaskId = persistentTaskId;
         this.allocationId = allocationId;
         this.finishedListener = finishedListener;
-        this.onCancel = onCancel;
+        this.onCheckpointAssignmentConflict = onCheckpointAssignmentConflict;
     }
 
     public void assign(ActionListener<ReindexTaskStateDoc> listener) {
@@ -155,7 +155,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                                 // There has been a newer allocation, stop reindexing.
                                 if (isDone.compareAndSet(false, true)) {
                                     logger.info("After allocation verification, allocation is not valid. Reindexing will be halted");
-                                    onCancel.run();
+                                    onCheckpointAssignmentConflict.run();
                                 }
                             } else {
                                 logger.info("After allocation verification, allocation still valid");

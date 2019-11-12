@@ -67,7 +67,7 @@ public class GeoExtent implements Writeable {
             this.negRight = Math.max(this.negRight, lon);
         } else {
             this.posLeft = Math.min(this.posLeft, lon);
-            this.posRight =Math.max(this.posRight, lon);
+            this.posRight = Math.max(this.posRight, lon);
         }
     }
 
@@ -76,11 +76,11 @@ public class GeoExtent implements Writeable {
      */
     public void addExtent(GeoExtent extent) {
         this.top = Math.max(this.top, extent.top);
-        this.bottom = Math.min(this.bottom,  extent.bottom);
-        this.negLeft = Math.min(this.negLeft,  extent.negLeft);
-        this.negRight = Math.max(this.negRight,  extent.negRight);
-        this.posLeft = Math.min(this.posLeft,  extent.posLeft);
-        this.posRight = Math.max(this.posRight,  extent.posRight);
+        this.bottom = Math.min(this.bottom, extent.bottom);
+        this.negLeft = Math.min(this.negLeft, extent.negLeft);
+        this.negRight = Math.max(this.negRight, extent.negRight);
+        this.posLeft = Math.min(this.posLeft, extent.posLeft);
+        this.posRight = Math.max(this.posRight, extent.posRight);
     }
 
     /**

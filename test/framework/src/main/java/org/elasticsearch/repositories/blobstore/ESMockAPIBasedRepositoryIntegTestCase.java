@@ -22,6 +22,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpStatus;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
@@ -67,13 +68,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @Before
     public void setUpHttpServer() {
         handlers = createHttpHandlers();
-        handlers.forEach((c, h) -> {
-            HttpHandler handler = h;
-            if (randomBoolean()) {
-                handler = createErroneousHttpHandler(handler);
-            }
-            httpServer.createContext(c, handler);
-        });
+        handlers.forEach((c, h) -> httpServer.createContext(c, wrap(randomBoolean() ? createErroneousHttpHandler(h) : h, logger)));
     }
 
     @AfterClass
@@ -187,5 +182,22 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         protected boolean canFailRequest(final HttpExchange exchange) {
             return true;
         }
+    }
+
+    /**
+     * Wrap a {@link HttpHandler} to log any thrown exception using the given {@link Logger}.
+     */
+    private static HttpHandler wrap(final HttpHandler handler, final Logger logger) {
+        return exchange -> {
+            try {
+                handler.handle(exchange);
+            } catch (final Exception e) {
+                String request = exchange.getRemoteAddress().toString()
+                    + " " + exchange.getRequestMethod()
+                    + " " + exchange.getRequestURI();
+                logger.error("Exception when handling request {}", request, e);
+                throw e;
+            }
+        };
     }
 }

@@ -347,62 +347,60 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
         FieldTypeLookup fieldTypes = this.fieldTypes;
 
-        DocumentMapper newMapper = null;
-        if (mapper != null) {
-            // check naming
-            validateTypeName(mapper.type());
+        assert mapper != null;
+        // check naming
+        validateTypeName(mapper.type());
 
-            // compute the merged DocumentMapper
-            DocumentMapper oldMapper = this.mapper;
-            if (oldMapper != null) {
-                newMapper = oldMapper.merge(mapper.mapping());
-            } else {
-                newMapper = mapper;
+        // compute the merged DocumentMapper
+        DocumentMapper oldMapper = this.mapper;
+        DocumentMapper newMapper;
+        if (oldMapper != null) {
+            newMapper = oldMapper.merge(mapper.mapping());
+        } else {
+            newMapper = mapper;
+        }
+
+        // check basic sanity of the new mapping
+        List<ObjectMapper> objectMappers = new ArrayList<>();
+        List<FieldMapper> fieldMappers = new ArrayList<>();
+        List<FieldAliasMapper> fieldAliasMappers = new ArrayList<>();
+        MetadataFieldMapper[] metadataMappers = newMapper.mapping().metadataMappers;
+        Collections.addAll(fieldMappers, metadataMappers);
+        MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
+
+        MapperMergeValidator.validateNewMappers(objectMappers, fieldMappers, fieldAliasMappers, fieldTypes);
+        checkPartitionedIndexConstraints(newMapper);
+
+        // update lookup data-structures
+        fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, fieldAliasMappers);
+
+        for (ObjectMapper objectMapper : objectMappers) {
+            if (fullPathObjectMappers == this.fullPathObjectMappers) {
+                // first time through the loops
+                fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
             }
+            fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
 
-            // check basic sanity of the new mapping
-            List<ObjectMapper> objectMappers = new ArrayList<>();
-            List<FieldMapper> fieldMappers = new ArrayList<>();
-            List<FieldAliasMapper> fieldAliasMappers = new ArrayList<>();
-            MetadataFieldMapper[] metadataMappers = newMapper.mapping().metadataMappers;
-            Collections.addAll(fieldMappers, metadataMappers);
-            MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers, fieldAliasMappers);
-
-            MapperMergeValidator.validateNewMappers(objectMappers, fieldMappers, fieldAliasMappers, fieldTypes);
-            checkPartitionedIndexConstraints(newMapper);
-
-            // update lookup data-structures
-            fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, fieldAliasMappers);
-
-            for (ObjectMapper objectMapper : objectMappers) {
-                if (fullPathObjectMappers == this.fullPathObjectMappers) {
-                    // first time through the loops
-                    fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
-                }
-                fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
-
-                if (objectMapper.nested().isNested()) {
-                    hasNested = true;
-                }
+            if (objectMapper.nested().isNested()) {
+                hasNested = true;
             }
+        }
 
-            MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
-                fullPathObjectMappers, fieldTypes);
+        MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
+            fullPathObjectMappers, fieldTypes);
 
-            ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, fieldTypes::get);
+        ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, fieldTypes::get);
 
-            if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-                // this check will only be performed on the master node when there is
-                // a call to the update mapping API. For all other cases like
-                // the master node restoring mappings from disk or data nodes
-                // deserializing cluster state that was sent by the master node,
-                // this check will be skipped.
-                // Also, don't take metadata mappers into account for the field limit check
-                checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
-                    + fieldAliasMappers.size() );
-                checkFieldNameSoftLimit(objectMappers, fieldMappers, fieldAliasMappers);
-            }
-
+        if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+            // this check will only be performed on the master node when there is
+            // a call to the update mapping API. For all other cases like
+            // the master node restoring mappings from disk or data nodes
+            // deserializing cluster state that was sent by the master node,
+            // this check will be skipped.
+            // Also, don't take metadata mappers into account for the field limit check
+            checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
+                + fieldAliasMappers.size() );
+            checkFieldNameSoftLimit(objectMappers, fieldMappers, fieldAliasMappers);
         }
 
         if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
@@ -419,7 +417,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (newMapper != null) {
             DocumentMapper updatedDocumentMapper = newMapper.updateFieldType(fieldTypes.fullNameToFieldType);
             if (updatedDocumentMapper != newMapper) {
-                // update both mappers and result
                 newMapper = updatedDocumentMapper;
             }
         }

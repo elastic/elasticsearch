@@ -142,7 +142,7 @@ public interface SearchPlugin {
      */
     class SuggesterSpec<T extends SuggestionBuilder<T>> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
 
-        private Writeable.Reader<? extends Suggest.Suggestion> suggestionReader;
+        private Writeable.Reader<? extends Suggest.Suggestion<?>> suggestionReader;
 
         /**
          * Specification of custom {@link Suggester}.
@@ -160,7 +160,7 @@ public interface SearchPlugin {
                 ParseField name,
                 Writeable.Reader<T> builderReader,
                 CheckedFunction<XContentParser, T, IOException> builderParser,
-                Writeable.Reader<? extends Suggest.Suggestion> suggestionReader) {
+                Writeable.Reader<? extends Suggest.Suggestion<?>> suggestionReader) {
 
             super(name, builderReader, builderParser);
             setSuggestionReader(suggestionReader);
@@ -181,13 +181,13 @@ public interface SearchPlugin {
                 String name,
                 Writeable.Reader<T> builderReader,
                 CheckedFunction<XContentParser, T, IOException> builderParser,
-                Writeable.Reader<? extends Suggest.Suggestion> suggestionReader) {
+                Writeable.Reader<? extends Suggest.Suggestion<?>> suggestionReader) {
 
             super(name, builderReader, builderParser);
             setSuggestionReader(suggestionReader);
         }
 
-        private void setSuggestionReader(Writeable.Reader<? extends Suggest.Suggestion> reader) {
+        private void setSuggestionReader(Writeable.Reader<? extends Suggest.Suggestion<?>> reader) {
             this.suggestionReader = reader;
         }
 

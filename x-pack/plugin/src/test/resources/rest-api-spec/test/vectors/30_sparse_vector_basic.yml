@@ -8,7 +8,6 @@ setup:
       warnings:
         - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       indices.create:
-        include_type_name: false
         index: test-index
         body:
           settings:
@@ -104,27 +103,3 @@ setup:
 - match: {hits.hits.2._id: "1"}
 - gte: {hits.hits.2._score: 0.78}
 - lte: {hits.hits.2._score: 0.791}
-
----
-"Deprecated function signature":
-  - do:
-      headers:
-        Content-Type: application/json
-      warnings:
-        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
-        - The vector functions of the form function(query, doc['field']) are deprecated, and the form function(query, 'field') should be used instead. For example, cosineSimilarity(query, doc['field']) is replaced by cosineSimilarity(query, 'field').
-      search:
-        rest_total_hits_as_int: true
-        body:
-          query:
-            script_score:
-              query: {match_all: {} }
-              script:
-                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
-                params:
-                  query_vector: {"2": -0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
-
-  - match: {hits.total: 3}
-  - match: {hits.hits.0._id: "3"}
-  - match: {hits.hits.1._id: "2"}
-  - match: {hits.hits.2._id: "1"}

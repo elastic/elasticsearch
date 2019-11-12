@@ -262,7 +262,23 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<Settings> HEADERS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","headers",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.groupSetting(
+                        key + ".",
+                        settings -> {
+                            final Set<String> names = settings.names();
+                            for (String name : names) {
+                                final String fullSetting = key + "." + name;
+                                if (HttpExporter.BLACKLISTED_HEADERS.contains(name)) {
+                                    throw new SettingsException("header cannot be overwritten via [" + fullSetting + "]");
+                                }
+                                final List<String> values = settings.getAsList(name);
+                                if (values.isEmpty()) {
+                                    throw new SettingsException("headers must have values, missing for setting [" + fullSetting + "]");
+                                }
+                            }
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope));
     /**
      * Blacklist of headers that the user is not allowed to set.
      * <p>
@@ -539,16 +555,7 @@ public class HttpExporter extends Exporter {
 
         // record and validate each header as best we can
         for (final String name : names) {
-            if (BLACKLISTED_HEADERS.contains(name)) {
-                throw new SettingsException("header cannot be overwritten via [" + concreteSetting.getKey() + name + "]");
-            }
-
             final List<String> values = headerSettings.getAsList(name);
-
-            if (values.isEmpty()) {
-                throw new SettingsException("headers must have values, missing for setting [" + concreteSetting.getKey() + name + "]");
-            }
-
             // add each value as a separate header; they literally appear like:
             //
             //  Warning: abc

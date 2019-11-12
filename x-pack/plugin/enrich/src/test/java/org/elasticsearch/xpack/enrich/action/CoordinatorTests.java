@@ -207,12 +207,13 @@ public class CoordinatorTests extends ESTestCase {
         });
 
         coordinator.coordinateLookups();
-        assertBusy(() -> {
-            assertThat(completed.get(), is(true));
-        });
+        assertBusy(() -> { assertThat(completed.get(), is(true)); });
 
-        lookupFunction.capturedConsumers.get(0).accept(
-            new MultiSearchResponse(new MultiSearchResponse.Item[]{new MultiSearchResponse.Item(emptySearchResponse(), null)}, 1L), null);
+        lookupFunction.capturedConsumers.get(0)
+            .accept(
+                new MultiSearchResponse(new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(emptySearchResponse(), null) }, 1L),
+                null
+            );
         assertThat(coordinator.queue.size(), equalTo(0));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
         assertThat(lookupFunction.capturedRequests.get(1).requests().get(0), sameInstance(searchRequest));
@@ -231,14 +232,18 @@ public class CoordinatorTests extends ESTestCase {
 
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
-                ActionType<Response> action, Request request) {
+                ActionType<Response> action,
+                Request request
+            ) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void execute(ActionType<Response> action,
-                                                                                                 Request request,
-                                                                                                 ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void execute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 requests.add((EnrichShardMultiSearchAction.Request) request);
             }
 
@@ -267,7 +272,7 @@ public class CoordinatorTests extends ESTestCase {
 
         MultiSearchResponse.Item item1 = new MultiSearchResponse.Item(emptySearchResponse(), null);
         itemsPerIndex.put("index1", List.of(new Tuple<>(0, null), new Tuple<>(1, null), new Tuple<>(2, null)));
-        shardResponses.put("index1", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[]{item1,  item1, item1}, 1), null));
+        shardResponses.put("index1", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[] { item1, item1, item1 }, 1), null));
 
         Exception failure = new RuntimeException();
         itemsPerIndex.put("index2", List.of(new Tuple<>(3, null), new Tuple<>(4, null), new Tuple<>(5, null)));
@@ -275,7 +280,7 @@ public class CoordinatorTests extends ESTestCase {
 
         MultiSearchResponse.Item item2 = new MultiSearchResponse.Item(emptySearchResponse(), null);
         itemsPerIndex.put("index3", List.of(new Tuple<>(6, null), new Tuple<>(7, null), new Tuple<>(8, null)));
-        shardResponses.put("index3", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[]{item2,  item2, item2}, 1), null));
+        shardResponses.put("index3", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[] { item2, item2, item2 }, 1), null));
 
         MultiSearchResponse result = Coordinator.reduce(9, itemsPerIndex, shardResponses);
         assertThat(result.getResponses().length, equalTo(9));
@@ -291,8 +296,15 @@ public class CoordinatorTests extends ESTestCase {
     }
 
     private static SearchResponse emptySearchResponse() {
-        InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
+        InternalSearchResponse response = new InternalSearchResponse(
+            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            InternalAggregations.EMPTY,
+            null,
+            null,
+            false,
+            null,
+            1
+        );
         return new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
     }
 

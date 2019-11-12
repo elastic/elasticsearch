@@ -46,10 +46,16 @@ public class MatchProcessorTests extends ESTestCase {
 
     public void testBasics() throws Exception {
         int maxMatches = randomIntBetween(1, 8);
-        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank",23, "tld", "co")));
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
         MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", true, false, "domain", maxMatches);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL,
-            Map.of("domain", "elastic.co"));
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index",
+            "_id",
+            "_routing",
+            1L,
+            VersionType.INTERNAL,
+            Map.of("domain", "elastic.co")
+        );
         // Run
         IngestDocument[] holder = new IngestDocument[1];
         processor.execute(ingestDocument, (result, e) -> holder[0] = result);
@@ -86,8 +92,14 @@ public class MatchProcessorTests extends ESTestCase {
     public void testNoMatch() throws Exception {
         MockSearchFunction mockSearch = mockedSearchFunction();
         MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", true, false, "domain", 1);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL,
-            Map.of("domain", "elastic.com"));
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index",
+            "_id",
+            "_routing",
+            1L,
+            VersionType.INTERNAL,
+            Map.of("domain", "elastic.com")
+        );
         int numProperties = ingestDocument.getSourceAndMetadata().size();
         // Run
         IngestDocument[] holder = new IngestDocument[1];
@@ -116,8 +128,14 @@ public class MatchProcessorTests extends ESTestCase {
         String indexName = ".enrich-_name";
         MockSearchFunction mockSearch = mockedSearchFunction(new IndexNotFoundException(indexName));
         MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", true, false, "domain", 1);
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL,
-            Map.of("domain", "elastic.com"));
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index",
+            "_id",
+            "_routing",
+            1L,
+            VersionType.INTERNAL,
+            Map.of("domain", "elastic.com")
+        );
         // Run
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
@@ -149,8 +167,17 @@ public class MatchProcessorTests extends ESTestCase {
 
     public void testIgnoreKeyMissing() throws Exception {
         {
-            MatchProcessor processor =
-                new MatchProcessor("_tag", mockedSearchFunction(), "_name", "domain", "entry", true, true, "domain", 1);
+            MatchProcessor processor = new MatchProcessor(
+                "_tag",
+                mockedSearchFunction(),
+                "_name",
+                "domain",
+                "entry",
+                true,
+                true,
+                "domain",
+                1
+            );
             IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
 
             assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
@@ -160,8 +187,17 @@ public class MatchProcessorTests extends ESTestCase {
             assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
         }
         {
-            MatchProcessor processor =
-                new MatchProcessor("_tag", mockedSearchFunction(), "_name", "domain", "entry", true, false, "domain", 1);
+            MatchProcessor processor = new MatchProcessor(
+                "_tag",
+                mockedSearchFunction(),
+                "_name",
+                "domain",
+                "entry",
+                true,
+                false,
+                "domain",
+                1
+            );
             IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
             IngestDocument[] resultHolder = new IngestDocument[1];
             Exception[] exceptionHolder = new Exception[1];
@@ -176,7 +212,7 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public void testExistingFieldWithOverrideDisabled() throws Exception {
-        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank",23, "tld", "co")));
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
         MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, false, "domain", 1);
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")), Map.of());
@@ -192,7 +228,7 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public void testExistingNullFieldWithOverrideDisabled() throws Exception {
-        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank",23, "tld", "co")));
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("elastic.co", Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
         MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, false, "domain", 1);
 
         Map<String, Object> source = new HashMap<>();
@@ -212,10 +248,8 @@ public class MatchProcessorTests extends ESTestCase {
 
     public void testNumericValue() {
         MockSearchFunction mockSearch = mockedSearchFunction(Map.of(2, Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
-        MatchProcessor processor =
-            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", 1);
-        IngestDocument ingestDocument =
-            new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of("domain", 2));
+        MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", 1);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of("domain", 2));
 
         // Execute
         IngestDocument[] holder = new IngestDocument[1];
@@ -239,12 +273,18 @@ public class MatchProcessorTests extends ESTestCase {
     }
 
     public void testArray() {
-        MockSearchFunction mockSearch =
-            mockedSearchFunction(Map.of(List.of("1", "2"), Map.of("globalRank", 451, "tldRank", 23, "tld", "co")));
-        MatchProcessor processor =
-            new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", 1);
-        IngestDocument ingestDocument =
-            new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of("domain", List.of("1", "2")));
+        MockSearchFunction mockSearch = mockedSearchFunction(
+            Map.of(List.of("1", "2"), Map.of("globalRank", 451, "tldRank", 23, "tld", "co"))
+        );
+        MatchProcessor processor = new MatchProcessor("_tag", mockSearch, "_name", "domain", "entry", false, true, "domain", 1);
+        IngestDocument ingestDocument = new IngestDocument(
+            "_index",
+            "_id",
+            "_routing",
+            1L,
+            VersionType.INTERNAL,
+            Map.of("domain", List.of("1", "2"))
+        );
 
         // Execute
         IngestDocument[] holder = new IngestDocument[1];
@@ -269,7 +309,7 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(entry.get("tld"), equalTo("co"));
     }
 
-    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>>  {
+    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> {
         private final SearchResponse mockResponse;
         private final SetOnce<SearchRequest> capturedRequest;
         private final Exception exception;
@@ -326,9 +366,23 @@ public class MatchProcessorTests extends ESTestCase {
             }
             return searchHit;
         }).toArray(SearchHit[]::new);
-        return new SearchResponse(new SearchResponseSections(
-            new SearchHits(searchHits, new TotalHits(documents.size(), TotalHits.Relation.EQUAL_TO), 1.0f),
-            new Aggregations(Collections.emptyList()), new Suggest(Collections.emptyList()),
-            false, false, null, 1), null, 1, 1, 0, 1, ShardSearchFailure.EMPTY_ARRAY, new SearchResponse.Clusters(1, 1, 0));
+        return new SearchResponse(
+            new SearchResponseSections(
+                new SearchHits(searchHits, new TotalHits(documents.size(), TotalHits.Relation.EQUAL_TO), 1.0f),
+                new Aggregations(Collections.emptyList()),
+                new Suggest(Collections.emptyList()),
+                false,
+                false,
+                null,
+                1
+            ),
+            null,
+            1,
+            1,
+            0,
+            1,
+            ShardSearchFailure.EMPTY_ARRAY,
+            new SearchResponse.Clusters(1, 1, 0)
+        );
     }
 }

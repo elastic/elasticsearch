@@ -22,7 +22,6 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -293,50 +292,6 @@ public class GatewayMetaState implements Closeable {
                 incrementalClusterStateWriter.setIncrementalWrite(true);
             } catch (WriteStateException e) {
                 logger.warn("Exception occurred when storing new meta data", e);
-            }
-        }
-
-    }
-
-    private static class GatewayPersistedState implements PersistedState {
-
-        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
-
-        GatewayPersistedState(IncrementalClusterStateWriter incrementalClusterStateWriter) {
-            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
-        }
-
-        @Override
-        public long getCurrentTerm() {
-            return incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm();
-        }
-
-        @Override
-        public ClusterState getLastAcceptedState() {
-            final ClusterState previousClusterState = incrementalClusterStateWriter.getPreviousClusterState();
-            assert previousClusterState.nodes().getLocalNode() != null : "Cluster state is not fully built yet";
-            return previousClusterState;
-        }
-
-        @Override
-        public void setCurrentTerm(long currentTerm) {
-            try {
-                incrementalClusterStateWriter.setCurrentTerm(currentTerm);
-            } catch (WriteStateException e) {
-                logger.error(new ParameterizedMessage("Failed to set current term to {}", currentTerm), e);
-                e.rethrowAsErrorOrUncheckedException();
-            }
-        }
-
-        @Override
-        public void setLastAcceptedState(ClusterState clusterState) {
-            try {
-                incrementalClusterStateWriter.setIncrementalWrite(
-                    incrementalClusterStateWriter.getPreviousClusterState().term() == clusterState.term());
-                incrementalClusterStateWriter.updateClusterState(clusterState);
-            } catch (WriteStateException e) {
-                logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
-                e.rethrowAsErrorOrUncheckedException();
             }
         }
 

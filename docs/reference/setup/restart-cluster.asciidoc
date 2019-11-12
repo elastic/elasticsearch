@@ -15,7 +15,7 @@ time, so the service remains uninterrupted.
 
 // tag::disable_shard_alloc[]
 
-. *Disable shard allocation.*
+1. *Disable shard allocation.*
 +
 --
 include::{docdir}/upgrade/disable-shard-alloc.asciidoc[]
@@ -26,7 +26,7 @@ include::{docdir}/upgrade/disable-shard-alloc.asciidoc[]
 
 // tag::stop_indexing[]
 
-. *Stop indexing and perform a synced flush.*
+2. *Stop indexing and perform a synced flush.*
 +
 --
 Performing a <<indices-synced-flush-api, synced-flush>> speeds up shard
@@ -40,7 +40,7 @@ include::{docdir}/upgrade/synced-flush.asciidoc[]
 
 //tag::stop_ml[]
 
-. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
+3. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +
 --
 {ml-cap} features require platinum license. For more information about Elastic 
@@ -73,15 +73,15 @@ or jobs with large model states.
 // end::stop_ml[]
 
 
-. *Shut down all nodes.*
+4. *Shut down all nodes.*
 +
 --
 include::{docdir}/upgrade/shut-down-node.asciidoc[]
 --
 
-. *Perform any needed changes.*
+5. *Perform any needed changes.*
 
-. *Restart nodes.*
+6. *Restart nodes.*
 +
 --
 If you have dedicated master nodes, start them first and wait for them to
@@ -104,7 +104,7 @@ The `status` column returned by `_cat/health` shows the health of each node
 in the cluster: `red`, `yellow`, or `green`.
 --
 
-. *Wait for all nodes to join the cluster and report a status of yellow.*
+7. *Wait for all nodes to join the cluster and report a status of yellow.*
 +
 --
 When a node joins the cluster, it begins to recover any primary shards that
@@ -120,7 +120,7 @@ already have local shard copies.
 --
 
 
-. *Re-enable allocation.*
+8. *Re-enable allocation.*
 +
 --
 When all nodes have joined the cluster and recovered their primary shards,
@@ -156,7 +156,7 @@ GET _cat/recovery
 
 // tag::restart_ml[]
 
-. *Restart machine learning jobs.* (Optional)
+9. *Restart machine learning jobs.* (Optional)
 +
 --
 If you temporarily halted the tasks associated with your {ml} jobs, use the 
@@ -196,17 +196,17 @@ cluster.
 --
 
 
-. *Shut down a single node in case of rolling restart.*
+4. *Shut down a single node in case of rolling restart.*
 +
 --
 include::{docdir}/upgrade/shut-down-node.asciidoc[]
 --
 
 
-. *Perform any needed changes.*
+5. *Perform any needed changes.*
  
  
-. *Restart the node you changed.*
+6. *Restart the node you changed.*
 +
 --
 
@@ -221,7 +221,7 @@ GET _cat/nodes
 --
 
 
-. *Reenable shard allocation.*
+7. *Reenable shard allocation.*
 +
 --
 
@@ -241,7 +241,7 @@ PUT _cluster/settings
 
 --
 
-. *Repeat in case of rolling restart.*
+8. *Repeat in case of rolling restart.*
 +
 --
 When the node has recovered and the cluster is stable, repeat these steps

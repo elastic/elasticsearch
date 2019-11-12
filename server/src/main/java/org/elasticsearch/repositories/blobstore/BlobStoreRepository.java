@@ -919,18 +919,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public RepositoryData getRepositoryData() {
-        final long generation;
-        try {
-            generation = latestIndexBlobId();
-        } catch (IOException ioe) {
-            throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
+        // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
+        while (true) {
+            final long generation;
+            try {
+                generation = latestIndexBlobId();
+            } catch (IOException ioe) {
+                throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
+            }
+            final long genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
+            if (genToLoad != generation) {
+                logger.warn("Determined repository generation [" + generation
+                    + "] from repository contents but correct generation must be at least [" + genToLoad + "]");
+            }
+            try {
+                return getRepositoryData(genToLoad);
+            } catch (RepositoryException e) {
+                if (genToLoad != latestKnownRepoGen.get()) {
+                    logger.warn("Failed to load repository data generation [" + genToLoad +
+                        "] because a concurrent operation moved the current generation to [" + latestKnownRepoGen.get() + "]", e);
+                    continue;
+                }
+                throw e;
+            }
         }
-        final long genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
-        if (genToLoad != generation) {
-            logger.warn("Determined repository generation [" + generation + "] from repository contents but correct generation must be " +
-                "at least [" + genToLoad + "]");
-        }
-        return getRepositoryData(genToLoad);
     }
 
     private RepositoryData getRepositoryData(long indexGen) {
@@ -947,6 +959,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return RepositoryData.snapshotsFromXContent(parser, indexGen);
             }
         } catch (IOException ioe) {
+            // If we fail to load the generation we tracked in latestKnownRepoGen we reset it.
+            // This is done as a fail-safe in case a user manually deletes the contents of the repository in which case subsequent
+            // operations must start from the EMPTY_REPO_GEN again
+            if (RepositoryData.EMPTY_REPO_GEN ==
+                latestKnownRepoGen.updateAndGet(known -> known == indexGen ? RepositoryData.EMPTY_REPO_GEN : known)) {
+                logger.warn("Resetting repository generation tracker because we failed to read generation [" + indexGen + "]");
+            }
             throw new RepositoryException(metadata.name(), "could not read repository data from index blob", ioe);
         }
     }

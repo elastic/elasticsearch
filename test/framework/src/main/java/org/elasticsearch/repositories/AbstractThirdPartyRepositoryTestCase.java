@@ -76,7 +76,6 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     @Override
     public void tearDown() throws Exception {
         deleteAndAssertEmpty(getRepository().basePath());
-        client().admin().cluster().prepareDeleteRepository("test-repo").get();
         super.tearDown();
     }
 
@@ -170,6 +169,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     public void testCleanup() throws Exception {
+        createRepository("test-repo");
+
         createIndex("test-idx-1");
         createIndex("test-idx-2");
         createIndex("test-idx-3");

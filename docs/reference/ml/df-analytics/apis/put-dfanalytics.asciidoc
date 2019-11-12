@@ -80,12 +80,6 @@ the `dest` index that don’t contain a results field are not included in the
 single number. For example, in case of age ranges, you can model the values as 
 "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
 
-Fields that are highly correlated to the `dependent_variable` should be excluded 
-from the analysis. For example, if you have a multi-value field as 
-`dependent_variable`, {es} will be mapping it both as text and keyword which 
-results in two fields (`field` and `field.keyword`). It is required to exclude 
-the field with the text mapping to get exact results from the analysis.
-
 
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -109,7 +103,9 @@ the field with the text mapping to get exact results from the analysis.
   (Optional, object) You can specify both `includes` and/or `excludes` patterns. 
   If `analyzed_fields` is not set, only the relevant fields will be included. 
   For example, all the numeric fields for {oldetection}. For the supported field 
-  types, see <<ml-put-dfanalytics-supported-fields>>.
+  types, see <<ml-put-dfanalytics-supported-fields>>. If you specify fields – 
+  either in `includes` or in `excludes` – that have a data type that is not 
+  supported, an error occurs.
   
   `includes`:::
     (Optional, array) An array of strings that defines the fields that will be 
@@ -117,7 +113,9 @@ the field with the text mapping to get exact results from the analysis.
     
   `excludes`:::
     (Optional, array) An array of strings that defines the fields that will be 
-    excluded from the analysis.
+    excluded from the analysis. You do not need to add fields with unsupported 
+    data types to `excludes`, these fields are excluded from the analysis 
+    automatically.
 
 `description`::
   (Optional, string) A description of the job.

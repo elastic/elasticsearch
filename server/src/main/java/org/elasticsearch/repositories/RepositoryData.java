@@ -315,9 +315,6 @@ public final class RepositoryData {
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final boolean shouldWriteShardGens) throws IOException {
-        assert shouldWriteShardGens || shardGenerations.indices().isEmpty() :
-            "Should not build shard generations in BwC mode but saw generations [" + shardGenerations + "]";
-
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);

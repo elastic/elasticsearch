@@ -97,7 +97,8 @@ public class DateRangeIT extends ESIntegTestCase {
                 indexDoc(2, 15, 3), // Feb 15
                 indexDoc(3, 2, 4),  // Mar 2
                 indexDoc(3, 15, 5), // Mar 15
-                indexDoc(3, 23, 6))); // Mar 23
+                indexDoc(3, 23, 6)  // Mar 23
+        ));
 
         // dummy docs
         for (int i = docs.size(); i < numDocs; ++i) {

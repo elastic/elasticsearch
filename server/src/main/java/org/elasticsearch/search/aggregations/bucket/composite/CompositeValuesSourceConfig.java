@@ -44,6 +44,7 @@ class CompositeValuesSourceConfig {
      * @param format The {@link DocValueFormat} of this source.
      * @param order The sort order associated with this source.
      * @param missingBucket If <code>true</code> an explicit <code>null</code> bucket will represent documents with missing values.
+     * @param hasScript <code>true</code> if the source contains a script that can change the value.
      */
     CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format,
                                 SortOrder order, boolean missingBucket, boolean hasScript) {
@@ -93,7 +94,7 @@ class CompositeValuesSourceConfig {
     }
 
     /**
-     * Returns true if the source contains a script that can the change the value.
+     * Returns true if the source contains a script that can change the value.
      */
     boolean hasScript() {
         return hasScript;

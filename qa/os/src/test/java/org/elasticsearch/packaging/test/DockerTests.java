@@ -25,38 +25,45 @@ import org.elasticsearch.packaging.util.Docker.DockerShell;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
+import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
+import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
+import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
-import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.elasticsearch.packaging.util.ServerUtils.waitForElasticsearch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
     protected DockerShell sh;
+    private Path tempDir;
 
     @BeforeClass
     public static void filterDistros() {
@@ -72,9 +79,15 @@ public class DockerTests extends PackagingTestCase {
     }
 
     @Before
-    public void setupTest() throws Exception {
+    public void setupTest() throws IOException {
         sh = new DockerShell();
         installation = runContainer(distribution());
+        tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
+    }
+
+    @After
+    public void teardownTest() {
+        rm(tempDir);
     }
 
     /**
@@ -144,40 +157,152 @@ public class DockerTests extends PackagingTestCase {
      * Check that the default config can be overridden using a bind mount, and that env vars are respected
      */
     public void test70BindMountCustomPathConfAndJvmOptions() throws Exception {
-        final Path tempConf = getTempDir().resolve("esconf-alternate");
+        copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
+        copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
 
+        // we have to disable Log4j from using JMX lest it will hit a security
+        // manager exception before we have configured logging; this will fail
+        // startup since we detect usages of logging before it is configured
+        final String jvmOptions = "-Xms512m\n-Xmx512m\n-Dlog4j2.disable.jmx=true\n";
+        append(tempDir.resolve("jvm.options"), jvmOptions);
+
+        // Make the temp directory and contents accessible when bind-mounted
+        Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
+
+        // Restart the container
+        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/usr/share/elasticsearch/config"));
+        final Map<String, String> envVars = singletonMap("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
+        runContainer(distribution(), volumes, envVars);
+
+        waitForElasticsearch(installation);
+
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+        assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+        assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+    }
+
+    /**
+     * Check that environment variables can be populated by setting variables with the suffix "_FILE",
+     * which point to files that hold the required values.
+     */
+    public void test80SetEnvironmentVariablesUsingFiles() throws Exception {
+        final String optionsFilename = "esJavaOpts.txt";
+
+        // ES_JAVA_OPTS_FILE
+        append(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+
+        Map<String, String> envVars = singletonMap("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
+
+        // File permissions need to be secured in order for the ES wrapper to accept
+        // them for populating env var values
+        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p600);
+
+        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/run/secrets"));
+
+        // Restart the container
+        runContainer(distribution(), volumes, envVars);
+
+        waitForElasticsearch(installation);
+
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+
+        assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+    }
+
+    /**
+     * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
+     */
+    public void test81ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
+        // Test relies on configuring security
+        assumeTrue(distribution.isDefault());
+
+        final String xpackPassword = "hunter2";
+        final String passwordFilename = "password.txt";
+
+        // ELASTIC_PASSWORD_FILE
+        append(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        // Enable security so that we can test that the password has been used
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+        envVars.put("xpack.security.enabled", "true");
+
+        // File permissions need to be secured in order for the ES wrapper to accept
+        // them for populating env var values
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
+
+        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/run/secrets"));
+
+        // Restart the container
+        runContainer(distribution(), volumes, envVars);
+
+        // If we configured security correctly, then this call will only work if we specify the correct credentials.
         try {
-            mkdir(tempConf);
-            copyFromContainer(installation.config("elasticsearch.yml"), tempConf.resolve("elasticsearch.yml"));
-            copyFromContainer(installation.config("log4j2.properties"), tempConf.resolve("log4j2.properties"));
-
-            // we have to disable Log4j from using JMX lest it will hit a security
-            // manager exception before we have configured logging; this will fail
-            // startup since we detect usages of logging before it is configured
-            final String jvmOptions =
-                "-Xms512m\n" +
-                "-Xmx512m\n" +
-                "-Dlog4j2.disable.jmx=true\n";
-            append(tempConf.resolve("jvm.options"), jvmOptions);
-
-            // Make the temp directory and contents accessible when bind-mounted
-            Files.setPosixFilePermissions(tempConf, fromString("rwxrwxrwx"));
-
-            final Map<String, String> envVars = new HashMap<>();
-            envVars.put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
-
-            // Restart the container
-            removeContainer();
-            runContainer(distribution(), tempConf, envVars);
-
-            waitForElasticsearch(installation);
-
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
-            assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
-        } finally {
-            rm(tempConf);
+            waitForElasticsearch("green", null, installation, "elastic", "hunter2");
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
         }
+
+        // Also check that an unauthenticated call fails
+        final int statusCode = Request.Get("http://localhost:9200/_nodes").execute().returnResponse().getStatusLine().getStatusCode();
+        assertThat("Expected server to require authentication", statusCode, equalTo(401));
+    }
+
+    /**
+     * Check that environment variables cannot be used with _FILE environment variables.
+     */
+    public void test81CannotUseEnvVarsAndFiles() throws Exception {
+        final String optionsFilename = "esJavaOpts.txt";
+
+        // ES_JAVA_OPTS_FILE
+        append(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("ES_JAVA_OPTS", "-XX:+UseCompressedOops");
+        envVars.put("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
+
+        // File permissions need to be secured in order for the ES wrapper to accept
+        // them for populating env var values
+        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p600);
+
+        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/run/secrets"));
+
+        final Result dockerLogs = runContainerExpectingFailure(distribution, volumes, envVars);
+
+        assertThat(
+            dockerLogs.stderr,
+            containsString("ERROR: Both ES_JAVA_OPTS_FILE and ES_JAVA_OPTS are set. These are mutually exclusive.")
+        );
+    }
+
+    /**
+     * Check that when populating environment variables by setting variables with the suffix "_FILE",
+     * the files' permissions are checked.
+     */
+    public void test82EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
+        final String optionsFilename = "esJavaOpts.txt";
+
+        // ES_JAVA_OPTS_FILE
+        append(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
+
+        Map<String, String> envVars = singletonMap("ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename);
+
+        // Set invalid file permissions
+        Files.setPosixFilePermissions(tempDir.resolve(optionsFilename), p660);
+
+        final Map<Path, Path> volumes = singletonMap(tempDir, Paths.get("/run/secrets"));
+
+        // Restart the container
+        final Result dockerLogs = runContainerExpectingFailure(distribution(), volumes, envVars);
+
+        assertThat(
+            dockerLogs.stderr,
+            containsString("ERROR: File /run/secrets/" + optionsFilename + " from ES_JAVA_OPTS_FILE must have file permissions 400 or 600")
+        );
     }
 
     /**
@@ -221,7 +346,6 @@ public class DockerTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         final Result result = sh.run(bin.elasticsearchNode + " -h");
-        assertThat(result.stdout,
-            containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
+        assertThat(result.stdout, containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
     }
 }

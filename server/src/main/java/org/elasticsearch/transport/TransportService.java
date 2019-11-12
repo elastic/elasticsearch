@@ -266,9 +266,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                     }
                     @Override
                     public void doRun() {
-                        TransportException ex =
-                            new SendRequestTransportException(localNode, holderToNotify.action(), new NodeClosedException(localNode));
-
+                        TransportException ex = new SendRequestTransportException(holderToNotify.connection().getNode(),
+                            holderToNotify.action(), new NodeClosedException(localNode));
                         holderToNotify.handler().handleException(ex);
                     }
                 });

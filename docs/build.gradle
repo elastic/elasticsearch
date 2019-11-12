@@ -85,6 +85,7 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
+  exclude 'build-idea'
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests

@@ -886,14 +886,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchTemplateRequest.setRequest(new SearchRequest("index"));
 
         searchTemplateRequest.setScriptType(ScriptType.INLINE);
-        searchTemplateRequest.setScript(
-            "{" +
-            "  \"query\": {" +
-            "    \"match\": {" +
-            "      \"num\": {{number}}" +
-            "    }" +
-            "  }" +
-            "}");
+        searchTemplateRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
@@ -941,14 +934,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
 
         searchTemplateRequest.setScriptType(ScriptType.INLINE);
-        searchTemplateRequest.setScript(
-            "{" +
-            "  \"query\": {" +
-            "    \"match\": {" +
-            "      \"num\": {{number}}" +
-            "    }" +
-            "  }" +
-            "}");
+        searchTemplateRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
@@ -985,14 +971,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest goodRequest = new SearchTemplateRequest();
         goodRequest.setRequest(new SearchRequest("index"));
         goodRequest.setScriptType(ScriptType.INLINE);
-        goodRequest.setScript(
-            "{" +
-            "  \"query\": {" +
-            "    \"match\": {" +
-            "      \"num\": {{number}}" +
-            "    }" +
-            "  }" +
-            "}");
+        goodRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
         goodRequest.setScriptParams(scriptParams);
@@ -1044,14 +1023,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest badRequest1 = new SearchTemplateRequest();
         badRequest1.setRequest(new SearchRequest("index"));
         badRequest1.setScriptType(ScriptType.INLINE);
-        badRequest1.setScript(
-                "{" +
-                        "  \"query\": {" +
-                        "    \"match\": {" +
-                        "      \"num\": {{number}}" +
-                        "    }" +
-                        "  }" +
-                        "}");
+        badRequest1.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", "BAD NUMBER");
         badRequest1.setScriptParams(scriptParams);

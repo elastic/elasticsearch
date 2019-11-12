@@ -18,6 +18,7 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 import java.nio.file.Files
@@ -93,10 +94,10 @@ String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
   project.tasks.create(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
-    executable = new File(project.runtimeJavaHome, 'bin/java')
+    executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
     maxWaitInSeconds 60
-    onlyIf { project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled && project.inFipsJvm == false }
+    onlyIf { project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled && BuildParams.inFipsJvm == false }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
@@ -149,7 +150,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     }
 
     runner {
-      onlyIf { project.inFipsJvm == false }
+      onlyIf { BuildParams.inFipsJvm == false }
       if (integTestTaskName.contains("Ha")) {
         if (integTestTaskName.contains("Secure")) {
           Path path = buildDir.toPath()
@@ -221,7 +222,7 @@ if (legalPath == false) {
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
 integTest.runner {
-  onlyIf { project.inFipsJvm == false }
+  onlyIf { BuildParams.inFipsJvm == false }
   exclude('**/Ha*TestSuiteIT.class')
 }
 

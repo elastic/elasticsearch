@@ -23,6 +23,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
@@ -192,8 +193,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             try {
                 handler.handle(exchange);
             } catch (final Exception e) {
-                logger.error("Exception when handling request {} {} {}",
-                    exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI(), e);
+                logger.error(() -> new ParameterizedMessage("Exception when handling request {} {} {}",
+                    exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI()), e);
                 throw e;
             }
         };

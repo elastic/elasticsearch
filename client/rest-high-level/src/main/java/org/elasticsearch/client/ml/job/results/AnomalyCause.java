@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.client.ml.job.results;
 
+import org.elasticsearch.client.ml.job.config.DetectorFunction;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -254,6 +257,28 @@ public class AnomalyCause implements ToXContentObject {
 
     void setInfluencers(List<Influence> influencers) {
         this.influencers = Collections.unmodifiableList(influencers);
+    }
+
+    @Nullable
+    public GeoPoint getTypicalGeoPoint() {
+        if (DetectorFunction.LAT_LONG.getFullName().equals(function) == false || typical == null) {
+            return null;
+        }
+        if (typical.size() == 2) {
+            return new GeoPoint(typical.get(0), typical.get(1));
+        }
+        return null;
+    }
+
+    @Nullable
+    public GeoPoint getActualGeoPoint() {
+        if (DetectorFunction.LAT_LONG.getFullName().equals(function) == false || actual == null) {
+            return null;
+        }
+        if (actual.size() == 2) {
+            return new GeoPoint(actual.get(0), actual.get(1));
+        }
+        return null;
     }
 
     @Override

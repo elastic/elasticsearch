@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -83,6 +82,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * The reason why a mapping is being merged.
      */
     public enum MergeReason {
+        /**
+         * Pre-flight check before sending a mapping update to the master
+         */
+        MAPPING_UPDATE_PREFLIGHT,
         /**
          * Create or update a mapping.
          */
@@ -230,9 +233,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
             // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
             // merge version of it, which it does when refreshing the mappings), and warn log it.
-            if (documentMapper(mappingType).mappingSource().equals(incomingMappingSource) == false) {
+            if (documentMapper().mappingSource().equals(incomingMappingSource) == false) {
                 logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}",
-                    index(), mappingType, incomingMappingSource, documentMapper(mappingType).mappingSource());
+                    index(), mappingType, incomingMappingSource, documentMapper().mappingSource());
 
                 requireRefresh = true;
             }
@@ -307,11 +310,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private synchronized Map<String, DocumentMapper> internalMerge(IndexMetaData indexMetaData,
                                                                    MergeReason reason, boolean onlyUpdateIfNeeded) {
+        assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
         MappingMetaData mappingMetaData = indexMetaData.mapping();
         if (mappingMetaData != null) {
             if (onlyUpdateIfNeeded) {
-                DocumentMapper existingMapper = documentMapper(mappingMetaData.type());
+                DocumentMapper existingMapper = documentMapper();
                 if (existingMapper == null || mappingMetaData.source().equals(existingMapper.mappingSource()) == false) {
                     map.put(mappingMetaData.type(), mappingMetaData.source());
                 }
@@ -416,7 +420,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, fieldTypes::get);
 
-            if (reason == MergeReason.MAPPING_UPDATE) {
+            if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
                 // this check will only be performed on the master node when there is
                 // a call to the update mapping API. For all other cases like
                 // the master node restoring mappings from disk or data nodes
@@ -431,7 +435,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             results.put(newMapper.type(), newMapper);
         }
 
-        if (reason == MergeReason.MAPPING_UPDATE) {
+        if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
             // this check will only be performed on the master node when there is
             // a call to the update mapping API. For all other cases like
             // the master node restoring mappings from disk or data nodes
@@ -453,6 +457,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         // make structures immutable
         results = Collections.unmodifiableMap(results);
+
+        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+            return results;
+        }
 
         // only need to immutably rewrap these if the previous reference was changed.
         // if not then they are already implicitly immutable.
@@ -587,27 +595,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Return the {@link DocumentMapper} for the given type.
-     */
-    public DocumentMapper documentMapper(String type) {
-        if (mapper != null && type.equals(mapper.type())) {
-            return mapper;
-        }
-        return null;
-    }
-
-    /**
      * Returns {@code true} if the given {@code mappingSource} includes a type
      * as a top-level object.
      */
     public static boolean isMappingSourceTyped(String type, Map<String, Object> mapping) {
         return mapping.size() == 1 && mapping.keySet().iterator().next().equals(type);
-    }
-
-
-    public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
-        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
-        return isMappingSourceTyped(type, root);
     }
 
     /**
@@ -628,15 +620,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns the document mapper created, including a mapping update if the
-     * type has been dynamically created.
+     * Returns the document mapper for this MapperService.  If no mapper exists,
+     * creates one and returns that.
      */
-    public DocumentMapperForType documentMapperWithAutoCreate(String type) {
-        DocumentMapper mapper = documentMapper(type);
+    public DocumentMapperForType documentMapperWithAutoCreate() {
+        DocumentMapper mapper = documentMapper();
         if (mapper != null) {
             return new DocumentMapperForType(mapper, null);
         }
-        mapper = parse(type, null);
+        mapper = parse(SINGLE_MAPPING_NAME, null);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }
 

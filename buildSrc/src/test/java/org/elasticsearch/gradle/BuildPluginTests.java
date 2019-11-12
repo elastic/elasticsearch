@@ -28,17 +28,6 @@ import java.net.URISyntaxException;
 
 public class BuildPluginTests extends GradleUnitTestCase {
 
-    public void testPassingDockerVersions() {
-        BuildPlugin.checkDockerVersionRecent("Docker version 18.06.1-ce, build e68fc7a215d7");
-        BuildPlugin.checkDockerVersionRecent("Docker version 17.05.0, build e68fc7a");
-        BuildPlugin.checkDockerVersionRecent("Docker version 17.05.1, build e68fc7a");
-    }
-
-    @Test(expected = GradleException.class)
-    public void testFailingDockerVersions() {
-        BuildPlugin.checkDockerVersionRecent("Docker version 17.04.0, build e68fc7a");
-    }
-
     @Test(expected = GradleException.class)
     public void testRepositoryURIThatUsesHttpScheme() throws URISyntaxException {
         final URI uri = new URI("http://s3.amazonaws.com/artifacts.elastic.co/maven");

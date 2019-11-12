@@ -50,6 +50,7 @@ import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
@@ -1061,5 +1062,29 @@ public final class IndicesClient {
                                             ActionListener<ReloadAnalyzersResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::reloadAnalyzers, options,
                 ReloadAnalyzersResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Synchronously calls the delete alias api
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public org.elasticsearch.client.core.AcknowledgedResponse deleteAlias(DeleteAliasRequest request,
+                                                                          RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::deleteAlias, options,
+            org.elasticsearch.client.core.AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously calls the delete alias api
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable deleteAliasAsync(DeleteAliasRequest request, RequestOptions options,
+                                                ActionListener<org.elasticsearch.client.core.AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteAlias, options,
+            org.elasticsearch.client.core.AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 }

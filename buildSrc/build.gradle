@@ -218,8 +218,8 @@ if (project != rootProject) {
   task integTest(type: Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
-    onlyIf { project.inFipsJvm == false }
-    maxParallelForks = System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
+    maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
   check.dependsOn(integTest)
 

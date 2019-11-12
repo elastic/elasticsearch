@@ -109,7 +109,7 @@ public class LucenePersistedStateFactory {
 
         final OnDiskState onDiskState = loadBestOnDiskState();
 
-        final List<MetaDataIndex> metaDataIndices = new ArrayList<>();
+        final List<MetaDataIndexWriter> metaDataIndexWriters = new ArrayList<>();
         final List<Closeable> closeables = new ArrayList<>();
         boolean success = false;
         try {
@@ -129,7 +129,7 @@ public class LucenePersistedStateFactory {
 
                 final IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig);
                 closeables.add(indexWriter);
-                metaDataIndices.add(new MetaDataIndex(directory, indexWriter));
+                metaDataIndexWriters.add(new MetaDataIndexWriter(directory, indexWriter));
             }
             success = true;
         } finally {
@@ -140,7 +140,7 @@ public class LucenePersistedStateFactory {
 
         final ClusterState clusterState = clusterStateFromMetaData.apply(onDiskState.lastAcceptedVersion, onDiskState.metaData);
         final LucenePersistedState lucenePersistedState
-            = new LucenePersistedState(nodeEnvironment.nodeId(), metaDataIndices, onDiskState.currentTerm, clusterState, bigArrays);
+            = new LucenePersistedState(nodeEnvironment.nodeId(), metaDataIndexWriters, onDiskState.currentTerm, clusterState, bigArrays);
         success = false;
         try {
             lucenePersistedState.persistInitialState();
@@ -340,18 +340,19 @@ public class LucenePersistedStateFactory {
     }
 
     /**
-     * Encapsulates a single {@link IndexWriter}. There is one of these for each data path.
+     * Encapsulates a single {@link IndexWriter} with its {@link Directory} for ease of closing, and a {@link Logger}. There is one of these
+     * for each data path.
      */
-    private static class MetaDataIndex implements Closeable {
+    private static class MetaDataIndexWriter implements Closeable {
 
         private final Logger logger;
         private final Directory directory;
         private final IndexWriter indexWriter;
 
-        MetaDataIndex(Directory directory, IndexWriter indexWriter) {
+        MetaDataIndexWriter(Directory directory, IndexWriter indexWriter) {
             this.directory = directory;
             this.indexWriter = indexWriter;
-            this.logger = Loggers.getLogger(MetaDataIndex.class, directory.toString());
+            this.logger = Loggers.getLogger(MetaDataIndexWriter.class, directory.toString());
         }
 
         void deleteAll() throws IOException {
@@ -400,21 +401,21 @@ public class LucenePersistedStateFactory {
     }
 
     /**
-     * Encapsulates the incremental writing of metadata to a collection of {@link MetaDataIndex}es.
+     * Encapsulates the incremental writing of metadata to a collection of {@link MetaDataIndexWriter}s.
      */
     private static class LucenePersistedState implements CoordinationState.PersistedState, Closeable {
 
         private long currentTerm;
         private ClusterState lastAcceptedState;
-        private final List<MetaDataIndex> metaDataIndices;
+        private final List<MetaDataIndexWriter> metaDataIndexWriters;
         private final String nodeId;
         private final BigArrays bigArrays;
 
-        LucenePersistedState(String nodeId, List<MetaDataIndex> metaDataIndices, long currentTerm, ClusterState lastAcceptedState,
-                             BigArrays bigArrays) {
+        LucenePersistedState(String nodeId, List<MetaDataIndexWriter> metaDataIndexWriters, long currentTerm,
+                             ClusterState lastAcceptedState, BigArrays bigArrays) {
             this.currentTerm = currentTerm;
             this.lastAcceptedState = lastAcceptedState;
-            this.metaDataIndices = metaDataIndices;
+            this.metaDataIndexWriters = metaDataIndexWriters;
             this.nodeId = nodeId;
             this.bigArrays = bigArrays;
         }
@@ -476,9 +477,9 @@ public class LucenePersistedStateFactory {
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only", clusterState.term());
 
             try (ReleasableDocument globalMetaDataDocument = makeGlobalMetadataDocument(clusterState)) {
-                for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                    metaDataIndex.deleteGlobalMetaData();
-                    metaDataIndex.addGlobalMetaData(globalMetaDataDocument.getDocument());
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.deleteGlobalMetaData();
+                    metaDataIndexWriter.addGlobalMetaData(globalMetaDataDocument.getDocument());
                 }
             }
 
@@ -496,16 +497,16 @@ public class LucenePersistedStateFactory {
                     if (previousVersion != null) {
                         logger.trace("overwriting metadata for [{}], changing lastAcceptedVersion from [{}] to [{}]",
                             indexMetaData.getIndex(), previousVersion, indexMetaData.getVersion());
-                        for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                            metaDataIndex.deleteIndexMetaData(indexMetaData.getIndexUUID());
+                        for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                            metaDataIndexWriter.deleteIndexMetaData(indexMetaData.getIndexUUID());
                         }
                     } else {
                         logger.trace("writing metadata for new [{}]", indexMetaData.getIndex());
                     }
 
                     try (ReleasableDocument indexMetaDataDocument = makeIndexMetadataDocument(indexMetaData)) {
-                        for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                            metaDataIndex.addIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
+                        for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                            metaDataIndexWriter.addIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
                         }
                     }
                 } else {
@@ -515,15 +516,15 @@ public class LucenePersistedStateFactory {
             }
 
             for (String removedIndexUUID : indexMetadataVersionByUUID.keySet()) {
-                for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                    metaDataIndex.deleteIndexMetaData(removedIndexUUID);
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.deleteIndexMetaData(removedIndexUUID);
                 }
             }
 
             // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
             // gracefully than one that occurs during the commit process.
-            for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                metaDataIndex.flush();
+            for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                metaDataIndexWriter.flush();
             }
         }
 
@@ -531,8 +532,8 @@ public class LucenePersistedStateFactory {
          * Update the persisted metadata to match the given cluster state by removing all existing documents and then adding new documents.
          */
         private void overwriteMetaData(ClusterState clusterState) throws IOException {
-            for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                metaDataIndex.deleteAll();
+            for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                metaDataIndexWriter.deleteAll();
             }
             addMetaData(clusterState);
         }
@@ -542,31 +543,31 @@ public class LucenePersistedStateFactory {
          */
         private void addMetaData(ClusterState clusterState) throws IOException {
             try (ReleasableDocument globalMetaDataDocument = makeGlobalMetadataDocument(clusterState)) {
-                for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                    metaDataIndex.addGlobalMetaData(globalMetaDataDocument.getDocument());
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.addGlobalMetaData(globalMetaDataDocument.getDocument());
                 }
             }
 
             for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
                 final IndexMetaData indexMetaData = cursor.value;
                 try (ReleasableDocument indexMetaDataDocument = makeIndexMetadataDocument(indexMetaData)) {
-                    for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                        metaDataIndex.addIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
+                    for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                        metaDataIndexWriter.addIndexMetaDataDocument(indexMetaDataDocument.getDocument(), indexMetaData.getIndex());
                     }
                 }
             }
 
             // Flush, to try and expose a failure (e.g. out of disk space) before committing, because we can handle a failure here more
             // gracefully than one that occurs during the commit process.
-            for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                metaDataIndex.flush();
+            for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                metaDataIndexWriter.flush();
             }
         }
 
         private void commit(long currentTerm, long lastAcceptedVersion) {
             try {
-                for (MetaDataIndex metaDataIndex : metaDataIndices) {
-                    metaDataIndex.commit(nodeId, currentTerm, lastAcceptedVersion);
+                for (MetaDataIndexWriter metaDataIndexWriter : metaDataIndexWriters) {
+                    metaDataIndexWriter.commit(nodeId, currentTerm, lastAcceptedVersion);
                 }
             } catch (IOException e) {
                 // The commit() call has similar semantics to a fsync(): although it's atomic, if it fails then we've no idea whether the
@@ -579,7 +580,7 @@ public class LucenePersistedStateFactory {
         @Override
         public void close() throws IOException {
             logger.trace("closing");
-            IOUtils.close(metaDataIndices);
+            IOUtils.close(metaDataIndexWriters);
         }
 
         private ReleasableDocument makeIndexMetadataDocument(IndexMetaData indexMetaData) throws IOException {

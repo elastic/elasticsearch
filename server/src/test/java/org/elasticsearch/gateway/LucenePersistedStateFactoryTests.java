@@ -414,9 +414,9 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                         .put(IndexMetaData.builder("test")
                             .version(indexMetaDataVersion - 1) // -1 because it's incremented in .put()
                             .settings(Settings.builder()
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                                 .put(IndexMetaData.SETTING_INDEX_UUID, indexUUID))))
                     .incrementVersion().build());
             }
@@ -433,7 +433,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                     .metaData(MetaData.builder(clusterState.metaData())
                         .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder()
                                 .put(indexMetaData.getSettings())
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).build(), false))
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)).build(), false))
                     .incrementVersion().build());
             }
 
@@ -448,7 +448,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                     .metaData(MetaData.builder(clusterState.metaData())
                         .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder()
                             .put(indexMetaData.getSettings())
-                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)).build(), true))
+                            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)).build(), true))
                     .incrementVersion().build());
             }
 
@@ -464,7 +464,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                         .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(newTerm).build())
                         .put(IndexMetaData.builder(indexMetaData).settings(Settings.builder()
                             .put(indexMetaData.getSettings())
-                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 3)).build(), false))
+                            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 3)).build(), false))
                     .incrementVersion().build());
             }
 
@@ -495,9 +495,9 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                             .version(i + 2)
                             .put(IndexMetaData.builder(index.getName())
                                 .settings(Settings.builder()
-                                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                    .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
                                     .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID()))))
                         .incrementVersion().build());
                 }

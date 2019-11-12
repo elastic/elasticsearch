@@ -121,7 +121,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         if (in.readBoolean()) {
             influencers = in.readList(Influence::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             geoResults = in.readOptionalWriteable(GeoResults::new);
         }
     }
@@ -154,7 +154,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         if (hasInfluencers) {
             out.writeList(influencers);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeOptionalWriteable(geoResults);
         }
     }

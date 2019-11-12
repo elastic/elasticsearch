@@ -77,6 +77,7 @@ final class CompositeAggregator extends BucketsAggregator {
     private final List<DocValueFormat> formats;
     private final CompositeKey rawAfterKey;
 
+    private final CompositeValuesSourceConfig[] sourceConfigs;
     private final SingleDimensionValuesSource<?>[] sources;
     private final CompositeValuesCollectorQueue queue;
 
@@ -103,6 +104,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 " to: [" + bucketLimit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +
                 "] cluster level setting.", bucketLimit);
         }
+        this.sourceConfigs = sourceConfigs;
         for (int i = 0; i < sourceConfigs.length; i++) {
             this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(), sourceConfigs[i], size);
         }
@@ -201,14 +203,15 @@ final class CompositeAggregator extends BucketsAggregator {
         }
         List<SortField> sortFields = new ArrayList<>();
         for (int i = 0; i < indexSort.getSort().length; i++) {
+            CompositeValuesSourceConfig sourceConfig = sourceConfigs[i];
             SingleDimensionValuesSource<?> source = sources[i];
             SortField indexSortField = indexSort.getSort()[i];
             if (source.fieldType == null
                     // TODO: can we handle missing bucket when using index sort optimization ?
                     || source.missingBucket
                     || indexSortField.getField().equals(source.fieldType.name()) == false
-                    || isMaybeMultivalued(context, indexSortField)) {
-                    // TODO: ignore fields that change the value with a script
+                    || isMaybeMultivalued(context, indexSortField)
+                    || sourceConfig.hasScript()) {
                 break;
             }
 

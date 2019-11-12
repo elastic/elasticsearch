@@ -1947,7 +1947,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     indexWriter.addDocument(document);
                     document.clear();
                 }
-                if (reduced == false) {
+                if (reduced == false && randomBoolean()) {
                     indexWriter.forceMerge(1);
                 }
             }

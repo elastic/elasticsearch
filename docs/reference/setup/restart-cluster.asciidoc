@@ -13,16 +13,19 @@ time, so the service remains uninterrupted.
 [[restart-cluster-full]]
 === Full-cluster restart
 
-tag::disable_shard_alloc[]
+// tag::disable_shard_alloc[]
+
 . *Disable shard allocation.*
 +
 --
 include::{docdir}/upgrade/disable-shard-alloc.asciidoc[]
 --
-end::disable_shard_alloc[]
+
+// end::disable_shard_alloc[]
 
 
-tag::stop_indexing[]
+// tag::stop_indexing[]
+
 . *Stop indexing and perform a synced flush.*
 +
 --
@@ -31,10 +34,12 @@ recovery.
 
 include::{docdir}/upgrade/synced-flush.asciidoc[]
 --
-end::stop_indexing[]
+
+// end::stop_indexing[]
 
 
-tag::stop_ml[]
+//tag::stop_ml[]
+
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +
 --
@@ -64,7 +69,8 @@ cluster restart, they use the exact same model. However, saving the latest model
 state takes longer than using upgrade mode, especially if you have a lot of jobs 
 or jobs with large model states.
 --
-end::stop_ml[]
+
+// end::stop_ml[]
 
 
 . *Shut down all nodes.*
@@ -148,7 +154,8 @@ GET _cat/recovery
 --------------------------------------------------
 --
 
-tag::restart_ml[]
+// tag::restart_ml[]
+
 . *Restart machine learning jobs.* (Optional)
 +
 --
@@ -164,7 +171,8 @@ If you closed all {ml} jobs before stopping the nodes, open the jobs and start
 the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
 <<ml-start-datafeed,start datafeed>> APIs.
 --
-end::restart_ml[]
+
+// end::restart_ml[]
 
 [float]
 [[restart-cluster-rolling]]

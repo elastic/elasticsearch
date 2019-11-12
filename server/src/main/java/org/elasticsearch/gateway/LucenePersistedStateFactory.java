@@ -119,6 +119,8 @@ public class LucenePersistedStateFactory {
     private static final String INDEX_TYPE_NAME = "index";
     private static final String INDEX_UUID_FIELD_NAME = "index_uuid";
 
+    public static final String METADATA_DIRECTORY_NAME = "_metadata";
+
     private final NodeEnvironment nodeEnvironment;
     private final NamedXContentRegistry namedXContentRegistry;
     private final BigArrays bigArrays;
@@ -139,7 +141,7 @@ public class LucenePersistedStateFactory {
         boolean success = false;
         try {
             for (final Path path : nodeEnvironment.nodeDataPaths()) {
-                final Directory directory = createDirectory(getMetaDataIndexPath(path, Version.CURRENT.major));
+                final Directory directory = createDirectory(path.resolve(METADATA_DIRECTORY_NAME));
                 closeables.add(directory);
 
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
@@ -169,10 +171,6 @@ public class LucenePersistedStateFactory {
         success = false;
         try {
             lucenePersistedState.persistInitialState();
-
-            for (final Path path : nodeEnvironment.nodeDataPaths()) {
-                assert Files.exists(getMetaDataIndexPath(path, Version.CURRENT.major - 1)) == false;
-            }
             success = true;
             return lucenePersistedState;
         } finally {
@@ -210,42 +208,40 @@ public class LucenePersistedStateFactory {
         // sufficient to read _any_ copy. "Mostly" sufficient because the user can change the set of data paths when restarting, and may
         // add a data path containing a stale copy of the metadata. We deal with this by using the freshest copy we can find.
         for (final Path dataPath : nodeEnvironment.nodeDataPaths()) {
-            for (int majorVersion = Version.CURRENT.major - 1; majorVersion <= Version.CURRENT.major; majorVersion++) {
-                final Path indexPath = getMetaDataIndexPath(dataPath, majorVersion);
-                if (Files.exists(indexPath)) {
-                    try (Directory directory = createDirectory(indexPath);
-                         DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                        final OnDiskState onDiskState = loadOnDiskState(directoryReader);
+            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (Directory directory = createDirectory(indexPath);
+                     DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                    final OnDiskState onDiskState = loadOnDiskState(directoryReader);
 
-                        if (nodeEnvironment.nodeId().equals(onDiskState.nodeId) == false) {
-                            throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-                                "] but expected [" + nodeEnvironment.nodeId() + "]");
-                        }
-
-                        if (onDiskState.metaData.clusterUUIDCommitted()) {
-                            if (committedClusterUuid == null) {
-                                committedClusterUuid = onDiskState.metaData.clusterUUID();
-                            } else if (committedClusterUuid.equals(onDiskState.metaData.clusterUUID()) == false) {
-                                throw new IllegalStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
-                                    "] and [" + onDiskState.metaData.clusterUUID() +
-                                    "]");
-                            }
-                        }
-
-                        maxCurrentTerm = Math.max(maxCurrentTerm, onDiskState.currentTerm);
-
-                        long acceptedTerm = onDiskState.metaData.coordinationMetaData().term();
-                        long maxAcceptedTerm = bestOnDiskState.metaData.coordinationMetaData().term();
-                        if (acceptedTerm > maxAcceptedTerm
-                            || (acceptedTerm == maxAcceptedTerm
-                                && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
-                                    || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
-                                        && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
-                            bestOnDiskState = onDiskState;
-                        }
-                    } catch (IndexNotFoundException e) {
-                        logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                    if (nodeEnvironment.nodeId().equals(onDiskState.nodeId) == false) {
+                        throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
+                            "] but expected [" + nodeEnvironment.nodeId() + "]");
                     }
+
+                    if (onDiskState.metaData.clusterUUIDCommitted()) {
+                        if (committedClusterUuid == null) {
+                            committedClusterUuid = onDiskState.metaData.clusterUUID();
+                        } else if (committedClusterUuid.equals(onDiskState.metaData.clusterUUID()) == false) {
+                            throw new IllegalStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
+                                "] and [" + onDiskState.metaData.clusterUUID() +
+                                "]");
+                        }
+                    }
+
+                    maxCurrentTerm = Math.max(maxCurrentTerm, onDiskState.currentTerm);
+
+                    long acceptedTerm = onDiskState.metaData.coordinationMetaData().term();
+                    long maxAcceptedTerm = bestOnDiskState.metaData.coordinationMetaData().term();
+                    if (acceptedTerm > maxAcceptedTerm
+                        || (acceptedTerm == maxAcceptedTerm
+                            && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
+                                || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
+                                    && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
+                        bestOnDiskState = onDiskState;
+                    }
+                } catch (IndexNotFoundException e) {
+                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
                 }
             }
         }
@@ -256,15 +252,6 @@ public class LucenePersistedStateFactory {
         }
 
         return bestOnDiskState;
-    }
-
-    private static Path getMetaDataIndexPath(Path path, int majorVersion) {
-        return path.resolve(getMetaDataIndexDirectoryName(majorVersion));
-    }
-
-    public static String getMetaDataIndexDirectoryName(int majorVersion) {
-        // include the version in the directory name to create a completely new index when upgrading to the next major version.
-        return "_metadata_v" + majorVersion;
     }
 
     private OnDiskState loadOnDiskState(DirectoryReader reader) throws IOException {

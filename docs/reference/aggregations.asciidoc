@@ -29,7 +29,7 @@ it is often easier to break them into four main families:
                 aggregation family does not yet support scripting.
 
 <<search-aggregations-pipeline, _Pipeline_>>::
-				Aggregations that aggregate the output of other aggregations and their associated metrics
+				Aggregations that aggregate the output of other aggregations and their associated metrics,
 
 The interesting part comes next. Since each bucket effectively defines a document set (all documents belonging to
 the bucket), one can potentially associate aggregations on the bucket level, and those will execute within the context

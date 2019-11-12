@@ -166,7 +166,6 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
         ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(reindexResponse, exception);
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
-        lastState = null;
 
         reindexIndexClient.updateReindexTaskDoc(persistentTaskId, state, term, seqNo, new ActionListener<>() {
             @Override

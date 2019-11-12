@@ -520,6 +520,7 @@ final class RequestConverters {
 
         Params params = new Params();
         params.withIndicesOptions(rankEvalRequest.indicesOptions());
+        params.putParam("search_type", rankEvalRequest.searchType().name().toLowerCase(Locale.ROOT));
         request.addParameters(params.asMap());
         request.setEntity(createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE));
         return request;

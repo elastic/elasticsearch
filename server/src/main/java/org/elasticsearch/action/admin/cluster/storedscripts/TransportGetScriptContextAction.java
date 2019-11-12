@@ -22,12 +22,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.script.ScriptContextInfo;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 public class TransportGetScriptContextAction extends HandledTransportAction<GetScriptContextRequest, GetScriptContextResponse> {
 
@@ -41,9 +41,7 @@ public class TransportGetScriptContextAction extends HandledTransportAction<GetS
 
     @Override
     protected void doExecute(Task task, GetScriptContextRequest request, ActionListener<GetScriptContextResponse> listener) {
-        Map<String,Object> contexts = scriptService.getContextNames().stream().collect(
-            Collectors.toMap(name -> name, name -> new Object())
-        );
+        Set<ScriptContextInfo> contexts = scriptService.getContextInfos();
         listener.onResponse(new GetScriptContextResponse(contexts));
     }
 }

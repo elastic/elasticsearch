@@ -550,14 +550,12 @@ for (int i = 0; i < 5; i++) {
 buildRestTests.setups['library'] = '''
   - do:
         indices.create:
-          include_type_name: true
           index: library
           body:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              book:
                 properties:
                   name:
                     type: text

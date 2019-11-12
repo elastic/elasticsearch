@@ -233,8 +233,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         restoredShard.mapperService().merge(shard.indexSettings().getIndexMetaData(), MapperService.MergeReason.MAPPING_RECOVERY);
         DiscoveryNode discoveryNode = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
         restoredShard.markAsRecovering("test from snap", new RecoveryState(restoredShard.routingEntry(), discoveryNode, null));
-        runAsSnapshot(shard.getThreadPool(), () ->
-            assertTrue(restoredShard.restoreFromRepository(repository)));
+        runAsSnapshot(shard.getThreadPool(), () -> {
+            final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+            restoredShard.restoreFromRepository(repository, future);
+            assertTrue(future.actionGet());
+        });
         assertEquals(restoredShard.recoveryState().getStage(), RecoveryState.Stage.DONE);
         assertEquals(restoredShard.recoveryState().getTranslog().recoveredOperations(), 0);
         assertEquals(IndexShardState.POST_RECOVERY, restoredShard.state());
@@ -263,7 +266,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             }
             expectThrows(UnsupportedOperationException.class, () -> searcher.search(new TermQuery(new Term("boom", "boom")), 1));
             targetShard = reindex(searcher.getDirectoryReader(), new MappingMetaData("_doc",
-                restoredShard.mapperService().documentMapper("_doc").meta()));
+                restoredShard.mapperService().documentMapper().meta()));
         }
 
         for (int i = 0; i < numInitialDocs; i++) {
@@ -310,11 +313,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         rootFieldsVisitor.reset();
                         leafReader.document(i, rootFieldsVisitor);
                         rootFieldsVisitor.postProcess(targetShard.mapperService());
-                        Uid uid = rootFieldsVisitor.uid();
+                        String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                            new SourceToParse(index, uid.id(), source, XContentHelper.xContentType(source),
+                            new SourceToParse(index, id, source, XContentHelper.xContentType(source),
                                 rootFieldsVisitor.routing()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {

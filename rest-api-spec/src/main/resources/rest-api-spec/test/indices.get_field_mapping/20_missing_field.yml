@@ -16,4 +16,4 @@
         index: test_index
         fields: not_existent
 
-  - match: { '': {}}
+  - match: { 'test_index.mappings': {}}

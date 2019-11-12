@@ -67,12 +67,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                     @Override
                     public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
                         Map<String, Map<String, FieldMappingMetaData>> mappingsByIndex = response.mappings();
-
-                        boolean isPossibleSingleFieldRequest = indices.length == 1 && fields.length == 1;
-                        if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
-                            return new BytesRestResponse(OK, builder.startObject().endObject());
-                        }
-
+                        
                         RestStatus status = OK;
                         if (mappingsByIndex.isEmpty() && fields.length > 0) {
                             status = NOT_FOUND;

@@ -59,10 +59,16 @@ final class JvmErgonomics {
         final Map<String, Optional<String>> finalJvmOptions = finalJvmOptions(userDefinedJvmOptions);
         final long heapSize = extractHeapSize(finalJvmOptions);
         final Map<String, String> systemProperties = extractSystemProperties(userDefinedJvmOptions);
+
+        if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
+            Launchers.errPrintln("Warning: with JDK 8 on Windows, Elasticsearch may be unable to derive correct");
+            Launchers.errPrintln("  ergonomic settings due to a JDK issue (JDK-8074459). Please use a newer");
+            Launchers.errPrintln("  version of Java.");
+        }
+
         if (systemProperties.containsKey("io.netty.allocator.type") == false) {
             if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
-                Launchers.errPrintln("Warning: with JDK 8 on Windows, Elasticsearch may miscalculate io.netty.allocator.type");
-                Launchers.errPrintln("  due to a JDK issue (JDK-8074459).");
+                Launchers.errPrintln("Warning: io.netty.allocator.type may have been miscalculated due to JDK-8074459.");
                 Launchers.errPrintln("  Please use a newer version of Java or set io.netty.allocator.type explicitly");
             }
             if (heapSize <= 1 << 30) {
@@ -72,13 +78,6 @@ final class JvmErgonomics {
             }
         }
         final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);
-
-        if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {
-            Launchers.errPrintln("Warning: with JDK 8 on Windows, Elasticsearch may be unable to derive correct");
-            Launchers.errPrintln("  ergonomic settings due to a JDK issue (JDK-8074459). Please use a newer");
-            Launchers.errPrintln("  version of Java.");
-        }
-
         if (maxDirectMemorySize == 0 && userDefinedJvmOptions.stream().noneMatch(s -> s.startsWith("-XX:MaxDirectMemorySize"))) {
 
             if (System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8) {

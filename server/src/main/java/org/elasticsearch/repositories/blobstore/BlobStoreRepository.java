@@ -389,7 +389,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final long generation = latestGeneration(rootBlobs.keySet());
         final long genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
         if (genToLoad != generation) {
-            throw new IllegalStateException("Determined repository's generation from its contents to [" + generation + "] but " +
+            // It's always a possibility to not see the latest index-N in the listing here on an eventually consistent blob store, just
+            // debug log it. Any blobs leaked as a result of an inconsistent listing here will be cleaned up in a subsequent cleanup or
+            // snapshot delete run anyway.
+            logger.debug("Determined repository's generation from its contents to [" + generation + "] but " +
                 "current generation is at least [" + genToLoad + "]");
         }
         if (genToLoad != repositoryStateId) {
@@ -915,7 +918,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // Tracks the latest known repository generation in a best-effort way to detect inconsistent listing of root level index-N blobs
     // and concurrent modifications.
-    private final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.EMPTY_REPO_GEN);
+    // Protected for use in MockEventuallyConsistentRepository
+    protected final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.EMPTY_REPO_GEN);
 
     @Override
     public RepositoryData getRepositoryData() {

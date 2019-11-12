@@ -271,22 +271,28 @@ public class LucenePersistedStateFactory {
             final MetaData metaData = MetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found global metadata with last-accepted term [{}]", metaData.coordinationMetaData().term());
+            if (builderReference.get() != null) {
+                throw new IllegalStateException("duplicate global metadata found in [" + dataPath + "]");
+            }
             builderReference.set(MetaData.builder(metaData));
         });
 
         final MetaData.Builder builder = builderReference.get();
-        assert builder != null : "no global metadata found";
+        if (builder == null) {
+            throw new IllegalStateException("no global metadata found in [" + dataPath + "]");
+        }
 
         logger.trace("got global metadata, now reading index metadata");
 
-        final Set<String> indexUUIDsForAssertions = new HashSet<>();
+        final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, bytes ->
         {
             final IndexMetaData indexMetaData = IndexMetaData.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found index metadata for {}", indexMetaData.getIndex());
-            //noinspection AssertWithSideEffects
-            assert indexUUIDsForAssertions.add(indexMetaData.getIndexUUID());
+            if (indexUUIDs.add(indexMetaData.getIndexUUID()) == false) {
+                throw new IllegalStateException("duplicate metadata found for " + indexMetaData.getIndex() + " in [" + dataPath + "]");
+            }
             builder.put(indexMetaData, false);
         });
 

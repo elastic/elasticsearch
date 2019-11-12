@@ -18,11 +18,15 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -407,6 +411,113 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                 assertThat(expectThrows(IOError.class, () -> persistedState.setLastAcceptedState(newState)).getMessage(),
                     containsString("simulated"));
             }
+        }
+    }
+
+    public void testFailsIfGlobalMetadataIsMissing() throws IOException {
+        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe the global metadata
+        // isn't there any more
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            try (CoordinationState.PersistedState persistedState
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
+                persistedState.setLastAcceptedState(
+                    ClusterState.builder(persistedState.getLastAcceptedState()).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
+            }
+
+            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
+            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))) {
+                final IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
+                indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+                try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+                    indexWriter.commit();
+                }
+            }
+
+            final String message = expectThrows(IllegalStateException.class,
+                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+            assertThat(message, allOf(containsString("no global metadata found"), containsString(brokenPath.toString())));
+        }
+    }
+
+    public void testFailsIfGlobalMetadataIsDuplicated() throws IOException {
+        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe the global metadata
+        // is duplicated
+
+        final Path[] dataPaths1 = createDataPaths();
+        final Path[] dataPaths2 = createDataPaths();
+        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
+            try (CoordinationState.PersistedState persistedState
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
+                persistedState.setLastAcceptedState(
+                    ClusterState.builder(persistedState.getLastAcceptedState()).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
+            }
+
+            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
+            final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
+            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))) {
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                    indexWriter.addIndexes(dupDirectory);
+                    indexWriter.commit();
+                }
+            }
+
+            final String message = expectThrows(IllegalStateException.class,
+                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+            assertThat(message, allOf(containsString("duplicate global metadata found"), containsString(brokenPath.toString())));
+        }
+    }
+
+    public void testFailsIfIndexMetadataIsDuplicated() throws IOException {
+        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe some index metadata
+        // is duplicated
+
+        final Path[] dataPaths1 = createDataPaths();
+        final Path[] dataPaths2 = createDataPaths();
+        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
+            final String indexUUID = UUIDs.randomBase64UUID(random());
+            final String indexName = randomAlphaOfLength(10);
+
+            try (CoordinationState.PersistedState persistedState
+                     = loadPersistedState(newPersistedStateFactory(nodeEnvironment))) {
+                final ClusterState clusterState = persistedState.getLastAcceptedState();
+                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+                    .metaData(MetaData.builder(clusterState.metaData())
+                        .version(1L)
+                        .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(1L).build())
+                        .put(IndexMetaData.builder(indexName)
+                            .version(1L)
+                            .settings(Settings.builder()
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .put(IndexMetaData.SETTING_INDEX_UUID, indexUUID))))
+                    .incrementVersion().build());
+            }
+
+            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
+            final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
+            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))) {
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                    indexWriter.deleteDocuments(new Term("type", "global")); // do not duplicate global metadata
+                    indexWriter.addIndexes(dupDirectory);
+                    indexWriter.commit();
+                }
+            }
+
+            final String message = expectThrows(IllegalStateException.class,
+                () -> loadPersistedState(newPersistedStateFactory(nodeEnvironment))).getMessage();
+            assertThat(message, allOf(
+                containsString("duplicate metadata found"),
+                containsString(brokenPath.toString()),
+                containsString(indexName),
+                containsString(indexUUID)));
         }
     }
 

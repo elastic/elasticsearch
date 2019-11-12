@@ -136,7 +136,7 @@ for assigned primary and replica shards.
 GET /_shard_stores?status=green
 --------------------------------------------------
 // TEST[setup:node]
-// TEST[s/^/PUT my-index\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST my-index\/test\?refresh\n{"test": "test"}\n/]
+// TEST[s/^/PUT my-index\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST my-index\/_doc\?refresh\n{"test": "test"}\n/]
 
 The API returns the following response:
 

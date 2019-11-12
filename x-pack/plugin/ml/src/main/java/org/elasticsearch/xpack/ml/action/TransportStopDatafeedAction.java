@@ -29,6 +29,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
@@ -195,7 +196,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     @Override
                     public void onFailure(Exception e) {
                         final int slot = counter.incrementAndGet();
-                        if ((e instanceof ResourceNotFoundException &&
+                        if ((ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException &&
                             Strings.isAllOrWildcard(new String[]{request.getDatafeedId()})) == false) {
                             failures.set(slot - 1, e);
                         }
@@ -244,7 +245,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     });
                 },
                 e -> {
-                    if (e instanceof ResourceNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                         // the task has disappeared so must have stopped
                         listener.onResponse(new StopDatafeedAction.Response(true));
                     } else {

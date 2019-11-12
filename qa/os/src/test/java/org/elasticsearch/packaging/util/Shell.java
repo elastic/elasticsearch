@@ -93,7 +93,8 @@ public class Shell {
         String formattedCommand = String.format(Locale.ROOT, command, args);
         return run(formattedCommand);
     }
-    private String[] getScriptCommand(String script) {
+
+    protected String[] getScriptCommand(String script) {
         if (Platforms.WINDOWS) {
             return powershellCommand(script);
         } else {
@@ -102,11 +103,11 @@ public class Shell {
     }
 
     private static String[] bashCommand(String script) {
-        return Stream.concat(Stream.of("bash", "-c"), Stream.of(script)).toArray(String[]::new);
+        return new String[] { "bash", "-c", script };
     }
 
     private static String[] powershellCommand(String script) {
-        return Stream.concat(Stream.of("powershell.exe", "-Command"), Stream.of(script)).toArray(String[]::new);
+        return new String[] { "powershell.exe", "-Command", script };
     }
 
     private Result runScript(String[] command) {

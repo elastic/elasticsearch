@@ -25,9 +25,9 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.List;
 import java.util.Objects;
@@ -73,16 +73,16 @@ public final class PCallInvoke extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        prefix.analyze(functions, locals);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        prefix.analyze(scriptRoot, locals);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(functions, locals);
+        prefix = prefix.cast(scriptRoot, locals);
 
         if (prefix.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
             PainlessMethod method =
-                    locals.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
+                    scriptRoot.getPainlessLookup().lookupPainlessMethod(prefix.actual, prefix instanceof EStatic, name, arguments.size());
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
@@ -98,7 +98,7 @@ public final class PCallInvoke extends AExpression {
 
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(functions, locals);
+        sub.analyze(scriptRoot, locals);
         actual = sub.actual;
 
         statement = true;

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
+import org.elasticsearch.xpack.core.ml.job.results.GeoResults;
 import org.elasticsearch.xpack.core.ml.job.results.Influence;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
@@ -131,6 +132,7 @@ public class ElasticsearchMappings {
     public static final String BOOLEAN = "boolean";
     public static final String DATE = "date";
     public static final String DOUBLE = "double";
+    public static final String GEO_POINT = "geo_point";
     public static final String INTEGER = "integer";
     public static final String KEYWORD = "keyword";
     public static final String LONG = "long";
@@ -885,6 +887,16 @@ public class ElasticsearchMappings {
                     .field(TYPE, KEYWORD)
                     .field(COPY_TO, ALL_FIELD_VALUES)
                 .endObject()
+                .startObject(AnomalyCause.GEO_RESULTS.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
+                            .field(TYPE, GEO_POINT)
+                        .endObject()
+                        .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
+                            .field(TYPE, GEO_POINT)
+                        .endObject()
+                    .endObject()
+                .endObject()
             .endObject()
         .endObject()
         .startObject(AnomalyRecord.INFLUENCERS.getPreferredName())
@@ -897,6 +909,16 @@ public class ElasticsearchMappings {
                 .startObject(Influence.INFLUENCER_FIELD_VALUES.getPreferredName())
                     .field(TYPE, KEYWORD)
                     .field(COPY_TO, ALL_FIELD_VALUES)
+                .endObject()
+            .endObject()
+        .endObject()
+        .startObject(AnomalyRecord.GEO_RESULTS.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
+                    .field(TYPE, GEO_POINT)
+                .endObject()
+                .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
+                    .field(TYPE, GEO_POINT)
                 .endObject()
             .endObject()
         .endObject();
@@ -1189,13 +1211,12 @@ public class ElasticsearchMappings {
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {
         List<String> indicesToUpdate = new ArrayList<>();
 
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
-                new String[0], MapperPlugin.NOOP_FIELD_FILTER);
+        ImmutableOpenMap<String, MappingMetaData> currentMapping = state.metaData().findMappings(concreteIndices,
+                MapperPlugin.NOOP_FIELD_FILTER);
 
         for (String index : concreteIndices) {
-            ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
-            if (innerMap != null) {
-                MappingMetaData metaData = innerMap.valuesIt().next();
+            MappingMetaData metaData = currentMapping.get(index);
+            if (metaData != null) {
                 try {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");

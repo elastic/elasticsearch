@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
 
@@ -55,7 +56,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
 public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     private static final String _INDEX = "_index";
-    private static final String _TYPE = "_type";
     private static final String _ID = "_id";
     private static final String STATUS = "status";
     private static final String ERROR = "error";
@@ -74,7 +74,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder.field(STATUS, response.status().getStatus());
         } else {
             builder.field(_INDEX, failure.getIndex());
-            builder.field(_TYPE, failure.getType());
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
             builder.startObject(ERROR);
@@ -152,7 +151,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
         BulkItemResponse bulkItemResponse;
         if (exception != null) {
-            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getType(), builder.getId(), exception, status);
+            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getId(), exception, status);
             bulkItemResponse = new BulkItemResponse(id, opType, failure);
         } else {
             bulkItemResponse = new BulkItemResponse(id, opType, builder.build());
@@ -165,13 +164,11 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
      */
     public static class Failure implements Writeable, ToXContentFragment {
         public static final String INDEX_FIELD = "index";
-        public static final String TYPE_FIELD = "type";
         public static final String ID_FIELD = "id";
         public static final String CAUSE_FIELD = "cause";
         public static final String STATUS_FIELD = "status";
 
         private final String index;
-        private final String type;
         private final String id;
         private final Exception cause;
         private final RestStatus status;
@@ -185,12 +182,11 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 true,
                 a ->
                     new Failure(
-                        (String)a[0], (String)a[1], (String)a[2], (Exception)a[3], RestStatus.fromCode((int)a[4])
+                        (String)a[0], (String)a[1], (Exception)a[2], RestStatus.fromCode((int)a[3])
                     )
             );
         static {
             PARSER.declareString(constructorArg(), new ParseField(INDEX_FIELD));
-            PARSER.declareString(constructorArg(), new ParseField(TYPE_FIELD));
             PARSER.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
             PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(CAUSE_FIELD));
             PARSER.declareInt(constructorArg(), new ParseField(STATUS_FIELD));
@@ -199,31 +195,30 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         /**
          * For write failures before operation was assigned a sequence number.
          *
-         * use @{link {@link #Failure(String, String, String, Exception, long, long)}}
+         * use @{link {@link #Failure(String, String, Exception, long, long)}}
          * to record operation sequence no with failure
          */
-        public Failure(String index, String type, String id, Exception cause) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
+        public Failure(String index, String id, Exception cause) {
+            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
         }
 
-        public Failure(String index, String type, String id, Exception cause, boolean aborted) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
+        public Failure(String index, String id, Exception cause, boolean aborted) {
+            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM, aborted);
         }
 
-        public Failure(String index, String type, String id, Exception cause, RestStatus status) {
-            this(index, type, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
+        public Failure(String index, String id, Exception cause, RestStatus status) {
+            this(index, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
         }
 
         /** For write failures after operation was assigned a sequence number. */
-        public Failure(String index, String type, String id, Exception cause, long seqNo, long term) {
-            this(index, type, id, cause, ExceptionsHelper.status(cause), seqNo, term, false);
+        public Failure(String index, String id, Exception cause, long seqNo, long term) {
+            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, term, false);
         }
 
-        private Failure(String index, String type, String id, Exception cause, RestStatus status, long seqNo, long term, boolean aborted) {
+        private Failure(String index, String id, Exception cause, RestStatus status, long seqNo, long term, boolean aborted) {
             this.index = index;
-            this.type = type;
             this.id = id;
             this.cause = cause;
             this.status = status;
@@ -237,7 +232,11 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
          */
         public Failure(StreamInput in) throws IOException {
             index = in.readString();
-            type = in.readString();
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                in.readString();
+                // can't make an assertion about type names here because too many tests still set their own
+                // types bypassing various checks
+            }
             id = in.readOptionalString();
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
@@ -253,7 +252,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            out.writeString(type);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+            }
             out.writeOptionalString(id);
             out.writeException(cause);
             out.writeZLong(seqNo);
@@ -268,13 +269,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
          */
         public String getIndex() {
             return this.index;
-        }
-
-        /**
-         * The type of the action.
-         */
-        public String getType() {
-            return type;
         }
 
         /**
@@ -335,7 +329,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(INDEX_FIELD, index);
-            builder.field(TYPE_FIELD, type);
             if (id != null) {
                 builder.field(ID_FIELD, id);
             }
@@ -418,16 +411,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             return failure.getIndex();
         }
         return response.getIndex();
-    }
-
-    /**
-     * The type of the action.
-     */
-    public String getType() {
-        if (failure != null) {
-            return failure.getType();
-        }
-        return response.getType();
     }
 
     /**

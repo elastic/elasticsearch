@@ -124,7 +124,7 @@ public class JobConfigProvider {
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                     listener::onResponse,
                     e -> {
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             // the job already exists
                             listener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
                         } else {
@@ -409,7 +409,7 @@ public class JobConfigProvider {
      * For the list of job Ids find all that match existing jobs Ids.
      * The repsonse is all the job Ids in {@code ids} that match an existing
      * job Id.
-     * @param ids Job Ids to find 
+     * @param ids Job Ids to find
      * @param listener The matched Ids listener
      */
     public void jobIdMatches(List<String> ids, ActionListener<List<String>> listener) {

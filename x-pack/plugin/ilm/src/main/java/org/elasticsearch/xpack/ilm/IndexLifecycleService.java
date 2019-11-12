@@ -91,8 +91,8 @@ public class IndexLifecycleService
             nowSupplier, policyRegistry, false);
     }
 
-    public ClusterState moveClusterStateToFailedStep(ClusterState currentState, String[] indices) {
-        return lifecycleRunner.moveClusterStateToFailedStep(currentState, indices);
+    public ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String[] indices) {
+        return lifecycleRunner.moveClusterStateToPreviouslyFailedStep(currentState, indices);
     }
 
     @Override
@@ -307,8 +307,7 @@ public class IndexLifecycleService
     }
 
     public void submitOperationModeUpdate(OperationMode mode) {
-        clusterService.submitStateUpdateTask("ilm_operation_mode_update",
-            new OperationModeUpdateTask(mode));
+        clusterService.submitStateUpdateTask("ilm_operation_mode_update", OperationModeUpdateTask.ilmMode(mode));
     }
 
     /**

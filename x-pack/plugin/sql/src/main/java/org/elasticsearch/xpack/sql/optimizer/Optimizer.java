@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryCon
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
+import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -488,11 +489,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
-                else if (e instanceof ScalarFunction) {
+                else if (e instanceof ScalarFunction && false == Expressions.anyMatch(e.children(), c -> c instanceof FullTextPredicate)) {
                     ScalarFunction sf = (ScalarFunction) e;
 
                     // if it's a unseen function check if the function children/arguments refers to any of the promoted aggs
-                    if (!updatedScalarAttrs.containsKey(sf.functionId()) && e.anyMatch(c -> {
+                    if (newAggIds.isEmpty() == false && !updatedScalarAttrs.containsKey(sf.functionId()) && e.anyMatch(c -> {
                         Attribute a = Expressions.attribute(c);
                         if (a instanceof FunctionAttribute) {
                             return newAggIds.contains(((FunctionAttribute) a).functionId());

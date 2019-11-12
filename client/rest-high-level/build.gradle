@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -47,20 +49,15 @@ idea {
 }
 
 dependencies {
-  compile project(':server')
-  compile project(':client:rest')
   compile project(':modules:mapper-extras')
   compile project(':modules:parent-join')
   compile project(':modules:aggs-matrix-stats')
   compile project(':modules:rank-eval')
   compile project(':modules:lang-mustache')
+
+  // Don't bundle the server or low-level rest client JARs in the shadow JAR since these get published to Maven Central
   shadow project(':server')
   shadow project(':client:rest')
-  bundle project(':modules:mapper-extras')
-  bundle project(':modules:parent-join')
-  bundle project(':modules:aggs-matrix-stats')
-  bundle project(':modules:rank-eval')
-  bundle project(':modules:lang-mustache')
 
   testCompile project(':client:test')
   testCompile project(':test:framework')
@@ -79,7 +76,7 @@ dependencies {
 
 //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)
 processTestResources {
-  dependsOn jar // so that configurations resolve
+  dependsOn configurations.restSpec // so that configurations resolve
   from({ zipTree(configurations.restSpec.singleFile) }) {
     include 'rest-api-spec/api/**'
   }
@@ -106,11 +103,22 @@ File nodeTrustStore = file("./testnode.jks")
 File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
 
 integTest.runner {
+  systemProperty 'tests.rest.async', 'false'
   systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
   systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
 }
 
-testClusters.integTest {
+RestIntegTestTask asyncIntegTest = tasks.create("asyncIntegTest", RestIntegTestTask) {
+  runner {
+    systemProperty 'tests.rest.async', 'true'
+    systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
+    systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
+  }
+}
+
+check.dependsOn(asyncIntegTest)
+
+testClusters.all {
   testDistribution = 'DEFAULT'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
   setting 'reindex.remote.whitelist', '[ "[::1]:*", "127.0.0.1:*" ]'
@@ -118,6 +126,8 @@ testClusters.integTest {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.http.ssl.enabled', 'false'
+  setting 'xpack.security.transport.ssl.enabled', 'false'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
@@ -129,8 +139,11 @@ testClusters.integTest {
 
   setting 'indices.lifecycle.poll_interval', '1000ms'
   keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
-  user username:  System.getProperty('tests.rest.cluster.username', 'test_user'),
-          password:  System.getProperty('tests.rest.cluster.password', 'test-password')
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
+          password: System.getProperty('tests.rest.cluster.password', 'test-password'),
+          role: System.getProperty('tests.rest.cluster.role', 'admin')
+  user username: 'admin_user', password: 'admin-password'
 
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore

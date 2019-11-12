@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -99,7 +100,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
                 jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
             }
 
-            javaHome = project.file(project.ext.runtimeJavaHome)
+            javaHome = BuildParams.runtimeJavaHome
         }
     }
 
@@ -132,7 +133,8 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
                 'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
                 'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
                 'mixed_cluster/80_data_frame_jobs_crud/Test put batch data frame transforms on mixed cluster',
-                'mixed_cluster/80_data_frame_jobs_crud/Test put continuous data frame transform on mixed cluster'
+                'mixed_cluster/80_data_frame_jobs_crud/Test put continuous data frame transform on mixed cluster',
+                'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster'
         ].join(',')
     }
 

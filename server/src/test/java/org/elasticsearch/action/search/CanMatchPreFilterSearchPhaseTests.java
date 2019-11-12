@@ -28,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -171,7 +170,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
      */
     public void testLotsOfShards() throws InterruptedException {
         final TransportSearchAction.SearchTimeProvider timeProvider =
-                new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
+            new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
 
         final Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
         final DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -181,67 +180,86 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
 
         final SearchTransportService searchTransportService =
-                new SearchTransportService(null, null) {
-                    @Override
-                    public void sendCanMatch(
-                            Transport.Connection connection,
-                            ShardSearchRequest request,
-                            SearchTask task,
-                            ActionListener<SearchService.CanMatchResponse> listener) {
-                        listener.onResponse(new SearchService.CanMatchResponse(randomBoolean()));
-                    }
-                };
+            new SearchTransportService(null, null) {
+                @Override
+                public void sendCanMatch(
+                    Transport.Connection connection,
+                    ShardSearchRequest request,
+                    SearchTask task,
+                    ActionListener<SearchService.CanMatchResponse> listener) {
+                    listener.onResponse(new SearchService.CanMatchResponse(randomBoolean()));
+                }
+            };
 
         final CountDownLatch latch = new CountDownLatch(1);
         final OriginalIndices originalIndices = new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS);
         final GroupShardsIterator<SearchShardIterator> shardsIter =
-                SearchAsyncActionTests.getShardsIter("idx", originalIndices, 4096, randomBoolean(), primaryNode, replicaNode);
+            SearchAsyncActionTests.getShardsIter("idx", originalIndices, 4096, randomBoolean(), primaryNode, replicaNode);
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
+        SearchTransportService transportService = new SearchTransportService(null, null);
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
+            (e) -> { throw new AssertionError("unexpected", e);});
+        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         final CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+            logger,
+            searchTransportService,
+            (clusterAlias, node) -> lookup.get(node),
+            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            EsExecutors.newDirectExecutorService(),
+            searchRequest,
+            null,
+            shardsIter,
+            timeProvider,
+            0,
+            null,
+            (iter) -> new AbstractSearchAsyncAction<>(
+                "test",
                 logger,
-                searchTransportService,
-                (clusterAlias, node) -> lookup.get(node),
-                Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                transportService,
+                (cluster, node) -> {
+                        assert cluster == null : "cluster was not null: " + cluster;
+                        return lookup.get(node);
+                    },
+                aliasFilters,
                 Collections.emptyMap(),
                 Collections.emptyMap(),
-                EsExecutors.newDirectExecutorService(),
+                executor,
                 searchRequest,
-                null,
-                shardsIter,
-                timeProvider,
+                responseListener,
+                iter,
+                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 0,
                 null,
-                (iter) -> new InitialSearchPhase<SearchPhaseResult>("test", searchRequest,
-                        iter, logger, randomIntBetween(1, 32), executor) {
-                    @Override
-                    void onPhaseDone() {
-                        latch.countDown();
-                    }
+                new ArraySearchPhaseResults<>(iter.size()),
+                randomIntBetween(1, 32),
+                SearchResponse.Clusters.EMPTY) {
 
-                    @Override
-                    void onShardFailure(final int shardIndex, final SearchShardTarget shardTarget, final Exception ex) {
-
-                    }
-
-                    @Override
-                    void onShardSuccess(final SearchPhaseResult result) {
-
-                    }
-
-                    @Override
-                    protected void executePhaseOnShard(
-                            final SearchShardIterator shardIt,
-                            final ShardRouting shard,
-                            final SearchActionListener<SearchPhaseResult> listener) {
-                        if (randomBoolean()) {
-                            listener.onResponse(new SearchPhaseResult() {});
-                        } else {
-                            listener.onFailure(new Exception("failure"));
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            latch.countDown();
                         }
+                    };
+                }
+
+                @Override
+                protected void executePhaseOnShard(
+                    final SearchShardIterator shardIt,
+                    final ShardRouting shard,
+                    final SearchActionListener<SearchPhaseResult> listener) {
+                    if (randomBoolean()) {
+                        listener.onResponse(new SearchPhaseResult() {});
+                    } else {
+                        listener.onFailure(new Exception("failure"));
                     }
-                }, SearchResponse.Clusters.EMPTY);
+                }
+            }, SearchResponse.Clusters.EMPTY);
 
         canMatchPhase.start();
         latch.await();

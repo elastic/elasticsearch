@@ -143,8 +143,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         Randomness.shuffle(seqNos);
         for (long seqNo : seqNos) {
             shard.applyIndexOperationOnReplica(seqNo, 1, shard.getOperationPrimaryTerm(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
-                false, new SourceToParse(shard.shardId().getIndexName(), "_doc", UUIDs.randomBase64UUID(), new BytesArray("{}"),
-                    XContentType.JSON));
+                false, new SourceToParse(shard.shardId().getIndexName(), UUIDs.randomBase64UUID(),
+                    new BytesArray("{}"), XContentType.JSON));
             if (randomInt(100) < 5) {
                 shard.flush(new FlushRequest().waitIfOngoing(true));
             }

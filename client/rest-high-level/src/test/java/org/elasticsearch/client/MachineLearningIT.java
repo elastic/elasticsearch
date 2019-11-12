@@ -126,8 +126,10 @@ import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.PhaseProgress;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -1246,7 +1248,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getSource().getQueryConfig(), equalTo(new QueryConfig(new MatchAllQueryBuilder())));  // default value
         assertThat(createdConfig.getDest().getIndex(), equalTo(config.getDest().getIndex()));
         assertThat(createdConfig.getDest().getResultsField(), equalTo("ml"));  // default value
-        assertThat(createdConfig.getAnalysis(), equalTo(config.getAnalysis()));
+        assertThat(createdConfig.getAnalysis(), equalTo(OutlierDetection.builder()
+            .setComputeFeatureInfluence(true)
+            .setOutlierFraction(0.05)
+            .setStandardizationEnabled(true).build()));
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("some description"));
@@ -1263,8 +1268,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("put-test-dest-index")
                 .build())
-            .setAnalysis(org.elasticsearch.client.ml.dataframe.Regression
-                .builder("my_dependent_variable")
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Regression.builder("my_dependent_variable")
+                .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
                 .build())
             .setDescription("this is a regression")
@@ -1298,9 +1303,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("put-test-dest-index")
                 .build())
-            .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification
-                .builder("my_dependent_variable")
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable")
+                .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
+                .setNumTopClasses(1)
                 .build())
             .setDescription("this is a classification")
             .build();
@@ -1743,7 +1749,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new EvaluateDataFrameRequest(
                 regressionIndex,
                 null,
-                new Regression(actualRegression, probabilityRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
+                new Regression(actualRegression, predictedRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
 
         EvaluateDataFrameResponse evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
@@ -1773,7 +1779,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .add(docForClassification(indexName, "dog", "dog"))
             .add(docForClassification(indexName, "dog", "dog"))
             .add(docForClassification(indexName, "dog", "dog"))
-            .add(docForClassification(indexName, "horse", "cat"));
+            .add(docForClassification(indexName, "ant", "cat"));
         highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
@@ -1796,11 +1802,23 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(
                 mcmResult.getConfusionMatrix(),
                 equalTo(
-                    Map.of(
-                        "cat", Map.of("cat", 3L, "dog", 1L, "horse", 0L, "_other_", 1L),
-                        "dog", Map.of("cat", 1L, "dog", 3L, "horse", 0L),
-                        "horse", Map.of("cat", 1L, "dog", 0L, "horse", 0L))));
-            assertThat(mcmResult.getOtherClassesCount(), equalTo(0L));
+                    List.of(
+                        new ActualClass(
+                            "ant",
+                            1L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
+                            0L),
+                        new ActualClass(
+                            "cat",
+                            5L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
+                            1L),
+                        new ActualClass(
+                            "dog",
+                            4L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
+                            0L))));
+            assertThat(mcmResult.getOtherActualClassCount(), equalTo(0L));
         }
         {  // Explicit size provided for MulticlassConfusionMatrixMetric metric
             EvaluateDataFrameRequest evaluateDataFrameRequest =
@@ -1820,10 +1838,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(
                 mcmResult.getConfusionMatrix(),
                 equalTo(
-                    Map.of(
-                        "cat", Map.of("cat", 3L, "dog", 1L, "_other_", 1L),
-                        "dog", Map.of("cat", 1L, "dog", 3L))));
-            assertThat(mcmResult.getOtherClassesCount(), equalTo(1L));
+                    List.of(
+                        new ActualClass("cat", 5L, List.of(new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1L),
+                        new ActualClass("dog", 4L, List.of(new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0L)
+                    )));
+            assertThat(mcmResult.getOtherActualClassCount(), equalTo(1L));
         }
     }
 
@@ -1889,7 +1908,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     private static final String actualRegression = "regression_actual";
-    private static final String probabilityRegression = "regression_prob";
+    private static final String predictedRegression = "regression_predicted";
 
     private static XContentBuilder mappingForRegression() throws IOException {
         return XContentFactory.jsonBuilder().startObject()
@@ -1897,17 +1916,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .startObject(actualRegression)
                     .field("type", "double")
                 .endObject()
-                .startObject(probabilityRegression)
+                .startObject(predictedRegression)
                     .field("type", "double")
                 .endObject()
             .endObject()
         .endObject();
     }
 
-    private static IndexRequest docForRegression(String indexName, double act, double p) {
+    private static IndexRequest docForRegression(String indexName, double actualValue, double predictedValue) {
         return new IndexRequest()
             .index(indexName)
-            .source(XContentType.JSON, actualRegression, act, probabilityRegression, p);
+            .source(XContentType.JSON, actualRegression, actualValue, predictedRegression, predictedValue);
     }
 
     private void createIndex(String indexName, XContentBuilder mapping) throws IOException {
@@ -2174,7 +2193,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
 
         String snapshotUpdate = "{ \"timestamp\": " + timestamp + "}";
-        UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, "_doc", documentId);
+        UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, documentId);
         updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
     }
@@ -2194,7 +2213,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         Job job = MachineLearningIT.buildJob(jobId);
         highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
             "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
@@ -2214,7 +2233,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         for(String snapshotId : snapshotIds) {
             String documentId = jobId + "_model_snapshot_" + snapshotId;
-            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared", "_doc", documentId);
+            IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             indexRequest.source("{\"job_id\":\"" + jobId + "\", \"timestamp\":1541587919000, " +
                 "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +

@@ -36,7 +36,7 @@ current master node fails.
 // tag::ccr-def[]
 The {ccr} feature enables you to replicate indices in remote clusters to your
 local cluster. For more information, see 
-{stack-ov}/xpack-ccr.html[{ccr-cap}].  
+{ref}/xpack-ccr.html[{ccr-cap}].  
 // end::ccr-def[]
   
 [[glossary-ccs]] {ccs} (CCS)::

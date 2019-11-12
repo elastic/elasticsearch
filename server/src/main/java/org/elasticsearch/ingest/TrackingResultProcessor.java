@@ -53,7 +53,7 @@ public final class TrackingResultProcessor implements Processor {
                 if (e instanceof ElasticsearchException) {
                     ElasticsearchException elasticsearchException = (ElasticsearchException) e;
                     //else do nothing, let the tracking processors throw the exception while recording the path up to the failure
-                    if (elasticsearchException.getCause().getCause() instanceof IllegalStateException) {
+                    if (elasticsearchException.getCause() instanceof IllegalStateException) {
                         if (ignoreFailure) {
                             processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
                                 new IngestDocument(ingestDocument), e));

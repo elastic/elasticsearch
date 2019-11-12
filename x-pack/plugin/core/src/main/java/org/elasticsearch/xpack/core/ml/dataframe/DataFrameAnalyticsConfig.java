@@ -58,6 +58,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ParseField HEADERS = new ParseField("headers");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField VERSION = new ParseField("version");
+    public static final ParseField ALLOW_LAZY_START = new ParseField("allow_lazy_start");
 
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -77,6 +78,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             OBJECT_ARRAY_BOOLEAN_OR_STRING);
         parser.declareField(Builder::setModelMemoryLimit,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()), MODEL_MEMORY_LIMIT, VALUE);
+        parser.declareBoolean(Builder::setAllowLazyStart, ALLOW_LAZY_START);
         if (ignoreUnknownFields) {
             // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
             // (For config, headers are explicitly transferred from the auth headers by code in the put data frame actions.)
@@ -123,10 +125,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Map<String, String> headers;
     private final Instant createTime;
     private final Version version;
+    private final boolean allowLazyStart;
 
     public DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
                                     DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
-                                    FetchSourceContext analyzedFields, Instant createTime, Version version) {
+                                    FetchSourceContext analyzedFields, Instant createTime, Version version, boolean allowLazyStart) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.description = description;
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
@@ -137,6 +140,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.headers = Collections.unmodifiableMap(headers);
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.version = version;
+        this.allowLazyStart = allowLazyStart;
     }
 
     public DataFrameAnalyticsConfig(StreamInput in) throws IOException {
@@ -158,6 +162,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         } else {
             createTime = null;
             version = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            allowLazyStart = in.readBoolean();
+        } else {
+            allowLazyStart = false;
         }
     }
 
@@ -201,6 +210,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return version;
     }
 
+    public boolean isAllowLazyStart() {
+        return allowLazyStart;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -215,7 +228,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(analysis.getWriteableName(), analysis);
         builder.endObject();
 
-        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
         if (analyzedFields != null) {
@@ -231,6 +244,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (version != null) {
             builder.field(VERSION.getPreferredName(), version);
         }
+        builder.field(ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
         builder.endObject();
         return builder;
     }
@@ -256,6 +270,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 out.writeBoolean(false);
             }
         }
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            out.writeBoolean(allowLazyStart);
+        }
     }
 
     @Override
@@ -273,12 +290,14 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(getModelMemoryLimit(), other.getModelMemoryLimit())
             && Objects.equals(analyzedFields, other.analyzedFields)
             && Objects.equals(createTime, other.createTime)
-            && Objects.equals(version, other.version);
+            && Objects.equals(version, other.version)
+            && Objects.equals(allowLazyStart, other.allowLazyStart);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, description, source, dest, analysis, headers, getModelMemoryLimit(), analyzedFields, createTime, version);
+        return Objects.hash(id, description, source, dest, analysis, headers, getModelMemoryLimit(), analyzedFields, createTime, version,
+            allowLazyStart);
     }
 
     @Override
@@ -303,6 +322,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private Map<String, String> headers = Collections.emptyMap();
         private Instant createTime;
         private Version version;
+        private boolean allowLazyStart;
 
         public Builder() {}
 
@@ -324,6 +344,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             }
             this.createTime = config.createTime;
             this.version = config.version;
+            this.allowLazyStart = config.allowLazyStart;
         }
 
         public String getId() {
@@ -380,13 +401,18 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setAllowLazyStart(boolean isLazyStart) {
+            this.allowLazyStart = isLazyStart;
+            return this;
+        }
+
         /**
          * Builds {@link DataFrameAnalyticsConfig} object.
          */
         public DataFrameAnalyticsConfig build() {
             applyMaxModelMemoryLimit();
             return new DataFrameAnalyticsConfig(id, description, source, dest, analysis, headers, modelMemoryLimit, analyzedFields,
-                createTime, version);
+                createTime, version, allowLazyStart);
         }
 
         /**
@@ -405,7 +431,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 modelMemoryLimit,
                 analyzedFields,
                 createTime,
-                version);
+                version,
+                allowLazyStart);
         }
 
         private void applyMaxModelMemoryLimit() {

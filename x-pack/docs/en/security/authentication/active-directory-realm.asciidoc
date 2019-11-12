@@ -7,7 +7,7 @@ Directory to authenticate users. To integrate with Active Directory, you
 configure an `active_directory` realm and map Active Directory users and groups
 to roles in the <<mapping-roles, role mapping file>>.
 
-See {ref}/configuring-ad-realm.html[Configuring an active directory realm].
+See <<configuring-ad-realm>>.
 
 The {security-features} use LDAP to communicate with Active Directory, so
 `active_directory` realms are similar to <<ldap-realm, `ldap` realms>>. Like
@@ -40,18 +40,18 @@ the {security-features} should interact with multiple Active Directory servers.
 Two modes of operation are supported: failover and load balancing.
 
 See
-{ref}/security-settings.html#load-balancing[Load balancing and failover settings].
+<<load-balancing>>.
 
 [[ad-settings]]
 ==== Active Directory realm settings
 
 See
-{ref}/security-settings.html#ref-ad-settings[Active Directory realm settings].
+<<ref-ad-settings>>.
 
 [[mapping-roles-ad]]
 ==== Mapping Active Directory users and groups to roles
 
-See {ref}/configuring-ad-realm.html[Configuring an Active Directory realm]. 
+See <<configuring-ad-realm>>. 
 
 [[ad-user-metadata]]
 ==== User metadata in Active Directory realms
@@ -67,7 +67,7 @@ properties are populated in the user's _metadata_:
 |=======================
 
 This metadata is returned in the 
-{ref}/security-api-authenticate.html[authenticate API] and can be used with
+<<security-api-authenticate,authenticate API>> and can be used with
 <<templating-role-query, templated queries>> in roles.
 
 Additional metadata can be extracted from the Active Directory server by configuring
@@ -77,4 +77,4 @@ the `metadata` setting on the Active Directory realm.
 ==== Setting up SSL between Elasticsearch and Active Directory
 
 See 
-{ref}/configuring-tls.html#tls-active-directory[Encrypting communications between {es} and Active Directory].
+<<tls-active-directory>>.

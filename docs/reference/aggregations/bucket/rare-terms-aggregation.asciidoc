@@ -25,7 +25,7 @@ PUT /products
     }
 }
 
-POST /products/_doc/_bulk?refresh
+POST /products/_bulk?refresh
 {"index":{"_id":0}}
 {"genre": "rock", "product": "Product A"}
 {"index":{"_id":1}}

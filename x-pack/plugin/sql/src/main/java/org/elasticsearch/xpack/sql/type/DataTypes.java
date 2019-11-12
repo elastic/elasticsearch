@@ -18,12 +18,6 @@ import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.sql.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
-import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_HOUR;
-import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_MINUTE_TO_SECOND;
-import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_MONTH;
-import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_SECOND;
-import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_YEAR_TO_MONTH;
 import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
@@ -88,18 +82,6 @@ public final class DataTypes {
         throw new SqlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
     }
 
-
-    //
-    // Interval utilities
-    //
-    // some of the methods below could have used an EnumSet however isDayTime would have required a large initialization block
-    // for this reason, these use the ordinal directly (and thus avoid the type check in EnumSet)
-
-    public static boolean isInterval(DataType type) {
-        int ordinal = type.ordinal();
-        return ordinal >= INTERVAL_YEAR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal();
-    }
-
     // return the compatible interval between the two - it is assumed the types are intervals
     // YEAR and MONTH -> YEAR_TO_MONTH
     // DAY... SECOND -> DAY_TIME
@@ -108,11 +90,11 @@ public final class DataTypes {
         if (left == right) {
             return left;
         }
-        if (isYearMonthInterval(left) && isYearMonthInterval(right)) {
+        if (left.isYearMonthInterval() && right.isYearMonthInterval()) {
             // no need to look at YEAR/YEAR or MONTH/MONTH as these are equal and already handled
             return INTERVAL_YEAR_TO_MONTH;
         }
-        if (isDayTimeInterval(left) && isDayTimeInterval(right)) {
+        if (left.isDayTimeInterval() && right.isDayTimeInterval()) {
             // to avoid specifying the combinations, extract the leading and trailing unit from the name
             // D > H > S > M which is also the alphabetical order
             String lName = left.name().substring(9);
@@ -139,16 +121,6 @@ public final class DataTypes {
             return fromTypeName("INTERVAL_" + intervalUnit(leading) + "_TO_" + intervalUnit(trailing));
         }
         return null;
-    }
-
-    private static boolean isYearMonthInterval(DataType type) {
-        return type == INTERVAL_YEAR || type == INTERVAL_MONTH || type == INTERVAL_YEAR_TO_MONTH;
-    }
-
-    private static boolean isDayTimeInterval(DataType type) {
-        int ordinal = type.ordinal();
-        return (ordinal >= INTERVAL_DAY.ordinal() && ordinal <= INTERVAL_SECOND.ordinal())
-                || (ordinal >= INTERVAL_DAY_TO_HOUR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal());
     }
 
     private static String intervalUnit(char unitChar) {
@@ -240,9 +212,11 @@ public final class DataTypes {
             return true;
         } else {
             return
-                (left == DataType.NULL || right == DataType.NULL) ||
-                    (left.isString() && right.isString()) ||
-                    (left.isNumeric() && right.isNumeric());
+                (left == DataType.NULL || right == DataType.NULL)
+                    || (left.isString() && right.isString())
+                    || (left.isNumeric() && right.isNumeric())
+                    || (left.isDateBased() && right.isDateBased())
+                    || (left.isInterval() && right.isInterval() && compatibleInterval(left, right) != null);
         }
     }
 }

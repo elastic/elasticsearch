@@ -28,9 +28,14 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 
 public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
     @Override
@@ -70,5 +75,59 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
                         queryStringQuery("foo.baz").defaultOperator(Operator.AND)
                                 .field("field1").field("field2")).get();
         assertHitCount(response, 1L);
+    }
+
+    /**
+     * test that synonyms are scored slightly lower than exact matches
+     */
+    public void testSynonymScoring() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder()
+                        .put("analysis.analyzer.my_analyzer.type", "custom")
+                        .put("analysis.analyzer.my_analyzer.tokenizer", "whitespace")
+                        .put("analysis.analyzer.my_analyzer.filter", "custom_synonym")
+                        .put("analysis.filter.custom_synonym.type", "synonym")
+                        .putList("analysis.filter.custom_synonym.synonyms", "car, auto"))
+                .addMapping("_doc",
+                        "field1", "type=text,analyzer=standard,search_analyzer=my_analyzer"));
+
+        client().prepareIndex("test").setId("1").setSource(
+                "field1", "fast car").get();
+        client().prepareIndex("test").setId("2").setSource(
+                "field1", "fast auto").get();
+        refresh();
+
+        // test single token case
+        SearchResponse response = client().prepareSearch("test").setQuery(matchQuery("field1", "car")).get();
+        assertHitCount(response, 2L);
+        assertFirstHit(response, hasId("1"));
+        assertSecondHit(response, hasId("2"));
+
+        response = client().prepareSearch("test").setQuery(matchQuery("field1", "auto")).get();
+        assertHitCount(response, 2L);
+        assertFirstHit(response, hasId("2"));
+        assertSecondHit(response, hasId("1"));
+
+        // test multi token case
+        response = client().prepareSearch("test").setQuery(matchQuery("field1", "fast car")).get();
+        assertHitCount(response, 2L);
+        assertFirstHit(response, hasId("1"));
+        assertSecondHit(response, hasId("2"));
+
+        response = client().prepareSearch("test").setQuery(matchQuery("field1", "fast auto")).get();
+        assertHitCount(response, 2L);
+        assertFirstHit(response, hasId("2"));
+        assertSecondHit(response, hasId("1"));
+
+        // test phrase
+        response = client().prepareSearch("test").setQuery(matchPhraseQuery("field1", "fast car")).get();
+        assertHitCount(response, 2L);
+        assertFirstHit(response, hasId("1"));
+        assertSecondHit(response, hasId("2"));
+
+        response = client().prepareSearch("test").setQuery(matchPhraseQuery("field1", "fast auto")).get();
+        assertHitCount(response, 2L);
+        assertFirstHit(response, hasId("1"));
+        assertSecondHit(response, hasId("2"));
     }
 }

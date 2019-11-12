@@ -20,6 +20,13 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
+import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -31,7 +38,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.AttributeSource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -43,6 +50,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.MatchQuery.TermAndBoost;
 import org.elasticsearch.index.search.MultiMatchQuery.FieldAndBoost;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -127,9 +135,10 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] {2, 3};
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
-        Query actual = MultiMatchQuery.blendTerm(
-                indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+        Query actual = MultiMatchQuery.blendTerm(indexService.newQueryShardContext(randomInt(20), null, () -> {
+            throw new UnsupportedOperationException();
+        }, null), new TermAndBoost(new Term("foo", "baz"), 1.0f), 1f, false,
+                Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
         assertEquals(expected, actual);
     }
 
@@ -143,9 +152,10 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] {200, 30};
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
-        Query actual = MultiMatchQuery.blendTerm(
-                indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+        Query actual = MultiMatchQuery.blendTerm(indexService.newQueryShardContext(randomInt(20), null, () -> {
+            throw new UnsupportedOperationException();
+        }, null), new TermAndBoost(new Term("foo", "baz"), 1.0f), 1f, false,
+                Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
         assertEquals(expected, actual);
     }
 
@@ -165,9 +175,10 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             Queries.newMatchNoDocsQuery("failed [" + ft2.name() + "] query, caused by illegal_argument_exception:[null]"),
             BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f)
         ), 1f);
-        Query actual = MultiMatchQuery.blendTerm(
-                indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), 1f, true, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+        Query actual = MultiMatchQuery.blendTerm(indexService.newQueryShardContext(randomInt(20), null, () -> {
+            throw new UnsupportedOperationException();
+        }, null), new TermAndBoost(new Term("foo", "baz"), 1.0f), 1f, true,
+                Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
         assertEquals(expected, actual);
     }
 
@@ -181,7 +192,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         ft.setName("bar");
         expectThrows(IllegalArgumentException.class, () -> MultiMatchQuery.blendTerm(
             indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-            new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft, 1))));
+            new TermAndBoost(new Term("foo", "baz"), 1.0f), 1f, false, Arrays.asList(new FieldAndBoost(ft, 1))));
     }
 
     public void testBlendNoTermQuery() {
@@ -203,9 +214,10 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 expectedDisjunct2,
                 expectedDisjunct1
             ), 1.0f);
-        Query actual = MultiMatchQuery.blendTerm(
-                indexService.newQueryShardContext(randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null),
-                new BytesRef("baz"), 1f, false, Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
+        Query actual = MultiMatchQuery.blendTerm(indexService.newQueryShardContext(randomInt(20), null, () -> {
+            throw new UnsupportedOperationException();
+        }, null), new TermAndBoost(new Term("foo", "baz"), 1.0f), 1f, false,
+                Arrays.asList(new FieldAndBoost(ft1, 2), new FieldAndBoost(ft2, 3)));
         assertEquals(expected, actual);
     }
 
@@ -214,17 +226,86 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
 
         MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
-        parser.setAnalyzer(new MockSynonymAnalyzer());
+        parser.setAnalyzer(new MockSynonymAnalyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+              MockTokenizer tokenizer = new MockTokenizer();
+              return new TokenStreamComponents(tokenizer, new TokenFilter(tokenizer) {
+                  CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+                  PositionIncrementAttribute posIncAtt = addAttribute(PositionIncrementAttribute.class);
+                  OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
+                  PositionLengthAttribute posLenAtt = addAttribute(PositionLengthAttribute.class);
+                  TypeAttribute typeAtt = addAttribute(TypeAttribute.class);
+                  List<AttributeSource> tokenQueue = new ArrayList<>();
+                  boolean endOfInput = false;
+
+
+                  @Override
+                  public void reset() throws IOException {
+                    super.reset();
+                    tokenQueue.clear();
+                    endOfInput = false;
+                  }
+
+                  @Override
+                  public boolean incrementToken() throws IOException {
+                    if (tokenQueue.size() > 0) {
+                      tokenQueue.remove(0).copyTo(this);
+                      return true;
+                    }
+                    if (endOfInput == false && input.incrementToken()) {
+                      if (termAtt.toString().equals("dogs")) {
+                        addSynonymAndRestoreOrigToken("dog", 1, offsetAtt.endOffset());
+                      } else if (termAtt.toString().equals("guinea")) {
+                        AttributeSource firstSavedToken = cloneAttributes();
+                        if (input.incrementToken()) {
+                          if (termAtt.toString().equals("pig")) {
+                            AttributeSource secondSavedToken = cloneAttributes();
+                            int secondEndOffset = offsetAtt.endOffset();
+                            firstSavedToken.copyTo(this);
+                            addSynonym("cavy", 2, secondEndOffset);
+                            tokenQueue.add(secondSavedToken);
+                          } else if (termAtt.toString().equals("dogs")) {
+                            tokenQueue.add(cloneAttributes());
+                            addSynonym("dog", 1, offsetAtt.endOffset());
+                          }
+                        } else {
+                          endOfInput = true;
+                        }
+                        firstSavedToken.copyTo(this);
+                      }
+                      return true;
+                    } else {
+                      endOfInput = true;
+                      return false;
+                    }
+                  }
+                  private void addSynonym(String synonymText, int posLen, int endOffset) {
+                    termAtt.setEmpty().append(synonymText);
+                    posIncAtt.setPositionIncrement(0);
+                    posLenAtt.setPositionLength(posLen);
+                    offsetAtt.setOffset(offsetAtt.startOffset(), endOffset);
+                    typeAtt.setType("SYNONYM");
+                    tokenQueue.add(cloneAttributes());
+                  }
+                  private void addSynonymAndRestoreOrigToken(String synonymText, int posLen, int endOffset) {
+                    AttributeSource origToken = cloneAttributes();
+                    addSynonym(synonymText, posLen, endOffset);
+                    origToken.copyTo(this);
+                  }
+              });
+            }
+        });
         Map<String, Float> fieldNames = new HashMap<>();
         fieldNames.put("name.first", 1.0f);
 
         // check that synonym query is used for a single field
         Query parsedQuery = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "dogs", null);
         Term[] terms = new Term[2];
-        terms[0] = new Term("name.first", "dog");
-        terms[1] = new Term("name.first", "dogs");
-        Query expectedQuery = new SynonymQuery(terms);
-        assertThat(parsedQuery, equalTo(expectedQuery));
+        SynonymQuery.Builder builder = new SynonymQuery.Builder("name.first");
+        builder.addTerm(new Term("name.first", "dog"), MatchQuery.DEFAULT_SYNONYM_BOOST);
+        builder.addTerm(new Term("name.first", "dogs"), 1.0f);
+        assertThat(parsedQuery, equalTo(builder.build()));
 
         // check that blended term query is used for multiple fields
         fieldNames.put("name.last", 1.0f);
@@ -234,11 +315,9 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         terms[1] = new Term("name.first", "dogs");
         terms[2] = new Term("name.last", "dog");
         terms[3] = new Term("name.last", "dogs");
-        float[] boosts = new float[4];
-        Arrays.fill(boosts, 1.0f);
-        expectedQuery = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
+        float[] boosts = new float[] { MatchQuery.DEFAULT_SYNONYM_BOOST, 1.0f, MatchQuery.DEFAULT_SYNONYM_BOOST, 1.0f };
+        Query expectedQuery = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
         assertThat(parsedQuery, equalTo(expectedQuery));
-
     }
 
     public void testMultiMatchCrossFieldsWithSynonymsPhrase() throws IOException {

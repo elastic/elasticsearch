@@ -23,10 +23,12 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -34,6 +36,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
@@ -136,6 +139,16 @@ public class MatchQuery {
         }
     }
 
+    static class TermAndBoost {
+        final Term term;
+        final float boost;
+
+        TermAndBoost(Term term, float boost) {
+            this.term = term;
+            this.boost = boost;
+        }
+    }
+
     public static final int DEFAULT_PHRASE_SLOP = 0;
 
     public static final boolean DEFAULT_LENIENCY = false;
@@ -170,6 +183,8 @@ public class MatchQuery {
     protected ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
+
+    static final float DEFAULT_SYNONYM_BOOST = 0.95f;
 
     public MatchQuery(QueryShardContext context) {
         this.context = context;
@@ -427,6 +442,7 @@ public class MatchQuery {
                     // phrase
                     if (hasSynonyms) {
                         // complex phrase with synonyms
+                        // TODO how to deboost synonyms here?
                         return analyzeMultiPhrase(field, stream, phraseSlop);
                     } else {
                         // simple phrase
@@ -574,30 +590,57 @@ public class MatchQuery {
             return isPrefix && lastOffset == offsetAtt.endOffset() ? newPrefixQuery(term) : newTermQuery(term);
         }
 
-        private void add(BooleanQuery.Builder q, String field, List<Term> current, BooleanClause.Occur operator, boolean isPrefix) {
+        private void add(BooleanQuery.Builder q, String field, List<TermAndBoost> current, BooleanClause.Occur operator, boolean isPrefix) {
             if (current.isEmpty()) {
                 return;
             }
             if (current.size() == 1) {
                 if (isPrefix) {
-                    q.add(newPrefixQuery(current.get(0)), operator);
+                    q.add(newPrefixQuery(current.get(0).term), operator);
                 } else {
-                    q.add(newTermQuery(current.get(0)), operator);
+                    q.add(newTermQuery(current.get(0).term), operator);
                 }
             } else {
                 // We don't apply prefix on synonyms
-                q.add(newSynonymQuery(current.toArray(new Term[current.size()])), operator);
+                SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
+                for(TermAndBoost tb : current) {
+                    builder.addTerm(tb.term, tb.boost);
+                }
+                q.add(builder.build(), operator);
             }
+        }
+
+        @Override
+        protected Query analyzeBoolean(String field, TokenStream stream) throws IOException {
+            TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+            TypeAttribute typeAtt = stream.getAttribute(TypeAttribute.class);
+
+            stream.reset();
+            List<TermAndBoost> terms = new ArrayList<>();
+            while (stream.incrementToken()) {
+                terms.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getTokenTypeBoost(typeAtt)));
+            }
+            return newSynonymQuery(field, terms);
+        }
+
+        // TODO maybe better to add newSynonymQuery() variant to org.apache.lucene.util.QueryBuilder that also takes boost arguments?
+        protected Query newSynonymQuery(String field, List<TermAndBoost> terms) {
+            SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
+            for (TermAndBoost term : terms) {
+              builder.addTerm(term.term, term.boost);
+            }
+            return builder.build();
         }
 
         private Query analyzeMultiBoolean(String field, TokenStream stream,
                                           BooleanClause.Occur operator, boolean isPrefix) throws IOException {
             BooleanQuery.Builder q = newBooleanQuery();
-            List<Term> currentQuery = new ArrayList<>();
+            List<TermAndBoost> currentQuery = new ArrayList<>();
 
             TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
             PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
             OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
+            TypeAttribute typeAtt = stream.addAttribute(TypeAttribute.class);
 
             stream.reset();
             int lastOffset = 0;
@@ -606,12 +649,17 @@ public class MatchQuery {
                     add(q, field, currentQuery, operator, false);
                     currentQuery.clear();
                 }
-                currentQuery.add(new Term(field, termAtt.getBytesRef()));
+                currentQuery.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getTokenTypeBoost(typeAtt)));
                 lastOffset = offsetAtt.endOffset();
             }
             stream.end();
             add(q, field, currentQuery, operator, isPrefix && lastOffset == offsetAtt.endOffset());
             return q.build();
+        }
+
+        private float getTokenTypeBoost(TypeAttribute typeAtt) {
+                String tokenType = typeAtt.type();
+                return tokenType.contentEquals(SynonymGraphFilter.TYPE_SYNONYM) ? DEFAULT_SYNONYM_BOOST : 1.0f;
         }
 
         @Override

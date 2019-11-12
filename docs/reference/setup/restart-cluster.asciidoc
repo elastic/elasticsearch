@@ -91,7 +91,7 @@ GET _cat/nodes
 The `status` column returned by `_cat/health` shows the health of each node
 in the cluster: `red`, `yellow`, or `green`.
 
-If you restarted a singe node, confirm that it joins the cluster by checking the 
+If you restarted a single node, confirm that it joins the cluster by checking the 
 log file or by submitting a `_cat/nodes` request (see above).
 --
 

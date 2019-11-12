@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -116,11 +117,14 @@ public class MetaStateService {
         MetaData globalMetaData = metaDataAndGeneration.v1();
         long globalStateGeneration = metaDataAndGeneration.v2();
 
+        final IndexGraveyard indexGraveyard;
         if (globalMetaData != null) {
             metaDataBuilder = MetaData.builder(globalMetaData);
+            indexGraveyard = globalMetaData.custom(IndexGraveyard.TYPE);
             assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
         } else {
             metaDataBuilder = MetaData.builder();
+            indexGraveyard = IndexGraveyard.builder().build();
         }
 
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
@@ -131,8 +135,13 @@ public class MetaStateService {
             IndexMetaData indexMetaData = indexMetaDataAndGeneration.v1();
             long generation = indexMetaDataAndGeneration.v2();
             if (indexMetaData != null) {
-                indices.put(indexMetaData.getIndex(), generation);
-                metaDataBuilder.put(indexMetaData, false);
+                if (indexGraveyard.containsIndex(indexMetaData.getIndex())) {
+                    logger.debug("[{}] found metadata for deleted index [{}]", indexFolderName, indexMetaData.getIndex());
+                    // this index folder is cleared up when state is recovered
+                } else {
+                    indices.put(indexMetaData.getIndex(), generation);
+                    metaDataBuilder.put(indexMetaData, false);
+                }
             } else {
                 logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
             }

@@ -216,6 +216,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return this.customs;
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Custom> T custom(String type) {
         return (T) customs.get(type);
     }
@@ -366,6 +367,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
 

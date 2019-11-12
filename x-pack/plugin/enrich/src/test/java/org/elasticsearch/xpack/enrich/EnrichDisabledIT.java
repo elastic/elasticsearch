@@ -34,9 +34,7 @@ public class EnrichDisabledIT extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder()
-            .put(XPackSettings.ENRICH_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(XPackSettings.ENRICH_ENABLED_SETTING.getKey(), false).build();
     }
 
     @Override

@@ -106,7 +106,7 @@ subprojects {
     // is greater than the number of unformatted projects, this can be
     // switched to an exclude list, and eventualy removed completely.
     def projectPathsToFormat = [
-       ':x-pack:plugin:enrich'
+      ':x-pack:plugin:enrich'
     ]
 
     if (projectPathsToFormat.contains(project.path)) {

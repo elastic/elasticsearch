@@ -10,7 +10,7 @@ buildScan {
   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
   String buildNumber = System.getenv('BUILD_NUMBER')
   String buildUrl = System.getenv('BUILD_URL')
-  String jobName =  System.getenv('JOB_NAME')
+  String jobName = System.getenv('JOB_NAME')
   String nodeName = System.getenv('NODE_NAME')
 
   tag OS.current().name()

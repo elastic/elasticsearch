@@ -514,9 +514,9 @@ subprojects {
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
       ],
       'source.path.env': [
-         'deb': 'source /etc/default/elasticsearch',
-         'rpm': 'source /etc/sysconfig/elasticsearch',
-         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
+        'deb': 'source /etc/default/elasticsearch',
+        'rpm': 'source /etc/sysconfig/elasticsearch',
+        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
       ],
       'path.logs': [
         'deb': packagingPathLogs,
@@ -606,11 +606,11 @@ subprojects {
 }
 
 ['archives:windows-zip', 'archives:oss-windows-zip',
- 'archives:darwin-tar', 'archives:oss-darwin-tar',
- 'archives:linux-tar', 'archives:oss-linux-tar',
- 'archives:integ-test-zip',
- 'packages:rpm', 'packages:deb',
- 'packages:oss-rpm', 'packages:oss-deb',
+  'archives:darwin-tar', 'archives:oss-darwin-tar',
+  'archives:linux-tar', 'archives:oss-linux-tar',
+  'archives:integ-test-zip',
+  'packages:rpm', 'packages:deb',
+  'packages:oss-rpm', 'packages:oss-deb',
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)

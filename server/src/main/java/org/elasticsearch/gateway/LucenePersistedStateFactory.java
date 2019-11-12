@@ -118,6 +118,7 @@ public class LucenePersistedStateFactory {
     private static final String GLOBAL_TYPE_NAME = "global";
     private static final String INDEX_TYPE_NAME = "index";
     private static final String INDEX_UUID_FIELD_NAME = "index_uuid";
+    private static final int COMMIT_DATA_SIZE = 4;
 
     public static final String METADATA_DIRECTORY_NAME = "_metadata";
 
@@ -298,7 +299,7 @@ public class LucenePersistedStateFactory {
 
         final Map<String, String> userData = reader.getIndexCommit().getUserData();
         logger.trace("loaded metadata [{}] from [{}]", userData, reader.directory());
-        assert userData.size() == 4 : userData;
+        assert userData.size() == COMMIT_DATA_SIZE : userData;
         assert userData.get(CURRENT_TERM_KEY) != null;
         assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;
         assert userData.get(NODE_ID_KEY) != null;
@@ -410,7 +411,7 @@ public class LucenePersistedStateFactory {
         }
 
         void commit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
-            final Map<String, String> commitData = new HashMap<>(2);
+            final Map<String, String> commitData = new HashMap<>(COMMIT_DATA_SIZE);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
             commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));

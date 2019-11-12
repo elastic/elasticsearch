@@ -32,22 +32,18 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
-        transportAction.execute(
-            null,
-            new GetEnrichPolicyAction.Request(),
-            new ActionListener<GetEnrichPolicyAction.Response>() {
-                @Override
-                public void onResponse(GetEnrichPolicyAction.Response response) {
-                    reference.set(response);
-                    latch.countDown();
+        transportAction.execute(null, new GetEnrichPolicyAction.Request(), new ActionListener<GetEnrichPolicyAction.Response>() {
+            @Override
+            public void onResponse(GetEnrichPolicyAction.Response response) {
+                reference.set(response);
+                latch.countDown();
 
-                }
-
-                public void onFailure(final Exception e) {
-                    fail();
-                }
             }
-        );
+
+            public void onFailure(final Exception e) {
+                fail();
+            }
+        });
         latch.await();
         assertNotNull(reference.get());
         GetEnrichPolicyAction.Response response = reference.get();
@@ -107,22 +103,18 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
-        transportAction.execute(
-            null,
-            new GetEnrichPolicyAction.Request(),
-            new ActionListener<GetEnrichPolicyAction.Response>() {
-                @Override
-                public void onResponse(GetEnrichPolicyAction.Response response) {
-                    reference.set(response);
-                    latch.countDown();
+        transportAction.execute(null, new GetEnrichPolicyAction.Request(), new ActionListener<GetEnrichPolicyAction.Response>() {
+            @Override
+            public void onResponse(GetEnrichPolicyAction.Response response) {
+                reference.set(response);
+                latch.countDown();
 
-                }
-
-                public void onFailure(final Exception e) {
-                    fail();
-                }
             }
-        );
+
+            public void onFailure(final Exception e) {
+                fail();
+            }
+        });
         latch.await();
         assertNotNull(reference.get());
         GetEnrichPolicyAction.Response response = reference.get();

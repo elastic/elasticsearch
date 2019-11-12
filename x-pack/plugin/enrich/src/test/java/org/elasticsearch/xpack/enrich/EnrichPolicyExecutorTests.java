@@ -61,10 +61,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         private final ExecuteEnrichPolicyTask task;
         private final ActionListener<ExecuteEnrichPolicyStatus> listener;
 
-        BlockingTestPolicyRunner(
-            CountDownLatch latch, ExecuteEnrichPolicyTask task,
-            ActionListener<ExecuteEnrichPolicyStatus> listener
-        ) {
+        BlockingTestPolicyRunner(CountDownLatch latch, ExecuteEnrichPolicyTask task, ActionListener<ExecuteEnrichPolicyStatus> listener) {
             this.latch = latch;
             this.task = task;
             this.listener = listener;
@@ -91,8 +88,12 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
     private static class EnrichPolicyTestExecutor extends EnrichPolicyExecutor {
 
         EnrichPolicyTestExecutor(
-            Settings settings, ClusterService clusterService, Client client, TaskManager taskManager,
-            ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
+            Settings settings,
+            ClusterService clusterService,
+            Client client,
+            TaskManager taskManager,
+            ThreadPool threadPool,
+            IndexNameExpressionResolver indexNameExpressionResolver,
             LongSupplier nowSupplier
         ) {
             super(
@@ -178,10 +179,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Validate exception from second run
         assertThat(
             expected.getMessage(),
-            containsString(
-                "Could not obtain lock because policy execution for [" + testPolicyName +
-                    "] is already in progress."
-            )
+            containsString("Could not obtain lock because policy execution for [" + testPolicyName + "] is already in progress.")
         );
 
         // Ensure that the lock from the previous run has been cleared
@@ -256,8 +254,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         assertThat(
             expected.getMessage(),
             containsString(
-                "Policy execution failed. Policy execution for [test_policy_3] would exceed " +
-                    "maximum concurrent policy executions [2]"
+                "Policy execution failed. Policy execution for [test_policy_3] would exceed " + "maximum concurrent policy executions [2]"
             )
         );
 

@@ -42,9 +42,13 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
 
     @Inject
     public TransportPutEnrichPolicyAction(
-        Settings settings, TransportService transportService,
-        ClusterService clusterService, ThreadPool threadPool, Client client,
-        XPackLicenseState licenseState, ActionFilters actionFilters,
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        XPackLicenseState licenseState,
+        ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -98,23 +102,19 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
             privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
             privRequest.indexPrivileges(privileges);
 
-            ActionListener<HasPrivilegesResponse> wrappedListener = ActionListener.wrap(
-                r -> {
-                    if (r.isCompleteMatch()) {
-                        putPolicy(request, listener);
-                    } else {
-                        listener.onFailure(
-                            Exceptions.authorizationError(
-                                "unable to store policy because no indices match with the " +
-                                    "specified index patterns {}",
-                                request.getPolicy().getIndices(),
-                                username
-                            )
-                        );
-                    }
-                },
-                listener::onFailure
-            );
+            ActionListener<HasPrivilegesResponse> wrappedListener = ActionListener.wrap(r -> {
+                if (r.isCompleteMatch()) {
+                    putPolicy(request, listener);
+                } else {
+                    listener.onFailure(
+                        Exceptions.authorizationError(
+                            "unable to store policy because no indices match with the " + "specified index patterns {}",
+                            request.getPolicy().getIndices(),
+                            username
+                        )
+                    );
+                }
+            }, listener::onFailure);
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, wrappedListener);
         } else {
             putPolicy(request, listener);

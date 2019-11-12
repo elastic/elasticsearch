@@ -115,8 +115,11 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         @Inject
         public TransportAction(
-            ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-            ActionFilters actionFilters, EnrichCoordinatorProxyAction.Coordinator coordinator
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            EnrichCoordinatorProxyAction.Coordinator coordinator
         ) {
             super(
                 NAME,

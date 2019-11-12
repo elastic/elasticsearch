@@ -71,8 +71,10 @@ public final class EnrichStore {
         Set<String> supportedPolicyTypes = new HashSet<>(Arrays.asList(EnrichPolicy.SUPPORTED_POLICY_TYPES));
         if (supportedPolicyTypes.contains(policy.getType()) == false) {
             throw new IllegalArgumentException(
-                "unsupported policy type [" + policy.getType() +
-                    "], supported types are " + Arrays.toString(EnrichPolicy.SUPPORTED_POLICY_TYPES)
+                "unsupported policy type ["
+                    + policy.getType()
+                    + "], supported types are "
+                    + Arrays.toString(EnrichPolicy.SUPPORTED_POLICY_TYPES)
             );
         }
 
@@ -92,8 +94,11 @@ public final class EnrichStore {
         updateClusterState(clusterService, handler, current -> {
             for (String indexExpression : finalPolicy.getIndices()) {
                 // indices field in policy can contain wildcards, aliases etc.
-                String[] concreteIndices =
-                    indexNameExpressionResolver.concreteIndexNames(current, IndicesOptions.strictExpandOpen(), indexExpression);
+                String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
+                    current,
+                    IndicesOptions.strictExpandOpen(),
+                    indexExpression
+                );
                 for (String concreteIndex : concreteIndices) {
                     IndexMetaData imd = current.getMetaData().index(concreteIndex);
                     assert imd != null;
@@ -185,9 +190,7 @@ public final class EnrichStore {
                 MetaData metaData = MetaData.builder(currentState.metaData())
                     .putCustom(EnrichMetadata.TYPE, new EnrichMetadata(policies))
                     .build();
-                return ClusterState.builder(currentState)
-                    .metaData(metaData)
-                    .build();
+                return ClusterState.builder(currentState).metaData(metaData).build();
             }
 
             @Override

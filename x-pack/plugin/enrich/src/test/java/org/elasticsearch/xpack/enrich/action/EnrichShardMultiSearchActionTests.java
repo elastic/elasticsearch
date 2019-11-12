@@ -57,8 +57,10 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
             request.add(searchRequest);
         }
 
-        MultiSearchResponse result =
-            client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet();
+        MultiSearchResponse result = client().execute(
+            EnrichShardMultiSearchAction.INSTANCE,
+            new EnrichShardMultiSearchAction.Request(request)
+        ).actionGet();
         assertThat(result.getResponses().length, equalTo(numSearches));
         for (int i = 0; i < numSearches; i++) {
             assertThat(result.getResponses()[i].isFailure(), is(false));

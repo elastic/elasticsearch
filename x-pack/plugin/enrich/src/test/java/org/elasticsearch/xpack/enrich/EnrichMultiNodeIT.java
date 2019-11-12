@@ -92,11 +92,10 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
-            EnrichPolicy.NamedPolicy result =
-                client().execute(
-                    GetEnrichPolicyAction.INSTANCE,
-                    new GetEnrichPolicyAction.Request(new String[] { policyName })
-                ).actionGet().getPolicies().get(0);
+            EnrichPolicy.NamedPolicy result = client().execute(
+                GetEnrichPolicyAction.INSTANCE,
+                new GetEnrichPolicyAction.Request(new String[] { policyName })
+            ).actionGet().getPolicies().get(0);
             assertThat(result, equalTo(new EnrichPolicy.NamedPolicy(policyName, enrichPolicy)));
             String enrichIndexPrefix = EnrichPolicy.getBaseName(policyName) + "*";
             refresh(enrichIndexPrefix);
@@ -105,8 +104,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsInSourceIndex));
         }
 
-        GetEnrichPolicyAction.Response response =
-            client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request()).actionGet();
+        GetEnrichPolicyAction.Response response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())
+            .actionGet();
         assertThat(response.getPolicies().size(), equalTo(numPolicies));
 
         for (int i = 0; i < numPolicies; i++) {
@@ -182,15 +181,11 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             }
         }
 
-        EnrichStatsAction.Response statsResponse =
-            client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request()).actionGet();
+        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
+            .actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
         String nodeId = internalCluster().getInstance(ClusterService.class, coordinatingNode).localNode().getId();
-        CoordinatorStats stats = statsResponse.getCoordinatorStats()
-            .stream()
-            .filter(s -> s.getNodeId().equals(nodeId))
-            .findAny()
-            .get();
+        CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.getNodeId().equals(nodeId)).findAny().get();
         assertThat(stats.getNodeId(), equalTo(nodeId));
         assertThat(stats.getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
         assertThat(stats.getExecutedSearchesTotal(), equalTo((long) numDocs));
@@ -239,8 +234,11 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     private static void createPipeline() {
-        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\"" + POLICY_NAME +
-            "\", \"field\": \"" + MATCH_FIELD + "\", \"target_field\": \"user\"}}]}";
+        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
+            + POLICY_NAME
+            + "\", \"field\": \""
+            + MATCH_FIELD
+            + "\", \"target_field\": \"user\"}}]}";
         PutPipelineRequest request = new PutPipelineRequest(PIPELINE_NAME, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(request).actionGet();
     }

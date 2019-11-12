@@ -51,7 +51,8 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         boolean overrideEnabled,
         boolean ignoreMissing,
         String matchField,
-        int maxMatches, ShapeRelation shapeRelation
+        int maxMatches,
+        ShapeRelation shapeRelation
     ) {
         super(tag, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;

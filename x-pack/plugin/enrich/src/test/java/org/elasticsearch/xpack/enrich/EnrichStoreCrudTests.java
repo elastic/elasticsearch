@@ -81,18 +81,24 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
             assertThat(error.getMessage(), equalTo("policy is missing"));
         }
         {
-            IllegalArgumentException error =
-                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("my#policy", policy, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy("my#policy", policy, clusterService)
+            );
             assertThat(error.getMessage(), equalTo("Invalid policy name [my#policy], must not contain '#'"));
         }
         {
-            IllegalArgumentException error =
-                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("..", policy, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy("..", policy, clusterService)
+            );
             assertThat(error.getMessage(), equalTo("Invalid policy name [..], must not be '.' or '..'"));
         }
         {
-            IllegalArgumentException error =
-                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("myPolicy", policy, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy("myPolicy", policy, clusterService)
+            );
             assertThat(error.getMessage(), equalTo("Invalid policy name [myPolicy], must be lowercase"));
         }
         {
@@ -103,8 +109,10 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
                 "field",
                 Collections.singletonList("field")
             );
-            IllegalArgumentException error =
-                expectThrows(IllegalArgumentException.class, () -> saveEnrichPolicy("name", invalidPolicy, clusterService));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> saveEnrichPolicy("name", invalidPolicy, clusterService)
+            );
             assertThat(error.getMessage(), equalTo("unsupported policy type [unsupported_type], supported types are [match, geo_match]"));
         }
     }

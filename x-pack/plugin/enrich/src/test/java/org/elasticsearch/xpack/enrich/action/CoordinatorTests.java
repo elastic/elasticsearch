@@ -197,26 +197,18 @@ public class CoordinatorTests extends ESTestCase {
 
         AtomicBoolean completed = new AtomicBoolean(false);
         SearchRequest searchRequest = new SearchRequest();
-        Thread t = new Thread(
-            () -> {
-                coordinator.schedule(searchRequest, ActionListener.wrap(() -> {}));
-                completed.set(true);
-            }
-        );
+        Thread t = new Thread(() -> {
+            coordinator.schedule(searchRequest, ActionListener.wrap(() -> {}));
+            completed.set(true);
+        });
         t.start();
-        assertBusy(
-            () -> {
-                assertThat(t.getState(), equalTo(Thread.State.WAITING));
-                assertThat(completed.get(), is(false));
-            }
-        );
+        assertBusy(() -> {
+            assertThat(t.getState(), equalTo(Thread.State.WAITING));
+            assertThat(completed.get(), is(false));
+        });
 
         coordinator.coordinateLookups();
-        assertBusy(
-            () -> {
-                assertThat(completed.get(), is(true));
-            }
-        );
+        assertBusy(() -> { assertThat(completed.get(), is(true)); });
 
         lookupFunction.capturedConsumers.get(0)
             .accept(
@@ -306,11 +298,7 @@ public class CoordinatorTests extends ESTestCase {
 
     private static SearchResponse emptySearchResponse() {
         InternalSearchResponse response = new InternalSearchResponse(
-            new SearchHits(
-                new SearchHit[0],
-                new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-                Float.NaN
-            ),
+            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
             null,
             null,

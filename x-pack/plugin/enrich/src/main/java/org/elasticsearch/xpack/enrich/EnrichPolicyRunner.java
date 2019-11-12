@@ -81,9 +81,15 @@ public class EnrichPolicyRunner implements Runnable {
     private final int maxForceMergeAttempts;
 
     EnrichPolicyRunner(
-        String policyName, EnrichPolicy policy, ExecuteEnrichPolicyTask task,
-        ActionListener<ExecuteEnrichPolicyStatus> listener, ClusterService clusterService, Client client,
-        IndexNameExpressionResolver indexNameExpressionResolver, LongSupplier nowSupplier, int fetchSize,
+        String policyName,
+        EnrichPolicy policy,
+        ExecuteEnrichPolicyTask task,
+        ActionListener<ExecuteEnrichPolicyStatus> listener,
+        ClusterService clusterService,
+        Client client,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        LongSupplier nowSupplier,
+        int fetchSize,
         int maxForceMergeAttempts
     ) {
         this.policyName = policyName;
@@ -336,8 +342,7 @@ public class EnrichPolicyRunner implements Runnable {
         if (policy.getQuery() != null) {
             searchSourceBuilder.query(QueryBuilders.wrapperQuery(policy.getQuery().getQuery()));
         }
-        ReindexRequest reindexRequest = new ReindexRequest()
-            .setDestIndex(destinationIndexName)
+        ReindexRequest reindexRequest = new ReindexRequest().setDestIndex(destinationIndexName)
             .setSourceIndices(policy.getIndices().toArray(new String[0]));
         reindexRequest.getSearchRequest().source(searchSourceBuilder);
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
@@ -379,20 +384,17 @@ public class EnrichPolicyRunner implements Runnable {
         );
         client.admin()
             .indices()
-            .forceMerge(
-                new ForceMergeRequest(destinationIndexName).maxNumSegments(1),
-                new ActionListener<ForceMergeResponse>() {
-                    @Override
-                    public void onResponse(ForceMergeResponse forceMergeResponse) {
-                        refreshEnrichIndex(destinationIndexName, attempt);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
+            .forceMerge(new ForceMergeRequest(destinationIndexName).maxNumSegments(1), new ActionListener<ForceMergeResponse>() {
+                @Override
+                public void onResponse(ForceMergeResponse forceMergeResponse) {
+                    refreshEnrichIndex(destinationIndexName, attempt);
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     private void refreshEnrichIndex(final String destinationIndexName, final int attempt) {
@@ -462,13 +464,8 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void setIndexReadOnly(final String destinationIndexName) {
         logger.debug("Policy [{}]: Setting new enrich index [{}] to be read only", policyName, destinationIndexName);
-        UpdateSettingsRequest request = new UpdateSettingsRequest(destinationIndexName)
-            .setPreserveExisting(true)
-            .settings(
-                Settings.builder()
-                    .put("index.auto_expand_replicas", "0-all")
-                    .put("index.blocks.write", "true")
-            );
+        UpdateSettingsRequest request = new UpdateSettingsRequest(destinationIndexName).setPreserveExisting(true)
+            .settings(Settings.builder().put("index.auto_expand_replicas", "0-all").put("index.blocks.write", "true"));
         client.admin().indices().updateSettings(request, new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -502,8 +499,9 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterService.state(), aliasRequest);
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases =
-            clusterService.state().metaData().findAliases(aliasRequest, concreteIndices);
+        ImmutableOpenMap<String, List<AliasMetaData>> aliases = clusterService.state()
+            .metaData()
+            .findAliases(aliasRequest, concreteIndices);
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
         String[] indices = aliases.keys().toArray(String.class);
         if (indices.length > 0) {

@@ -70,8 +70,8 @@ public class EnrichRestartIT extends ESIntegTestCase {
     }
 
     private static void verifyPolicies(int numPolicies, EnrichPolicy enrichPolicy) {
-        GetEnrichPolicyAction.Response response =
-            client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request()).actionGet();
+        GetEnrichPolicyAction.Response response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())
+            .actionGet();
         assertThat(response.getPolicies().size(), equalTo(numPolicies));
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;

@@ -72,8 +72,12 @@ public class EnrichPolicyExecutor {
             // Release policy lock, and throw a different exception
             policyLocks.releasePolicy(policyName);
             throw new EsRejectedExecutionException(
-                "Policy execution failed. Policy execution for [" + policyName + "] would exceed " +
-                    "maximum concurrent policy executions [" + maximumConcurrentPolicyExecutions + "]"
+                "Policy execution failed. Policy execution for ["
+                    + policyName
+                    + "] would exceed "
+                    + "maximum concurrent policy executions ["
+                    + maximumConcurrentPolicyExecutions
+                    + "]"
             );
         }
     }
@@ -93,8 +97,10 @@ public class EnrichPolicyExecutor {
         private final BiConsumer<Task, Exception> onFailure;
 
         PolicyCompletionListener(
-            String policyName, ExecuteEnrichPolicyTask task,
-            BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse, BiConsumer<Task, Exception> onFailure
+            String policyName,
+            ExecuteEnrichPolicyTask task,
+            BiConsumer<Task, ExecuteEnrichPolicyStatus> onResponse,
+            BiConsumer<Task, Exception> onFailure
         ) {
             this.policyName = policyName;
             this.task = task;

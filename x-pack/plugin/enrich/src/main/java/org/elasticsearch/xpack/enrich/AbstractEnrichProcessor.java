@@ -36,8 +36,15 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     protected final int maxMatches;
 
     protected AbstractEnrichProcessor(
-        String tag, Client client, String policyName, String field, String targetField,
-        boolean ignoreMissing, boolean overrideEnabled, String matchField, int maxMatches
+        String tag,
+        Client client,
+        String policyName,
+        String field,
+        String targetField,
+        boolean ignoreMissing,
+        boolean overrideEnabled,
+        String matchField,
+        int maxMatches
     ) {
         this(tag, createSearchRunner(client), policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
     }
@@ -45,8 +52,13 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     protected AbstractEnrichProcessor(
         String tag,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
-        String policyName, String field, String targetField, boolean ignoreMissing, boolean overrideEnabled,
-        String matchField, int maxMatches
+        String policyName,
+        String field,
+        String targetField,
+        boolean ignoreMissing,
+        boolean overrideEnabled,
+        String matchField,
+        int maxMatches
     ) {
         super(tag);
         this.policyName = policyName;
@@ -162,14 +174,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
             client.execute(
                 EnrichCoordinatorProxyAction.INSTANCE,
                 req,
-                ActionListener.wrap(
-                    resp -> {
-                        handler.accept(resp, null);
-                    },
-                    e -> {
-                        handler.accept(null, e);
-                    }
-                )
+                ActionListener.wrap(resp -> { handler.accept(resp, null); }, e -> { handler.accept(null, e); })
             );
         };
     }

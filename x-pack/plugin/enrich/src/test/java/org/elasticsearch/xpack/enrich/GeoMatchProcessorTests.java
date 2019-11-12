@@ -56,11 +56,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
         testBasicsForFieldValue("POINT (-122.084110 37.386637)", expectedPoint);
         testBasicsForFieldValue(Arrays.asList(-122.084110, 37.386637), expectedPoint);
         testBasicsForFieldValue(
-            Arrays.asList(
-                Arrays.asList(-122.084110, 37.386637),
-                "37.386637, -122.084110",
-                "POINT (-122.084110 37.386637)"
-            ),
+            Arrays.asList(Arrays.asList(-122.084110, 37.386637), "37.386637, -122.084110", "POINT (-122.084110 37.386637)"),
             new MultiPoint(Arrays.asList(expectedPoint, expectedPoint, expectedPoint))
         );
 

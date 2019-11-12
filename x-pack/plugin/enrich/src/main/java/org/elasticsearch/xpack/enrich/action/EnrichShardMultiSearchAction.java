@@ -150,8 +150,9 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 copy.from(0);
                 copy.size(10);
                 copy.fetchSource(null);
-                assert EMPTY_SOURCE.equals(copy) : "search request [" + Strings.toString(copy) +
-                    "] is using features that is not supported";
+                assert EMPTY_SOURCE.equals(copy) : "search request ["
+                    + Strings.toString(copy)
+                    + "] is using features that is not supported";
             }
             return true;
         }
@@ -181,8 +182,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
         @Inject
         public TransportAction(
-            ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
             IndicesService indicesService
         ) {
             super(
@@ -217,8 +221,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 throw new IllegalStateException("index [" + index + "] should have 1 shard, but has " + numShards + " shards");
             }
 
-            GroupShardsIterator<ShardIterator> result =
-                clusterService.operationRouting().searchShards(state, new String[] { index }, null, Preference.LOCAL.type());
+            GroupShardsIterator<ShardIterator> result = clusterService.operationRouting()
+                .searchShards(state, new String[] { index }, null, Preference.LOCAL.type());
             return result.get(0);
         }
 
@@ -277,8 +281,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         Set<String> includes = new HashSet<>(Arrays.asList(fetchSourceContext.includes()));
         Set<String> excludes = new HashSet<>(Arrays.asList(fetchSourceContext.excludes()));
 
-        XContentBuilder builder =
-            new XContentBuilder(XContentType.SMILE.xContent(), new BytesStreamOutput(source.length()), includes, excludes);
+        XContentBuilder builder = new XContentBuilder(
+            XContentType.SMILE.xContent(),
+            new BytesStreamOutput(source.length()),
+            includes,
+            excludes
+        );
         XContentParser sourceParser = XContentHelper.createParser(
             NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION,

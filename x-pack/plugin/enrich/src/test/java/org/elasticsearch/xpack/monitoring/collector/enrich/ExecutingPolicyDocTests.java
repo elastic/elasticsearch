@@ -38,10 +38,7 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        executingPolicy = new ExecutingPolicy(
-            randomAlphaOfLength(4),
-            randomTaskInfo()
-        );
+        executingPolicy = new ExecutingPolicy(randomAlphaOfLength(4), randomTaskInfo());
     }
 
     @Override
@@ -75,15 +72,18 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
 
         final ExecutingPolicyDoc document = new ExecutingPolicyDoc("_cluster", timestamp, intervalMillis, node, executingPolicy);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        Optional<Map.Entry<String, String>> header =
-            executingPolicy.getTaskInfo().getHeaders().entrySet().stream().findAny();
+        Optional<Map.Entry<String, String>> header = executingPolicy.getTaskInfo().getHeaders().entrySet().stream().findAny();
         assertThat(
             xContent.utf8ToString(),
             equalTo(
                 "{"
                     + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(timestamp) + "\","
-                    + "\"interval_ms\":" + intervalMillis + ","
+                    + "\"timestamp\":\""
+                    + DATE_TIME_FORMATTER.formatMillis(timestamp)
+                    + "\","
+                    + "\"interval_ms\":"
+                    + intervalMillis
+                    + ","
                     + "\"type\":\"enrich_executing_policy_stats\","
                     + "\"source_node\":{"
                     + "\"uuid\":\"_uuid\","
@@ -91,21 +91,40 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
                     + "\"transport_address\":\"_addr\","
                     + "\"ip\":\"_ip\","
                     + "\"name\":\"_name\","
-                    + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp) + "\""
+                    + "\"timestamp\":\""
+                    + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp)
+                    + "\""
                     + "},"
                     + "\"enrich_executing_policy_stats\":{"
-                    + "\"name\":\"" + executingPolicy.getName() + "\","
+                    + "\"name\":\""
+                    + executingPolicy.getName()
+                    + "\","
                     + "\"task\":{"
-                    + "\"node\":\"" + executingPolicy.getTaskInfo().getTaskId().getNodeId() + "\","
-                    + "\"id\":" + executingPolicy.getTaskInfo().getTaskId().getId() + ","
-                    + "\"type\":\"" + executingPolicy.getTaskInfo().getType() + "\","
-                    + "\"action\":\"" + executingPolicy.getTaskInfo().getAction() + "\","
-                    + "\"description\":\"" + executingPolicy.getTaskInfo().getDescription() + "\","
-                    + "\"start_time_in_millis\":" + executingPolicy.getTaskInfo().getStartTime() + ","
-                    + "\"running_time_in_nanos\":" + executingPolicy.getTaskInfo().getRunningTimeNanos() + ","
-                    + "\"cancellable\":" + executingPolicy.getTaskInfo().isCancellable() + ","
-                    + header
-                        .map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
+                    + "\"node\":\""
+                    + executingPolicy.getTaskInfo().getTaskId().getNodeId()
+                    + "\","
+                    + "\"id\":"
+                    + executingPolicy.getTaskInfo().getTaskId().getId()
+                    + ","
+                    + "\"type\":\""
+                    + executingPolicy.getTaskInfo().getType()
+                    + "\","
+                    + "\"action\":\""
+                    + executingPolicy.getTaskInfo().getAction()
+                    + "\","
+                    + "\"description\":\""
+                    + executingPolicy.getTaskInfo().getDescription()
+                    + "\","
+                    + "\"start_time_in_millis\":"
+                    + executingPolicy.getTaskInfo().getStartTime()
+                    + ","
+                    + "\"running_time_in_nanos\":"
+                    + executingPolicy.getTaskInfo().getRunningTimeNanos()
+                    + ","
+                    + "\"cancellable\":"
+                    + executingPolicy.getTaskInfo().isCancellable()
+                    + ","
+                    + header.map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
                         .orElse("\"headers\":{}")
                     + "}"
                     + "}"
@@ -121,10 +140,15 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
         builder.endObject();
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
-        Map<String, Object> template =
-            XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
-        Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues
-            .extractValue("mappings._doc.properties.enrich_executing_policy_stats.properties", template);
+        Map<String, Object> template = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            MonitoringTemplateUtils.loadTemplate("es"),
+            false
+        );
+        Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues.extractValue(
+            "mappings._doc.properties.enrich_executing_policy_stats.properties",
+            template
+        );
         assertThat(serializedStatus.size(), equalTo(followStatsMapping.size()));
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {
             String fieldName = entry.getKey();
@@ -134,11 +158,7 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
             Object fieldValue = entry.getValue();
             String fieldType = (String) fieldMapping.get("type");
             if (fieldValue instanceof Long || fieldValue instanceof Integer) {
-                assertThat(
-                    "expected long field type for field [" + fieldName + "]",
-                    fieldType,
-                    anyOf(equalTo("long"), equalTo("integer"))
-                );
+                assertThat("expected long field type for field [" + fieldName + "]", fieldType, anyOf(equalTo("long"), equalTo("integer")));
             } else if (fieldValue instanceof String) {
                 assertThat(
                     "expected keyword field type for field [" + fieldName + "]",

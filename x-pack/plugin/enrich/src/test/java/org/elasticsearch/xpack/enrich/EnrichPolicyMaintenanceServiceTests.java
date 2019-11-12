@@ -119,13 +119,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
             enrichKeys.add(randomAlphaOfLength(10));
         }
         String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        return new EnrichPolicy(
-            MATCH_TYPE,
-            null,
-            Collections.singletonList(sourceIndex),
-            randomAlphaOfLength(10),
-            enrichKeys
-        );
+        return new EnrichPolicy(MATCH_TYPE, null, Collections.singletonList(sourceIndex), randomAlphaOfLength(10), enrichKeys);
     }
 
     private void addPolicy(String policyName, EnrichPolicy policy) throws InterruptedException {

@@ -92,17 +92,16 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     public void testRunner() throws Exception {
         final String sourceIndex = "source-index";
         IndexResponse indexRequest = client().index(
-            new IndexRequest()
-                .index(sourceIndex)
+            new IndexRequest().index(sourceIndex)
                 .id("id")
                 .source(
-                    "{" +
-                        "\"field1\":\"value1\"," +
-                        "\"field2\":2," +
-                        "\"field3\":\"ignored\"," +
-                        "\"field4\":\"ignored\"," +
-                        "\"field5\":\"value5\"" +
-                        "}",
+                    "{"
+                        + "\"field1\":\"value1\","
+                        + "\"field2\":2,"
+                        + "\"field3\":\"ignored\","
+                        + "\"field4\":\"ignored\","
+                        + "\"field5\":\"value5\""
+                        + "}",
                     XContentType.JSON
                 )
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -110,11 +109,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
-            new SearchRequest(sourceIndex)
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -173,11 +168,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate document structure
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -198,27 +189,15 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     public void testRunnerGeoMatchType() throws Exception {
         final String sourceIndex = "source-index";
         IndexResponse indexRequest = client().index(
-            new IndexRequest()
-                .index(sourceIndex)
+            new IndexRequest().index(sourceIndex)
                 .id("id")
-                .source(
-                    "{" +
-                        "\"location\":" +
-                        "\"POINT(10.0 10.0)\"," +
-                        "\"zipcode\":90210" +
-                        "}",
-                    XContentType.JSON
-                )
+                .source("{" + "\"location\":" + "\"POINT(10.0 10.0)\"," + "\"zipcode\":90210" + "}", XContentType.JSON)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
-            new SearchRequest(sourceIndex)
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -266,11 +245,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate document structure
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -293,19 +268,23 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
             IndexResponse indexRequest = client().index(
-                new IndexRequest()
-                    .index(sourceIndex)
+                new IndexRequest().index(sourceIndex)
                     .id(randomAlphaOfLength(10))
                     .source(
-                        "{" +
-                            "\"idx\":" + idx + "," +
-                            "\"key\":" + "\"key" + idx + "\"," +
-                            "\"field1\":\"value1\"," +
-                            "\"field2\":2," +
-                            "\"field3\":\"ignored\"," +
-                            "\"field4\":\"ignored\"," +
-                            "\"field5\":\"value5\"" +
-                            "}",
+                        "{"
+                            + "\"idx\":"
+                            + idx
+                            + ","
+                            + "\"key\":"
+                            + "\"key"
+                            + idx
+                            + "\","
+                            + "\"field1\":\"value1\","
+                            + "\"field2\":2,"
+                            + "\"field3\":\"ignored\","
+                            + "\"field4\":\"ignored\","
+                            + "\"field5\":\"value5\""
+                            + "}",
                         XContentType.JSON
                     )
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -313,11 +292,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(
-                new SearchRequest(sourceIndex)
-                    .source(
-                        SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.matchAllQuery())
-                    )
+                new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
             ).actionGet();
             assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
             Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -382,11 +357,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate document structure
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
         Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
@@ -411,20 +382,24 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
             IndexResponse indexRequest = client().index(
-                new IndexRequest()
-                    .index(sourceIndex)
+                new IndexRequest().index(sourceIndex)
                     .id(collidingDocId)
                     .routing(collidingDocId + idx)
                     .source(
-                        "{" +
-                            "\"idx\":" + idx + "," +
-                            "\"key\":" + "\"key" + idx + "\"," +
-                            "\"field1\":\"value1\"," +
-                            "\"field2\":2," +
-                            "\"field3\":\"ignored\"," +
-                            "\"field4\":\"ignored\"," +
-                            "\"field5\":\"value5\"" +
-                            "}",
+                        "{"
+                            + "\"idx\":"
+                            + idx
+                            + ","
+                            + "\"key\":"
+                            + "\"key"
+                            + idx
+                            + "\","
+                            + "\"field1\":\"value1\","
+                            + "\"field2\":2,"
+                            + "\"field3\":\"ignored\","
+                            + "\"field4\":\"ignored\","
+                            + "\"field5\":\"value5\""
+                            + "}",
                         XContentType.JSON
                     )
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -432,11 +407,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(
-                new SearchRequest(sourceIndex)
-                    .source(
-                        SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.matchAllQuery())
-                    )
+                new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
             ).actionGet();
             assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
             Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -450,11 +421,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
 
             SearchResponse routingSearchResponse = client().search(
-                new SearchRequest(sourceIndex)
-                    .source(
-                        SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.matchQuery("_routing", collidingDocId + idx))
-                    )
+                new SearchRequest(sourceIndex).source(
+                    SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("_routing", collidingDocId + idx))
+                )
             ).actionGet();
             assertEquals(1L, routingSearchResponse.getHits().getTotalHits().value);
         }
@@ -505,11 +474,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate document structure
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
         Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
@@ -523,11 +488,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         // Validate removal of routing values
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             SearchResponse routingSearchResponse = client().search(
-                new SearchRequest(".enrich-test1")
-                    .source(
-                        SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.matchQuery("_routing", collidingDocId + idx))
-                    )
+                new SearchRequest(".enrich-test1").source(
+                    SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("_routing", collidingDocId + idx))
+                )
             ).actionGet();
             assertEquals(0L, routingSearchResponse.getHits().getTotalHits().value);
         }
@@ -545,19 +508,21 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
             IndexResponse indexRequest = client().index(
-                new IndexRequest()
-                    .index(sourceIndex)
+                new IndexRequest().index(sourceIndex)
                     .id(randomAlphaOfLength(10))
                     .source(
-                        "{" +
-                            "\"idx\":" + idx + "," +
-                            "\"key\":" + "\"key\"," +
-                            "\"field1\":\"value1\"," +
-                            "\"field2\":2," +
-                            "\"field3\":\"ignored\"," +
-                            "\"field4\":\"ignored\"," +
-                            "\"field5\":\"value5\"" +
-                            "}",
+                        "{"
+                            + "\"idx\":"
+                            + idx
+                            + ","
+                            + "\"key\":"
+                            + "\"key\","
+                            + "\"field1\":\"value1\","
+                            + "\"field2\":2,"
+                            + "\"field3\":\"ignored\","
+                            + "\"field4\":\"ignored\","
+                            + "\"field5\":\"value5\""
+                            + "}",
                         XContentType.JSON
                     )
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -565,11 +530,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(
-                new SearchRequest(sourceIndex)
-                    .source(
-                        SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.matchAllQuery())
-                    )
+                new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
             ).actionGet();
             assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
             Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -629,11 +590,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate document structure
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
         Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
@@ -716,8 +673,13 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             assertThat(
                 thrown.getMessage(),
                 containsString(
-                    "Enrich policy execution for [" + policyName +
-                        "] failed. No mapping available on source [" + sourceIndex + "] included in [[" + sourceIndex + "]]"
+                    "Enrich policy execution for ["
+                        + policyName
+                        + "] failed. No mapping available on source ["
+                        + sourceIndex
+                        + "] included in [["
+                        + sourceIndex
+                        + "]]"
                 )
             );
         } else {
@@ -747,10 +709,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(
-                new CreateIndexRequest(sourceIndex)
-                    .mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder)
-            )
+            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
@@ -779,15 +738,17 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             assertThat(
                 thrown.getMessage(),
                 containsString(
-                    "Enrich policy execution for [" + policyName +
-                        "] failed while validating field mappings for index [" + sourceIndex + "]"
+                    "Enrich policy execution for ["
+                        + policyName
+                        + "] failed while validating field mappings for index ["
+                        + sourceIndex
+                        + "]"
                 )
             );
             assertThat(
                 thrown.getCause().getMessage(),
                 containsString(
-                    "Could not traverse mapping to field [nesting.key]. The [nesting" +
-                        "] field must be regular object but was [nested]."
+                    "Could not traverse mapping to field [nesting.key]. The [nesting" + "] field must be regular object but was [nested]."
                 )
             );
         } else {
@@ -817,10 +778,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(
-                new CreateIndexRequest(sourceIndex)
-                    .mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder)
-            )
+            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
@@ -828,13 +786,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("nesting.field2");
         enrichFields.add("missingField");
-        EnrichPolicy policy = new EnrichPolicy(
-            EnrichPolicy.MATCH_TYPE,
-            null,
-            Collections.singletonList(sourceIndex),
-            "key",
-            enrichFields
-        );
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex), "key", enrichFields);
 
         final long createTime = randomNonNegativeLong();
         final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -851,15 +803,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             assertThat(
                 thrown.getMessage(),
                 containsString(
-                    "Enrich policy execution for [" + policyName +
-                        "] failed while validating field mappings for index [" + sourceIndex + "]"
+                    "Enrich policy execution for ["
+                        + policyName
+                        + "] failed while validating field mappings for index ["
+                        + sourceIndex
+                        + "]"
                 )
             );
             assertThat(
                 thrown.getCause().getMessage(),
                 containsString(
-                    "Could not traverse mapping to field [nesting.field2]. " +
-                        "The [nesting] field must be regular object but was [nested]."
+                    "Could not traverse mapping to field [nesting.field2]. "
+                        + "The [nesting] field must be regular object but was [nested]."
                 )
             );
         } else {
@@ -891,25 +846,15 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(
-                new CreateIndexRequest(sourceIndex)
-                    .mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder)
-            )
+            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
         IndexResponse indexRequest = client().index(
-            new IndexRequest()
-                .index(sourceIndex)
+            new IndexRequest().index(sourceIndex)
                 .id("id")
                 .source(
-                    "{" +
-                        "\"data\":{" +
-                        "\"field1\":\"value1\"," +
-                        "\"field2\":2," +
-                        "\"field3\":\"ignored\"" +
-                        "}" +
-                        "}",
+                    "{" + "\"data\":{" + "\"field1\":\"value1\"," + "\"field2\":2," + "\"field3\":\"ignored\"" + "}" + "}",
                     XContentType.JSON
                 )
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -917,11 +862,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
-            new SearchRequest(sourceIndex)
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -985,11 +926,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(field1.get("doc_values"), is(false));
 
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -1035,25 +972,15 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(
-                new CreateIndexRequest(sourceIndex)
-                    .mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder)
-            )
+            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
         IndexResponse indexRequest = client().index(
-            new IndexRequest()
-                .index(sourceIndex)
+            new IndexRequest().index(sourceIndex)
                 .id("id")
                 .source(
-                    "{" +
-                        "\"data\":{" +
-                        "\"field1\":\"value1\"," +
-                        "\"field2\":2," +
-                        "\"field3\":\"ignored\"" +
-                        "}" +
-                        "}",
+                    "{" + "\"data\":{" + "\"field1\":\"value1\"," + "\"field2\":2," + "\"field3\":\"ignored\"" + "}" + "}",
                     XContentType.JSON
                 )
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -1061,11 +988,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
-            new SearchRequest(sourceIndex)
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -1129,11 +1052,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(field1.get("doc_values"), is(false));
 
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -1182,27 +1101,23 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(
-                new CreateIndexRequest(sourceIndex)
-                    .mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder)
-            )
+            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
         IndexResponse indexRequest = client().index(
-            new IndexRequest()
-                .index(sourceIndex)
+            new IndexRequest().index(sourceIndex)
                 .id("id")
                 .source(
-                    "{" +
-                        "\"data\":{" +
-                        "\"fields\":{" +
-                        "\"field1\":\"value1\"," +
-                        "\"field2\":2," +
-                        "\"field3\":\"ignored\"" +
-                        "}" +
-                        "}" +
-                        "}",
+                    "{"
+                        + "\"data\":{"
+                        + "\"fields\":{"
+                        + "\"field1\":\"value1\","
+                        + "\"field2\":2,"
+                        + "\"field3\":\"ignored\""
+                        + "}"
+                        + "}"
+                        + "}",
                     XContentType.JSON
                 )
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -1210,11 +1125,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
-            new SearchRequest(sourceIndex)
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -1286,11 +1197,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(field1.get("doc_values"), is(false));
 
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -1333,35 +1240,20 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .endObject();
         CreateIndexResponse createResponse = client().admin()
             .indices()
-            .create(
-                new CreateIndexRequest(sourceIndex)
-                    .mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder)
-            )
+            .create(new CreateIndexRequest(sourceIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder))
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
         IndexResponse indexRequest = client().index(
-            new IndexRequest()
-                .index(sourceIndex)
+            new IndexRequest().index(sourceIndex)
                 .id("id")
-                .source(
-                    "{" +
-                        "\"data.field1\":\"value1\"," +
-                        "\"data.field2\":2," +
-                        "\"data.field3\":\"ignored\"" +
-                        "}",
-                    XContentType.JSON
-                )
+                .source("{" + "\"data.field1\":\"value1\"," + "\"data.field2\":2," + "\"data.field3\":\"ignored\"" + "}", XContentType.JSON)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
-            new SearchRequest(sourceIndex)
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -1423,11 +1315,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(field1.get("doc_values"), is(false));
 
         SearchResponse enrichSearchResponse = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -1448,17 +1336,16 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     public void testRunnerWithForceMergeRetry() throws Exception {
         final String sourceIndex = "source-index";
         IndexResponse indexRequest = client().index(
-            new IndexRequest()
-                .index(sourceIndex)
+            new IndexRequest().index(sourceIndex)
                 .id("id")
                 .source(
-                    "{" +
-                        "\"field1\":\"value1\"," +
-                        "\"field2\":2," +
-                        "\"field3\":\"ignored\"," +
-                        "\"field4\":\"ignored\"," +
-                        "\"field5\":\"value5\"" +
-                        "}",
+                    "{"
+                        + "\"field1\":\"value1\","
+                        + "\"field2\":2,"
+                        + "\"field3\":\"ignored\","
+                        + "\"field4\":\"ignored\","
+                        + "\"field5\":\"value5\""
+                        + "}",
                     XContentType.JSON
                 )
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -1466,11 +1353,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
-            new SearchRequest(sourceIndex)
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(sourceIndex).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(sourceSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
@@ -1560,8 +1443,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     // Put and flush a document to increase the number of segments, simulating not
                     // all segments were merged on the first try.
                     IndexResponse indexRequest = client().index(
-                        new IndexRequest()
-                            .index(createdEnrichIndex)
+                        new IndexRequest().index(createdEnrichIndex)
                             .source(unmergedDocument)
                             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     ).actionGet();
@@ -1603,20 +1485,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate document structure
         SearchResponse allEnrichDocs = client().search(
-            new SearchRequest(".enrich-test1")
-                .source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                )
+            new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
         ).actionGet();
         assertThat(allEnrichDocs.getHits().getTotalHits().value, equalTo(2L));
         for (String keyValue : Arrays.asList("value1", "value1.1")) {
             SearchResponse enrichSearchResponse = client().search(
-                new SearchRequest(".enrich-test1")
-                    .source(
-                        SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.matchQuery("field1", keyValue))
-                    )
+                new SearchRequest(".enrich-test1").source(
+                    SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("field1", keyValue))
+                )
             ).actionGet();
 
             assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -1731,19 +1607,12 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         ElasticsearchException expected = expectThrows(
             ElasticsearchException.class,
             () -> client().index(
-                new IndexRequest()
-                    .index(createdEnrichIndex)
+                new IndexRequest().index(createdEnrichIndex)
                     .id(randomAlphaOfLength(10))
                     .source(Collections.singletonMap(randomAlphaOfLength(6), randomAlphaOfLength(10)))
             ).actionGet()
         );
 
-        assertThat(
-            expected.getMessage(),
-            containsString(
-                "index [" + createdEnrichIndex +
-                    "] blocked by: [FORBIDDEN/8/index write (api)]"
-            )
-        );
+        assertThat(expected.getMessage(), containsString("index [" + createdEnrichIndex + "] blocked by: [FORBIDDEN/8/index write (api)]"));
     }
 }

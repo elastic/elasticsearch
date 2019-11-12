@@ -158,8 +158,7 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         when(client.execute(eq(EnrichStatsAction.INSTANCE), any(EnrichStatsAction.Request.class))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
-        final EnrichStatsCollector collector =
-            new EnrichStatsCollector(clusterService, licenseState, client, threadContext, settings);
+        final EnrichStatsCollector collector = new EnrichStatsCollector(clusterService, licenseState, client, threadContext, settings);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final long interval = randomNonNegativeLong();

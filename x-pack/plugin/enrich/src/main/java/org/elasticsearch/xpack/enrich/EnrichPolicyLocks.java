@@ -71,8 +71,7 @@ public class EnrichPolicyLocks {
             boolean acquired = runLock.tryAcquire();
             if (acquired == false) {
                 throw new EsRejectedExecutionException(
-                    "Could not obtain lock because policy execution for [" + policyName +
-                        "] is already in progress."
+                    "Could not obtain lock because policy execution for [" + policyName + "] is already in progress."
                 );
             }
             policyRunCounter.incrementAndGet();
@@ -107,8 +106,7 @@ public class EnrichPolicyLocks {
      */
     boolean isSameState(EnrichPolicyExecutionState previousState) {
         EnrichPolicyExecutionState currentState = captureExecutionState();
-        return currentState.anyPolicyInFlight == previousState.anyPolicyInFlight &&
-            currentState.executions == previousState.executions;
+        return currentState.anyPolicyInFlight == previousState.anyPolicyInFlight && currentState.executions == previousState.executions;
     }
 
     /**

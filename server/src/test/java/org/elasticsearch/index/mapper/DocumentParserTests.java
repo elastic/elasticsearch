@@ -375,7 +375,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext context = new ParseContext.InternalParseContext(settings,
-            mapperService.documentMapperParser(), mapperService.documentMapper("type"), null, null);
+            mapperService.documentMapperParser(), mapperService.documentMapper(), null, null);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);
@@ -1505,7 +1505,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject().endArray()
                 .endObject());
 
-        client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
+        client().prepareIndex("idx").setSource(bytes, XContentType.JSON).get();
 
         bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startArray("top.")
                 .startObject().startArray("foo.")
@@ -1520,7 +1520,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
 
         try {
-            client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
+            client().prepareIndex("idx").setSource(bytes, XContentType.JSON).get();
             fail("should have failed to dynamically introduce a double-dot field");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(),
@@ -1539,7 +1539,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
 
         IllegalArgumentException emptyFieldNameException = expectThrows(IllegalArgumentException.class,
-                () -> client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
+                () -> client().prepareIndex("idx").setSource(bytes, XContentType.JSON).get());
 
         assertThat(emptyFieldNameException.getMessage(), containsString(
                 "object field cannot contain only whitespace: ['top.aoeu. ']"));
@@ -1552,7 +1552,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
 
         MapperParsingException err = expectThrows(MapperParsingException.class, () ->
-                client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
+                client().prepareIndex("idx").setSource(bytes, XContentType.JSON).get());
         assertThat(err.getCause(), notNullValue());
         assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
 
@@ -1564,7 +1564,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
 
         err = expectThrows(MapperParsingException.class, () ->
-                client().prepareIndex("idx", "type").setSource(bytes2, XContentType.JSON).get());
+                client().prepareIndex("idx").setSource(bytes2, XContentType.JSON).get());
         assertThat(err.getCause(), notNullValue());
         assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
     }

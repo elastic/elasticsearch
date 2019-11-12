@@ -71,7 +71,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("type1").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper docMapper = index.mapperService().documentMapper("type1");
+        DocumentMapper docMapper = index.mapperService().documentMapper();
         Mapper fieldMapper = docMapper.mappers().getMapper("copy_test");
 
         // Check json serialization
@@ -121,7 +121,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         client().admin().indices().preparePutMapping("test").setType("type1")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
-        docMapper = index.mapperService().documentMapper("type1");
+        docMapper = index.mapperService().documentMapper();
         fieldMapper = docMapper.mappers().getMapper("new_field");
         assertThat(fieldMapper.typeName(), equalTo("long"));
     }

@@ -88,4 +88,5 @@ public class GetFieldMappingsResponseTests extends ESTestCase {
         }
         builder.endObject();
     }
+
 }

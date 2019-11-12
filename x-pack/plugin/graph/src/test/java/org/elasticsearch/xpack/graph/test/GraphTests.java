@@ -93,7 +93,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         for (DocTemplate dt : socialNetTemplate) {
             for (int i = 0; i < dt.numDocs; i++) {
                 // Supply a doc ID for deterministic routing of docs to shards
-                client().prepareIndex("test", "type", "doc#" + numDocs)
+                client().prepareIndex("test").setId("doc#" + numDocs)
                         .setSource("decade", dt.decade, "people", dt.people, "description", dt.description)
                         .get();
                 numDocs++;

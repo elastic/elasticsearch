@@ -132,8 +132,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .addMapping("type", "field", "type=text,fielddata=true",
                         "field2", "type=text,fielddata=true").get());
         ensureGreen();
-        client().prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
-        client().prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").execute().actionGet();
+        client().prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
@@ -195,8 +195,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .addMapping("type", "field", "type=text,fielddata=true").get());
         ensureGreen();
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        client().prepareIndex("test", "type", "1").setSource("field", "value1").execute().actionGet();
-        client().prepareIndex("test", "type", "2").setSource("field", "value2").execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field", "value1").execute().actionGet();
+        client().prepareIndex("test").setId("2").setSource("field", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true)
@@ -264,7 +264,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         while (true) {
             IndexRequestBuilder[] builders = new IndexRequestBuilder[pageDocs];
             for (int i = 0; i < pageDocs; ++i) {
-                builders[i] = client().prepareIndex("idx", "type", Integer.toString(counter++)).setSource(jsonBuilder()
+                builders[i] = client().prepareIndex("idx").setId(Integer.toString(counter++)).setSource(jsonBuilder()
                         .startObject()
                         .field("common", "field")
                         .field("str_value", "s" + i)
@@ -306,7 +306,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // index the data again...
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            builders[i] = client().prepareIndex("idx", "type", Integer.toString(i)).setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx").setId(Integer.toString(i)).setSource(jsonBuilder()
                     .startObject()
                     .field("common", "field")
                     .field("str_value", "s" + i)
@@ -380,7 +380,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 sb.append(termUpto++);
                 sb.append(" some random text that keeps repeating over and over again hambone");
             }
-            client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+            client().prepareIndex("test").setId(""+termUpto).setSource("field" + (i%10), sb.toString()).get();
         }
         refresh();
         stats = client().admin().indices().prepareStats().execute().actionGet();
@@ -415,7 +415,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                     sb.append(' ');
                     sb.append(termUpto++);
                 }
-                client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+                client().prepareIndex("test").setId(""+termUpto).setSource("field" + (i%10), sb.toString()).get();
                 if (i % 2 == 0) {
                     refresh();
                 }
@@ -441,9 +441,9 @@ public class IndexStatsIT extends ESIntegTestCase {
         createIndex("test1", "test2");
         ensureGreen();
 
-        client().prepareIndex("test1", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test1", "type", Integer.toString(2)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(2)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
         refresh();
 
         NumShards test1 = getNumShards("test1");
@@ -536,17 +536,17 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         // index failed
         try {
-            client().prepareIndex("test1", "type", Integer.toString(1)).setSource("field", "value").setVersion(1)
+            client().prepareIndex("test1").setId(Integer.toString(1)).setSource("field", "value").setVersion(1)
                     .setVersionType(VersionType.EXTERNAL).execute().actionGet();
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
         try {
-            client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").setVersion(1)
+            client().prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").setVersion(1)
                     .setVersionType(VersionType.EXTERNAL).execute().actionGet();
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
         try {
-            client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").setVersion(1)
+            client().prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").setVersion(1)
                     .setVersionType(VersionType.EXTERNAL).execute().actionGet();
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
@@ -580,7 +580,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal().getSearch(), nullValue());
 
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("test_index", "_doc", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test_index").setId(Integer.toString(i)).setSource("field", "value").execute().actionGet();
             client().admin().indices().prepareFlush().execute().actionGet();
         }
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
@@ -600,7 +600,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         NumShards test1 = getNumShards("test_index");
 
         for (int i = 0; i < 100; i++) {
-            index("test_index", "_doc", Integer.toString(i), "field", "value");
+            indexDoc("test_index", Integer.toString(i), "field", "value");
         }
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
@@ -624,9 +624,9 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test_index", "_doc", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test_index", "_doc", Integer.toString(2)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test_index_2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test_index").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test_index").setId(Integer.toString(2)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test_index_2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
@@ -738,9 +738,9 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test1", "_doc", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test1", "_doc", Integer.toString(2)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test2", "_doc", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(2)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test2").setId(Integer.toString(1)).setSource("field", "value").execute().actionGet();
         refresh();
 
         int numShards1 = getNumShards("test1").totalNumShards;
@@ -780,7 +780,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                     XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test1", "_doc", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}"
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}"
             , XContentType.JSON).get();
         refresh();
 
@@ -823,7 +823,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
+        client().prepareIndex("test1").setId(Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
         refresh();
 
         client().prepareSearch("_all").setStats("bar", "baz").execute().actionGet();
@@ -980,8 +980,8 @@ public class IndexStatsIT extends ESIntegTestCase {
             .build();
         assertAcked(prepareCreate("index").setSettings(settings).get());
         indexRandom(false, true,
-                client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
-                client().prepareIndex("index", "type", "2").setSource("foo", "baz"));
+                client().prepareIndex("index").setId("1").setSource("foo", "bar"),
+                client().prepareIndex("index").setId("2").setSource("foo", "baz"));
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
             persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         }
@@ -1014,8 +1014,8 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
         });
 
-        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "1").get().getResult());
-        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "2").get().getResult());
+        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "1").get().getResult());
+        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "2").get().getResult());
         // Here we are testing that a fully deleted segment should be dropped and its cached is evicted.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
@@ -1046,8 +1046,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(response.getTotal().queryCache.getCacheCount(), greaterThan(0L));
 
         indexRandom(true,
-                client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
-                client().prepareIndex("index", "type", "2").setSource("foo", "baz"));
+                client().prepareIndex("index").setId("1").setSource("foo", "bar"),
+                client().prepareIndex("index").setId("2").setSource("foo", "baz"));
 
         assertBusy(() -> {
             assertSearchResponse(client().prepareSearch("index")
@@ -1111,7 +1111,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                     final String id = Integer.toString(idGenerator.incrementAndGet());
                     final IndexResponse response =
                         client()
-                            .prepareIndex("test", "type", id)
+                            .prepareIndex("test").setId(id)
                             .setSource("{}", XContentType.JSON)
                             .get();
                     assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));

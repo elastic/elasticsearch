@@ -139,12 +139,25 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // subtractLeavingShards is passed as false here, because they still use disk space, and therefore should we should be extra careful
         // and take the size into account
-        DiskUsage usage = getDiskUsage(node, allocation, usages, false);
+        final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
         // First, check that the node currently over the low watermark
         double freeDiskPercentage = usage.getFreeDiskAsPercentage();
         // Cache the used disk percentage for displaying disk percentages consistent with documentation
         double usedDiskPercentage = usage.getUsedDiskAsPercentage();
         long freeBytes = usage.getFreeBytes();
+        if (freeBytes < 0L) {
+            final long sizeOfRelocatingShards = sizeOfRelocatingShards(node, false, usage.getPath(),
+                allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
+            logger.debug("fewer free bytes remaining than the size of all incoming shards: " +
+                    "usage {} on node {} including {} bytes of relocations, preventing allocation",
+                usage, node.nodeId(), sizeOfRelocatingShards);
+
+            return allocation.decision(Decision.NO, NAME,
+                "the node has fewer free bytes remaining than the total size of all incoming shards: " +
+                    "free space [%sB], relocating shards [%sB]",
+                freeBytes + sizeOfRelocatingShards, sizeOfRelocatingShards);
+        }
+
         ByteSizeValue freeBytesValue = new ByteSizeValue(freeBytes);
         if (logger.isTraceEnabled()) {
             logger.trace("node [{}] has {}% used disk", node.nodeId(), usedDiskPercentage);
@@ -242,6 +255,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
         final long shardSize = getExpectedShardSize(shardRouting, 0L,
             allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
+        assert shardSize >= 0 : shardSize;
         double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
         long freeBytesAfterShard = freeBytes - shardSize;
         if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
@@ -268,6 +282,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 diskThresholdSettings.getHighWatermarkRaw(), usedDiskThresholdHigh, freeSpaceAfterShard);
         }
 
+        assert freeBytesAfterShard >= 0 : freeBytesAfterShard;
         return allocation.decision(Decision.YES, NAME,
                 "enough disk for shard on node, free: [%s], shard size: [%s], free after allocating shard: [%s]",
                 freeBytesValue,
@@ -289,7 +304,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk
         // since shards are moving away. No new shards will be incoming since in canAllocate we pass false for this check.
-        final DiskUsage usage = getDiskUsage(node, allocation, usages, true);
+        final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, true);
         final String dataPath = clusterInfo.getDataPath(shardRouting);
         // If this node is already above the high threshold, the shard cannot remain (get it off!)
         final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
@@ -300,6 +315,17 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (dataPath == null || usage.getPath().equals(dataPath) == false) {
             return allocation.decision(Decision.YES, NAME,
                     "this shard is not allocated on the most utilized disk and can remain");
+        }
+        if (freeBytes < 0L) {
+            final long sizeOfRelocatingShards = sizeOfRelocatingShards(node, true, usage.getPath(),
+                allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
+            logger.debug("fewer free bytes remaining than the size of all incoming shards: " +
+                    "usage {} on node {} including {} bytes of relocations, shard cannot remain",
+                usage, node.nodeId(), sizeOfRelocatingShards);
+            return allocation.decision(Decision.NO, NAME,
+                "the shard cannot remain on this node because the node has fewer free bytes remaining than the total size of all " +
+                    "incoming shards: free space [%s], relocating shards [%s]",
+                freeBytes + sizeOfRelocatingShards, sizeOfRelocatingShards);
         }
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             if (logger.isDebugEnabled()) {
@@ -330,8 +356,8 @@ public class DiskThresholdDecider extends AllocationDecider {
                 "there is enough disk on this node for the shard to remain, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
-    private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation,
-                                   ImmutableOpenMap<String, DiskUsage> usages, boolean subtractLeavingShards) {
+    private DiskUsageWithRelocations getDiskUsage(RoutingNode node, RoutingAllocation allocation,
+                                                  ImmutableOpenMap<String, DiskUsage> usages, boolean subtractLeavingShards) {
         DiskUsage usage = usages.get(node.nodeId());
         if (usage == null) {
             // If there is no usage, and we have other nodes in the cluster,
@@ -341,13 +367,11 @@ public class DiskThresholdDecider extends AllocationDecider {
                     node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeDiskAsPercentage());
         }
 
-        final long relocatingShardsSize = sizeOfRelocatingShards(node, subtractLeavingShards, usage.getPath(),
-            allocation.clusterInfo(), allocation.metaData(), allocation.routingTable());
-        final DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().getName(), usage.getPath(),
-                usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
-        logger.trace("getDiskUsage: usage [{}] with [{}] bytes relocating yields [{}]",
-                     usage, relocatingShardsSize, usageIncludingRelocations);
-        return usageIncludingRelocations;
+        final DiskUsageWithRelocations diskUsageWithRelocations = new DiskUsageWithRelocations(usage,
+            sizeOfRelocatingShards(node, subtractLeavingShards, usage.getPath(),
+                allocation.clusterInfo(), allocation.metaData(), allocation.routingTable()));
+        logger.trace("getDiskUsage(subtractLeavingShards={}) returning {}", subtractLeavingShards, diskUsageWithRelocations);
+        return diskUsageWithRelocations;
     }
 
     /**
@@ -377,7 +401,7 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @param shardSize Size in bytes of the shard
      * @return Percentage of free space after the shard is assigned to the node
      */
-    double freeDiskPercentageAfterShardAssigned(DiskUsage usage, Long shardSize) {
+    double freeDiskPercentageAfterShardAssigned(DiskUsageWithRelocations usage, Long shardSize) {
         shardSize = (shardSize == null) ? 0 : shardSize;
         DiskUsage newUsage = new DiskUsage(usage.getNodeId(), usage.getNodeName(), usage.getPath(),
                 usage.getTotalBytes(),  usage.getFreeBytes() - shardSize);
@@ -445,4 +469,59 @@ public class DiskThresholdDecider extends AllocationDecider {
             return clusterInfo.getShardSize(shard, defaultValue);
         }
     }
+
+    static class DiskUsageWithRelocations {
+
+        private final DiskUsage diskUsage;
+        private final long relocatingShardSize;
+
+        DiskUsageWithRelocations(DiskUsage diskUsage, long relocatingShardSize) {
+            this.diskUsage = diskUsage;
+            this.relocatingShardSize = relocatingShardSize;
+        }
+
+        @Override
+        public String toString() {
+            return "DiskUsageWithRelocations{" +
+                "diskUsage=" + diskUsage +
+                ", relocatingShardSize=" + relocatingShardSize +
+                '}';
+        }
+
+        double getFreeDiskAsPercentage() {
+            if (getTotalBytes() == 0L) {
+                return 100.0;
+            }
+            return 100.0 * ((double)getFreeBytes() / getTotalBytes());
+        }
+
+        double getUsedDiskAsPercentage() {
+            return 100.0 - getFreeDiskAsPercentage();
+        }
+
+        long getFreeBytes() {
+            try {
+                return Math.subtractExact(diskUsage.getFreeBytes(), relocatingShardSize);
+            } catch (ArithmeticException e) {
+                return Long.MAX_VALUE;
+            }
+        }
+
+        String getPath() {
+            return diskUsage.getPath();
+        }
+
+        String getNodeId() {
+            return diskUsage.getNodeId();
+        }
+
+        String getNodeName() {
+            return diskUsage.getNodeName();
+        }
+
+        long getTotalBytes() {
+            return diskUsage.getTotalBytes();
+        }
+    }
+
 }

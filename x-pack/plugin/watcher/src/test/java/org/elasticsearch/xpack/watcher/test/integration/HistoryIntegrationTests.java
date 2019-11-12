@@ -51,7 +51,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
     public void testThatHistoryIsWrittenWithChainedInput() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("inner").field("date", "2015-06-06").endObject()
                 .endObject();
-        index("foo", "bar", "1", xContentBuilder);
+        index("foo", "1", xContentBuilder);
         refresh();
 
         WatchSourceBuilder builder = watchBuilder()

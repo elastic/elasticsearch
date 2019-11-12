@@ -52,10 +52,7 @@ dependencies {
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
 
-    bin(project(path: xpackModule('sql:sql-cli'))) {
-        // sql-cli bundles all of its dependencies into a single executable jar
-        transitive = false
-    }
+    bin(project(path: xpackModule('sql:sql-cli'), configuration: 'shadow'))
 }
 
 /* Bundle the sql-cli into the binary files. It should end up

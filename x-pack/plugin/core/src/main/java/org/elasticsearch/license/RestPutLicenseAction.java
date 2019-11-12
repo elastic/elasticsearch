@@ -6,9 +6,7 @@
 
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -21,18 +19,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLicenseAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutLicenseAction.class));
-
     RestPutLicenseAction(RestController controller) {
         // TODO: remove POST endpoint?
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                POST, "/_license", this,
-                POST, "/_xpack/license", deprecationLogger);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-                PUT, "/_license", this,
-                PUT,  "/_xpack/license", deprecationLogger);
+        controller.registerHandler(POST, "/_license", this);
+        controller.registerHandler(PUT, "/_license", this);
     }
 
     @Override

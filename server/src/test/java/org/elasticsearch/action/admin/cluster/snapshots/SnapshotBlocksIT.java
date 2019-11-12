@@ -57,11 +57,11 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
+            client().prepareIndex(INDEX_NAME).setSource("test", "init").execute().actionGet();
         }
         docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(OTHER_INDEX_NAME, "type").setSource("test", "init").execute().actionGet();
+            client().prepareIndex(OTHER_INDEX_NAME).setSource("test", "init").execute().actionGet();
         }
 
         logger.info("--> register a repository");

@@ -440,7 +440,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
             assertThat(fields, equalTo(singleton("type")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("type1"));
+            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("_doc"));
         }
 
         response = client().prepareSearch()
@@ -459,7 +459,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
             assertThat(fields, equalTo(newHashSet("type", "id")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("type1"));
+            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("_doc"));
             assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
         }
     }

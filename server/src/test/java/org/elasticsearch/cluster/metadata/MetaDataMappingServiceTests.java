@@ -129,7 +129,7 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         assertThat(result.executionResults.size(), equalTo(1));
         assertTrue(result.executionResults.values().iterator().next().isSuccess());
         MappingMetaData mappingMetaData = result.resultingState.metaData().index("test").mapping();
-        assertEquals("my_type", mappingMetaData.type());
+        assertEquals("_doc", mappingMetaData.type());
         assertEquals(Collections.singletonMap("properties",
                 Collections.singletonMap("foo",
                         Collections.singletonMap("type", "keyword"))), mappingMetaData.sourceAsMap());

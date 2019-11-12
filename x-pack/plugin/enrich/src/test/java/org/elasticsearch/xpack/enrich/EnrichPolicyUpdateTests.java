@@ -40,13 +40,24 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         IngestService ingestService = getInstanceFromNode(IngestService.class);
         createIndex("index", Settings.EMPTY, "_doc", "key1", "type=keyword", "field1", "type=keyword");
 
-        EnrichPolicy instance1 = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList("index"),
-            "key1", Collections.singletonList("field1"));
+        EnrichPolicy instance1 = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            Collections.singletonList("index"),
+            "key1",
+            Collections.singletonList("field1")
+        );
         createSourceIndices(client(), instance1);
         PutEnrichPolicyAction.Request putPolicyRequest = new PutEnrichPolicyAction.Request("my_policy", instance1);
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
-        assertThat("Execute failed", client().execute(ExecuteEnrichPolicyAction.INSTANCE,
-            new ExecuteEnrichPolicyAction.Request("my_policy")).actionGet().getStatus().isCompleted(), equalTo(true));
+        assertThat(
+            "Execute failed",
+            client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request("my_policy"))
+                .actionGet()
+                .getStatus()
+                .isCompleted(),
+            equalTo(true)
+        );
 
         String pipelineConfig =
             "{\"processors\":[{\"enrich\": {\"policy_name\": \"my_policy\", \"field\": \"key\", \"target_field\": \"target\"}}]}";
@@ -55,11 +66,18 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         Pipeline pipelineInstance1 = ingestService.getPipeline("1");
         assertThat(pipelineInstance1.getProcessors().get(0), instanceOf(MatchProcessor.class));
 
-        EnrichPolicy instance2 = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList("index2"),
-            "key2", Collections.singletonList("field2"));
+        EnrichPolicy instance2 = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            Collections.singletonList("index2"),
+            "key2",
+            Collections.singletonList("field2")
+        );
         createSourceIndices(client(), instance2);
-        ResourceAlreadyExistsException exc = expectThrows(ResourceAlreadyExistsException.class, () ->
-            client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("my_policy", instance2)).actionGet());
+        ResourceAlreadyExistsException exc = expectThrows(
+            ResourceAlreadyExistsException.class,
+            () -> client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("my_policy", instance2)).actionGet()
+        );
         assertTrue(exc.getMessage().contains("policy [my_policy] already exists"));
     }
 }

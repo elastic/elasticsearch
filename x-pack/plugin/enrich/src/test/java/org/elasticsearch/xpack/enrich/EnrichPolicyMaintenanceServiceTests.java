@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
@@ -118,20 +119,19 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
             enrichKeys.add(randomAlphaOfLength(10));
         }
         String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        return new EnrichPolicy(MATCH_TYPE, null, Collections.singletonList(sourceIndex), randomAlphaOfLength(10),
-            enrichKeys);
+        return new EnrichPolicy(MATCH_TYPE, null, Collections.singletonList(sourceIndex), randomAlphaOfLength(10), enrichKeys);
     }
 
     private void addPolicy(String policyName, EnrichPolicy policy) throws InterruptedException {
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         createSourceIndices(client(), policy);
-        doSyncronously((clusterService, exceptionConsumer) ->
-            EnrichStore.putPolicy(policyName, policy, clusterService, resolver, exceptionConsumer));
+        doSyncronously(
+            (clusterService, exceptionConsumer) -> EnrichStore.putPolicy(policyName, policy, clusterService, resolver, exceptionConsumer)
+        );
     }
 
     private void removePolicy(String policyName) throws InterruptedException {
-        doSyncronously((clusterService, exceptionConsumer) ->
-            EnrichStore.deletePolicy(policyName, clusterService, exceptionConsumer));
+        doSyncronously((clusterService, exceptionConsumer) -> EnrichStore.deletePolicy(policyName, clusterService, exceptionConsumer));
     }
 
     private void doSyncronously(BiConsumer<ClusterService, Consumer<Exception>> function) throws InterruptedException {
@@ -151,18 +151,20 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
     }
 
     private String fakeRunPolicy(String forPolicy) throws IOException {
+        XContentBuilder source = JsonXContent.contentBuilder();
+        source.startObject();
+        {
+            source.startObject(MapperService.SINGLE_MAPPING_NAME);
+            {
+                source.startObject("_meta");
+                source.field(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME, forPolicy);
+                source.endObject();
+            }
+            source.endObject();
+        }
+        source.endObject();
         String newIndexName = EnrichPolicy.getBaseName(forPolicy) + "-" + indexNameAutoIncrementingCounter++;
-        CreateIndexRequest request = new CreateIndexRequest(newIndexName)
-            .mapping(
-                MapperService.SINGLE_MAPPING_NAME, JsonXContent.contentBuilder()
-                    .startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject("_meta")
-                    .field(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME, forPolicy)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            );
+        CreateIndexRequest request = new CreateIndexRequest(newIndexName).mapping(MapperService.SINGLE_MAPPING_NAME, source);
         client().admin().indices().create(request).actionGet();
         promoteFakePolicyIndex(newIndexName, forPolicy);
         return newIndexName;

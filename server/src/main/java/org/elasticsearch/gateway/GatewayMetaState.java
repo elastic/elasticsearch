@@ -42,6 +42,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
@@ -258,12 +259,8 @@ public class GatewayMetaState implements Closeable {
 
     @Override
     public void close() throws IOException {
-        final PersistedState persistedState = this.persistedState.get();
-        if (persistedState != null) {
-            persistedState.close();
-        }
+        IOUtils.close(persistedState.get());
     }
-
 
     private static class GatewayClusterApplier implements ClusterStateApplier {
 

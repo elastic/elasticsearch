@@ -14,19 +14,15 @@ time, so the service remains uninterrupted.
 === Full-cluster restart
 
 // tag::disable_shard_alloc[]
-
-1. *Disable shard allocation.*
+. *Disable shard allocation.*
 +
 --
 include::{docdir}/upgrade/disable-shard-alloc.asciidoc[]
 --
-
 // end::disable_shard_alloc[]
 
-
 // tag::stop_indexing[]
-
-2. *Stop indexing and perform a synced flush.*
+. *Stop indexing and perform a synced flush.*
 +
 --
 Performing a <<indices-synced-flush-api, synced-flush>> speeds up shard
@@ -34,13 +30,10 @@ recovery.
 
 include::{docdir}/upgrade/synced-flush.asciidoc[]
 --
-
 // end::stop_indexing[]
 
-
 //tag::stop_ml[]
-
-3. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
+. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +
 --
 {ml-cap} features require platinum license. For more information about Elastic 
@@ -69,19 +62,17 @@ cluster restart, they use the exact same model. However, saving the latest model
 state takes longer than using upgrade mode, especially if you have a lot of jobs 
 or jobs with large model states.
 --
-
 // end::stop_ml[]
 
-
-4. *Shut down all nodes.*
+. *Shut down all nodes.*
 +
 --
 include::{docdir}/upgrade/shut-down-node.asciidoc[]
 --
 
-5. *Perform any needed changes.*
+. *Perform any needed changes.*
 
-6. *Restart nodes.*
+. *Restart nodes.*
 +
 --
 If you have dedicated master nodes, start them first and wait for them to
@@ -104,7 +95,7 @@ The `status` column returned by `_cat/health` shows the health of each node
 in the cluster: `red`, `yellow`, or `green`.
 --
 
-7. *Wait for all nodes to join the cluster and report a status of yellow.*
+. *Wait for all nodes to join the cluster and report a status of yellow.*
 +
 --
 When a node joins the cluster, it begins to recover any primary shards that
@@ -119,8 +110,7 @@ are `yellow` allows the master to allocate replicas to nodes that
 already have local shard copies.
 --
 
-
-8. *Re-enable allocation.*
+. *Re-enable allocation.*
 +
 --
 When all nodes have joined the cluster and recovered their primary shards,
@@ -155,8 +145,7 @@ GET _cat/recovery
 --
 
 // tag::restart_ml[]
-
-9. *Restart machine learning jobs.* (Optional)
+. *Restart machine learning jobs.* (Optional)
 +
 --
 If you temporarily halted the tasks associated with your {ml} jobs, use the 
@@ -171,8 +160,8 @@ If you closed all {ml} jobs before stopping the nodes, open the jobs and start
 the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
 <<ml-start-datafeed,start datafeed>> APIs.
 --
-
 // end::restart_ml[]
+
 
 [float]
 [[restart-cluster-rolling]]
@@ -181,9 +170,7 @@ the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
 
 include::{docdir}/setup/restart-cluster.asciidoc[tag=disable_shard_alloc]
 
-
 include::{docdir}/setup/restart-cluster.asciidoc[tag=stop_indexing]
-
 
 include::{docdir}/setup/restart-cluster.asciidoc[tag=stop_ml]
 +
@@ -195,21 +182,17 @@ to continue running during the shutdown but it puts increased load on the
 cluster.
 --
 
-
-4. *Shut down a single node in case of rolling restart.*
+. *Shut down a single node in case of rolling restart.*
 +
 --
 include::{docdir}/upgrade/shut-down-node.asciidoc[]
 --
 
-
-5. *Perform any needed changes.*
+. *Perform any needed changes.*
  
- 
-6. *Restart the node you changed.*
+. *Restart the node you changed.*
 +
 --
-
 Start the node and confirm that it joins the cluster by checking the log file or 
 by submitting a `_cat/nodes` request:
 
@@ -217,14 +200,11 @@ by submitting a `_cat/nodes` request:
 --------------------------------------------------
 GET _cat/nodes
 --------------------------------------------------
-
 --
 
-
-7. *Reenable shard allocation.*
+. *Reenable shard allocation.*
 +
 --
-
 Once the node has joined the cluster, remove the 
 `cluster.routing.allocation.enable` setting to enable shard allocation and start 
 using the node:
@@ -238,10 +218,9 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-
 --
 
-8. *Repeat in case of rolling restart.*
+. *Repeat in case of rolling restart.*
 +
 --
 When the node has recovered and the cluster is stable, repeat these steps

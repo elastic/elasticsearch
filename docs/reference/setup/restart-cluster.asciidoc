@@ -148,7 +148,7 @@ GET _cat/recovery
 . *Repeat in case of rolling restart.*
 +
 --
-When  the node has recovered and the cluster is stable, repeat these steps
+When the node has recovered and the cluster is stable, repeat these steps
 for each node that needs to be updated.
 --
 

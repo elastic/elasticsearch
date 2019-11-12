@@ -3,8 +3,8 @@ apply plugin: 'base'
 task buildUbiDockerBuildContext(type: Tar) {
     extension = 'tar.gz'
     compression = Compression.GZIP
-    archiveClassifier = "ubi7-docker-build-context"
-    archiveBaseName = "elasticsearch"
+    archiveClassifier = "docker-build-context"
+    archiveBaseName = "elasticsearch-ubi7"
     with dockerBuildContext(false, true, false)
 }
 

@@ -1,164 +1,191 @@
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.net.InetAddress;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-public class CancelTasksResponseTests extends ESTestCase {
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
-    String response = "{\n" +
-        " \"node_failures\" : [\n" +
-        "    {\n" +
-        "      \"type\" : \"failed_node_exception\",\n" +
-        "      \"reason\" : \"Failed node [AAA]\",\n" +
-        "      \"node_id\" : \"AAA\",\n" +
-        "      \"caused_by\" : {\n" +
-        "        \"type\" : \"no_such_node_exception\",\n" +
-        "        \"reason\" : \"No such node [AAA]\",\n" +
-        "        \"node_id\" : \"AAA\"\n" +
-        "      }\n" +
-        "    }\n" +
-        "  ]," +
-        "  \"task_failures\" : [\n"+
-        "    {\n"+
-        "      \"task_id\" : 1186,\n"+
-        "      \"node_id\" : \"area51node\",\n"+
-        "      \"status\" : \"INTERNAL_SERVER_ERROR\",\n"+
-        "      \"reason\" : {\n"+
-        "        \"type\" : \"illegal_state_exception\",\n"+
-        "        \"reason\" : \"task with id 1186 is already cancelled\"\n"+
-        "      }\n"+
-        "    }\n"+
-        "  ],\n"+
-        "  \"nodes\" : {\n" +
-        "    \"BBB\" : {\n" +
-        "      \"name\" : \"instance-0000000004\",\n" +
-        "      \"transport_address\" : \"192.168.1.1:19987\",\n" +
-        "      \"host\" : \"192.168.1.1\",\n" +
-        "      \"ip\" : \"192.168.1.1\",\n" +
-        "      \"roles\" : [\n" +
-        "        \"master\",\n" +
-        "        \"data\",\n" +
-        "        \"ingest\"\n" +
-        "      ],\n" +
-        "      \"attributes\" : {\n" +
-        "        \"logical_availability_zone\" : \"zone-0\",\n" +
-        "        \"server_name\" : \"upupaPowerdome\",\n" +
-        "        \"availability_zone\" : \"us-east-1e\",\n" +
-        "        \"region\" : \"ita-molise-1\" \n" +
-        "      },\n" +
-        "      \"tasks\" : {\n" +
-        "        \"BBB:1481971\" : {\n" +
-        "          \"node\" : \"BBB\",\n" +
-        "          \"id\" : 1481971,\n" +
-        "          \"type\" : \"transport\",\n" +
-        "          \"action\" : \"indices:data/write/reindex\",\n" +
-        "          \"status\" : { \n" +
-        "            \"time\": \"now\",\n"+
-        "            \"node_count\" : [1,2,3],\n"+
-        "            \"node_stats\" : [[1,2],[3,4]]\n"+
-        "          },\n" +
-        "          \"start_time_in_millis\" : 1565108484002,\n" +
-        "          \"running_time_in_nanos\" : 18328639067,\n" +
-        "          \"cancellable\" : true,\n" +
-        "          \"headers\" : { }\n" +
-        "        }\n" +
-        "      }\n" +
-        "    }\n" +
-        "  }\n" +
-        "}";
+public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTasksResponseTests.ByNodeCancelTasksResponse, org.elasticsearch.client.tasks.CancelTasksResponse> {
 
+    private static String NODE_ID = "node_id";
 
-    public void testFromXContent() throws IOException {
+    @Override
+    protected CancelTasksResponseTests.ByNodeCancelTasksResponse createServerTestInstance(XContentType xContentType) {
+        List<org.elasticsearch.tasks.TaskInfo> tasks = new ArrayList<>();
+        List<TaskOperationFailure> taskFailures = new ArrayList<>();
+        List<ElasticsearchException> nodeFailures = new ArrayList<>();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(
-            xContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE,
-            response);
+        for (int i = 0; i < randomIntBetween(1, 4); i++) {
+            taskFailures.add(new TaskOperationFailure(randomAlphaOfLength(4), (long) i,
+                new RuntimeException(randomAlphaOfLength(4))));
+        }
+        for (int i = 0; i < randomIntBetween(1, 4); i++) {
+            nodeFailures.add(new ElasticsearchException(new RuntimeException(randomAlphaOfLength(10))));
+        }
 
-        CancelTasksResponse response = CancelTasksResponse.fromXContent(parser);
+        for (int i = 0; i < 4 ; i++) {
+            tasks.add(new org.elasticsearch.tasks.TaskInfo(
+                new TaskId(NODE_ID, (long) i),
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(10),
+                new FakeTaskStatus(randomAlphaOfLength(4), randomInt()),
+                randomLongBetween(1, 3),
+                randomIntBetween(5, 10),
+                false,
+                new TaskId("node1", randomLong()),
+                Map.of("x-header-of", "some-value")));
+        }
 
-        NodeData nodeData = new NodeData("BBB");
-        nodeData.setName("instance-0000000004");
-        nodeData.setTransportAddress("192.168.1.1:19987");
-        nodeData.setHost("192.168.1.1");
-        nodeData.setIp("192.168.1.1");
-        nodeData.setRoles(List.of("master", "data", "ingest"));
-        nodeData.setAttributes(
-            Map.of(
-                "logical_availability_zone", "zone-0",
-                "server_name", "upupaPowerdome",
-                "availability_zone", "us-east-1e",
-                "region", "ita-molise-1"
-            )
+        return new ByNodeCancelTasksResponse(tasks, taskFailures, nodeFailures);
+    }
+
+    @Override
+    protected org.elasticsearch.client.tasks.CancelTasksResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.client.tasks.CancelTasksResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(ByNodeCancelTasksResponse serverTestInstance,
+                                   org.elasticsearch.client.tasks.CancelTasksResponse clientInstance) {
+
+        // checking tasks
+        List<TaskInfo> sTasks = serverTestInstance.getTasks();
+        List<org.elasticsearch.client.tasks.TaskInfo> cTasks = clientInstance.getTasks();
+        Map<org.elasticsearch.client.tasks.TaskId, org.elasticsearch.client.tasks.TaskInfo> cTasksMap =
+            cTasks.stream().collect(Collectors.toMap(org.elasticsearch.client.tasks.TaskInfo::getTaskId,
+                Function.identity()));
+        for(TaskInfo ti: sTasks){
+            org.elasticsearch.client.tasks.TaskInfo taskInfo = cTasksMap.get(new org.elasticsearch.client.tasks.TaskId(ti.getTaskId().getNodeId(), ti.getTaskId().getId()));
+            assertEquals(ti.getAction(),taskInfo.getAction());
+            assertEquals(ti.getDescription(),taskInfo.getDescription());
+            assertEquals(new HashMap<>(ti.getHeaders()),new HashMap<>(taskInfo.getHeaders()));
+            assertEquals(ti.getType(),taskInfo.getType());
+            assertEquals(ti.getStartTime(),taskInfo.getStartTime());
+            assertEquals(ti.getRunningTimeNanos(),taskInfo.getRunningTimeNanos());
+            assertEquals(ti.isCancellable(),taskInfo.isCancellable());
+            assertEquals(ti.getParentTaskId().getNodeId(),taskInfo.getParentTaskId().getNodeId());
+            assertEquals(ti.getParentTaskId().getId(),taskInfo.getParentTaskId().getId());
+            FakeTaskStatus status = (FakeTaskStatus) ti.getStatus();
+            assertEquals(status.code,taskInfo.getStatus().get("code"));
+            assertEquals(status.status,taskInfo.getStatus().get("status"));
+
+        }
+
+        //checking failures
+        List<ElasticsearchException> serverNodeFailures = serverTestInstance.getNodeFailures();
+        List<org.elasticsearch.client.tasks.ElasticsearchException> cNodeFailures = clientInstance.getNodeFailures();
+        List<String> sExceptionsMessages = serverNodeFailures.stream().map(x ->
+            org.elasticsearch.client.tasks.ElasticsearchException.buildMessage("exception", x.getMessage(), null)).collect(Collectors.toList()
         );
 
-        TaskInfo taskInfo = new TaskInfo(new TaskId("BBB:1481971"));
-        taskInfo.setType("transport");
-        taskInfo.setAction("indices:data/write/reindex");
-        taskInfo.setStartTime(1565108484002L);
-        taskInfo.setRunningTimeNanos(18328639067L);
-        taskInfo.setStatus(
-            Map.of(
-                "time", "now",
-                "node_count", new ArrayList<>(List.of(1,2,3)),
-                "node_stats", new ArrayList<>(List.of(new ArrayList<>(List.of(1,2)),new ArrayList<>(List.of(3,4))))
-            )
-        );
-        taskInfo.setCancellable(true);
-        taskInfo.setHeaders(Map.of());
+        List<String> cExceptionsMessages = cNodeFailures.stream().map(
+            org.elasticsearch.client.tasks.ElasticsearchException::getMsg
+        ).collect(Collectors.toList());
+        assertEquals(new HashSet<>(sExceptionsMessages),new HashSet<>(cExceptionsMessages));
 
-        nodeData.setTasks(List.of(taskInfo));
+        List<TaskOperationFailure> sTaskFailures = serverTestInstance.getTaskFailures();
+        List<org.elasticsearch.client.tasks.TaskOperationFailure> cTaskFailures = clientInstance.getTaskFailures();
 
-        ElasticsearchException causer = new ElasticsearchException(
-            "Elasticsearch exception [type=no_such_node_exception, reason=No such node [AAA]]"
-        );
-        ElasticsearchException caused = new ElasticsearchException(
-            "Elasticsearch exception [type=failed_node_exception, reason=Failed node [AAA]]", causer
-        );
+        Map<Long, org.elasticsearch.client.tasks.TaskOperationFailure> cTasksFailuresMap =
+            cTaskFailures.stream().collect(Collectors.toMap(
+                org.elasticsearch.client.tasks.TaskOperationFailure::getTaskId,
+                Function.identity()));
+        for(TaskOperationFailure tof: sTaskFailures){
+            org.elasticsearch.client.tasks.TaskOperationFailure failure = cTasksFailuresMap.get(tof.getTaskId());
+            assertEquals(tof.getNodeId(),failure.getNodeId());
+            assertTrue(failure.getReason().getMsg().contains("runtime_exception"));
+            assertTrue(failure.getStatus().contains(""+tof.getStatus().name()));
+        }
+    }
 
-        ElasticsearchException reason = new ElasticsearchException(
-            "Elasticsearch exception [type=illegal_state_exception, reason=task with id 1186 is already cancelled]"
-        );
+    public static class FakeTaskStatus implements Task.Status {
 
-        TaskOperationFailure tof = new TaskOperationFailure(
-            "area51node",
-            1186L,
-            "INTERNAL_SERVER_ERROR",
-            reason
-        );
-        CancelTasksResponse expected = new CancelTasksResponse(
-            List.of(nodeData),
-            List.of(tof),
-            List.of(caused)
-        );
+        final String status;
+        final int code;
 
-        assertEquals(expected, response);
+        public FakeTaskStatus(String status, int code) {
+            this.status = status;
+            this.code = code;
+        }
 
+        @Override
+        public String getWriteableName() {
+            return "faker";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(status);
+            out.writeInt(code);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("status", status);
+            builder.field("code", code);
+            return builder.endObject();
+        }
+    }
+
+    /**
+     * tasks are grouped under nodes, and in order to create DiscoveryNodes we need different
+     * IP addresses.
+     * So in this test we assume all tasks are issued by a single node whose name and IP address is hardcoded.
+     */
+    static class ByNodeCancelTasksResponse extends CancelTasksResponse {
+
+        public ByNodeCancelTasksResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public ByNodeCancelTasksResponse(
+            List<TaskInfo> tasks,
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures) {
+            super(tasks, taskFailures, nodeFailures);
+        }
+
+
+        // it knows the hardcoded address space.
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+
+            DiscoveryNodes.Builder dnBuilder = new DiscoveryNodes.Builder();
+            InetAddress inetAddress = InetAddress.getByAddress(new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
+            TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
+
+            dnBuilder.add(new DiscoveryNode(NODE_ID,NODE_ID, transportAddress, emptyMap(), emptySet(), Version.CURRENT));
+
+            DiscoveryNodes build = dnBuilder.build();
+            builder.startObject();
+            super.toXContentGroupedByNode(builder, params, build);
+            builder.endObject();
+            return builder;
+        }
     }
 }
+
+

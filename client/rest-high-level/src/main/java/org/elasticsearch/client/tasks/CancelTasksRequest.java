@@ -53,9 +53,8 @@ public class CancelTasksRequest implements Validatable {
         return timeout;
     }
 
-    CancelTasksRequest setActions(List<String> actions) {
+    void setActions(List<String> actions) {
         this.actions.addAll(actions);
-        return this;
     }
 
     public List<String> getActions() {

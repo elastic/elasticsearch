@@ -134,6 +134,10 @@ public class TaskInfo {
         this.status.putAll(status);
     }
 
+    public Map<String, Object> getStatus() {
+        return status;
+    }
+
     void noOpParse(Object s) {}
 
 

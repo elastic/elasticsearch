@@ -39,14 +39,6 @@ class NodeData {
     private final Map<String,String> attributes = new HashMap<>();
     private final List<TaskInfo> tasks = new ArrayList<>();
 
-    /**
-     * as it is a named object
-     * in the JSON structure, it requires
-     * a name in the constructor to cope with signature of:
-     * {@link ObjectParser#declareNamedObjects(BiConsumer, ObjectParser.NamedObjectParser,ParseField)}
-     *
-     * @param nodeId the string identifier of a node
-     */
     NodeData(String nodeId) {
         this.nodeId = nodeId;
     }

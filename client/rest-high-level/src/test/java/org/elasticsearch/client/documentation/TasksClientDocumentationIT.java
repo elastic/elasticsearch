@@ -80,7 +80,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setParentTaskId(new TaskId("parentTaskId", 42)); // <3>
             // end::list-tasks-request-filter
 
-            // tag::list-tasks-request-detailed~
+            // tag::list-tasks-request-detailed
             request.setDetailed(true); // <1>
             // end::list-tasks-request-detailed
 
@@ -162,13 +162,11 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::cancel-tasks-request
 
             // tag::cancel-tasks-request-filter
-            // request.setTaskId(new org.elasticsearch.client.tasks.TaskId("nodeId1", 42)); //<1>
             // end::cancel-tasks-request-filter
 
         }
 
         CancelTasksRequest request = new org.elasticsearch.client.tasks.CancelTasksRequest.Builder().build();
-        //request.setTaskId(org.elasticsearch.client.tasks.TaskId.EMPTY_TASK_ID);
 
         // tag::cancel-tasks-execute
         CancelTasksResponse response = client.tasks().cancel(request, RequestOptions.DEFAULT);

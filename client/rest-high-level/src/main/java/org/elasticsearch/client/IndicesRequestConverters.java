@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
@@ -515,6 +516,19 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withIndicesOptions(reloadAnalyzersRequest.indicesOptions());
+        request.addParameters(parameters.asMap());
+        return request;
+    }
+
+    static Request deleteAlias(DeleteAliasRequest deleteAliasRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(deleteAliasRequest.getIndex())
+            .addPathPartAsIs("_alias")
+            .addPathPart(deleteAliasRequest.getAlias()).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params();
+        parameters.withTimeout(deleteAliasRequest.timeout());
+        parameters.withMasterTimeout(deleteAliasRequest.masterNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }

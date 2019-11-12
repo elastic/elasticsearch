@@ -156,7 +156,7 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private void onErrorMaybeRetryFailedStep(String policy, IndexMetaData indexMetaData) {
+    void onErrorMaybeRetryFailedStep(String policy, IndexMetaData indexMetaData) {
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         Step failedStep = stepRegistry.getStep(indexMetaData, new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(),

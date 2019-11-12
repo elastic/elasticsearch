@@ -22,7 +22,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -58,7 +57,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -349,7 +347,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                 = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
-                    return new FilterDirectory(FSDirectory.open(path)) {
+                    return new FilterDirectory(new SimpleFSDirectory(path)) {
                         @Override
                         public IndexOutput createOutput(String name, IOContext context) throws IOException {
                             if (throwException.get()) {
@@ -386,7 +384,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                 = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
-                    return new FilterDirectory(FSDirectory.open(path)) {
+                    return new FilterDirectory(new SimpleFSDirectory(path)) {
                         @Override
                         public void sync(Collection<String> names) throws IOException {
                             if (throwException.get() && names.stream().anyMatch(n -> n.startsWith("pending_segments_"))) {

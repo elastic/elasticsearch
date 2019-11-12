@@ -42,7 +42,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
@@ -183,7 +183,10 @@ public class LucenePersistedStateFactory {
 
     // exposed for tests
     Directory createDirectory(Path path) throws IOException {
-        return FSDirectory.open(path);
+        // it is possible to disable the use of MMapDirectory for indices, and it may be surprising to users that have done so if we still
+        // use a MMapDirectory here, which might happen with FSDirectory.open(path). Concurrency is of no concern here so a
+        // SimpleFSDirectory is fine:
+        return new SimpleFSDirectory(path);
     }
 
     private static class OnDiskState {

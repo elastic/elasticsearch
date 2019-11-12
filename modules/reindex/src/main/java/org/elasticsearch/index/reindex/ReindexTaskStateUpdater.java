@@ -240,8 +240,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                     });
                 } else {
                     TimeValue nextDelay = getNextDelay(delay);
-                    logger.info(new ParameterizedMessage("Failed to write to {} index on FINISHED, retrying in {} [task-id={}]", REINDEX_INDEX,
-                        nextDelay, taskId), e);
+                    logger.info(new ParameterizedMessage("Failed to write to {} index on FINISHED, retrying in {} [task-id={}]",
+                        REINDEX_INDEX, nextDelay, taskId), e);
                     threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay, ThreadPool.Names.SAME);
                 }
             }

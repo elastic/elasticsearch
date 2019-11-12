@@ -58,6 +58,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LucenePersistedStateFactoryTests extends ESTestCase {
 
@@ -474,6 +475,78 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                 assertThat(indexMetaData.getIndexUUID(), equalTo(indexUUID));
                 assertThat(indexMetaData.getVersion(), equalTo(indexMetaDataVersion + 1));
                 assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexMetaData.getSettings()), equalTo(3));
+            }
+        }
+    }
+
+    public void testPersistsAndReloadsIndexMetadataForMultipleIndices() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final LucenePersistedStateFactory persistedStateFactory = newPersistedStateFactory(nodeEnvironment);
+
+            final long term = randomLongBetween(1L, Long.MAX_VALUE);
+            final String addedIndexUuid = UUIDs.randomBase64UUID(random());
+            final String updatedIndexUuid = UUIDs.randomBase64UUID(random());
+            final String deletedIndexUuid = UUIDs.randomBase64UUID(random());
+
+            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
+                final ClusterState clusterState = persistedState.getLastAcceptedState();
+                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+                    .metaData(MetaData.builder(clusterState.metaData())
+                        .version(clusterState.metaData().version() + 1)
+                        .coordinationMetaData(CoordinationMetaData.builder(clusterState.coordinationMetaData()).term(term).build())
+                        .put(IndexMetaData.builder("updated")
+                            .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
+                            .settings(Settings.builder()
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .put(IndexMetaData.SETTING_INDEX_UUID, updatedIndexUuid)))
+                    .put(IndexMetaData.builder("deleted")
+                        .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
+                        .settings(Settings.builder()
+                            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                            .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                            .put(IndexMetaData.SETTING_INDEX_UUID, deletedIndexUuid))))
+                    .incrementVersion().build());
+            }
+
+            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
+                final ClusterState clusterState = persistedState.getLastAcceptedState();
+
+                assertThat(clusterState.metaData().indices().size(), equalTo(2));
+                assertThat(clusterState.metaData().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
+                assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metaData().index("updated").getSettings()),
+                    equalTo(1));
+                assertThat(clusterState.metaData().index("deleted").getIndexUUID(), equalTo(deletedIndexUuid));
+
+                persistedState.setLastAcceptedState(ClusterState.builder(clusterState)
+                    .metaData(MetaData.builder(clusterState.metaData())
+                        .version(clusterState.metaData().version() + 1)
+                        .remove("deleted")
+                        .put(IndexMetaData.builder("updated")
+                            .settings(Settings.builder()
+                                .put(clusterState.metaData().index("updated").getSettings())
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)))
+                        .put(IndexMetaData.builder("added")
+                            .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
+                            .settings(Settings.builder()
+                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .put(IndexMetaData.SETTING_INDEX_UUID, addedIndexUuid))))
+                    .incrementVersion().build());
+            }
+
+            try (CoordinationState.PersistedState persistedState = loadPersistedState(persistedStateFactory)) {
+                final ClusterState clusterState = persistedState.getLastAcceptedState();
+
+                assertThat(clusterState.metaData().indices().size(), equalTo(2));
+                assertThat(clusterState.metaData().index("updated").getIndexUUID(), equalTo(updatedIndexUuid));
+                assertThat(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(clusterState.metaData().index("updated").getSettings()),
+                    equalTo(2));
+                assertThat(clusterState.metaData().index("added").getIndexUUID(), equalTo(addedIndexUuid));
+                assertThat(clusterState.metaData().index("deleted"), nullValue());
             }
         }
     }

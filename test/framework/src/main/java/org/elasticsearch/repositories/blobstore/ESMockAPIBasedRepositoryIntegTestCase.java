@@ -192,10 +192,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             try {
                 handler.handle(exchange);
             } catch (final Exception e) {
-                String request = exchange.getRemoteAddress().toString()
-                    + " " + exchange.getRequestMethod()
-                    + " " + exchange.getRequestURI();
-                logger.error("Exception when handling request {}", request, e);
+                logger.error("Exception when handling request {} {} {}",
+                    exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI(), e);
                 throw e;
             }
         };

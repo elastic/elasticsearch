@@ -19,7 +19,8 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -39,7 +40,8 @@ public class ResizeResponse extends ShardsAcknowledgedResponse {
         true, args -> new ResizeResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
 
     static {
-        declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
+        PARSER.declareBoolean(constructorArg(), new ParseField(AcknowledgedResponse.PARSE_FIELD_NAME));
+        PARSER.declareBoolean(constructorArg(), new ParseField(SHARDS_PARSE_FIELD_NAME));
         PARSER.declareField(constructorArg(), (parser, context) -> parser.textOrNull(), INDEX, ObjectParser.ValueType.STRING_OR_NULL);
     }
 

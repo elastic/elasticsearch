@@ -33,7 +33,7 @@ public class ResizeRequestTests extends AbstractRequestTestCase<ResizeRequest,
     @Override
     protected ResizeRequest createClientTestInstance() {
         return new ResizeRequest("target", "source")
-            .addAliases(Arrays.asList(new Alias("target1"), new Alias("target2")))
+            .setAliases(Arrays.asList(new Alias("target1"), new Alias("target2")))
             .setSettings(Settings.builder().put("index.foo", "bar").build());
     }
 

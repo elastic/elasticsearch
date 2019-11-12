@@ -639,7 +639,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             if (ESTestCase.randomBoolean()) {
                 int count = randomIntBetween(0, 2);
                 for (int i = 0; i < count; i++) {
-                    resizeRequest.addAlias(randomAlias());
+                    resizeRequest.setAliases(List.of(randomAlias()));
                 }
             }
         }

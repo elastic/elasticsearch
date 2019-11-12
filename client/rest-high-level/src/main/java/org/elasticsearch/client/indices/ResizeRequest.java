@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -45,30 +46,43 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
     private Settings settings = Settings.EMPTY;
     private Set<Alias> aliases = new HashSet<>();
 
+    /**
+     * Creates a new resize request
+     * @param targetIndex   the new index to create with resized shards
+     * @param sourceIndex   the index to resize
+     */
     public ResizeRequest(String targetIndex, String sourceIndex) {
-        this.targetIndex = targetIndex;
-        this.sourceIndex = sourceIndex;
+        this.targetIndex = Objects.requireNonNull(targetIndex);
+        this.sourceIndex = Objects.requireNonNull(sourceIndex);
     }
 
+    /**
+     * Sets the Settings to be used on the target index
+     */
     public ResizeRequest setSettings(Settings settings) {
         this.settings = settings;
         return this;
     }
 
+    /**
+     * Returns the Settings to be used on the target index
+     */
     public Settings getSettings() {
         return this.settings;
     }
 
-    public ResizeRequest addAlias(Alias alias) {
-        this.aliases.add(alias);
-        return this;
-    }
-
-    public ResizeRequest addAliases(List<Alias> aliases) {
+    /**
+     * Sets the Aliases to be used on the target index
+     */
+    public ResizeRequest setAliases(List<Alias> aliases) {
+        this.aliases.clear();
         this.aliases.addAll(aliases);
         return this;
     }
 
+    /**
+     * Returns the Aliases to be used on the target index
+     */
     public Set<Alias> getAliases() {
         return Collections.unmodifiableSet(this.aliases);
     }
@@ -76,18 +90,15 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
     @Override
     public Optional<ValidationException> validate() {
         ValidationException validationException = new ValidationException();
-        if (sourceIndex == null) {
-            validationException.addValidationError("source index is missing");
-        }
-        if (targetIndex == null) {
-            validationException.addValidationError("target index is missing");
-        }
         if (settings.getByPrefix("index.sort.").isEmpty() == false) {
             validationException.addValidationError("can't override index sort when resizing an index");
         }
         return validationException.validationErrors().isEmpty() ? Optional.empty() : Optional.of(validationException);
     }
 
+    /**
+     * Returns the target index name
+     */
     public String getTargetIndex() {
         return targetIndex;
     }

@@ -13,9 +13,11 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -116,15 +118,17 @@ public class TransportFollowStatsAction extends TransportTasksAction<
         if (persistentTasksMetaData == null) {
             return Collections.emptySet();
         }
-
+        final MetaData metaData = state.metaData();
         final Set<String> requestedFollowerIndices = indices != null ?
             new HashSet<>(Arrays.asList(indices)) : Collections.emptySet();
         return persistentTasksMetaData.tasks().stream()
             .filter(persistentTask -> persistentTask.getTaskName().equals(ShardFollowTask.NAME))
             .map(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
-                return shardFollowTask.getFollowShardId().getIndexName();
+                return shardFollowTask.getFollowShardId().getIndex();
             })
+            .filter(followerIndex -> metaData.index(followerIndex) != null) // hide tasks that are orphaned (see ShardFollowTaskCleaner)
+            .map(Index::getName)
             .filter(followerIndex -> Strings.isAllOrWildcard(indices) || requestedFollowerIndices.contains(followerIndex))
             .collect(Collectors.toSet());
     }

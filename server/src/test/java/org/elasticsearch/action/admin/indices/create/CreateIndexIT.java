@@ -148,7 +148,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject()
                         .startObject("type2").endObject()
                     .endObject()).get());
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: Root mapping definition has unsupported parameters"));
+        assertThat(e.getMessage(), startsWith("Failed to parse mapping: Root mapping definition has unsupported parameters"));
     }
 
     public void testEmptyMappings() throws Exception {

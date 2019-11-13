@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
@@ -31,9 +32,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.index.reindex.ReindexIndexClient.REINDEX_INDEX;
+
 public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
-    private static final int MAX_ASSIGNMENT_ATTEMPTS = 10;
     private static final long ONE_MINUTE_IN_MILLIS = TimeValue.timeValueMinutes(1).getMillis();
     private static final long THIRTY_MINUTES_IN_MILLIS = TimeValue.timeValueMinutes(30).millis();
 
@@ -41,13 +43,12 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
     private final ReindexIndexClient reindexIndexClient;
     private final ThreadPool threadPool;
-    private final String persistentTaskId;
+    private final String taskId;
     private final long allocationId;
     private final ActionListener<ReindexTaskStateDoc> finishedListener;
     private final Runnable onCheckpointAssignmentConflict;
     private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
 
-    private int assignmentAttempts = 0;
     private ReindexTaskState lastState;
     private AtomicBoolean isDone = new AtomicBoolean();
 
@@ -55,15 +56,18 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                                    ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCheckpointAssignmentConflict) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
-        this.persistentTaskId = persistentTaskId;
+        this.taskId = persistentTaskId;
         this.allocationId = allocationId;
         this.finishedListener = finishedListener;
         this.onCheckpointAssignmentConflict = onCheckpointAssignmentConflict;
     }
 
     public void assign(ActionListener<ReindexTaskStateDoc> listener) {
-        ++assignmentAttempts;
-        reindexIndexClient.getReindexTaskDoc(persistentTaskId, new ActionListener<>() {
+        assign(listener, TimeValue.ZERO);
+    }
+
+    private void assign(ActionListener<ReindexTaskStateDoc> listener, TimeValue delay) {
+        reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {
                 long term = taskState.getPrimaryTerm();
@@ -73,7 +77,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 assert oldDoc.getAllocationId() == null || allocationId != oldDoc.getAllocationId();
                 if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
                     ReindexTaskStateDoc newDoc = oldDoc.withNewAllocation(allocationId);
-                    reindexIndexClient.updateReindexTaskDoc(persistentTaskId, newDoc, term, seqNo, new ActionListener<>() {
+                    reindexIndexClient.updateReindexTaskDoc(taskId, newDoc, term, seqNo, new ActionListener<>() {
                         @Override
                         public void onResponse(ReindexTaskState newTaskState) {
                             assert checkpointThrottler == null;
@@ -87,38 +91,33 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
                         @Override
                         public void onFailure(Exception ex) {
+                            // TODO: Perhaps add external cancel functionality that will halt the updating process.
                             if (ex instanceof VersionConflictEngineException) {
                                 // There has been an indexing operation since the GET operation. Try
                                 // again if there are assignment attempts left.
-                                // TODO: Perhaps add external cancel functionality that will halts the updating process.
-                                if (assignmentAttempts < MAX_ASSIGNMENT_ATTEMPTS) {
-                                    int nextAttempt = assignmentAttempts + 1;
-                                    logger.debug("Attempting to retry reindex task assignment write. Attempt number " + nextAttempt);
-                                    assign(listener);
-                                } else {
-                                    String message = "Failed to write allocation id to reindex task doc after " + MAX_ASSIGNMENT_ATTEMPTS
-                                        + "retry attempts";
-                                    logger.info(message, ex);
-                                    listener.onFailure(new ElasticsearchException(message, ex));
-                                }
+                                logger.debug(new ParameterizedMessage("Failed to write to {} index on ASSIGNMENT due to version " +
+                                    "conflict, retrying now [task-id={}]", REINDEX_INDEX, taskId), ex);
+                                assign(listener, delay);
                             } else {
-                                String message = "Failed to write allocation id to reindex task doc";
-                                logger.info(message, ex);
-                                listener.onFailure(new ElasticsearchException(message, ex));
+                                TimeValue nextDelay = getNextDelay(delay);
+                                logger.info(new ParameterizedMessage("Failed to write to {} index on ASSIGNMENT, retrying in {} " +
+                                    "[task-id={}]", REINDEX_INDEX, nextDelay, taskId), ex);
+                                threadPool.schedule(() -> assign(listener, nextDelay), nextDelay, ThreadPool.Names.SAME);
                             }
                         }
                     });
                 } else {
-                    ElasticsearchException ex = new ElasticsearchException("A newer task has already been allocated");
-                    listener.onFailure(ex);
+                    logger.info(new ParameterizedMessage("Failed to write ASSIGNMENT due to newer allocation, will not retry"));
+                    listener.onFailure(new ElasticsearchException("A newer task has already been allocated"));
                 }
             }
 
             @Override
             public void onFailure(Exception ex) {
-                String message = "Failed to fetch reindex task doc";
-                logger.info(message, ex);
-                listener.onFailure(new ElasticsearchException(message, ex));
+                TimeValue nextDelay = getNextDelay(delay);
+                logger.info(new ParameterizedMessage("Failed to read from {} index on ASSIGNMENT, retrying in {} [task-id={}]",
+                    REINDEX_INDEX, nextDelay, taskId), ex);
+                threadPool.schedule(() -> assign(listener, nextDelay), nextDelay, ThreadPool.Names.SAME);
             }
         });
     }
@@ -134,7 +133,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
         ReindexTaskStateDoc nextState = lastState.getStateDoc().withCheckpoint(checkpoint, status);
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
-        reindexIndexClient.updateReindexTaskDoc(persistentTaskId, nextState, term, seqNo, new ActionListener<>() {
+        reindexIndexClient.updateReindexTaskDoc(taskId, nextState, term, seqNo, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {
                 lastState = taskState;
@@ -144,12 +143,44 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof VersionConflictEngineException) {
-                    // TODO: Need to ensure that the allocation has changed
-                    if (isDone.compareAndSet(false, true)) {
-                        onCheckpointAssignmentConflict.run();
-                    }
+                    logger.debug(new ParameterizedMessage("Failed to write to {} index on CHECKPOINT due to version conflict, " +
+                        "verifying allocation now [task-id={}]", REINDEX_INDEX, taskId), e);
+                    reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
+                        @Override
+                        public void onResponse(ReindexTaskState reindexTaskState) {
+                            ReindexTaskStateDoc doc = reindexTaskState.getStateDoc();
+                            assert doc.getAllocationId() != null && doc.getAllocationId() >= allocationId;
+                            if (allocationId != doc.getAllocationId()) {
+                                // There has been a newer allocation, stop reindexing.
+                                if (isDone.compareAndSet(false, true)) {
+                                    logger.info("After allocation verification, allocation is not valid. Reindexing will be halted " +
+                                        "[task-id={}]", taskId);
+                                    onCheckpointAssignmentConflict.run();
+                                }
+                            } else {
+                                lastState = reindexTaskState;
+                                logger.info("After allocation verification, allocation still valid");
+                            }
+                            // Proceed regardless of whether the allocation is valid or not. If it is invalid,
+                            // onCheckpointAssignmentConflict will stop the reindexing. If it is valid, we
+                            // will try again on the next checkpoint.
+                            whenDone.run();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // Unable to read from index. Just proceed and try again on the next checkpoint.
+                            logger.info(new ParameterizedMessage("Failed to read from {} index on CHECKPOINT [task-id={}]",
+                                REINDEX_INDEX, taskId), e);
+                            whenDone.run();
+                        }
+                    });
+                } else {
+                    logger.info(new ParameterizedMessage("Failed to write to {} index on CHECKPOINT [task-id={}]", REINDEX_INDEX, taskId),
+                        e);
+                    // Failed to write for other reason. Proceed and try again on the next checkpoint.
+                    whenDone.run();
                 }
-                whenDone.run();
             }
         });
     }
@@ -167,18 +198,50 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
 
-        reindexIndexClient.updateReindexTaskDoc(persistentTaskId, state, term, seqNo, new ActionListener<>() {
+        reindexIndexClient.updateReindexTaskDoc(taskId, state, term, seqNo, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {
+                lastState = taskState;
                 finishedListener.onResponse(taskState.getStateDoc());
-
             }
 
             @Override
             public void onFailure(Exception e) {
-                // TODO: Need to ensure that the allocation has changed
-                if (e instanceof VersionConflictEngineException == false) {
+                if (e instanceof VersionConflictEngineException) {
+                    logger.debug(new ParameterizedMessage("Failed to write to {} index on FINISHED due to version conflict, " +
+                            "verifying allocation now [task-id={}]", REINDEX_INDEX, taskId), e);
+                    reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
+                        @Override
+                        public void onResponse(ReindexTaskState reindexTaskState) {
+                            lastState = reindexTaskState;
+                            ReindexTaskStateDoc doc = reindexTaskState.getStateDoc();
+                            assert doc.getAllocationId() != null && doc.getAllocationId() >= allocationId;
+                            // If allocation is still valid, try finished write again with no delay. If the
+                            // allocation is not valid, do nothing. The process is already halted.
+                            if (allocationId == doc.getAllocationId()) {
+                                logger.debug("After allocation verification, allocation still valid. Retrying FINISHED now [task-id={}]",
+                                    taskId);
+                                writeFinishedState(reindexResponse, exception, delay);
+                            } else {
+                                logger.info("After allocation verification, allocation is not valid. Will not retry FINISHED [task-id={}]",
+                                    taskId);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // Unable to read from index. Backoff and try again.
+                            TimeValue nextDelay = getNextDelay(delay);
+                            logger.info(new ParameterizedMessage("Failed to read from {} index on FINISHED, retrying in {}",
+                                REINDEX_INDEX, nextDelay), e);
+                            threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay,
+                                ThreadPool.Names.SAME);
+                        }
+                    });
+                } else {
                     TimeValue nextDelay = getNextDelay(delay);
+                    logger.info(new ParameterizedMessage("Failed to write to {} index on FINISHED, retrying in {} [task-id={}]",
+                        REINDEX_INDEX, nextDelay, taskId), e);
                     threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay, ThreadPool.Names.SAME);
                 }
             }

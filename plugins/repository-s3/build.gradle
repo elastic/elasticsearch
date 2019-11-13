@@ -51,6 +51,8 @@ dependencies {
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell 
   compile 'javax.xml.bind:jaxb-api:2.2.2'
+
+  testCompile project(':test:fixtures:minio-fixture')
 }
 
 dependencyLicenses {
@@ -106,10 +108,10 @@ boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParam
 // credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
-  s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
-  s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
-  s3PermanentBucket = 'permanent-bucket-test'
-  s3PermanentBasePath = 'integration_test'
+  s3PermanentAccessKey = 'access_key'
+  s3PermanentSecretKey = 'secret_key'
+  s3PermanentBucket = 'bucket'
+  s3PermanentBasePath = ''
 
   useFixture = true
 
@@ -148,25 +150,10 @@ task thirdPartyTest(type: Test) {
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
 
-  testFixtures.useFixture()
-
-  task writeDockerFile {
-    File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
-    outputs.file(minioDockerfile)
-    doLast {
-      minioDockerfile.parentFile.mkdirs()
-      minioDockerfile.text = "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-              "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-              "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-              "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
-    }
-  }
-  preProcessFixture {
-    dependsOn(writeDockerFile)
-  }
+  testFixtures.useFixture(':test:fixtures:minio-fixture')
 
   def minioAddress = {
-    int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+    int minioPort = project(':test:fixtures:minio-fixture').postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
     assert minioPort > 0
     'http://127.0.0.1:' + minioPort
   }
@@ -179,13 +166,13 @@ if (useFixture) {
   }
 
   thirdPartyTest {
-    dependsOn tasks.bundlePlugin, tasks.postProcessFixture
+    dependsOn tasks.bundlePlugin
     nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
   }
 
   task integTestMinio(type: RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
-    dependsOn tasks.bundlePlugin, tasks.postProcessFixture
+    dependsOn tasks.bundlePlugin
     runner {
       // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
       systemProperty 'tests.rest.blacklist', [

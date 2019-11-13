@@ -26,6 +26,7 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,14 +49,18 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     private static final IngestPlugin SKINNY_PLUGIN = new IngestPlugin() {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+            XPackLicenseState licenseState = mock(XPackLicenseState.class);
+            when(licenseState.isMachineLearningAllowed()).thenReturn(true);
             return Collections.singletonMap(InferenceProcessor.TYPE,
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
                     Settings.EMPTY,
-                    parameters.ingestService));
+                    parameters.ingestService,
+                    licenseState));
         }
     };
     private Client client;
+    private XPackLicenseState licenseState;
     private ClusterService clusterService;
     private IngestService ingestService;
 
@@ -69,12 +74,18 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         ingestService = new IngestService(clusterService, tp, null, null,
             null, Collections.singletonList(SKINNY_PLUGIN), client);
+        licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
     }
 
     public void testNumInferenceProcessors() throws Exception {
         MetaData metaData = null;
 
-        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY, ingestService);
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
+            clusterService,
+            Settings.EMPTY,
+            ingestService,
+            licenseState);
         processorFactory.accept(buildClusterState(metaData));
 
         assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
@@ -91,7 +102,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.builder().put(InferenceProcessor.MAX_INFERENCE_PROCESSORS.getKey(), 1).build(),
-            ingestService);
+            ingestService,
+            licenseState);
 
         processorFactory.accept(buildClusterStateWithModelReferences("model1"));
 
@@ -106,7 +118,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.EMPTY,
-            ingestService);
+            ingestService,
+            licenseState);
 
         Map<String, Object> config = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
@@ -147,7 +160,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.EMPTY,
-            ingestService);
+            ingestService,
+            licenseState);
         processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
 
         Map<String, Object> regression = new HashMap<>() {{
@@ -190,7 +204,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.EMPTY,
-            ingestService);
+            ingestService,
+            licenseState);
 
         Map<String, Object> regression = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());

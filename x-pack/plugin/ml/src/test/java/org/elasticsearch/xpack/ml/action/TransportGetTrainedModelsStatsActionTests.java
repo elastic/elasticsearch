@@ -25,6 +25,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,11 +81,14 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> factoryMap = new HashMap<>();
+            XPackLicenseState licenseState = mock(XPackLicenseState.class);
+            when(licenseState.isMachineLearningAllowed()).thenReturn(true);
             factoryMap.put(InferenceProcessor.TYPE,
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
                     Settings.EMPTY,
-                    parameters.ingestService));
+                    parameters.ingestService,
+                    licenseState));
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
 

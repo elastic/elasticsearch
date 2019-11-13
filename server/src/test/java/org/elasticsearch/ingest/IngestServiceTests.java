@@ -1109,7 +1109,7 @@ public class IngestServiceTests extends ESTestCase {
 
         PipelineProcessor pipelineProcessor = mock(PipelineProcessor.class);
         String pipelineName = randomAlphaOfLength(10);
-        when(pipelineProcessor.getPipelineName()).thenReturn(pipelineName);
+        when(pipelineProcessor.getPipelineName()).thenReturn(new TestTemplateService.MockTemplateScript.Factory(pipelineName));
         name = PipelineProcessor.TYPE;
         when(pipelineProcessor.getType()).thenReturn(name);
         assertThat(IngestService.getProcessorName(pipelineProcessor), equalTo(name + ":" + pipelineName));

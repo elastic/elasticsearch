@@ -19,6 +19,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -37,7 +38,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
     public void testExecutesPipeline() throws Exception {
         String pipelineId = "pipeline";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         CompletableFuture<IngestDocument> invoked = new CompletableFuture<>();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Pipeline pipeline = new Pipeline(
@@ -69,7 +70,7 @@ public class PipelineProcessorTests extends ESTestCase {
     }
 
     public void testThrowsOnMissingPipeline() throws Exception {
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
@@ -85,7 +86,7 @@ public class PipelineProcessorTests extends ESTestCase {
     public void testThrowsOnRecursivePipelineInvocations() throws Exception {
         String innerPipelineId = "inner";
         String outerPipelineId = "outer";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
         outerConfig.put("name", innerPipelineId);
@@ -113,7 +114,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
     public void testAllowsRepeatedPipelineInvocations() throws Exception {
         String innerPipelineId = "inner";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
         outerConfig.put("name", innerPipelineId);
@@ -131,7 +132,7 @@ public class PipelineProcessorTests extends ESTestCase {
         String pipeline1Id = "pipeline1";
         String pipeline2Id = "pipeline2";
         String pipeline3Id = "pipeline3";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         Map<String, Object> pipeline1ProcessorConfig = new HashMap<>();
@@ -202,5 +203,12 @@ public class PipelineProcessorTests extends ESTestCase {
         assertThat(pipeline1Stats.getIngestFailedCount(), equalTo(0L));
         assertThat(pipeline2Stats.getIngestFailedCount(), equalTo(0L));
         assertThat(pipeline3Stats.getIngestFailedCount(), equalTo(1L));
+    }
+
+    private static IngestService createIngestService() {
+        IngestService ingestService = mock(IngestService.class);
+        ScriptService scriptService = mock(ScriptService.class);
+        when(ingestService.getScriptService()).thenReturn(scriptService);
+        return ingestService;
     }
 }

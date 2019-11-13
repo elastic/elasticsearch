@@ -27,7 +27,7 @@ integTest.runner {
    */
   if (System.getProperty("tests.rest.cluster") == null) {
     nonInputProperties.systemProperty 'tests.logfile',
-      "${ -> testClusters.integTest.singleNode().getServerLog()}"
+      "${-> testClusters.integTest.singleNode().getServerLog()}"
   } else {
     systemProperty 'tests.logfile', '--external--'
   }

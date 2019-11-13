@@ -347,7 +347,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                 = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
-                    return new FilterDirectory(new SimpleFSDirectory(path)) {
+                    return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public IndexOutput createOutput(String name, IOContext context) throws IOException {
                             if (throwException.get()) {
@@ -384,7 +384,7 @@ public class LucenePersistedStateFactoryTests extends ESTestCase {
                 = new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
-                    return new FilterDirectory(new SimpleFSDirectory(path)) {
+                    return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public void sync(Collection<String> names) throws IOException {
                             if (throwException.get() && names.stream().anyMatch(n -> n.startsWith("pending_segments_"))) {

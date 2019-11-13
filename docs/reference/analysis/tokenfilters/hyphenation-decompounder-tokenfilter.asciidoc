@@ -73,7 +73,7 @@ list are excluded from the token output.
 You can use the <<analysis-dict-decomp-tokenfilter,`dictionary_decompounder`>>
 filter to test the quality of word lists before implementing them.
 
-Either this or the `word_list_path` parameter is required.
+Either this parameter or `word_list_path` must be specified.
 --
 
 `word_list_path`::

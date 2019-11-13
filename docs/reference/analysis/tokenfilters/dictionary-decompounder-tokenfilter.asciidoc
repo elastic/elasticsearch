@@ -25,7 +25,7 @@ which was built for Germanic languages.
 
 The following <<indices-analyze,analyze API>> request uses the
 `dictionary_decompounder` filter to find subwords in `Donaudampfschiff`. The
-filter then checks these subwords against a specified list of words: `Donau`,
+filter then checks these subwords against the specified list of words: `Donau`,
 `dampf`, `meer`, and `schiff`.
 
 [source,console]

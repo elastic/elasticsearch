@@ -16,5 +16,5 @@ To enable enable audit logging:
 . Set `xpack.security.audit.enabled` to `true` in `elasticsearch.yml`.
 . Restart {es}.
 
-When audit logging is enabled, <<audit-event-type, security events>> are persisted to 
+When audit logging is enabled, <<audit-event-types, security events>> are persisted to 
 a dedicated `<clustername>_audit.json` file on the host's file system (on each node).

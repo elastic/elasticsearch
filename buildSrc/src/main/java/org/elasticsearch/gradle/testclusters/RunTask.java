@@ -11,10 +11,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class RunTask extends DefaultTestClustersTask {
@@ -69,16 +67,15 @@ public class RunTask extends DefaultTestClustersTask {
 
     @TaskAction
     public void runAndWait() throws IOException {
-        List<Closeable> toClose = new ArrayList<>();
+        List<BufferedReader> toRead = new ArrayList<>();
         try {
-            Set<BufferedReader> toRead = new HashSet<>();
             for (ElasticsearchCluster cluster : getClusters()) {
                 for (ElasticsearchNode node : cluster.getNodes()) {
                     BufferedReader reader = Files.newBufferedReader(node.getEsStdoutFile());
-                    toClose.add(reader);
                     toRead.add(reader);
                 }
             }
+
             while (Thread.currentThread().isInterrupted() == false) {
                 boolean readData = false;
                 for (BufferedReader bufferedReader : toRead) {
@@ -104,7 +101,7 @@ public class RunTask extends DefaultTestClustersTask {
             }
         } finally {
             Exception thrown = null;
-            for (Closeable closeable : toClose) {
+            for (Closeable closeable : toRead) {
                 try {
                     closeable.close();
                 } catch (Exception e) {

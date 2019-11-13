@@ -498,8 +498,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                     createLeaderIndex(leaderIndex, leaderIndexSettings);
                     ensureLeaderGreen(leaderIndex);
                     if (pausedAutoFollowerPatterns.stream().noneMatch(pattern -> pattern.startsWith(prefix))) {
-                        final String followingIndex = "copy-" + leaderIndex;
-                        assertBusy(() -> assertTrue(ESIntegTestCase.indexExists(followingIndex, followerClient())));
+                        ensureFollowerGreen("copy-" + leaderIndex);
                     } else {
                         Thread.sleep(200L);
                     }

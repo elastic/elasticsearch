@@ -89,7 +89,7 @@ be UTF-8 encoded. Each token in the file must be separated by a line break.
 You can use the <<analysis-dict-decomp-tokenfilter,`dictionary_decompounder`>>
 filter to test the quality of word lists before implementing them.
 
-Either this or the `word_list` parameter is required.
+Either this parameter or `word_list` must be specified.
 --
 
 `max_subword_size`::

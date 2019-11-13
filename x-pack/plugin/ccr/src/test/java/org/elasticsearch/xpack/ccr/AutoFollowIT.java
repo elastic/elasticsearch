@@ -527,7 +527,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // wait for more leader indices to be created on the remote cluster
         assertBusy(() -> assertThat(leaderIndices.get(), greaterThanOrEqualTo(9)));
-        assertBusy(() -> assertThat(getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), greaterThanOrEqualTo(9L)));
+        assertBusy(() -> assertThat(getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), greaterThanOrEqualTo(9L)),
+            30L, TimeUnit.SECONDS);
 
         running.set(false);
         createNewLeaderIndicesThread.join();

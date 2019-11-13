@@ -124,7 +124,7 @@ uses a custom `hyphenation_decompounder` filter to configure a new
 
 The custom `hyphenation_decompounder` filter find subwords based on hyphenation
 patterns in the `analysis/hyphenation_patterns.xml` file. The filter then checks
-these subwords against a provided list of words in the
+these subwords against the list of words specified in the
 `analysis/example_word_list.txt` file. Subwords longer than 22 characters are
 excluded from the token output.
 

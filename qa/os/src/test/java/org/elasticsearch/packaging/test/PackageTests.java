@@ -356,7 +356,7 @@ public class PackageTests extends PackagingTestCase {
         });
     }
 
-    private void withCustomConfig(CheckedRunnable runnable) throws Exception {
+    private <E extends Exception> void withCustomConfig(CheckedRunnable<E> runnable) throws Exception {
         assumeTrue(isSystemd());
 
         assertPathsExist(installation.envFile);

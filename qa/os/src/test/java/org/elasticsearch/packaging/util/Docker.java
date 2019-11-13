@@ -410,7 +410,7 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
     }
 
-    private static void withLogging(CheckedRunnable r) throws Exception {
+    private static <E extends Exception> void withLogging(CheckedRunnable<E> r) throws Exception {
         try {
             r.run();
         } catch (Exception e) {

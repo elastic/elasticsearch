@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -119,24 +120,17 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     public double getEntropy() {
-        double sum = 0.0;
-        double compensation = 0.0;
+        // Compute the sum of double values with Kahan summation algorithm which is more
+        // accurate than naive summation.
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
         for (double p : getDistribution().values()) {
             if (p > 0) {
-                // Compute the sum of double values with Kahan summation algorithm which is more
-                // accurate than naive summation.
                 double value = p * log2(p);
-                if (Double.isFinite(value) == false) {
-                    sum += value;
-                } else if (Double.isFinite(sum)) {
-                    double corrected = value - compensation;
-                    double newSum = sum + corrected;
-                    compensation = (newSum - sum) - corrected;
-                    sum = newSum;
-                }
+                kahanSummation.add(value);
             }
         }
-        return -sum;
+        return -kahanSummation.value();
     }
 
     /**

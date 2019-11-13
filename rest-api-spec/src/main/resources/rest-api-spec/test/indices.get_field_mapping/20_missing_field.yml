@@ -17,3 +17,4 @@
         fields: not_existent
 
   - match: { 'test_index.mappings': {}}
+

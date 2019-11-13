@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCase<GetFieldMappingsResponse> {
 
@@ -48,6 +51,28 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
                 assertEquals(new BytesArray("{}"), metaData.getSource());
             }
         }
+    }
+
+    public void testNullFieldMappingToXContent() {
+        Map<String, Map<String, FieldMappingMetaData>> mappings = new HashMap<>();
+        mappings.put("index", Collections.singletonMap("field", FieldMappingMetaData.NULL));
+        GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
+        assertEquals("{\"index\":{\"mappings\":{}}}", Strings.toString(response));
+    }
+
+    public void testMixedNullAndPresentFieldMappingToXContent() {
+        Map<String, Map<String, FieldMappingMetaData>> mappings = new HashMap<>();
+        mappings.put("index", Map.of("field", FieldMappingMetaData.NULL,
+            "field1", new FieldMappingMetaData("field1", new BytesArray("{\"type\":\"string\"}"))));
+        mappings.put("index2", Map.of("field", new FieldMappingMetaData("field", new BytesArray("{}"))));
+        mappings.put("index3", Map.of("field", FieldMappingMetaData.NULL));
+        GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
+        String respAsString = Strings.toString(response);
+        assertThat(respAsString, containsString("\"index3\":{\"mappings\":{}}"));
+        assertThat(respAsString,
+            containsString("\"index\":{\"mappings\":{\"field1\":{\"full_name\":\"field1\",\"mapping\":{\"type\":\"string\"}}}}"));
+        assertThat(respAsString,
+            containsString("\"index2\":{\"mappings\":{\"field\":{\"full_name\":\"field\",\"mapping\":{}}}}"));
     }
 
     @Override

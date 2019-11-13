@@ -105,7 +105,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
+        builder.startObject();
         for (Map.Entry<String, Map<String, FieldMappingMetaData>> indexEntry : mappings.entrySet()) {
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
@@ -125,9 +125,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                                            Params params,
                                            Map<String, FieldMappingMetaData> mappings) throws IOException {
         for (Map.Entry<String, FieldMappingMetaData> fieldEntry : mappings.entrySet()) {
-            builder.startObject(fieldEntry.getKey());
-            fieldEntry.getValue().toXContent(builder, params);
-            builder.endObject();
+            if (fieldEntry.getValue().isNull() == false) {
+                builder.startObject(fieldEntry.getKey());
+                fieldEntry.getValue().toXContent(builder, params);
+                builder.endObject();
+            }
         }
     }
 

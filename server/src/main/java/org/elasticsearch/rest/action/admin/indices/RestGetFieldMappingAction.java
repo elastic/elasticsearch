@@ -67,12 +67,13 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                     @Override
                     public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
                         Map<String, Map<String, FieldMappingMetaData>> mappingsByIndex = response.mappings();
-                        
+
                         RestStatus status = OK;
                         if (mappingsByIndex.isEmpty() && fields.length > 0) {
                             status = NOT_FOUND;
                         }
                         response.toXContent(builder, request);
+                        logger.warn(Strings.toString(response));
                         return new BytesRestResponse(status, builder);
                     }
                 });

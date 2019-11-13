@@ -748,8 +748,22 @@ public final class HyperLogLogPlusPlus implements Releasable {
                     -527.016999999993, -664.681000000099, -680.306000000099, -704.050000000047, -850.486000000034, -757.43200000003,
                     -713.308999999892, } };
 
-    private static final long[] THRESHOLDS = new long[] { 10, 20, 40, 80, 220, 400, 900, 1800, 3100, 6500, 11500, 20000, 50000, 120000,
-            350000 };
+    private static final long[] THRESHOLDS = new long[] {
+        10,
+        20,
+        40,
+        80,
+        220,
+        400,
+        900,
+        1800,
+        3100,
+        6500,
+        11500,
+        20000,
+        50000,
+        120000,
+        350000 };
 
     private final BigArrays bigArrays;
     private final OpenBitSet algorithm;
@@ -773,15 +787,15 @@ public final class HyperLogLogPlusPlus implements Releasable {
         hashSet = new Hashset(initialBucketCount);
         final double alpha;
         switch (p) {
-        case 4:
-            alpha = 0.673;
-            break;
-        case 5:
-            alpha = 0.697;
-            break;
-        default:
-            alpha = 0.7213 / (1 + 1.079 / m);
-            break;
+            case 4:
+                alpha = 0.673;
+                break;
+            case 5:
+                alpha = 0.697;
+                break;
+            default:
+                alpha = 0.7213 / (1 + 1.079 / m);
+                break;
         }
         alphaMM = alpha * m * m;
     }
@@ -1050,8 +1064,8 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
     public boolean equals(long bucket, HyperLogLogPlusPlus other) {
         return Objects.equals(p, other.p)
-                && Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket))
-                && Objects.equals(getComparableData(bucket), other.getComparableData(bucket));
+            && Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket))
+            && Objects.equals(getComparableData(bucket), other.getComparableData(bucket));
     }
 
     /**

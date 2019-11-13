@@ -109,7 +109,7 @@ public abstract class ScoreScript {
     }
 
     /** The doc lookup for the Lucene segment this script was created for. */
-    public final Map<String, ScriptDocValues<?>> getDoc() {
+    public Map<String, ScriptDocValues<?>> getDoc() {
         return leafLookup.doc();
     }
 

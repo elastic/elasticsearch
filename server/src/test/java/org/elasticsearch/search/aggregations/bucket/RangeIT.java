@@ -109,7 +109,7 @@ public class RangeIT extends ESIntegTestCase {
         createIndex("idx_unmapped");
         prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").get();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder()
                     .startObject()
                     // shift sequence by 1, to ensure we have negative values, and value 3 on the edge of the tested ranges
                     .field(SINGLE_VALUED_FIELD_NAME, i * 2 - 1)
@@ -953,8 +953,8 @@ public class RangeIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true,
-                client().prepareIndex("cache_test_idx", "type", "1").setSource(jsonBuilder().startObject().field("i", 1).endObject()),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource(jsonBuilder().startObject().field("i", 2).endObject()));
+                client().prepareIndex("cache_test_idx").setId("1").setSource(jsonBuilder().startObject().field("i", 1).endObject()),
+                client().prepareIndex("cache_test_idx").setId("2").setSource(jsonBuilder().startObject().field("i", 2).endObject()));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

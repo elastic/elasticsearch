@@ -116,7 +116,7 @@ public class TransportGetFieldMappingsIndexAction
 
         Map<String, Map<String, FieldMappingMetaData>> typeMappings = new HashMap<>();
         for (String type : typeIntersection) {
-            DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
+            DocumentMapper documentMapper = indexService.mapperService().documentMapper();
             Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(fieldPredicate, documentMapper, request);
             if (!fieldMapping.isEmpty()) {
                 typeMappings.put(type, fieldMapping);

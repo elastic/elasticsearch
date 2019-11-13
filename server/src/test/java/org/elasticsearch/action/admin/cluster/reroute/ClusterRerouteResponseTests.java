@@ -82,8 +82,10 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "        \"attributes\" : { }\n" +
                     "      }\n" +
                     "    },\n" +
-                    "    \"metadata\" : {\n" +
+                    "    \"meta-data\" : {\n" +
+                    "      \"version\" : 0,\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_uuid_committed\" : false,\n" +
                     "      \"cluster_coordination\" : {\n" +
                     "        \"term\" : 0,\n" +
                     "        \"last_committed_config\" : [ ],\n" +
@@ -93,28 +95,28 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
+                    "          \"version\" : 1,\n" +
+                    "          \"mapping_version\" : 1,\n" +
+                    "          \"settings_version\" : 1,\n" +
+                    "          \"aliases_version\" : 1,\n" +
+                    "          \"routing_num_shards\" : 1,\n" +
                     "          \"state\" : \"open\",\n" +
                     "          \"settings\" : {\n" +
-                    "            \"index\" : {\n" +
-                    "              \"shard\" : {\n" +
-                    "                \"check_on_startup\" : \"true\"\n" +
-                    "              },\n" +
-                    "              \"number_of_shards\" : \"1\",\n" +
-                    "              \"number_of_replicas\" : \"0\",\n" +
-                    "              \"version\" : {\n" +
-                    "                \"created\" : \"" + Version.CURRENT.id + "\"\n" +
-                    "              },\n" +
-                    "              \"max_script_fields\" : \"10\"\n" +
-                    "            }\n" +
+                    "            \"index.max_script_fields\" : \"10\",\n" +
+                    "            \"index.number_of_replicas\" : \"0\",\n" +
+                    "            \"index.number_of_shards\" : \"1\",\n" +
+                    "            \"index.shard.check_on_startup\" : \"true\",\n" +
+                    "            \"index.version.created\" : \"8000099\"\n" +
                     "          },\n" +
-                    "          \"mappings\" : { },\n" +
-                    "          \"aliases\" : [ ],\n" +
-                    "          \"primary_terms\" : {\n" +
-                    "            \"0\" : 0\n" +
-                    "          },\n" +
+                    "          \"mappings\" : [ ],\n" +
+                    "          \"aliases\" : { },\n" +
+                    "          \"primary_terms\" : [\n" +
+                    "            0\n" +
+                    "          ],\n" +
                     "          \"in_sync_allocations\" : {\n" +
                     "            \"0\" : [ ]\n" +
-                    "          }\n" +
+                    "          },\n" +
+                    "          \"rollover_info\" : { }\n" +
                     "        }\n" +
                     "      },\n" +
                     "      \"index-graveyard\" : {\n" +
@@ -177,8 +179,10 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "  \"acknowledged\" : true,\n" +
                     "  \"state\" : {\n" +
                     "    \"cluster_uuid\" : \"_na_\",\n" +
-                    "    \"metadata\" : {\n" +
+                    "    \"meta-data\" : {\n" +
+                    "      \"version\" : 0,\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_uuid_committed\" : false,\n" +
                     "      \"cluster_coordination\" : {\n" +
                     "        \"term\" : 0,\n" +
                     "        \"last_committed_config\" : [ ],\n" +
@@ -188,23 +192,28 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
+                    "          \"version\" : 1,\n" +
+                    "          \"mapping_version\" : 1,\n" +
+                    "          \"settings_version\" : 1,\n" +
+                    "          \"aliases_version\" : 1,\n" +
+                    "          \"routing_num_shards\" : 1,\n" +
                     "          \"state\" : \"open\",\n" +
                     "          \"settings\" : {\n" +
-                    "            \"index\" : {\n" +
-                    "              \"max_script_fields\" : \"10\",\n" +
-                    "              \"shard\" : {\n" +
-                    "                \"check_on_startup\" : \"true\"\n" +
-                    "              }\n" +
-                    "            }\n" +
+                    "            \"index.max_script_fields\" : \"10\",\n" +
+                    "            \"index.number_of_replicas\" : \"0\",\n" +
+                    "            \"index.number_of_shards\" : \"1\",\n" +
+                    "            \"index.shard.check_on_startup\" : \"true\",\n" +
+                    "            \"index.version.created\" : \"8000099\"\n" +
                     "          },\n" +
-                    "          \"mappings\" : { },\n" +
-                    "          \"aliases\" : [ ],\n" +
-                    "          \"primary_terms\" : {\n" +
-                    "            \"0\" : 0\n" +
-                    "          },\n" +
+                    "          \"mappings\" : [ ],\n" +
+                    "          \"aliases\" : { },\n" +
+                    "          \"primary_terms\" : [\n" +
+                    "            0\n" +
+                    "          ],\n" +
                     "          \"in_sync_allocations\" : {\n" +
                     "            \"0\" : [ ]\n" +
-                    "          }\n" +
+                    "          },\n" +
+                    "          \"rollover_info\" : { }\n" +
                     "        }\n" +
                     "      },\n" +
                     "      \"index-graveyard\" : {\n" +

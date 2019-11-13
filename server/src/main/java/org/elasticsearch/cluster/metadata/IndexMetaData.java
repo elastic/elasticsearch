@@ -1231,9 +1231,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.startObject(KEY_SETTINGS);
             // TODO: this code differs from that in ClusterState.toXContent, and assumes flat_settings = true always. Is this a bug?
             indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
-//          ==== for the above, ClusterState.toXContent has the following ====
-//
-//          indexMetaData.getSettings().toXContent(builder, params);
+/*
+          ==== for the above, ClusterState.toXContent has the following ====
+
+          indexMetaData.getSettings().toXContent(builder, params);
+*/
             builder.endObject();
 
             builder.startArray(KEY_MAPPINGS);
@@ -1246,19 +1248,22 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
             builder.endArray();
 
-//            ==== for the above, ClusterState.toXContent has the following ====
-//
-//            builder.startObject("mappings");
-//            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
-//                Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(cursor.value.source().uncompressed()), false).v2();
-//                if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
-//                    // the type name is the root value, reduce it
-//                    mapping = (Map<String, Object>) mapping.get(cursor.key);
-//                }
-//                builder.field(cursor.key);
-//                builder.map(mapping);
-//            }
-//            builder.endObject();
+/*
+            ==== for the above, ClusterState.toXContent has the following ====
+
+            builder.startObject("mappings");
+            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
+                Map<String, Object> mapping = XContentHelper.convertToMap(
+                                                          new BytesArray(cursor.value.source().uncompressed()), false).v2();
+                if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(cursor.key);
+                }
+                builder.field(cursor.key);
+                builder.map(mapping);
+            }
+            builder.endObject();
+*/
 
             for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetaData.customData) {
                 builder.field(cursor.key);
@@ -1271,13 +1276,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
             builder.endObject();
 
-//            ==== for the above, ClusterState.toXContent has the following ====
-//
-//            builder.startArray("aliases");
-//            for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
-//                builder.value(cursor.value);
-//            }
-//            builder.endArray();
+/*
+            ==== for the above, ClusterState.toXContent has the following ====
+
+            builder.startArray("aliases");
+            for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
+                builder.value(cursor.value);
+            }
+            builder.endArray();
+*/
 
             builder.startArray(KEY_PRIMARY_TERMS);
             for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
@@ -1285,13 +1292,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
             builder.endArray();
 
-//            ==== for the above, ClusterState.toXContent has the following ====
-//
-//            builder.startObject(IndexMetaData.KEY_PRIMARY_TERMS);
-//            for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
-//                builder.field(Integer.toString(shard), indexMetaData.primaryTerm(shard));
-//            }
-//            builder.endObject();
+/*
+            ==== for the above, ClusterState.toXContent has the following ====
+
+            builder.startObject(IndexMetaData.KEY_PRIMARY_TERMS);
+            for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
+                builder.field(Integer.toString(shard), indexMetaData.primaryTerm(shard));
+            }
+            builder.endObject();
+*/
 
             builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
             for (IntObjectCursor<Set<String>> cursor : indexMetaData.inSyncAllocationIds) {

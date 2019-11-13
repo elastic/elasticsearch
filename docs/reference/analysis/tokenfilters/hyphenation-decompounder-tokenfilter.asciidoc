@@ -5,7 +5,7 @@
 ++++
 
 Uses XML-based hyphenation patterns to find potential subwords in compound
-words. These subwords are then checked against a provided word list. Subwords not
+words. These subwords are then checked against the specified word list. Subwords not
 in the list are excluded from the token output.
 
 This filter uses Lucene's

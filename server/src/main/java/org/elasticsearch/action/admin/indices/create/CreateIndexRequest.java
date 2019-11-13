@@ -469,10 +469,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(index);
         writeSettingsToStream(settings, out);
         if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeVInt(1);
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+            if ("{}".equals(mappings)) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(1);
+                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                out.writeString(mappings);
+            }
+        } else {
+            out.writeString(mappings);
         }
-        out.writeString(mappings);
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
             alias.writeTo(out);

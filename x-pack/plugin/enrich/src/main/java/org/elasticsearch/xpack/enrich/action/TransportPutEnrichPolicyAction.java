@@ -42,15 +42,29 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
     private final Client client;
 
     @Inject
-    public TransportPutEnrichPolicyAction(Settings settings, TransportService transportService,
-                                          ClusterService clusterService, ThreadPool threadPool, Client client,
-                                          XPackLicenseState licenseState, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutEnrichPolicyAction.Request::new, indexNameExpressionResolver);
+    public TransportPutEnrichPolicyAction(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        XPackLicenseState licenseState,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PutEnrichPolicyAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutEnrichPolicyAction.Request::new,
+            indexNameExpressionResolver
+        );
         this.licenseState = licenseState;
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-            new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
         this.client = client;
     }
 
@@ -69,8 +83,12 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
     }
 
     @Override
-    protected void masterOperation(Task task, PutEnrichPolicyAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        PutEnrichPolicyAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
 
         if (licenseState.isAuthAllowed()) {
             RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
@@ -86,23 +104,26 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
             privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
             privRequest.indexPrivileges(privileges);
 
-            ActionListener<HasPrivilegesResponse> wrappedListener = ActionListener.wrap(
-                r -> {
-                    if (r.isCompleteMatch()) {
-                        putPolicy(request, listener);
-                    } else {
-                        listener.onFailure(Exceptions.authorizationError("unable to store policy because no indices match with the " +
-                            "specified index patterns {}", request.getPolicy().getIndices(), username));
-                    }
-                },
-                listener::onFailure);
+            ActionListener<HasPrivilegesResponse> wrappedListener = ActionListener.wrap(r -> {
+                if (r.isCompleteMatch()) {
+                    putPolicy(request, listener);
+                } else {
+                    listener.onFailure(
+                        Exceptions.authorizationError(
+                            "unable to store policy because no indices match with the " + "specified index patterns {}",
+                            request.getPolicy().getIndices(),
+                            username
+                        )
+                    );
+                }
+            }, listener::onFailure);
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, wrappedListener);
         } else {
             putPolicy(request, listener);
         }
     }
 
-    private void putPolicy(PutEnrichPolicyAction.Request request, ActionListener<AcknowledgedResponse> listener ) {
+    private void putPolicy(PutEnrichPolicyAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         EnrichStore.putPolicy(request.getName(), request.getPolicy(), clusterService, indexNameExpressionResolver, e -> {
             if (e == null) {
                 listener.onResponse(new AcknowledgedResponse(true));

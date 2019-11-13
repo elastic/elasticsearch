@@ -33,6 +33,7 @@ import static org.mockito.Matchers.contains;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeRepurposeCommandIT extends ESIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701") // TODO node repurposing
     public void testRepurpose() throws Exception {
         final String indexName = "test-repurpose";
 

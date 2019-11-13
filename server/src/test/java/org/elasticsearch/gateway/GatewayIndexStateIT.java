@@ -29,7 +29,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -39,7 +41,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -371,14 +372,13 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
 
         final IndexMetaData metaData = state.getMetaData().index("test");
-        final IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
+        final IndexMetaData.Builder brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion().id)
                 // this is invalid but should be archived
                 .put("index.similarity.BM25.type", "boolean")
                 // this one is not validated ahead of time and breaks allocation
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
-        ).build();
-        writeBrokenMeta(metaStateService -> metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta));
+                .put("index.analysis.filter.myCollator.type", "icu_collation"));
+        restartNodesOnBrokenClusterState(ClusterState.builder(state).metaData(MetaData.builder(state.getMetaData()).put(brokenMeta)));
 
         // check that the cluster does not keep reallocating shards
         assertBusy(() -> {
@@ -443,9 +443,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
 
         final IndexMetaData metaData = state.getMetaData().index("test");
-        final IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
-                .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
-        writeBrokenMeta(metaStateService -> metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta));
+        final IndexMetaData.Builder brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
+                .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false));
+        restartNodesOnBrokenClusterState(ClusterState.builder(state).metaData(MetaData.builder(state.getMetaData()).put(brokenMeta)));
 
         // check that the cluster does not keep reallocating shards
         assertBusy(() -> {
@@ -490,7 +490,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
                 .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), "broken").build()).build();
-        writeBrokenMeta(metaStateService -> metaStateService.writeGlobalStateAndUpdateManifest("broken metadata", brokenMeta));
+        restartNodesOnBrokenClusterState(ClusterState.builder(state).metaData(brokenMeta));
 
         ensureYellow("test"); // wait for state recovery
         state = client().admin().cluster().prepareState().get().getState();
@@ -508,14 +508,19 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 
-    private void writeBrokenMeta(CheckedConsumer<MetaStateService, IOException> writer) throws Exception {
-        Map<String, MetaStateService> metaStateServices = Stream.of(internalCluster().getNodeNames())
-            .collect(Collectors.toMap(Function.identity(), nodeName -> internalCluster().getInstance(MetaStateService.class, nodeName)));
+    private void restartNodesOnBrokenClusterState(ClusterState.Builder clusterStateBuilder) throws Exception {
+        Map<String, LucenePersistedStateFactory> lucenePersistedStateFactories = Stream.of(internalCluster().getNodeNames())
+            .collect(Collectors.toMap(Function.identity(),
+                nodeName -> internalCluster().getInstance(LucenePersistedStateFactory.class, nodeName)));
+        final ClusterState clusterState = clusterStateBuilder.build();
         internalCluster().fullRestart(new RestartCallback(){
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                final MetaStateService metaStateService = metaStateServices.get(nodeName);
-                writer.accept(metaStateService);
+                final LucenePersistedStateFactory lucenePersistedStateFactory = lucenePersistedStateFactories.get(nodeName);
+                try (CoordinationState.PersistedState persistedState = lucenePersistedStateFactory.loadPersistedState(
+                    (v, m) -> ClusterState.builder(ClusterName.DEFAULT).version(v).metaData(m).build())) {
+                    persistedState.setLastAcceptedState(clusterState);
+                }
                 return super.onNodeStopped(nodeName);
             }
         });

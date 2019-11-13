@@ -20,11 +20,13 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetaDataUpgrader;
@@ -54,6 +56,13 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
+    MetaData upgradeMetaDataForMasterEligibleNode(MetaData metaData, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                                                  MetaDataUpgrader metaDataUpgrader) {
+        // MetaData upgrade is tested in GatewayMetaStateTests, we override this method to NOP to make mocking easier
+        return metaData;
+    }
+
+    @Override
     ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
         return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
@@ -66,6 +75,6 @@ public class MockGatewayMetaState extends GatewayMetaState {
         when(clusterService.getClusterSettings())
             .thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         start(settings, transportService, clusterService, new MetaStateService(nodeEnvironment, xContentRegistry),
-            null, null);
+            null, null, new LucenePersistedStateFactory(nodeEnvironment, xContentRegistry, BigArrays.NON_RECYCLING_INSTANCE));
     }
 }

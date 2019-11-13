@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluste
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -63,7 +62,6 @@ import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -741,17 +739,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 try {
                     if (oldState.nodeEnvironment != null) {
                         nodeEnvironment = oldState.nodeEnvironment;
-                        final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry());
                         final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
                         if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
-                            metaStateService.writeGlobalStateAndUpdateManifest("update global state", updatedMetaData);
+                            throw new AssertionError("TODO adapting persistent metadata is not supported yet");
                         }
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
                         if (updatedTerm != oldState.getCurrentTerm()) {
-                            final Manifest manifest = metaStateService.loadManifestOrEmpty();
-                            metaStateService.writeManifestAndCleanup("update term",
-                                new Manifest(updatedTerm, manifest.getClusterStateVersion(), manifest.getGlobalGeneration(),
-                                    manifest.getIndexGenerations()));
+                            throw new AssertionError("TODO adapting persistent current term is not supported yet");
                         }
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
                         gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
@@ -854,6 +848,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             @Override
             public void close() {
                 assertTrue(openPersistedStates.remove(this));
+                try {
+                    delegate.close();
+                } catch (IOException e) {
+                    throw new AssertionError("unexpected", e);
+                }
             }
         }
 

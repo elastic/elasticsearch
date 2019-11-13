@@ -49,6 +49,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.LucenePersistedStateFactory;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -380,6 +381,16 @@ public final class NodeEnvironment  implements Closeable {
 
                 // determine folders to move and check that there are no extra files/folders
                 final Set<String> folderNames = new HashSet<>();
+                final Set<String> expectedFolderNames = new HashSet<>(Arrays.asList(
+
+                    // node state directory, also containing MetaDataStateFormat-based global metadata
+                    MetaDataStateFormat.STATE_DIR_NAME,
+
+                    // Lucene-based metadata folder
+                    LucenePersistedStateFactory.METADATA_DIRECTORY_NAME,
+
+                    // indices
+                    INDICES_FOLDER));
 
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
                     for (Path subFolderPath : stream) {
@@ -387,8 +398,7 @@ public final class NodeEnvironment  implements Closeable {
                         if (FileSystemUtils.isDesktopServicesStore(subFolderPath)) {
                             // ignore
                         } else if (FileSystemUtils.isAccessibleDirectory(subFolderPath, logger)) {
-                            if (fileName.equals(INDICES_FOLDER) == false && // indices folder
-                                fileName.equals(MetaDataStateFormat.STATE_DIR_NAME) == false) { // global metadata & node state folder
+                            if (expectedFolderNames.contains(fileName) == false) {
                                 throw new IllegalStateException("unexpected folder encountered during data folder upgrade: " +
                                     subFolderPath);
                             }
@@ -406,7 +416,7 @@ public final class NodeEnvironment  implements Closeable {
                     }
                 }
 
-                assert Sets.difference(folderNames, Sets.newHashSet(INDICES_FOLDER, MetaDataStateFormat.STATE_DIR_NAME)).isEmpty() :
+                assert Sets.difference(folderNames, expectedFolderNames).isEmpty() :
                     "expected indices and/or state dir folder but was " + folderNames;
 
                 upgradeActions.add(() -> {

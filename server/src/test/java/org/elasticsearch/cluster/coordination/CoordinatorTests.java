@@ -986,6 +986,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701") // TODO implement cluster detaching
     public void testCannotJoinClusterWithDifferentUUID() throws IllegalAccessException {
         try (Cluster cluster1 = new Cluster(randomIntBetween(1, 3))) {
             cluster1.runRandomly();

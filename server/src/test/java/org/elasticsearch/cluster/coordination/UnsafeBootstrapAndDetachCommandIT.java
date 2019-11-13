@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cli.MockTerminal;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701") // TODO unsafe bootstrapping and cluster detach
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 

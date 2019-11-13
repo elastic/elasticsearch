@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
-import org.hamcrest.CoreMatchers;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
@@ -47,10 +46,12 @@ import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
+import static org.elasticsearch.packaging.util.Packages.clearJournal;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
+import static org.elasticsearch.packaging.util.Packages.startElasticsearchIgnoringFailure;
 import static org.elasticsearch.packaging.util.Packages.stopElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
@@ -60,7 +61,7 @@ import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.isEmptyString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
@@ -79,8 +80,8 @@ public class PackageTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), sh);
     }
 
-    public void test20PluginsCommandWhenNoPlugins() throws Exception {
-        assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
+    public void test20PluginsCommandWhenNoPlugins() {
+        assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout, is(emptyString()));
     }
 
     public void test30DaemonIsNotEnabledOnRestart() {
@@ -95,7 +96,7 @@ public class PackageTests extends PackagingTestCase {
         assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
     }
 
-    public void assertRunsWithJavaHome() throws Exception {
+    private void assertRunsWithJavaHome() throws Exception {
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
             Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
@@ -286,53 +287,17 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test81CustomPathConfAndJvmOptions() throws Exception {
-        assumeTrue(isSystemd());
-
-        assertPathsExist(installation.envFile);
-
-        stopElasticsearch(sh);
-
-        // The custom config directory is not under /tmp or /var/tmp because
-        // systemd's private temp directory functionally means different
-        // processes can have different views of what's in these directories
-        String randomName = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10);
-        sh.run("mkdir /etc/"+randomName);
-        final Path tempConf = Paths.get("/etc/"+randomName);
-
-        try {
-            mkdir(tempConf);
-            cp(installation.config("elasticsearch.yml"), tempConf.resolve("elasticsearch.yml"));
-            cp(installation.config("log4j2.properties"), tempConf.resolve("log4j2.properties"));
-
-            // we have to disable Log4j from using JMX lest it will hit a security
-            // manager exception before we have configured logging; this will fail
-            // startup since we detect usages of logging before it is configured
-            final String jvmOptions =
-                "-Xms512m\n" +
-                    "-Xmx512m\n" +
-                    "-Dlog4j2.disable.jmx=true\n";
-            append(tempConf.resolve("jvm.options"), jvmOptions);
-
-            sh.runIgnoreExitCode("chown -R elasticsearch:elasticsearch " + tempConf);
-
-            cp(installation.envFile, tempConf.resolve("elasticsearch.bk"));//backup
-            append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
+        withCustomConfig(() -> {
             append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
 
             startElasticsearch(sh, installation);
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, CoreMatchers.containsString("\"heap_init_in_bytes\":536870912"));
-            assertThat(nodesResponse, CoreMatchers.containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+            assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
             stopElasticsearch(sh);
-
-        } finally {
-            rm(installation.envFile);
-            cp(tempConf.resolve("elasticsearch.bk"), installation.envFile);
-            rm(tempConf);
-            cleanup();
-        }
+        });
     }
 
     public void test82SystemdMask() throws Exception {
@@ -373,5 +338,63 @@ public class PackageTests extends PackagingTestCase {
         assertThat(maxAddressSpace, equalTo("unlimited"));
 
         stopElasticsearch(sh);
+    }
+
+    public void test90DoNotCloseStderrWhenQuiet() throws Exception {
+        withCustomConfig(() -> {
+            // Create a bootstrap problem by configuring an extra GC type
+            append(installation.envFile, "ES_JAVA_OPTS=\"-XX:+UseSerialGC -XX:+UseG1GC\"\n");
+
+            // Make sure we don't pick up the journal entries for previous ES instances.
+            clearJournal(sh);
+            startElasticsearchIgnoringFailure(sh);
+
+            final Result logs = sh.run("journalctl -u elasticsearch.service");
+
+            assertThat(logs.stdout, containsString("Multiple garbage collectors selected"));
+        });
+    }
+
+    private void withCustomConfig(CheckedRunnable runnable) throws Exception {
+        assumeTrue(isSystemd());
+
+        assertPathsExist(installation.envFile);
+
+        stopElasticsearch(sh);
+
+        // The custom config directory is not under /tmp or /var/tmp because
+        // systemd's private temp directory functionally means different
+        // processes can have different views of what's in these directories
+        String randomName = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10);
+        sh.run("mkdir /etc/" + randomName);
+        final Path tempConf = Paths.get("/etc/" + randomName);
+
+        try {
+            mkdir(tempConf);
+            cp(installation.config("elasticsearch.yml"), tempConf.resolve("elasticsearch.yml"));
+            cp(installation.config("log4j2.properties"), tempConf.resolve("log4j2.properties"));
+
+            // we have to disable Log4j from using JMX lest it will hit a security
+            // manager exception before we have configured logging; this will fail
+            // startup since we detect usages of logging before it is configured
+            final String jvmOptions = "-Xms512m\n-Xmx512m\n-Dlog4j2.disable.jmx=true\n";
+            append(tempConf.resolve("jvm.options"), jvmOptions);
+
+            sh.runIgnoreExitCode("chown -R elasticsearch:elasticsearch " + tempConf);
+
+            cp(installation.envFile, tempConf.resolve("elasticsearch.bk"));// backup
+            append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
+
+            runnable.run();
+        } finally {
+            rm(installation.envFile);
+            cp(tempConf.resolve("elasticsearch.bk"), installation.envFile);
+            rm(tempConf);
+            cleanup();
+        }
+    }
+
+    private interface CheckedRunnable {
+        void run() throws Exception;
     }
 }

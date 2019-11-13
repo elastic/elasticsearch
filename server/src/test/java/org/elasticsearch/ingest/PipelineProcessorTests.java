@@ -205,7 +205,7 @@ public class PipelineProcessorTests extends ESTestCase {
         assertThat(pipeline3Stats.getIngestFailedCount(), equalTo(1L));
     }
 
-    private static IngestService createIngestService() {
+    static IngestService createIngestService() {
         IngestService ingestService = mock(IngestService.class);
         ScriptService scriptService = mock(ScriptService.class);
         when(ingestService.getScriptService()).thenReturn(scriptService);

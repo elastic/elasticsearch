@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -32,6 +33,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,7 +52,8 @@ import java.io.IOException;
 public class ReindexIndexClient {
 
     // TODO: Eventually this should be an alias for index versioning
-    public static final String REINDEX_INDEX = ".reindex";
+    public static final String REINDEX_ALIAS = ".reindex";
+    static final String REINDEX_INDEX_7 = ".reindex-7";
     public static final String REINDEX_ORIGIN = "reindex";
 
     private final Client client;
@@ -64,7 +67,7 @@ public class ReindexIndexClient {
     }
 
     public void getReindexTaskDoc(String taskId, ActionListener<ReindexTaskState> listener) {
-        GetRequest getRequest = new GetRequest(REINDEX_INDEX).id(taskId);
+        GetRequest getRequest = new GetRequest(REINDEX_ALIAS).id(taskId);
         client.get(getRequest, new ActionListener<>() {
             @Override
             public void onResponse(GetResponse response) {
@@ -89,42 +92,51 @@ public class ReindexIndexClient {
 
     public void createReindexTaskDoc(String taskId, ReindexTaskStateDoc reindexState,
                                      ActionListener<ReindexTaskState> listener) {
-        boolean reindexIndexExists = clusterService.state().routingTable().hasIndex(ReindexIndexClient.REINDEX_INDEX);
-        createReindexTaskDoc(taskId, reindexState, reindexIndexExists, listener);
+        ensureReindexIndex(ActionListener.delegateFailure(listener,
+            (l, v) -> index(taskId, reindexState, DocWriteRequest.OpType.CREATE, false, -1, -1, listener)));
     }
 
-    private void createReindexTaskDoc(String taskId, ReindexTaskStateDoc reindexState, boolean indexExists,
-                                      ActionListener<ReindexTaskState> listener) {
-        if (indexExists) {
-            index(taskId, reindexState, DocWriteRequest.OpType.CREATE, false, -1, -1, listener);
+    private void ensureReindexIndex(ActionListener<Void> listener) {
+        ClusterState clusterState = clusterService.state();
+        boolean reindexIndexExists = clusterState.routingTable().hasIndex(ReindexIndexClient.REINDEX_INDEX_7);
+        boolean reindexAliasExists = clusterState.metaData().hasAlias(REINDEX_ALIAS);
+        // we check both, but we create index and alias atomically, thus we do not expect to find just one of them.
+        assert reindexAliasExists == reindexIndexExists : "alias/index mismatch: " + reindexAliasExists + " != " + reindexIndexExists;
+        if (reindexIndexExists && reindexAliasExists) {
+            listener.onResponse(null);
         } else {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-            createIndexRequest.settings(reindexIndexSettings());
-            createIndexRequest.index(REINDEX_INDEX);
-            createIndexRequest.cause("auto(reindex api)");
-            createIndexRequest.mapping("_doc", "{\"dynamic\": false}", XContentType.JSON);
-
-            client.admin().indices().create(createIndexRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(CreateIndexResponse result) {
-                    createReindexTaskDoc(taskId, reindexState, true, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        try {
-                            createReindexTaskDoc(taskId, reindexState, true, listener);
-                        } catch (Exception inner) {
-                            inner.addSuppressed(e);
-                            listener.onFailure(inner);
-                        }
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }
-            });
+            createReindexIndex(listener);
         }
+    }
+
+    private void createReindexIndex(ActionListener<Void> listener) {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+        createIndexRequest.settings(reindexIndexSettings());
+        createIndexRequest.index(REINDEX_INDEX_7);
+        createIndexRequest.alias(new Alias(REINDEX_ALIAS));
+        createIndexRequest.cause("auto(reindex api)");
+        createIndexRequest.mapping("_doc", "{\"dynamic\": false}", XContentType.JSON);
+
+        client.admin().indices().create(createIndexRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(CreateIndexResponse result) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                    try {
+                        listener.onResponse(null);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        listener.onFailure(inner);
+                    }
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     public void updateReindexTaskDoc(String taskId, ReindexTaskStateDoc reindexState, long previousTerm, long previousSeqNo,
@@ -134,7 +146,7 @@ public class ReindexIndexClient {
 
     private void index(String taskId, ReindexTaskStateDoc reindexState, DocWriteRequest.OpType opType, boolean conditional,
                        long previousTerm, long previousSeqNo, ActionListener<ReindexTaskState> listener) {
-        IndexRequest indexRequest = new IndexRequest(REINDEX_INDEX).id(taskId).opType(opType);
+        IndexRequest indexRequest = new IndexRequest(REINDEX_ALIAS).id(taskId).opType(opType);
         if (conditional) {
             indexRequest.setIfPrimaryTerm(previousTerm);
             indexRequest.setIfSeqNo(previousSeqNo);

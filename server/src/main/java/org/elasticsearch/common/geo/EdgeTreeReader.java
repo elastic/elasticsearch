@@ -88,8 +88,10 @@ public class EdgeTreeReader implements ShapeTreeReader {
 
     boolean containsFully(Extent extent) throws IOException {
         resetInputPosition();
+
         input.position(input.position() + Extent.WRITEABLE_SIZE_IN_BYTES); // skip extent
-        return containsFully(readRoot(input.position()), extent);
+        boolean[] res = containsFully(readRoot(input.position()), extent);
+        return res[0] && res[1] && res[2] && res[3];
     }
 
     public boolean crosses(Extent extent) throws IOException {
@@ -160,29 +162,34 @@ public class EdgeTreeReader implements ShapeTreeReader {
     /**
      * Returns true if every corner in the rectangle query is contained within the tree's edges.
      */
-    private boolean containsFully(Edge root, Extent extent) throws IOException {
-        boolean res = false;
+    private boolean[] containsFully(Edge root, Extent extent) throws IOException {
+        boolean[] res = new boolean[] { false, false, false, false };
         if (root.maxY >= extent.minY()) {
             // is bbox-query contained within linearRing
             // cast infinite ray to the right from each corner of the extent
-            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.minY(),
-                    Integer.MAX_VALUE, extent.minY())
-                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.maxY(),
-                    Integer.MAX_VALUE, extent.maxY())
-                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.minY(),
-                    Integer.MAX_VALUE, extent.minY())
-                && lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.maxY(),
-                    Integer.MAX_VALUE, extent.maxY())
-            ) {
-                res = true;
-            }
+            res = new boolean[] { lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.minY(),
+                Integer.MAX_VALUE, extent.minY()),
+                lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.maxY(),
+                    Integer.MAX_VALUE, extent.maxY()),
+                lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.minY(),
+                    Integer.MAX_VALUE, extent.minY()),
+                lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.maxY(),
+                    Integer.MAX_VALUE, extent.maxY()) };
 
             if (root.rightOffset > 0) { /* has left node */
-                res ^= containsFully(readLeft(root), extent);
+                boolean[] subRes = containsFully(readLeft(root), extent);
+                res[0] ^= subRes[0];
+                res[1] ^= subRes[1];
+                res[2] ^= subRes[2];
+                res[3] ^= subRes[3];
             }
 
             if (root.rightOffset >= 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
-                res ^= containsFully(readRight(root), extent);
+                boolean[] subRes = containsFully(readRight(root), extent);
+                res[0] ^= subRes[0];
+                res[1] ^= subRes[1];
+                res[2] ^= subRes[2];
+                res[3] ^= subRes[3];
             }
         }
         return res;

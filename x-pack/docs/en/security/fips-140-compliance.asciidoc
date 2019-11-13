@@ -124,5 +124,3 @@ features are not available while running in fips mode. The list is as follows:
   available.
 * The SQL CLI client cannot run in a FIPS 140-2 enabled JVM while using
   TLS for transport security or PKI for client authentication.
-* The SAML Realm cannot decrypt and consume encrypted Assertions or encrypted
-  attributes in Attribute Statements from the SAML IdP.

@@ -209,14 +209,10 @@ The above example produces the following terms:
 ---------------------------
 
 Usually we recommend using the same `analyzer` at index time and at search
-time. In the case of the `edge_ngram` tokenizer, the advice is different. It
+time. In the case of the `edge_ngram` tokenizer, the advice is different.  It
 only makes sense to use the `edge_ngram` tokenizer at index time, to ensure
-that partial words are available for matching in the index. At search time,
+that partial words are available for matching in the index.  At search time,
 just search for the terms the user has typed in, for instance: `Quick Fo`.
-
-We also recommend using the <<analysis-truncate-tokenfilter,`truncate` token
-filter>> with a custom search analyzer to truncate tokens to the `max_gram`
-character length. Otherwise, searches for longer terms could return no results.
 
 Below is an example of how to set up a field for _search-as-you-type_:
 
@@ -226,12 +222,6 @@ PUT my_index
 {
   "settings": {
     "analysis": {
-      "filter": {
-        "truncate_search": {
-          "type": "truncate",
-          "length": 10
-        }
-      },
       "analyzer": {
         "autocomplete": {
           "tokenizer": "autocomplete",
@@ -240,8 +230,7 @@ PUT my_index
           ]
         },
         "autocomplete_search": {
-          "tokenizer": "lowercase",
-          "filter": "truncate_search"
+          "tokenizer": "lowercase"
         }
       },
       "tokenizer": {

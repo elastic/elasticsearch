@@ -55,19 +55,17 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final TransportDeleteEnrichPolicyAction transportAction = node().injector().getInstance(TransportDeleteEnrichPolicyAction.class);
-        ActionTestUtils.execute(transportAction, null,
-            new DeleteEnrichPolicyAction.Request(fakeId),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    fail();
-                }
+        ActionTestUtils.execute(transportAction, null, new DeleteEnrichPolicyAction.Request(fakeId), new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                fail();
+            }
 
-                public void onFailure(final Exception e) {
-                    reference.set(e);
-                    latch.countDown();
-                }
-            });
+            public void onFailure(final Exception e) {
+                reference.set(e);
+                latch.countDown();
+            }
+        });
         latch.await();
         assertNotNull(reference.get());
         assertThat(reference.get(), instanceOf(ResourceNotFoundException.class));
@@ -89,19 +87,17 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
         final TransportDeleteEnrichPolicyAction transportAction = node().injector().getInstance(TransportDeleteEnrichPolicyAction.class);
-        ActionTestUtils.execute(transportAction, null,
-            new DeleteEnrichPolicyAction.Request(name),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    reference.set(acknowledgedResponse);
-                    latch.countDown();
-                }
+        ActionTestUtils.execute(transportAction, null, new DeleteEnrichPolicyAction.Request(name), new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                reference.set(acknowledgedResponse);
+                latch.countDown();
+            }
 
-                public void onFailure(final Exception e) {
-                    fail();
-                }
-            });
+            public void onFailure(final Exception e) {
+                fail();
+            }
+        });
         latch.await();
         assertNotNull(reference.get());
         assertTrue(reference.get().isAcknowledged());
@@ -123,33 +119,38 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         createIndex(EnrichPolicy.getBaseName(name) + "-foo1");
         createIndex(EnrichPolicy.getBaseName(name) + "-foo2");
 
-        client().admin().indices().prepareGetIndex().setIndices(
-            EnrichPolicy.getBaseName(name) + "-foo1",
-            EnrichPolicy.getBaseName(name) + "-foo2").get();
+        client().admin()
+            .indices()
+            .prepareGetIndex()
+            .setIndices(EnrichPolicy.getBaseName(name) + "-foo1", EnrichPolicy.getBaseName(name) + "-foo2")
+            .get();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
         final TransportDeleteEnrichPolicyAction transportAction = node().injector().getInstance(TransportDeleteEnrichPolicyAction.class);
-        ActionTestUtils.execute(transportAction, null,
-            new DeleteEnrichPolicyAction.Request(name),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    reference.set(acknowledgedResponse);
-                    latch.countDown();
-                }
+        ActionTestUtils.execute(transportAction, null, new DeleteEnrichPolicyAction.Request(name), new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                reference.set(acknowledgedResponse);
+                latch.countDown();
+            }
 
-                public void onFailure(final Exception e) {
-                    fail();
-                }
-            });
+            public void onFailure(final Exception e) {
+                fail();
+            }
+        });
         latch.await();
         assertNotNull(reference.get());
         assertTrue(reference.get().isAcknowledged());
 
-        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().setIndices(
-            EnrichPolicy.getBaseName(name) + "-foo1",
-            EnrichPolicy.getBaseName(name) + "-foo2").get());
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin()
+                .indices()
+                .prepareGetIndex()
+                .setIndices(EnrichPolicy.getBaseName(name) + "-foo1", EnrichPolicy.getBaseName(name) + "-foo2")
+                .get()
+        );
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
         assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
@@ -177,24 +178,24 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         {
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<Exception> reference = new AtomicReference<>();
-            ActionTestUtils.execute(transportAction, null,
-                new DeleteEnrichPolicyAction.Request(name),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        fail();
-                    }
+            ActionTestUtils.execute(transportAction, null, new DeleteEnrichPolicyAction.Request(name), new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    fail();
+                }
 
-                    public void onFailure(final Exception e) {
-                        reference.set(e);
-                        latch.countDown();
-                    }
-                });
+                public void onFailure(final Exception e) {
+                    reference.set(e);
+                    latch.countDown();
+                }
+            });
             latch.await();
             assertNotNull(reference.get());
             assertThat(reference.get(), instanceOf(EsRejectedExecutionException.class));
-            assertThat(reference.get().getMessage(),
-                equalTo("Could not obtain lock because policy execution for [my-policy] is already in progress."));
+            assertThat(
+                reference.get().getMessage(),
+                equalTo("Could not obtain lock because policy execution for [my-policy] is already in progress.")
+            );
         }
         {
             enrichPolicyLocks.releasePolicy(name);
@@ -203,19 +204,17 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
 
-            ActionTestUtils.execute(transportAction, null,
-                new DeleteEnrichPolicyAction.Request(name),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        reference.set(acknowledgedResponse);
-                        latch.countDown();
-                    }
+            ActionTestUtils.execute(transportAction, null, new DeleteEnrichPolicyAction.Request(name), new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    reference.set(acknowledgedResponse);
+                    latch.countDown();
+                }
 
-                    public void onFailure(final Exception e) {
-                        fail();
-                    }
-                });
+                public void onFailure(final Exception e) {
+                    fail();
+                }
+            });
             latch.await();
             assertNotNull(reference.get());
             assertTrue(reference.get().isAcknowledged());

@@ -497,9 +497,7 @@ public class EnrichPolicyRunner implements Runnable {
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, aliasRequest);
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = clusterState
-            .metaData()
-            .findAliases(aliasRequest, concreteIndices);
+        ImmutableOpenMap<String, List<AliasMetaData>> aliases = clusterState.metaData().findAliases(aliasRequest, concreteIndices);
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
         String[] indices = aliases.keys().toArray(String.class);
         if (indices.length > 0) {

@@ -52,6 +52,7 @@ List projects = [
   'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:logger-usage'
 ]

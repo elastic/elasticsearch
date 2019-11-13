@@ -79,6 +79,24 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         assertThat(splitProcessor.getField(), equalTo("field1"));
         assertThat(splitProcessor.getSeparator(), equalTo("\\."));
         assertFalse(splitProcessor.isIgnoreMissing());
+        assertFalse(splitProcessor.isPreserveTrailing());
         assertThat(splitProcessor.getTargetField(), equalTo("target"));
     }
+
+    public void testCreateWithPreserveTrailing() throws Exception {
+        SplitProcessor.Factory factory = new SplitProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("separator", "\\.");
+        config.put("target_field", "target");
+        config.put("preserve_trailing", true);
+        String processorTag = randomAlphaOfLength(10);
+        SplitProcessor splitProcessor = factory.create(null, processorTag, config);
+        assertThat(splitProcessor.getTag(), equalTo(processorTag));
+        assertThat(splitProcessor.getField(), equalTo("field1"));
+        assertThat(splitProcessor.getSeparator(), equalTo("\\."));
+        assertFalse(splitProcessor.isIgnoreMissing());
+        assertThat(splitProcessor.getTargetField(), equalTo("target"));
+    }
+
 }

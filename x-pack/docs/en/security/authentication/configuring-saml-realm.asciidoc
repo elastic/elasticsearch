@@ -9,8 +9,7 @@ integrate with any identity provider (IdP) that supports at least the SAML 2.0
 Web Browser SSO Profile. 
 
 In SAML terminology, the {stack} is operating as a _service provider_ (SP). For more 
-information, see {stack-ov}/saml-realm.html[SAML authentication] and 
-{stack-ov}/saml-guide.html[Configuring SAML SSO on the {stack}]. 
+information, see <<saml-realm>> and <<saml-guide>>. 
 
 [NOTE]
 --
@@ -55,7 +54,7 @@ download or generate such a document within your IdP administration interface.
 
 Most IdPs will provide an appropriate metadata file with all the features that
 the {stack} requires. For more information, see 
-{stack-ov}/saml-guide-idp.html[The identity provider].
+<<saml-guide-idp>>.
 --
 
 .. Download the IdP metadata document and store it within the `config` directory 
@@ -91,12 +90,12 @@ xpack.security.authc.realms:
       idp.metadata.path: saml/idp-metadata.xml <4>
       idp.entity_id: "https://sso.example.com/" <5>
       sp.entity_id:  "https://kibana.example.com/" <6>
-      sp.acs: "https://kibana.example.com/api/security/v1/saml" <7>
+      sp.acs: "https://kibana.example.com/api/security/saml/callback" <7>
       sp.logout: "https://kibana.example.com/logout" <8>
 ------------------------------------------------------------
 <1> The realm must be within the `xpack.security.authc.realms.saml` namespace.
 <2> This setting defines a new authentication realm named "saml1". For an 
-introduction to realms, see {stack-ov}/realms.html[Realms]. 
+introduction to realms, see <<realms>>. 
 <3>  You should define a unique order on each realm in your authentication chain.
 It is recommended that the SAML realm be at the bottom of your authentication 
 chain (that is, it has the _highest_ order).
@@ -115,7 +114,7 @@ SAML HTTP-POST binding only. It must be a URL that is accessible from the web
 browser of the user who is attempting to login to {kib}; it does not need to be 
 directly accessible by {es} or the IdP. The correct value can vary depending on 
 how you have installed {kib} and whether there are any proxies involved, but it 
-is typically +$\{kibana-url}/api/security/v1/saml+ where _$\{kibana-url}_ is the 
+is typically +$\{kibana-url}/api/security/saml/callback+ where _$\{kibana-url}_ is the
 base URL for your {kib} instance.
 <8> This is the URL within {kib} that accepts logout messages from the IdP.
 Like the `sp.acs` URL, it must be accessible from the web browser, but does
@@ -130,7 +129,7 @@ we recommend that you include at least one additional realm such as the
 native realm in your authentication chain for use by API clients.
 
 For more information, see 
-{stack-ov}/saml-guide-authentication.html#saml-create-realm[Create a SAML realm].
+<<saml-create-realm>>.
 --
 
 . Add attribute mappings. 
@@ -177,7 +176,7 @@ xpack.security.authc.realms.saml.saml1:
 ------------------------------------------------------------
 
 For more information, see 
-{stack-ov}/saml-guide-authentication.html#saml-attribute-mapping[Attribute mapping]. 
+<<saml-attribute-mapping>>. 
 --
 
 . (Optional) Configure logout services. 
@@ -187,7 +186,7 @@ The SAML protocol supports the concept of Single Logout (SLO). The level of
 support for SLO varies between identity providers. 
 
 For more information, see 
-{stack-ov}/saml-guide-authentication.html#saml-logout[SAML logout]. 
+<<saml-logout>>. 
 --
 
 . (Optional) Configure encryption and signing.
@@ -199,7 +198,7 @@ and logout), and processing encrypted content.
 
 You can configure {es} for signing, encryption, or both, with the same or 
 separate keys. For more information, see 
-{stack-ov}/saml-guide-authentication.html#saml-enc-sign[Encryption and signing]. 
+<<saml-enc-sign>>. 
 --
 
 . (Optional) Generate service provider metadata.
@@ -219,13 +218,13 @@ but this does not automatically grant them access to perform any actions or
 access any data.
 
 Your SAML users cannot do anything until they are assigned roles. This can be done
-through either the {stack-ov}/saml-role-mapping.html[role mapping API], or with
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms].
+through either the <<saml-role-mapping,role mapping API>>, or with
+<<authorization_realms,authorization realms>>.
 
-NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files]
+NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via SAML.
 
 --
 
-. {stack-ov}/saml-kibana.html[Configure {kib} to use SAML SSO]. 
+. <<saml-kibana,Configure {kib} to use SAML SSO>>. 
 

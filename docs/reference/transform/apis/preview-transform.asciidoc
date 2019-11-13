@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[preview-data-frame-transform]]
+[[preview-transform]]
 === Preview {transforms} API
 
 [subs="attributes"]
@@ -12,31 +12,29 @@ Previews a {transform}.
 
 beta[]
 
-[[preview-data-frame-transform-request]]
+[[preview-transform-request]]
 ==== {api-request-title}
 
-`POST _data_frame/transforms/_preview`
+`POST _transform/_preview`
 
-[[preview-data-frame-transform-prereq]]
+[[preview-transform-prereq]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`manage_data_frame_transforms` cluster privileges to use this API. The built-in
-`data_frame_transforms_admin` role has these privileges. You must also have
-`read` and `view_index_metadata` privileges on the source index for the
-{transform}. For more information, see
-{stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+* If the {es} {security-features} are enabled, you must have `manage_transform` 
+cluster privileges to use this API. The built-in `transform_admin` role has 
+these privileges. You must also have `read` and `view_index_metadata` privileges 
+on the source index for the {transform}. For more information, see 
+<<security-privileges>> and <<built-in-roles>>.
 
-[[preview-data-frame-transform-desc]]
+[[preview-transform-desc]]
 ==== {api-description-title}
 
 This API generates a preview of the results that you will get when you run the
-<<put-data-frame-transform,create {transforms} API>> with the same
+<<put-transform,create {transforms} API>> with the same
 configuration. It returns a maximum of 100 results. The calculations are based
 on all the current data in the source index. 
 
-[[preview-data-frame-transform-request-body]]
+[[preview-transform-request-body]]
 ==== {api-request-body-title}
 
 `source`::
@@ -55,9 +53,9 @@ on all the current data in the source index.
 
 `pivot`::
   (Required, object) Defines the pivot function `group by` fields and the
-  aggregation to reduce the data. See <<data-frame-transform-pivot>>.
+  aggregation to reduce the data. See <<transform-pivot>>.
   
-[[preview-data-frame-transform-response]]
+[[preview-transform-response]]
 ==== {api-response-body-title}
 
 `preview`::
@@ -69,7 +67,7 @@ on all the current data in the source index.
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/_preview
+POST _transform/_preview
 {
   "source": {
     "index": "kibana_sample_data_ecommerce"

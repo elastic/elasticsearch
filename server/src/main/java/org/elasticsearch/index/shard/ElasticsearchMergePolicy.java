@@ -61,6 +61,11 @@ public final class ElasticsearchMergePolicy extends FilterMergePolicy {
         super(delegate);
     }
 
+    /** return the wrapped merge policy */
+    public MergePolicy getDelegate() {
+        return in;
+    }
+
     private boolean shouldUpgrade(SegmentCommitInfo info) {
         org.apache.lucene.util.Version old = info.info.getVersion();
         org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;

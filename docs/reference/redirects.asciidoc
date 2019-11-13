@@ -616,6 +616,12 @@ The `common` terms query is deprecated. Use the <<query-dsl-match-query, `match`
 query>> instead. The `match` query skips blocks of documents efficiently,
 without any configuration, if the total number of hits is not tracked.
 
+[role="exclude",id="indices-types-exists"]
+=== Types Exists
+
+The types exists endpoint has been removed. See <<removal-of-types>> for
+more details.
+
 [role="exclude",id="xpack-api"]
 === X-Pack APIs
 
@@ -773,7 +779,7 @@ See <<explain-analyze-api>>.
 
 [role="exclude",id="indices-synced-flush"]
 === Synced flush API
-See <<synced-flush-api>>.
+See <<indices-synced-flush-api>>.
 
 [role="exclude",id="_repositories"]
 === Snapshot repositories
@@ -834,3 +840,92 @@ See <<ccs-works>>.
 [role="exclude",id="administer-elasticsearch"]
 === Administering {es}
 See <<high-availability>>.
+
+[role="exclude",id="slm-api"]
+=== Snapshot lifecycle management API
+See <<snapshot-lifecycle-management-api>>.
+
+[role="exclude",id="delete-data-frame-transform"]
+===  Delete {transforms} API
+
+See <<delete-transform>>.
+
+[role="exclude",id="get-data-frame-transform-stats"]
+=== Get {transform} statistics API
+
+See <<get-transform-stats>>.
+
+[role="exclude",id="get-data-frame-transform"]
+=== Get {transforms} API
+
+See <<get-transform>>.
+
+[role="exclude",id="preview-data-frame-transform"]
+=== Preview {transforms} API
+
+See <<preview-transform>>.
+
+[role="exclude",id="put-data-frame-transform"]
+===  Create {transforms} API
+
+See <<put-transform>>.
+
+[role="exclude",id="start-data-frame-transform"]
+=== Start {transforms} API
+
+See <<start-transform>>.
+
+[role="exclude",id="stop-data-frame-transform"]
+=== Stop {transforms} API
+
+See <<stop-transform>>.
+
+[role="exclude",id="update-data-frame-transform"]
+=== Update {transforms} API
+
+See <<update-transform>>.
+
+[role="exclude",id="data-frame-apis"]
+=== {transform-cap} APIs
+
+See <<transform-apis>>.
+
+[role="exclude",id="data-frame-transform-resource"]
+=== {transform-cap} resources
+
+See <<transform-resource>>.
+
+[role="exclude",id="data-frame-transform-dest"]
+=== Dest objects
+
+See <<transform-dest>>.
+
+[role="exclude",id="data-frame-transform-source"]
+==== Source objects
+
+See <<transform-source>>.
+
+[role="exclude",id="data-frame-transform-pivot"]
+==== Pivot objects
+
+See <<transform-pivot>>.
+
+[role="exclude",id="configuring-monitoring"]
+=== Configuring monitoring
+
+See <<monitoring-overview>>.
+
+[role="exclude",id="es-monitoring"]
+=== Monitoring {es}
+
+See <<monitor-elasticsearch-cluster>>.
+
+[role="exclude",id="docker-cli-run"]
+
+See <<docker-cli-run-dev-mode>>.
+
+[role="exclude",id="analysis-compound-word-tokenfilter"]
+=== Compound word token filters
+
+See <<analysis-dict-decomp-tokenfilter>> and
+<<analysis-hyp-decomp-tokenfilter>>.

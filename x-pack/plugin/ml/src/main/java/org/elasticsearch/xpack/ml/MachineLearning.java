@@ -123,6 +123,8 @@ import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -193,11 +195,13 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
-import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.MemoryUsageEstimationProcessManager;
-import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
-import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.persistence.InferenceInternalIndex;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
@@ -331,6 +335,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
+    /**
+     * The amount of memory needed to load the ML native code shared libraries. The assumption is that the first
+     * ML job to run on a given node will do this, and then subsequent ML jobs on the same node will reuse the
+     * same already-loaded code.
+     */
+    public static final ByteSizeValue NATIVE_EXECUTABLE_CODE_OVERHEAD = new ByteSizeValue(30, ByteSizeUnit.MB);
     // Values higher than 100% are allowed to accommodate use cases where swapping has been determined to be acceptable.
     // Anomaly detector jobs only use their full model memory during background persistence, and this is deliberately
     // staggered, so with large numbers of jobs few will generally be persisting state at the same time.
@@ -512,7 +522,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     client,
                     clusterService);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
-                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, client, nativeController, clusterService);
+                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, client, nativeController, clusterService,
+                    xContentRegistry);
                 memoryEstimationProcessFactory =
                     new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
                 mlController = nativeController;
@@ -532,8 +543,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     new BlackHoleAutodetectProcess(job.getId());
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
-            analyticsProcessFactory = (jobId, analyticsProcessConfig, executorService, onProcessCrash) -> null;
-            memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, executorService, onProcessCrash) -> null;
+            analyticsProcessFactory = (jobId, analyticsProcessConfig, state, executorService, onProcessCrash) -> null;
+            memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, state, executorService, onProcessCrash) -> null;
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
@@ -557,8 +568,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
 
+        // Inference components
+        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, xContentRegistry);
+
         // Data frame analytics components
-        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory);
+        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,
+            dataFrameAnalyticsAuditor, trainedModelProvider);
         MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
             new MemoryUsageEstimationProcessManager(
                 threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
@@ -574,6 +589,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         this.memoryTracker.set(memoryTracker);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(clusterService, datafeedManager, mlController,
             autodetectProcessManager, memoryTracker);
+        MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
+            new MlConfigMigrator(settings, client, clusterService), clusterService);
 
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
         final InvalidLicenseEnforcer enforcer =
@@ -593,17 +610,18 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobManager,
                 jobManagerHolder,
                 autodetectProcessManager,
-                new MlInitializationService(settings, threadPool, clusterService, client),
+                new MlInitializationService(settings, threadPool, clusterService, client, mlAssignmentNotifier),
                 jobDataCountsPersister,
                 datafeedManager,
                 anomalyDetectionAuditor,
                 dataFrameAnalyticsAuditor,
-                new MlAssignmentNotifier(settings, anomalyDetectionAuditor, threadPool, client, clusterService),
+                mlAssignmentNotifier,
                 memoryTracker,
                 analyticsProcessManager,
                 memoryEstimationProcessManager,
                 dataFrameAnalyticsConfigProvider,
-                nativeStorageProvider
+                nativeStorageProvider,
+                trainedModelProvider
         );
     }
 
@@ -897,6 +915,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 logger.error("Error loading the template for the " + AnomalyDetectorsIndex.jobResultsIndexPrefix() + " indices", e);
             }
 
+            try {
+                templates.put(InferenceIndexConstants.LATEST_INDEX_NAME, InferenceInternalIndex.getIndexTemplateMetaData());
+            } catch (IOException e) {
+                logger.error("Error loading the template for the " + InferenceIndexConstants.LATEST_INDEX_NAME + " index", e);
+            }
+
             return templates;
         };
     }
@@ -908,7 +932,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 AuditorField.NOTIFICATIONS_INDEX,
                 MlMetaIndex.INDEX_NAME,
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix());
+                AnomalyDetectorsIndex.jobResultsIndexPrefix(),
+                InferenceIndexConstants.LATEST_INDEX_NAME);
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }
@@ -942,6 +967,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         return namedXContent;
     }
+
 }

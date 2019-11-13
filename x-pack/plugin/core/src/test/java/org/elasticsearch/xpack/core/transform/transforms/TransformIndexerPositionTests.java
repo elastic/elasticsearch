@@ -17,13 +17,13 @@ import java.util.function.Predicate;
 
 public class TransformIndexerPositionTests extends AbstractSerializingTestCase<TransformIndexerPosition> {
 
-    public static TransformIndexerPosition randomDataFrameIndexerPosition() {
+    public static TransformIndexerPosition randomTransformIndexerPosition() {
         return new TransformIndexerPosition(randomPosition(), randomPosition());
     }
 
     @Override
     protected TransformIndexerPosition createTestInstance() {
-        return randomDataFrameIndexerPosition();
+        return randomTransformIndexerPosition();
     }
 
     @Override

@@ -87,7 +87,8 @@ public abstract class ArrayLikeObjectTestCase extends ScriptTestCase {
              */
             assertThat(e.getMessage(), outOfBoundsExceptionMessageMatcher(index, 5));
         } catch (AssertionError ae) {
-            ae.addSuppressed(e);   // Mark the exception we are testing as suppressed so we get its stack trace.
+            // Mark the exception we are testing as suppressed so we get its stack trace.
+            ae.addSuppressed(e);
             throw ae;
         }
     }

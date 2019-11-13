@@ -79,32 +79,32 @@ GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 --------------------------------------------------
 
+include::cluster/allocation-explain.asciidoc[]
+
+include::cluster/get-settings.asciidoc[]
+
 include::cluster/health.asciidoc[]
+
+include::cluster/reroute.asciidoc[]
 
 include::cluster/state.asciidoc[]
 
 include::cluster/stats.asciidoc[]
 
-include::cluster/pending.asciidoc[]
-
-include::cluster/reroute.asciidoc[]
-
 include::cluster/update-settings.asciidoc[]
 
-include::cluster/get-settings.asciidoc[]
+include::cluster/nodes-usage.asciidoc[]
 
-include::cluster/nodes-stats.asciidoc[]
+include::cluster/nodes-hot-threads.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]
 
-include::cluster/nodes-usage.asciidoc[]
+include::cluster/nodes-stats.asciidoc[]
+
+include::cluster/pending.asciidoc[]
 
 include::cluster/remote-info.asciidoc[]
 
 include::cluster/tasks.asciidoc[]
-
-include::cluster/nodes-hot-threads.asciidoc[]
-
-include::cluster/allocation-explain.asciidoc[]
 
 include::cluster/voting-exclusions.asciidoc[]

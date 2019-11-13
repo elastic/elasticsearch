@@ -84,6 +84,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
     private final OptionSpec<String> folderOption;
     private final OptionSpec<String> indexNameOption;
     private final OptionSpec<Integer> shardIdOption;
+    static final String TRUNCATE_CLEAN_TRANSLOG_FLAG = "truncate-clean-translog";
 
     private final RemoveCorruptedLuceneSegmentsAction removeCorruptedLuceneSegmentsAction;
     private final TruncateTranslogAction truncateTranslogAction;
@@ -102,6 +103,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         shardIdOption = parser.accepts("shard-id", "Shard id")
             .withRequiredArg()
             .ofType(Integer.class);
+
+        parser.accepts(TRUNCATE_CLEAN_TRANSLOG_FLAG, "Truncate the translog even if it is not corrupt");
 
         namedXContentRegistry = new NamedXContentRegistry(
                 Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
@@ -210,7 +213,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
         final String[] files = directory.listAll();
         for (String file : files) {
-            if (file.startsWith(Store.CORRUPTED)) {
+            if (file.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
                 found = true;
                 break;
             }
@@ -229,7 +232,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         }
         String[] files = directory.listAll();
         for (String file : files) {
-            if (file.startsWith(Store.CORRUPTED)) {
+            if (file.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
                 directory.deleteFile(file);
 
                 terminal.println("Deleted corrupt marker " + file + " from " + path);
@@ -308,8 +311,11 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     terminal.println("");
 
                     ////////// Translog
-                    // as translog relies on data stored in an index commit - we have to have non unrecoverable index to truncate translog
-                    if (indexCleanStatus.v1() != CleanStatus.UNRECOVERABLE) {
+                    if (options.has(TRUNCATE_CLEAN_TRANSLOG_FLAG)) {
+                        translogCleanStatus = Tuple.tuple(CleanStatus.OVERRIDDEN,
+                            "Translog was not analysed and will be truncated due to the --" + TRUNCATE_CLEAN_TRANSLOG_FLAG + " flag");
+                    } else if (indexCleanStatus.v1() != CleanStatus.UNRECOVERABLE) {
+                        // translog relies on data stored in an index commit so we have to have a recoverable index to check the translog
                         terminal.println("");
                         terminal.println("Opening translog at " + translogPath);
                         terminal.println("");
@@ -332,7 +338,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     final CleanStatus translogStatus = translogCleanStatus.v1();
 
                     if (indexStatus == CleanStatus.CLEAN && translogStatus == CleanStatus.CLEAN) {
-                        throw new ElasticsearchException("Shard does not seem to be corrupted at " + shardPath.getDataPath());
+                        throw new ElasticsearchException("Shard does not seem to be corrupted at " + shardPath.getDataPath()
+                            + " (pass --" + TRUNCATE_CLEAN_TRANSLOG_FLAG + " to truncate the translog anyway)");
                     }
 
                     if (indexStatus == CleanStatus.UNRECOVERABLE) {
@@ -481,7 +488,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         terminal.println("");
         terminal.println("POST /_cluster/reroute\n" + Strings.toString(commands, true, true));
         terminal.println("");
-        terminal.println("You must accept the possibility of data loss by changing parameter `accept_data_loss` to `true`.");
+        terminal.println("You must accept the possibility of data loss by changing the `accept_data_loss` parameter to `true`.");
         terminal.println("");
     }
 
@@ -497,7 +504,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         CLEAN("clean"),
         CLEAN_WITH_CORRUPTED_MARKER("marked corrupted, but no corruption detected"),
         CORRUPTED("corrupted"),
-        UNRECOVERABLE("corrupted and unrecoverable");
+        UNRECOVERABLE("corrupted and unrecoverable"),
+        OVERRIDDEN("to be truncated regardless of whether it is corrupt");
 
         private final String msg;
 

@@ -21,6 +21,8 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -41,14 +43,17 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -159,9 +164,17 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             // snapshot the shard
             final Repository repository = createRepository();
             final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
-            snapshotShard(shard, snapshot, repository);
+            final String shardGen = snapshotShard(shard, snapshot, repository);
+            assertNotNull(shardGen);
             final Snapshot snapshotWithSameName = new Snapshot(repository.getMetadata().name(), new SnapshotId(
                 snapshot.getSnapshotId().getName(), "_uuid2"));
+            final PlainActionFuture<SnapshotInfo> future = PlainActionFuture.newFuture();
+            repository.finalizeSnapshot(snapshot.getSnapshotId(),
+                ShardGenerations.builder().put(indexId, 0, shardGen).build(),
+                0L, null, 1, Collections.emptyList(), -1L, false,
+                MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(), true,
+                future);
+            future.actionGet();
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,
                 () -> snapshotShard(shard, snapshotWithSameName, repository));
             assertThat(isfe.getMessage(), containsString("Duplicate snapshot name"));

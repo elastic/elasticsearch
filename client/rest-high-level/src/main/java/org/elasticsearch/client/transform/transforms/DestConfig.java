@@ -31,14 +31,14 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Configuration containing the destination index for the {@link DataFrameTransformConfig}
+ * Configuration containing the destination index for the {@link TransformConfig}
  */
 public class DestConfig implements ToXContentObject {
 
     public static final ParseField INDEX = new ParseField("index");
     public static final ParseField PIPELINE = new ParseField("pipeline");
 
-    public static final ConstructingObjectParser<DestConfig, Void> PARSER = new ConstructingObjectParser<>("data_frame_config_dest",
+    public static final ConstructingObjectParser<DestConfig, Void> PARSER = new ConstructingObjectParser<>("transform_config_dest",
         true,
         args -> new DestConfig((String)args[0], (String)args[1]));
 

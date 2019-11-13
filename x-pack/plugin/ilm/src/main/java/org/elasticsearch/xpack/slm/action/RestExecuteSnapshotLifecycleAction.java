@@ -17,6 +17,7 @@ public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
 
     public RestExecuteSnapshotLifecycleAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_slm/policy/{name}/_execute", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_slm/policy/{name}/_execute", this);
     }
 
     @Override

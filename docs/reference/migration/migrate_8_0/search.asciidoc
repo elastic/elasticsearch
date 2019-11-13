@@ -5,9 +5,11 @@
 [float]
 ==== Removal of types
 
-The `/{index}/{type}/_search`, `/{index}/{type}/_msearch`, `/{index}/{type}/_search/template` and `/{index}/{type}/_msearch/template` REST endpoints have been removed in favour of `/{index}/_search`, `/{index}/_msearch`, `/{index}/_search/template` and `/{index}/_msearch/template`, since indexes no longer contain types, these typed endpoints are obsolete..
+The `/{index}/{type}/_search`, `/{index}/{type}/_msearch`, `/{index}/{type}/_search/template` and `/{index}/{type}/_msearch/template` REST endpoints have been removed in favour of `/{index}/_search`, `/{index}/_msearch`, `/{index}/_search/template` and `/{index}/_msearch/template`; since indexes no longer contain types, these typed endpoints are obsolete..
 
-The `/{index}/{type}/_termvectors`, `/{index}/{type}/{id}/_termvectors` and `/{index}/{type}/_mtermvectors` REST endpoints have been removed in favour of `/{index}/_termvectors`, `/{index}/{id}/_termvectors` and `/{index}/_mtermvectors`, since indexes no longer contain types, these typed endpoints are obsolete..
+The `/{index}/{type}/_termvectors`, `/{index}/{type}/{id}/_termvectors` and `/{index}/{type}/_mtermvectors` REST endpoints have been removed in favour of `/{index}/_termvectors`, `/{index}/{id}/_termvectors` and `/{index}/_mtermvectors`; since indexes no longer contain types, these typed endpoints are obsolete..
+
+The `/{index}/{type}/{doc}` and `/{index}/{type}/_mget` REST endpoints have been removed in favour of `/{index}/_doc/{doc}` and `/{index}/_mget`; since indexes no longer contain types, these typed endpoints are obsolete.
 
 [float]
 ==== Removal of queries
@@ -33,3 +35,11 @@ The `nested_filter` and `nested_path` options, deprecated in 6.x, have been remo
 {es} will no longer prefer using shards in the same location (with the same awareness attribute values) to process
 `_search` and `_get` requests. Adaptive replica selection (activated by default in this version) will route requests
 more efficiently using the service time of prior inter-node communications.
+
+[float]
+==== Update to vector function signatures
+The vector functions of the form `function(query, doc['field'])` were
+deprecated in 7.6, and are now removed in 8.x. The form
+`function(query, 'field')` should be used instead. For example,
+`cosineSimilarity(query, doc['field'])` is replaced by
+`cosineSimilarity(query, 'field')`.

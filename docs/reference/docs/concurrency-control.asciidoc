@@ -41,7 +41,6 @@ You can see the assigned sequence number and primary term in the
         "successful" : 1
     },
     "_index" : "products",
-    "_type" : "_doc",
     "_id" : "1567",
     "_version" : 1,
     "_seq_no" : 362,
@@ -69,7 +68,6 @@ returns:
 --------------------------------------------------
 {
     "_index" : "products",
-    "_type" : "_doc",
     "_id" : "1567",
     "_version" : 1,
     "_seq_no" : 362,

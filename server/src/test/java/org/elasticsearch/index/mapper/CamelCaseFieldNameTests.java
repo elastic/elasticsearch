@@ -33,9 +33,9 @@ public class CamelCaseFieldNameTests extends ESSingleNodeTestCase {
 
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper documentMapper = index.mapperService().documentMapper("type");
+        DocumentMapper documentMapper = index.mapperService().documentMapper();
 
-        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "type", "1",
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "1",
                         BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                                 .field("thisIsCamelCase", "value1")
                                 .endObject()),
@@ -45,7 +45,7 @@ public class CamelCaseFieldNameTests extends ESSingleNodeTestCase {
         client().admin().indices().preparePutMapping("test").setType("type")
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
-        documentMapper = index.mapperService().documentMapper("type");
+        documentMapper = index.mapperService().documentMapper();
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
         assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
 

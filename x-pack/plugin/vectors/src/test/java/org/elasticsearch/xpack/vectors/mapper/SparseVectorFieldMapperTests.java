@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.vectors.Vectors;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -62,7 +62,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(Vectors.class, XPackPlugin.class);
+        return pluginList(Vectors.class, LocalStateCompositeXPackPlugin.class);
     }
 
     // this allows to set indexVersion as it is a private setting
@@ -75,7 +75,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         Version indexVersion = Version.CURRENT;
         int[] indexedDims = {65535, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")
@@ -115,6 +115,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         );
         float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
@@ -135,7 +137,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         int[] indexedDims = {65535, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_4", "_doc", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_4", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("my-sparse-vector")
@@ -168,12 +170,14 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
             decodedValues,
             0.001f
         );
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
     public void testDimensionNumberValidation() {
         // 1. test for an error on negative dimension
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
+            mapper.parse(new SourceToParse("test-index", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")
@@ -188,7 +192,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         // 2. test for an error on a dimension greater than MAX_DIMS_NUMBER
         e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
+            mapper.parse(new SourceToParse("test-index", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")
@@ -203,7 +207,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         // 3. test for an error on a wrong formatted dimension
         e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
+            mapper.parse(new SourceToParse("test-index", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")
@@ -218,7 +222,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
          // 4. test for an error on a wrong format for the map of dims to values
         e = expectThrows(MapperParsingException.class, () -> {
-            mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
+            mapper.parse(new SourceToParse("test-index", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("my-sparse-vector")
@@ -230,6 +234,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), containsString(
             "takes an object that maps a dimension number to a float, but got unexpected token [START_ARRAY]"));
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
       public void testDimensionLimit() throws IOException {
@@ -241,7 +247,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
             XContentFactory.jsonBuilder().startObject()
                 .field("my-sparse-vector", validVector)
             .endObject());
-        mapper.parse(new SourceToParse("test-index", "_doc", "1", validDoc, XContentType.JSON));
+        mapper.parse(new SourceToParse("test-index", "1", validDoc, XContentType.JSON));
 
         Map<String, Object> invalidVector = IntStream.range(0, SparseVectorFieldMapper.MAX_DIMS_COUNT + 1)
           .boxed()
@@ -252,8 +258,10 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
                 .field("my-sparse-vector", invalidVector)
             .endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test-index", "_doc", "1", invalidDoc, XContentType.JSON)));
+            new SourceToParse("test-index", "1", invalidDoc, XContentType.JSON)));
         assertThat(e.getDetailedMessage(), containsString("has exceeded the maximum allowed number of dimensions"));
+
+        assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
     }
 
 }

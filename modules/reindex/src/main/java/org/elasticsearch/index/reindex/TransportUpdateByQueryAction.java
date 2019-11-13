@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -103,7 +102,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
             index.index(doc.getIndex());
-            index.type(doc.getType());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
             index.setIfSeqNo(doc.getSeqNo());
@@ -122,11 +120,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             @Override
             protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
                 throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
-            }
-
-            @Override
-            protected void scriptChangedType(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + TypeFieldMapper.NAME + "] not allowed");
             }
 
             @Override

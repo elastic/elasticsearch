@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -44,7 +43,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -111,7 +109,6 @@ final class DefaultSearchContext extends SearchContext {
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private DocValueFieldsContext docValueFieldsContext;
-    private Map<String, InnerHitContextBuilder> innerHits = Collections.emptyMap();
     private int from = -1;
     private int size = -1;
     private SortAndFormats sort;
@@ -124,8 +121,6 @@ final class DefaultSearchContext extends SearchContext {
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
     private SearchTask task;
-    private final Version minNodeVersion;
-
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -160,7 +155,7 @@ final class DefaultSearchContext extends SearchContext {
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
                          IndexShard indexShard, BigArrays bigArrays, LongSupplier relativeTimeSupplier, TimeValue timeout,
-                         FetchPhase fetchPhase, Version minNodeVersion) {
+                         FetchPhase fetchPhase) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -179,7 +174,6 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy());
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
-        this.minNodeVersion = minNodeVersion;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher,
             request::nowInMillis, shardTarget.getClusterAlias());
         queryBoost = request.indexBoost();
@@ -260,7 +254,7 @@ final class DefaultSearchContext extends SearchContext {
             try {
                 this.query = searcher.rewrite(query);
             } catch (IOException e) {
-                throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
+                throw new QueryPhaseExecutionException(shardTarget, "Failed to rewrite main query", e);
             }
         }
     }
@@ -280,7 +274,7 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            filters.add(sliceBuilder.toFilter(clusterService, request, queryShardContext, minNodeVersion));
+            filters.add(sliceBuilder.toFilter(clusterService, request, queryShardContext));
         }
 
         if (filters.isEmpty()) {
@@ -377,16 +371,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void highlight(SearchContextHighlight highlight) {
         this.highlight = highlight;
-    }
-
-    @Override
-    public void innerHits(Map<String, InnerHitContextBuilder> innerHits) {
-        this.innerHits = innerHits;
-    }
-
-    @Override
-    public Map<String, InnerHitContextBuilder> innerHits() {
-        return innerHits;
     }
 
     @Override

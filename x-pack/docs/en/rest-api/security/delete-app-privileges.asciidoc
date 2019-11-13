@@ -5,8 +5,7 @@
 <titleabbrev>Delete application privileges</titleabbrev>
 ++++
 
-Removes 
-{stack-ov}/security-privileges.html#application-privileges[application privileges].
+Removes <<application-privileges,application privileges>>.
 
 [[security-api-delete-privilege-request]]
 ==== {api-request-title}

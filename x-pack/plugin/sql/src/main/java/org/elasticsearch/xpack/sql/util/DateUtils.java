@@ -148,6 +148,4 @@ public final class DateUtils {
         nano = nano - nano % (int) Math.pow(10, (9 - precision));
         return nano;
     }
-
-
 }

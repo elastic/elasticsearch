@@ -15,38 +15,16 @@
           ]
         },
         {
-          "path":"/{index}/_mget",
-          "methods":[
+          "path": "/{index}/_mget",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "index":{
-              "type":"string",
-              "description":"The name of the index"
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The name of the index"
             }
-          }
-        },
-        {
-          "path":"/{index}/{type}/_mget",
-          "methods":[
-            "GET",
-            "POST"
-          ],
-          "parts":{
-            "index":{
-              "type":"string",
-              "description":"The name of the index"
-            },
-            "type":{
-              "type":"string",
-              "description":"The type of the document",
-              "deprecated":true
-            }
-          },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"Specifying types in urls has been deprecated"
           }
         }
       ]
@@ -86,7 +64,7 @@
       }
     },
     "body":{
-      "description":"Document identifiers; can be either `docs` (containing full document information) or `ids` (when index and type is provided in the URL.",
+      "description":"Document identifiers; can be either `docs` (containing full document information) or `ids` (when index is provided in the URL.",
       "required":true
     }
   }

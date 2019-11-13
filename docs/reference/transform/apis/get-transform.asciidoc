@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[get-data-frame-transform]]
+[[get-transform]]
 === Get {transforms} API
 
 [subs="attributes"]
@@ -12,47 +12,45 @@ Retrieves configuration information for {transforms}.
 
 beta[]
 
-[[get-data-frame-transform-request]]
+[[get-transform-request]]
 ==== {api-request-title}
 
-`GET _data_frame/transforms/<data_frame_transform_id>` +
+`GET _transform/<transform_id>` +
 
-`GET _data_frame/transforms/<data_frame_transform_id>,<data_frame_transform_id>` +
+`GET _transform/<transform_id>,<transform_id>` +
 
-`GET _data_frame/transforms/` +
+`GET _transform/` +
 
-`GET _data_frame/transforms/_all` +
+`GET _transform/_all` +
 
-`GET _data_frame/transforms/*`
+`GET _transform/*`
 
-[[get-data-frame-transform-prereqs]]
+[[get-transform-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`monitor_data_frame_transforms` cluster privileges to use this API. The built-in
-`data_frame_transforms_user` role has these privileges. For more information,
-see {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+* If the {es} {security-features} are enabled, you must have `monitor_transform` 
+cluster privileges to use this API. The built-in `transform_user` role has these 
+privileges. For more information, see <<security-privileges>> and 
+<<built-in-roles>>.
 
-[[get-data-frame-transform-desc]]
+[[get-transform-desc]]
 ==== {api-description-title}
 
 You can get information for multiple {transforms} in a single API
 request by using a comma-separated list of identifiers or a wildcard expression.
 You can get information for all {transforms} by using `_all`, by
-specifying `*` as the `<data_frame_transform_id>`, or by omitting the
-`<data_frame_transform_id>`.
+specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`.
 
-[[get-data-frame-transform-path-parms]]
+[[get-transform-path-parms]]
 ==== {api-path-parms-title}
 
-`<data_frame_transform_id>`::
+`<transform_id>`::
   (Optional, string) Identifier for the {transform}. It can be a
   {transform} identifier or a wildcard expression. If you do not
   specify one of these options, the API returns information for all
   {transforms}.
   
-[[get-data-frame-transform-query-parms]]
+[[get-transform-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
@@ -76,28 +74,28 @@ are no matches or only partial matches.
 `size`::
   (Optional, integer) Specifies the maximum number of {transforms} to obtain. The default value is `100`.
 
-[[get-data-frame-transform-response]]
+[[get-transform-response]]
 ==== {api-response-body-title}
 
 `transforms`::
   (array) An array of {transform} resources, which are sorted by the `id` value in
-  ascending order. See <<data-frame-transform-resource>>.
+  ascending order. See <<transform-resource>>.
   
-[[get-data-frame-transform-response-codes]]
+[[get-transform-response-codes]]
 ==== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request.  
 
-[[get-data-frame-transform-example]]
+[[get-transform-example]]
 ==== {api-examples-title}
 
 The following example retrieves information about a maximum of ten {transforms}:
 
 [source,console]
 --------------------------------------------------
-GET _data_frame/transforms?size=10
+GET _transform?size=10
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
@@ -106,7 +104,7 @@ The following example gets configuration information for the
 
 [source,console]
 --------------------------------------------------
-GET _data_frame/transforms/ecommerce_transform
+GET _transform/ecommerce_transform
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 

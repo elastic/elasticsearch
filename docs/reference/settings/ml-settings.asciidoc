@@ -66,14 +66,13 @@ affected when you update this setting. For more information about the
 
 `xpack.ml.max_open_jobs` (<<cluster-update-settings,Dynamic>>)::
 The maximum number of jobs that can run simultaneously on a node. Defaults to
-`20`. In this context, jobs include both anomaly detector jobs and data frame
-analytics jobs. The maximum number of jobs is also constrained by memory usage.
-Thus if the estimated memory usage of the jobs would be higher than allowed,
-fewer jobs will run on a node. Prior to version 7.1, this setting was a per-node
-non-dynamic setting. It became a cluster-wide dynamic
-setting in version 7.1. As a result, changes to its value after node startup
-are used only after every node in the cluster is running version 7.1 or higher.
-The maximum permitted value is `512`.
+`20`. In this context, jobs include both {anomaly-jobs} and {dfanalytics-jobs}. 
+The maximum number of jobs is also constrained by memory usage. Thus if the 
+estimated memory usage of the jobs would be higher than allowed, fewer jobs will 
+run on a node. Prior to version 7.1, this setting was a per-node non-dynamic 
+setting. It became a cluster-wide dynamic setting in version 7.1. As a result, 
+changes to its value after node startup are used only after every node in the 
+cluster is running version 7.1 or higher. The maximum permitted value is `512`.
 
 `xpack.ml.node_concurrent_job_allocations` (<<cluster-update-settings,Dynamic>>)::
 The maximum number of jobs that can concurrently be in the `opening` state on

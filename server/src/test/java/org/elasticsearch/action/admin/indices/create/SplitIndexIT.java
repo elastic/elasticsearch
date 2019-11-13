@@ -137,7 +137,7 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         BiFunction<String, Integer, IndexRequestBuilder> indexFunc = (index, id) -> {
             try {
-                return client().prepareIndex(index, "t1", Integer.toString(id))
+                return client().prepareIndex(index).setId(Integer.toString(id))
                     .setSource(jsonBuilder().startObject()
                         .field("foo", "bar")
                         .field("i", id)
@@ -211,7 +211,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
         for (int i = 0; i < numDocs; i++) {
-            GetResponse getResponse = client().prepareGet("first_split", "t1", Integer.toString(i)).setRouting(routingValue[i]).get();
+            GetResponse getResponse = client().prepareGet("first_split", Integer.toString(i)).setRouting(routingValue[i]).get();
             assertTrue(getResponse.isExists());
         }
 
@@ -245,7 +245,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         }
         flushAndRefresh();
         for (int i = 0; i < numDocs; i++) {
-            GetResponse getResponse = client().prepareGet("second_split", "t1", Integer.toString(i)).setRouting(routingValue[i]).get();
+            GetResponse getResponse = client().prepareGet("second_split", Integer.toString(i)).setRouting(routingValue[i]).get();
             assertTrue(getResponse.isExists());
         }
         assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
@@ -310,7 +310,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                         final int hash = Math.floorMod(Murmur3HashFunction.hash(s), numberOfShards);
                         if (hash == shardId) {
                             final IndexRequest request =
-                                    new IndexRequest("source", "type", s).source("{ \"f\": \"" + s + "\"}", XContentType.JSON);
+                                    new IndexRequest("source").id(s).source("{ \"f\": \"" + s + "\"}", XContentType.JSON);
                             client().index(request).get();
                             break;
                         } else {
@@ -362,7 +362,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         ).get();
         final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("source", "type")
+            client().prepareIndex("source")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -433,7 +433,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             }
 
             for (int i = docs; i < 2 * docs; i++) {
-                client().prepareIndex("target", "type")
+                client().prepareIndex("target")
                     .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
             }
             flushAndRefresh();
@@ -468,7 +468,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             .addMapping("type", "id", "type=keyword,doc_values=true")
             .get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", "type", Integer.toString(i))
+            client().prepareIndex("source").setId(Integer.toString(i))
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON).get();
         }
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
@@ -513,7 +513,7 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         // ... and that the index sort is also applied to updates
         for (int i = 20; i < 40; i++) {
-            client().prepareIndex("target", "type")
+            client().prepareIndex("target")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();

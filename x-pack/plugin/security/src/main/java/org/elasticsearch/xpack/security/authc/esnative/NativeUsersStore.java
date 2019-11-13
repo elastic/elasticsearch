@@ -62,7 +62,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -205,7 +204,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                            client.prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, user)).request(),
+                            client.prepareGet(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, user)).request(),
                             new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
@@ -245,7 +244,7 @@ public class NativeUsersStore {
 
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(docType, username))
+                    client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(docType, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(),
                                     String.valueOf(request.passwordHash()))
                             .setRefreshPolicy(request.getRefreshPolicy()).request(),
@@ -283,7 +282,7 @@ public class NativeUsersStore {
     private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(RESERVED_USER_TYPE, username))
+                    client.prepareIndex(SECURITY_MAIN_ALIAS).setId(getIdForUser(RESERVED_USER_TYPE, username))
                             .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
                                     true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refresh).request(),
@@ -323,7 +322,7 @@ public class NativeUsersStore {
         // We must have an existing document
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
+                    client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
                             .setDoc(Requests.INDEX_CONTENT_TYPE,
                                     Fields.USERNAME.getPreferredName(), putUserRequest.username(),
                                     Fields.ROLES.getPreferredName(), putUserRequest.roles(),
@@ -367,7 +366,7 @@ public class NativeUsersStore {
         assert putUserRequest.passwordHash() != null;
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
+                    client.prepareIndex(SECURITY_MAIN_ALIAS).setId(getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
                             .setSource(Fields.USERNAME.getPreferredName(), putUserRequest.username(),
                                     Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
                                     Fields.ROLES.getPreferredName(), putUserRequest.roles(),
@@ -410,7 +409,7 @@ public class NativeUsersStore {
                             final ActionListener<Void> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, username))
+                    client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
                             .setRefreshPolicy(refreshPolicy)
                             .request(),
@@ -444,7 +443,7 @@ public class NativeUsersStore {
                                         boolean clearCache, final ActionListener<Void> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(RESERVED_USER_TYPE, username))
+                    client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(RESERVED_USER_TYPE, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
                             .setUpsert(XContentType.JSON,
                                     Fields.PASSWORD.getPreferredName(), "",
@@ -479,7 +478,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client
-                        .prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username()))
+                        .prepareDelete(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username()))
                         .request();
                 request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -526,7 +525,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                            client.prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(RESERVED_USER_TYPE, username))
+                            client.prepareGet(SECURITY_MAIN_ALIAS, getIdForUser(RESERVED_USER_TYPE, username))
                                 .request(),
                             new ActionListener<GetResponse>() {
                                 @Override

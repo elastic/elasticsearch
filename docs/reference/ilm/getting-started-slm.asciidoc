@@ -6,7 +6,8 @@
 Let's get started with snapshot lifecycle management (SLM) by working through a
 hands-on scenario. The goal of this example is to automatically back up {es}
 indices using the <<modules-snapshots,snapshots>> every day at a particular
-time.
+time. Once these snapshots have been created, they are kept for a configured
+amount of time and then deleted per a configured retention policy.
 
 [float]
 [[slm-and-security]]
@@ -14,8 +15,9 @@ time.
 Before starting, it's important to understand the privileges that are needed
 when configuring SLM if you are using the security plugin. There are two
 built-in cluster privileges that can be used to assist: `manage_slm` and
-`read_slm`. It's also good to note that the `create_snapshot` permission
-allows taking snapshots even for indices the role may not have access to.
+`read_slm`. It's also good to note that the `cluster:admin/snapshot/*`
+permission allows taking and deleting snapshots even for indices the role may
+not have access to.
 
 An example of configuring an administrator role for SLM follows:
 
@@ -23,7 +25,7 @@ An example of configuring an administrator role for SLM follows:
 -----------------------------------
 POST /_security/role/slm-admin
 {
-  "cluster": ["manage_slm", "create_snapshot"],
+  "cluster": ["manage_slm", "cluster:admin/snapshot/*"],
   "indices": [
     {
       "names": [".slm-history-*"],
@@ -82,6 +84,10 @@ snapshots, what the snapshots should be named, and which indices should be
 included, among other things.  We'll use the <<slm-api-put,Put Policy>> API
 to create the policy.
 
+When configurating a policy, retention can also optionally be configured. See
+the <<slm-retention,SLM retention>> documentation for the full documentation of
+how retention works.
+
 [source,console]
 --------------------------------------------------
 PUT /_slm/policy/nightly-snapshots
@@ -92,12 +98,16 @@ PUT /_slm/policy/nightly-snapshots
   "config": { <4>
     "indices": ["*"] <5>
   },
-  "retention": {}
+  "retention": { <6>
+    "expire_after": "30d", <7>
+    "min_count": 5, <8>
+    "max_count": 50 <9>
+  }
 }
 --------------------------------------------------
 // TEST[continued]
 <1> when the snapshot should be taken, using 
-    {xpack-ref}/trigger-schedule.html#schedule-cron[Cron syntax], in this 
+    <<schedule-cron,Cron syntax>>, in this 
     case at 1:30AM each day
 <2> whe name each snapshot should be given, using 
     <<date-math-index-names,date math>> to include the current date in the name
@@ -105,6 +115,10 @@ PUT /_slm/policy/nightly-snapshots
 <3> the repository the snapshot should be stored in
 <4> the configuration to be used for the snapshot requests (see below)
 <5> which indices should be included in the snapshot, in this case, every index
+<6> Optional retention configuration
+<7> Keep snapshots for 30 days
+<8> Always keep at least 5 successful snapshots
+<9> Keep no more than 50 successful snapshots, even if they're less than 30 days old
 
 This policy will take a snapshot of every index each day at 1:30AM UTC.
 Snapshots are incremental, allowing frequent snapshots to be stored efficiently,
@@ -132,7 +146,7 @@ as using the configuration from our policy right now instead of waiting for
 
 [source,console]
 --------------------------------------------------
-PUT /_slm/policy/nightly-snapshots/_execute
+POST /_slm/policy/nightly-snapshots/_execute
 --------------------------------------------------
 // TEST[skip:we can't easily handle snapshots from docs tests]
 
@@ -166,7 +180,11 @@ next time the policy will be executed.
       "config": {
         "indices": ["*"],
       },
-      "retention": {}
+      "retention": {
+        "expire_after": "30d",
+        "min_count": 5,
+        "max_count": 50
+      }
     },
     "last_success": { <1>
       "snapshot_name": "nightly-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a", <2>

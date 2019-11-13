@@ -22,7 +22,7 @@ import static org.elasticsearch.test.TestMatchers.matchesPattern;
 
 public class TransformCheckpointTests extends AbstractSerializingTransformTestCase<TransformCheckpoint> {
 
-    public static TransformCheckpoint randomDataFrameTransformCheckpoints() {
+    public static TransformCheckpoint randomTransformCheckpoints() {
         return new TransformCheckpoint(randomAlphaOfLengthBetween(1, 10), randomNonNegativeLong(), randomNonNegativeLong(),
                 randomCheckpointsByIndex(), randomNonNegativeLong());
     }
@@ -34,7 +34,7 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
 
     @Override
     protected TransformCheckpoint createTestInstance() {
-        return randomDataFrameTransformCheckpoints();
+        return randomTransformCheckpoints();
     }
 
     @Override
@@ -43,7 +43,7 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
     }
 
     public void testXContentForInternalStorage() throws IOException {
-        TransformCheckpoint dataFrameTransformCheckpoints = randomDataFrameTransformCheckpoints();
+        TransformCheckpoint dataFrameTransformCheckpoints = randomTransformCheckpoints();
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = dataFrameTransformCheckpoints.toXContent(xContentBuilder, getToXContentParams());

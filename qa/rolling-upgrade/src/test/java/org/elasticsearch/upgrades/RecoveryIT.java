@@ -33,9 +33,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseUtils;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -50,10 +48,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -105,9 +104,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
-            Request indexDoc = new Request("PUT", index + "/test/" + id);
-            indexDoc.setJsonEntity("{\"test\": \"test_" + randomAsciiOfLength(2) + "\"}");
-            indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request indexDoc = new Request("PUT", index + "/_doc/" + id);
+            indexDoc.setJsonEntity("{\"test\": \"test_" + randomAsciiLettersOfLength(2) + "\"}");
             client().performRequest(indexDoc);
         }
         return numDocs;
@@ -178,25 +176,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
-    }
-
-    private void assertDocCountOnAllCopies(String index, int expectedCount) throws Exception {
-        assertBusy(() -> {
-            Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
-            String xpath = "routing_table.indices." + index + ".shards.0.node";
-            @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
-            assertNotNull(state.toString(), assignedNodes);
-            for (String assignedNode : assignedNodes) {
-                try {
-                    assertCount(index, "_only_nodes:" + assignedNode, expectedCount);
-                } catch (ResponseException e) {
-                    if (e.getMessage().contains("no data nodes with criteria [" + assignedNode + "found for shard: [" + index + "][0]")) {
-                        throw new AssertionError(e); // shard is relocating - ask assert busy to retry
-                    }
-                    throw e;
-                }
-            }
-        });
     }
 
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
@@ -588,7 +567,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 assertThat(shards.size(), equalTo(numberOfReplicas + 1));
                 for (Map<String, ?> shard : shards) {
                     assertThat(XContentMapValues.extractValue("shard", shard), equalTo(i));
-                    assertThat(XContentMapValues.extractValue("state", shard), equalTo("STARTED"));
+                    assertThat((String) XContentMapValues.extractValue("state", shard),
+                        either(equalTo("STARTED")).or(equalTo("RELOCATED")));
                     assertThat(XContentMapValues.extractValue("index", shard), equalTo(index));
                 }
             }
@@ -612,20 +592,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         });
         // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
         ensureGlobalCheckpointSynced(index);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertPeerRecoveredFiles(String reason, String index, String targetNode, Matcher<Integer> sizeMatcher) throws IOException {
-        Map<?, ?> recoveryStats = entityAsMap(client().performRequest(new Request("GET", index + "/_recovery")));
-        List<Map<?, ?>> shards = (List<Map<?, ?>>) XContentMapValues.extractValue(index + "." + "shards", recoveryStats);
-        for (Map<?, ?> shard : shards) {
-            if (Objects.equals(XContentMapValues.extractValue("type", shard), "PEER")) {
-                if (Objects.equals(XContentMapValues.extractValue("target.name", shard), targetNode)) {
-                    Integer recoveredFileSize = (Integer) XContentMapValues.extractValue("index.files.recovered", shard);
-                    assertThat(reason + " target node [" + targetNode + "] stats [" + recoveryStats + "]", recoveredFileSize, sizeMatcher);
-                }
-            }
-        }
     }
 
     @SuppressWarnings("unchecked")

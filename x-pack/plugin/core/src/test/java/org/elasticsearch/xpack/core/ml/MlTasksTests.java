@@ -136,7 +136,7 @@ public class MlTasksTests extends ESTestCase {
                 .masterNodeId("node-1")
                 .build();
 
-        assertThat(MlTasks.unallocatedJobIds(tasksBuilder.build(), nodes),
+        assertThat(MlTasks.unassignedJobIds(tasksBuilder.build(), nodes),
                 containsInAnyOrder("job_without_assignment", "job_without_node"));
     }
 
@@ -159,7 +159,7 @@ public class MlTasksTests extends ESTestCase {
                 .masterNodeId("node-1")
                 .build();
 
-        assertThat(MlTasks.unallocatedDatafeedIds(tasksBuilder.build(), nodes),
+        assertThat(MlTasks.unassignedDatafeedIds(tasksBuilder.build(), nodes),
                 containsInAnyOrder("datafeed_without_assignment", "datafeed_without_node"));
     }
 

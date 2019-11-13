@@ -60,7 +60,7 @@ public class SimilarityIT extends ESIntegTestCase {
                         .put("similarity.custom.b", 0.5f)
                 ).execute().actionGet();
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumped over the lazy dog",
+        client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox jumped over the lazy dog",
                                                             "field2", "the quick brown fox jumped over the lazy dog")
                 .setRefreshPolicy(IMMEDIATE).execute().actionGet();
 

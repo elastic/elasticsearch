@@ -18,6 +18,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * If for any reason a job is deleted by some of its state documents
@@ -51,13 +53,17 @@ public class UnusedStateRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener) {
+    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
         try {
             List<String> unusedStateDocIds = findUnusedStateDocIds();
-            if (unusedStateDocIds.size() > 0) {
-                executeDeleteUnusedStateDocs(unusedStateDocIds, listener);
+            if (isTimedOutSupplier.get()) {
+                listener.onResponse(false);
             } else {
-                listener.onResponse(true);
+                if (unusedStateDocIds.size() > 0) {
+                    executeDeleteUnusedStateDocs(unusedStateDocIds, listener);
+                } else {
+                    listener.onResponse(true);
+                }
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -106,6 +112,10 @@ public class UnusedStateRemover implements MlDataRemover {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(unusedDocIds.toArray(new String[0])));
+
+        // _doc is the most efficient sort order and will also disable scoring
+        deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
             response -> {
                 if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {

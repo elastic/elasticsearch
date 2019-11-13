@@ -78,9 +78,9 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
         if (source.isEmpty()) {
             if (lenient) {
-                logger.warn(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
+                logger.warn(TransformMessages.TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
             } else {
-                throw new IllegalArgumentException(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
+                throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
             }
         } else {
             try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
@@ -90,7 +90,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
                 aggregations = AggregatorFactories.parseAggregators(sourceParser);
             } catch (Exception e) {
                 if (lenient) {
-                    logger.warn(TransformMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION, e);
+                    logger.warn(TransformMessages.LOG_TRANSFORM_CONFIGURATION_BAD_AGGREGATION, e);
                 } else {
                     throw e;
                 }

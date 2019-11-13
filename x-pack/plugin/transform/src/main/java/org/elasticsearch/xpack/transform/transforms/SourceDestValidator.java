@@ -78,7 +78,7 @@ public final class SourceDestValidator {
                     src);
                 if (concreteNames.length == 0) {
                     throw new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
+                        TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_SOURCE_INDEX_MISSING, src),
                         RestStatus.BAD_REQUEST);
                 }
             }
@@ -104,7 +104,7 @@ public final class SourceDestValidator {
                     src);
                 if (Regex.simpleMatch(src, destIndex)) {
                     throw new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE, destIndex, src),
+                        TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_DEST_IN_SOURCE, destIndex, src),
                         RestStatus.BAD_REQUEST);
                 }
                 concreteSourceIndexNames.addAll(Arrays.asList(concreteNames));
@@ -112,7 +112,7 @@ public final class SourceDestValidator {
 
             if (concreteSourceIndexNames.contains(destIndex)) {
                 throw new ElasticsearchStatusException(
-                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_DEST_IN_SOURCE,
                         destIndex,
                         Strings.arrayToCommaDelimitedString(config.getSource().getIndex())),
                     RestStatus.BAD_REQUEST
@@ -124,7 +124,7 @@ public final class SourceDestValidator {
                 destIndex);
             if (concreteDest.length > 0 && concreteSourceIndexNames.contains(concreteDest[0])) {
                 throw new ElasticsearchStatusException(
-                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_DEST_IN_SOURCE,
                         concreteDest[0],
                         Strings.arrayToCommaDelimitedString(concreteSourceIndexNames.toArray(new String[0]))),
                     RestStatus.BAD_REQUEST
@@ -150,7 +150,7 @@ public final class SourceDestValidator {
 
             if (concreteDest.length > 1) {
                 throw new ElasticsearchStatusException(
-                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_DEST_SINGLE_INDEX, destIndex),
                     RestStatus.BAD_REQUEST
                 );
             }

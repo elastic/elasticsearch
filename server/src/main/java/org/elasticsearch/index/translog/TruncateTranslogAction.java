@@ -178,7 +178,8 @@ public class TruncateTranslogAction {
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
             long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardPath.getShardId().id());
             // We open translog to check for corruption, do not clean anything.
-            final TranslogDeletionPolicy retainAllTranslogPolicy = new TranslogDeletionPolicy(Long.MAX_VALUE, Long.MAX_VALUE) {
+            final TranslogDeletionPolicy retainAllTranslogPolicy = new TranslogDeletionPolicy(
+                Long.MAX_VALUE, Long.MAX_VALUE, Integer.MAX_VALUE) {
                 @Override
                 long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) {
                     long minGen = writer.generation;

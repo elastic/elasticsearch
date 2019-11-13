@@ -123,7 +123,7 @@ public final class SchemaUtil {
             .fields("*")
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         ClientHelper.executeAsyncWithOrigin(client,
-            ClientHelper.DATA_FRAME_ORIGIN,
+            ClientHelper.TRANSFORM_ORIGIN,
             FieldCapabilitiesAction.INSTANCE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(

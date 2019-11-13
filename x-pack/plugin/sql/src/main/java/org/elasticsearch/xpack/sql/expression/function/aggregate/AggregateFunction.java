@@ -28,7 +28,7 @@ import static java.util.Collections.singletonList;
 public abstract class AggregateFunction extends Function {
 
     private final Expression field;
-    private final List<Expression> parameters;
+    private final List<? extends Expression> parameters;
 
     private AggregateFunctionAttribute lazyAttribute;
 
@@ -36,7 +36,7 @@ public abstract class AggregateFunction extends Function {
         this(source, field, emptyList());
     }
 
-    protected AggregateFunction(Source source, Expression field, List<Expression> parameters) {
+    protected AggregateFunction(Source source, Expression field, List<? extends Expression> parameters) {
         super(source, CollectionUtils.combine(singletonList(field), parameters));
         this.field = field;
         this.parameters = parameters;
@@ -46,7 +46,7 @@ public abstract class AggregateFunction extends Function {
         return field;
     }
 
-    public List<Expression> parameters() {
+    public List<? extends Expression> parameters() {
         return parameters;
     }
 

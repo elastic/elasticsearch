@@ -15,8 +15,8 @@ public class TransformCheckpointStatsTests extends AbstractSerializingTransformT
 {
     public static TransformCheckpointStats randomDataFrameTransformCheckpointStats() {
         return new TransformCheckpointStats(randomLongBetween(1, 1_000_000),
-            TransformIndexerPositionTests.randomDataFrameIndexerPosition(),
-            randomBoolean() ? null : TransformProgressTests.randomDataFrameTransformProgress(),
+            TransformIndexerPositionTests.randomTransformIndexerPosition(),
+            randomBoolean() ? null : TransformProgressTests.randomTransformProgress(),
             randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
     }
 

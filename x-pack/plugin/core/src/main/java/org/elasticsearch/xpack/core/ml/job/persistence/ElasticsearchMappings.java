@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
+import org.elasticsearch.xpack.core.ml.job.results.GeoResults;
 import org.elasticsearch.xpack.core.ml.job.results.Influence;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
@@ -129,6 +132,7 @@ public class ElasticsearchMappings {
     public static final String BOOLEAN = "boolean";
     public static final String DATE = "date";
     public static final String DOUBLE = "double";
+    public static final String GEO_POINT = "geo_point";
     public static final String INTEGER = "integer";
     public static final String KEYWORD = "keyword";
     public static final String LONG = "long";
@@ -449,25 +453,56 @@ public class ElasticsearchMappings {
                         .startObject(Regression.DEPENDENT_VARIABLE.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
-                        .startObject(Regression.LAMBDA.getPreferredName())
+                        .startObject(BoostedTreeParams.LAMBDA.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
-                        .startObject(Regression.GAMMA.getPreferredName())
+                        .startObject(BoostedTreeParams.GAMMA.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
-                        .startObject(Regression.ETA.getPreferredName())
+                        .startObject(BoostedTreeParams.ETA.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
-                        .startObject(Regression.MAXIMUM_NUMBER_TREES.getPreferredName())
+                        .startObject(BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName())
                             .field(TYPE, INTEGER)
                         .endObject()
-                        .startObject(Regression.FEATURE_BAG_FRACTION.getPreferredName())
+                        .startObject(BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
                         .startObject(Regression.PREDICTION_FIELD_NAME.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
                         .startObject(Regression.TRAINING_PERCENT.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject(Classification.NAME.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(Classification.DEPENDENT_VARIABLE.getPreferredName())
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                        .startObject(BoostedTreeParams.LAMBDA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(BoostedTreeParams.GAMMA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(BoostedTreeParams.ETA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName())
+                            .field(TYPE, INTEGER)
+                        .endObject()
+                        .startObject(BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Classification.PREDICTION_FIELD_NAME.getPreferredName())
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                        .startObject(Classification.NUM_TOP_CLASSES.getPreferredName())
+                            .field(TYPE, INTEGER)
+                        .endObject()
+                        .startObject(Classification.TRAINING_PERCENT.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
                     .endObject()
@@ -852,6 +887,16 @@ public class ElasticsearchMappings {
                     .field(TYPE, KEYWORD)
                     .field(COPY_TO, ALL_FIELD_VALUES)
                 .endObject()
+                .startObject(AnomalyCause.GEO_RESULTS.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
+                            .field(TYPE, GEO_POINT)
+                        .endObject()
+                        .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
+                            .field(TYPE, GEO_POINT)
+                        .endObject()
+                    .endObject()
+                .endObject()
             .endObject()
         .endObject()
         .startObject(AnomalyRecord.INFLUENCERS.getPreferredName())
@@ -864,6 +909,16 @@ public class ElasticsearchMappings {
                 .startObject(Influence.INFLUENCER_FIELD_VALUES.getPreferredName())
                     .field(TYPE, KEYWORD)
                     .field(COPY_TO, ALL_FIELD_VALUES)
+                .endObject()
+            .endObject()
+        .endObject()
+        .startObject(AnomalyRecord.GEO_RESULTS.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(GeoResults.ACTUAL_POINT.getPreferredName())
+                    .field(TYPE, GEO_POINT)
+                .endObject()
+                .startObject(GeoResults.TYPICAL_POINT.getPreferredName())
+                    .field(TYPE, GEO_POINT)
                 .endObject()
             .endObject()
         .endObject();
@@ -1156,13 +1211,12 @@ public class ElasticsearchMappings {
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {
         List<String> indicesToUpdate = new ArrayList<>();
 
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
-                new String[0], MapperPlugin.NOOP_FIELD_FILTER);
+        ImmutableOpenMap<String, MappingMetaData> currentMapping = state.metaData().findMappings(concreteIndices,
+                MapperPlugin.NOOP_FIELD_FILTER);
 
         for (String index : concreteIndices) {
-            ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
-            if (innerMap != null) {
-                MappingMetaData metaData = innerMap.valuesIt().next();
+            MappingMetaData metaData = currentMapping.get(index);
+            if (metaData != null) {
                 try {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");

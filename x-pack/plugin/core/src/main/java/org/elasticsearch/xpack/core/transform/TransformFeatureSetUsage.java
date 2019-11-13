@@ -32,7 +32,7 @@ public class TransformFeatureSetUsage extends Usage {
 
     public TransformFeatureSetUsage(boolean available, boolean enabled, Map<String, Long> transformCountByState,
             TransformIndexerStats accumulatedStats) {
-        super(XPackField.Transform, available, enabled);
+        super(XPackField.TRANSFORM, available, enabled);
         this.transformCountByState = Objects.requireNonNull(transformCountByState);
         this.accumulatedStats = Objects.requireNonNull(accumulatedStats);
     }

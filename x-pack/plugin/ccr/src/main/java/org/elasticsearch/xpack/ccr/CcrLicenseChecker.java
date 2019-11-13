@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -130,7 +131,10 @@ public class CcrLicenseChecker {
                         onFailure.accept(new IndexNotFoundException(leaderIndex));
                         return;
                     }
-
+                    if (leaderIndexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                        onFailure.accept(new IndexClosedException(leaderIndexMetaData.getIndex()));
+                        return;
+                    }
                     final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
                     hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {

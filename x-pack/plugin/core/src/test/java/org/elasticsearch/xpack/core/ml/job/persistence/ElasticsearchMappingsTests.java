@@ -85,11 +85,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private static List<String> INTERNAL_FIELDS = Arrays.asList(
             GetResult._ID,
-            GetResult._INDEX,
-            GetResult._TYPE
+            GetResult._INDEX
     );
 
-    public void testResultsMapppingReservedFields() throws Exception {
+    public void testResultsMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names
@@ -109,7 +108,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
     }
 
-    public void testConfigMapppingReservedFields() throws Exception {
+    public void testConfigMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names

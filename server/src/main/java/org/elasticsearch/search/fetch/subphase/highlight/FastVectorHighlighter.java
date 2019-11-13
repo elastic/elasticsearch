@@ -37,11 +37,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.text.BreakIterator;
 import java.util.Collections;
@@ -69,7 +69,7 @@ public class FastVectorHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
-        SearchContext context = highlighterContext.context;
+        QueryShardContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         MappedFieldType fieldType = highlighterContext.fieldType;
 
@@ -93,7 +93,7 @@ public class FastVectorHighlighter implements Highlighter {
                 BaseFragmentsBuilder fragmentsBuilder;
 
                 final BoundaryScanner boundaryScanner = getBoundaryScanner(field);
-                boolean forceSource = context.highlight().forceSource(field);
+                boolean forceSource = highlighterContext.highlight.forceSource(field);
                 if (field.fieldOptions().numberOfFragments() == 0) {
                     fragListBuilder = new SingleFragListBuilder();
 
@@ -203,7 +203,7 @@ public class FastVectorHighlighter implements Highlighter {
             return null;
 
         } catch (Exception e) {
-            throw new FetchPhaseExecutionException(context,
+            throw new FetchPhaseExecutionException(highlighterContext.shardTarget,
                 "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
     }

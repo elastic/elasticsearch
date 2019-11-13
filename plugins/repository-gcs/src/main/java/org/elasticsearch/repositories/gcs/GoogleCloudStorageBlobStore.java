@@ -364,31 +364,36 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
         final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
-        final StorageException e = SocketAccess.doPrivilegedIOException(() -> {
-            final AtomicReference<StorageException> ioe = new AtomicReference<>();
-            final StorageBatch batch = client().batch();
-            for (BlobId blob : blobIdsToDelete) {
-                batch.delete(blob).notify(
-                    new BatchResult.Callback<>() {
-                        @Override
-                        public void success(Boolean result) {
-                        }
+        try {
+            SocketAccess.doPrivilegedVoidIOException(() -> {
+                final AtomicReference<StorageException> ioe = new AtomicReference<>();
+                final StorageBatch batch = client().batch();
+                for (BlobId blob : blobIdsToDelete) {
+                    batch.delete(blob).notify(
+                        new BatchResult.Callback<>() {
+                            @Override
+                            public void success(Boolean result) {
+                            }
 
-                        @Override
-                        public void error(StorageException exception) {
-                            if (exception.getCode() != HTTP_NOT_FOUND) {
-                                failedBlobs.add(blob);
-                                if (ioe.compareAndSet(null, exception) == false) {
-                                    ioe.get().addSuppressed(exception);
+                            @Override
+                            public void error(StorageException exception) {
+                                if (exception.getCode() != HTTP_NOT_FOUND) {
+                                    failedBlobs.add(blob);
+                                    if (ioe.compareAndSet(null, exception) == false) {
+                                        ioe.get().addSuppressed(exception);
+                                    }
                                 }
                             }
-                        }
-                    });
-            }
-            batch.submit();
-            return ioe.get();
-        });
-        if (e != null) {
+                        });
+                }
+                batch.submit();
+
+                final StorageException exception = ioe.get();
+                if (exception != null) {
+                    throw exception;
+                }
+            });
+        } catch (final Exception e) {
             throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
         }
         assert failedBlobs.isEmpty();

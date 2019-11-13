@@ -38,6 +38,5 @@
 
  - is_true:   docs.2.found
  - match:   { docs.2._index:   test_1 }
- - match:   { docs.2._type:    _doc   }
  - match:   { docs.2._id:      "1"    }
  - match:   { docs.2._routing: "5"    }

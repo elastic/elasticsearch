@@ -921,5 +921,11 @@ See <<monitoring-overview>>.
 See <<monitor-elasticsearch-cluster>>.
 
 [role="exclude",id="docker-cli-run"]
+=== Docker Run
 
 See <<docker-cli-run-dev-mode>>.
+
+[role="exclude",id="auditing"]
+=== Audit logging
+
+See <<enable-audit-logging>>.

@@ -46,18 +46,26 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
     // where a user creates and deletes a policy before running execute
     private static final IndicesOptions LENIENT_OPTIONS = IndicesOptions.fromOptions(true, true, true, true);
 
-
     @Inject
-    public TransportDeleteEnrichPolicyAction(TransportService transportService,
-                                             ClusterService clusterService,
-                                             ThreadPool threadPool,
-                                             ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Client client,
-                                             EnrichPolicyLocks enrichPolicyLocks,
-                                             IngestService ingestService) {
-        super(DeleteEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteEnrichPolicyAction.Request::new, indexNameExpressionResolver);
+    public TransportDeleteEnrichPolicyAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client,
+        EnrichPolicyLocks enrichPolicyLocks,
+        IngestService ingestService
+    ) {
+        super(
+            DeleteEnrichPolicyAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteEnrichPolicyAction.Request::new,
+            indexNameExpressionResolver
+        );
         this.client = client;
         this.enrichPolicyLocks = enrichPolicyLocks;
         this.ingestService = ingestService;
@@ -78,8 +86,12 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
     }
 
     @Override
-    protected void masterOperation(Task task, DeleteEnrichPolicyAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        DeleteEnrichPolicyAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state); // ensure the policy exists first
         if (policy == null) {
             throw new ResourceNotFoundException("policy [{}] not found", request.getName());
@@ -91,8 +103,10 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             List<String> pipelinesWithProcessors = new ArrayList<>();
 
             for (PipelineConfiguration pipelineConfiguration : pipelines) {
-                List<AbstractEnrichProcessor> enrichProcessors =
-                    ingestService.getProcessorsInPipeline(pipelineConfiguration.getId(), AbstractEnrichProcessor.class);
+                List<AbstractEnrichProcessor> enrichProcessors = ingestService.getProcessorsInPipeline(
+                    pipelineConfiguration.getId(),
+                    AbstractEnrichProcessor.class
+                );
                 for (AbstractEnrichProcessor processor : enrichProcessors) {
                     if (processor.getPolicyName().equals(request.getName())) {
                         pipelinesWithProcessors.add(pipelineConfiguration.getId());
@@ -101,8 +115,12 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             }
 
             if (pipelinesWithProcessors.isEmpty() == false) {
-                throw new ElasticsearchStatusException("Could not delete policy [{}] because a pipeline is referencing it {}",
-                        RestStatus.CONFLICT, request.getName(), pipelinesWithProcessors);
+                throw new ElasticsearchStatusException(
+                    "Could not delete policy [{}] because a pipeline is referencing it {}",
+                    RestStatus.CONFLICT,
+                    request.getName(),
+                    pipelinesWithProcessors
+                );
             }
         } catch (Exception e) {
             enrichPolicyLocks.releasePolicy(request.getName());
@@ -110,35 +128,33 @@ public class TransportDeleteEnrichPolicyAction extends TransportMasterNodeAction
             return;
         }
 
-        deleteIndicesAndPolicy(request.getName(), ActionListener.wrap(
-            (response) -> {
-                enrichPolicyLocks.releasePolicy(request.getName());
-                listener.onResponse(response);
-            },
-            (exc) -> {
-                enrichPolicyLocks.releasePolicy(request.getName());
-                listener.onFailure(exc);
-            }
-        ));
+        deleteIndicesAndPolicy(request.getName(), ActionListener.wrap((response) -> {
+            enrichPolicyLocks.releasePolicy(request.getName());
+            listener.onResponse(response);
+        }, (exc) -> {
+            enrichPolicyLocks.releasePolicy(request.getName());
+            listener.onFailure(exc);
+        }));
     }
 
     private void deleteIndicesAndPolicy(String name, ActionListener<AcknowledgedResponse> listener) {
         // delete all enrich indices for this policy
-        DeleteIndexRequest deleteRequest = new DeleteIndexRequest()
-            .indices(EnrichPolicy.getBaseName(name) + "-*")
+        DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(EnrichPolicy.getBaseName(name) + "-*")
             .indicesOptions(LENIENT_OPTIONS);
 
-        client.admin().indices().delete(deleteRequest, ActionListener.wrap(
-            (response) -> {
-                if (response.isAcknowledged() == false) {
-                    listener.onFailure(new ElasticsearchStatusException("Could not fetch indices to delete during policy delete of [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR, name));
-                } else {
-                    deletePolicy(name, listener);
-                }
-            },
-            (error) -> listener.onFailure(error)
-        ));
+        client.admin().indices().delete(deleteRequest, ActionListener.wrap((response) -> {
+            if (response.isAcknowledged() == false) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Could not fetch indices to delete during policy delete of [{}]",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        name
+                    )
+                );
+            } else {
+                deletePolicy(name, listener);
+            }
+        }, (error) -> listener.onFailure(error)));
     }
 
     private void deletePolicy(String name, ActionListener<AcknowledgedResponse> listener) {

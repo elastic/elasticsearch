@@ -155,7 +155,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                 .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
 
         assertEquals(
-                "Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
+                "Failed to parse mapping: analyzer [my_synonym_analyzer] "
                 + "contains filters [synonym_filter] that are not allowed to run in all mode.",
                 ex.getMessage());
     }

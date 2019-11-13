@@ -17,28 +17,32 @@ import java.util.function.BiConsumer;
 
 public class MatchProcessor extends AbstractEnrichProcessor {
 
-    MatchProcessor(String tag,
-                   Client client,
-                   String policyName,
-                   String field,
-                   String targetField,
-                   boolean overrideEnabled,
-                   boolean ignoreMissing,
-                   String matchField,
-                   int maxMatches) {
+    MatchProcessor(
+        String tag,
+        Client client,
+        String policyName,
+        String field,
+        String targetField,
+        boolean overrideEnabled,
+        boolean ignoreMissing,
+        String matchField,
+        int maxMatches
+    ) {
         super(tag, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
     }
 
     /** used in tests **/
-    MatchProcessor(String tag,
-                   BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
-                   String policyName,
-                   String field,
-                   String targetField,
-                   boolean overrideEnabled,
-                   boolean ignoreMissing,
-                   String matchField,
-                   int maxMatches) {
+    MatchProcessor(
+        String tag,
+        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
+        String policyName,
+        String field,
+        String targetField,
+        boolean overrideEnabled,
+        boolean ignoreMissing,
+        String matchField,
+        int maxMatches
+    ) {
         super(tag, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
     }
 

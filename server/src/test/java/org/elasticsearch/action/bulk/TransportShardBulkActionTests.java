@@ -738,14 +738,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 DocWriteRequest.OpType.DELETE,
                 DocWriteRequest.OpType.INDEX
             ),
-            new BulkItemResponse.Failure("index", "1", exception, 1L)
+            new BulkItemResponse.Failure("index", "1", exception, 1L, 1L)
         ));
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         itemRequests[0] = itemRequest;
         BulkShardRequest bulkShardRequest = new BulkShardRequest(
             shard.shardId(), RefreshPolicy.NONE, itemRequests);
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
-        verify(shard, times(1)).markSeqNoAsNoop(1, exception.toString());
+        verify(shard, times(1)).markSeqNoAsNoop(1, 1, exception.toString());
         closeShards(shard);
     }
 

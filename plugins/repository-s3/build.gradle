@@ -49,7 +49,7 @@ dependencies {
   compile "joda-time:joda-time:${versions.joda}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell 
+  // and whitelist this hack in JarHell
   compile 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
@@ -149,9 +149,9 @@ if (useFixture) {
     doLast {
       minioDockerfile.parentFile.mkdirs()
       minioDockerfile.text = "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-              "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-              "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-              "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
+        "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
+        "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
+        "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
     }
   }
   preProcessFixture {
@@ -173,7 +173,7 @@ if (useFixture) {
 
   thirdPartyTest {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
-    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${-> minioAddress.call()}"
   }
 
   task integTestMinio(type: RestIntegTestTask) {
@@ -182,9 +182,9 @@ if (useFixture) {
     runner {
       // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
       systemProperty 'tests.rest.blacklist', [
-              'repository_s3/30_repository_temporary_credentials/*',
-              'repository_s3/40_repository_ec2_credentials/*',
-              'repository_s3/50_repository_ecs_credentials/*'
+        'repository_s3/30_repository_temporary_credentials/*',
+        'repository_s3/40_repository_ec2_credentials/*',
+        'repository_s3/50_repository_ecs_credentials/*'
       ].join(",")
     }
   }
@@ -203,11 +203,11 @@ if (useFixture) {
 } else {
   integTest.runner {
     systemProperty 'tests.rest.blacklist',
-            [
-                    'repository_s3/30_repository_temporary_credentials/*',
-                    'repository_s3/40_repository_ec2_credentials/*',
-                    'repository_s3/50_repository_ecs_credentials/*'
-            ].join(",")
+      [
+        'repository_s3/30_repository_temporary_credentials/*',
+        'repository_s3/40_repository_ec2_credentials/*',
+        'repository_s3/50_repository_ecs_credentials/*'
+      ].join(",")
   }
 }
 
@@ -219,15 +219,15 @@ File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')
 task s3FixtureProperties {
   outputs.file(s3FixtureFile)
   def s3FixtureOptions = [
-      "tests.seed"                       : BuildParams.testSeed,
-      "s3Fixture.permanent_bucket_name"  : s3PermanentBucket,
-      "s3Fixture.permanent_key"          : s3PermanentAccessKey,
-      "s3Fixture.temporary_bucket_name"  : s3TemporaryBucket,
-      "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
-      "s3Fixture.temporary_session_token": s3TemporarySessionToken,
-      "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
-      "s3Fixture.ecs_bucket_name"        : s3ECSBucket,
-      "s3Fixture.disableChunkedEncoding" : s3DisableChunkedEncoding
+    "tests.seed"                       : BuildParams.testSeed,
+    "s3Fixture.permanent_bucket_name"  : s3PermanentBucket,
+    "s3Fixture.permanent_key"          : s3PermanentAccessKey,
+    "s3Fixture.temporary_bucket_name"  : s3TemporaryBucket,
+    "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
+    "s3Fixture.temporary_session_token": s3TemporarySessionToken,
+    "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
+    "s3Fixture.ecs_bucket_name"        : s3ECSBucket,
+    "s3Fixture.disableChunkedEncoding" : s3DisableChunkedEncoding
   ]
 
   doLast {
@@ -241,22 +241,22 @@ task s3Fixture(type: AntFixture) {
   dependsOn s3FixtureProperties
   inputs.file(s3FixtureFile)
 
-  env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
+  env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3FixtureFile.getAbsolutePath()
 }
 
 processTestResources {
   Map<String, Object> expansions = [
-          'permanent_bucket': s3PermanentBucket,
-          'permanent_base_path': s3PermanentBasePath + "_integration_tests",
-          'temporary_bucket': s3TemporaryBucket,
-          'temporary_base_path': s3TemporaryBasePath + "_integration_tests",
-          'ec2_bucket': s3EC2Bucket,
-          'ec2_base_path': s3EC2BasePath,
-          'ecs_bucket': s3ECSBucket,
-          'ecs_base_path': s3ECSBasePath,
-          'disable_chunked_encoding': s3DisableChunkedEncoding,
+    'permanent_bucket'        : s3PermanentBucket,
+    'permanent_base_path'     : s3PermanentBasePath + "_integration_tests",
+    'temporary_bucket'        : s3TemporaryBucket,
+    'temporary_base_path'     : s3TemporaryBasePath + "_integration_tests",
+    'ec2_bucket'              : s3EC2Bucket,
+    'ec2_base_path'           : s3EC2BasePath,
+    'ecs_bucket'              : s3ECSBucket,
+    'ecs_base_path'           : s3ECSBasePath,
+    'disable_chunked_encoding': s3DisableChunkedEncoding,
   ]
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
@@ -296,10 +296,10 @@ if (useFixture) {
     dependsOn(project.s3Fixture, 'bundlePlugin')
     runner {
       systemProperty 'tests.rest.blacklist', [
-              'repository_s3/10_basic/*',
-              'repository_s3/20_repository_permanent_credentials/*',
-              'repository_s3/30_repository_temporary_credentials/*',
-              'repository_s3/40_repository_ec2_credentials/*'
+        'repository_s3/10_basic/*',
+        'repository_s3/20_repository_permanent_credentials/*',
+        'repository_s3/30_repository_temporary_credentials/*',
+        'repository_s3/40_repository_ec2_credentials/*'
       ].join(",")
     }
   }
@@ -319,12 +319,12 @@ if (useFixture) {
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   // classes are missing
-  'javax.servlet.ServletContextEvent', 
-  'javax.servlet.ServletContextListener', 
-  'org.apache.avalon.framework.logger.Logger', 
-  'org.apache.log.Hierarchy', 
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
   'software.amazon.ion.IonReader',
   'software.amazon.ion.IonSystem',
@@ -335,7 +335,7 @@ thirdPartyAudit.ignoreMissingClasses (
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
   'software.amazon.ion.system.IonWriterBuilder',
-  // We don't use the kms dependency 
+  // We don't use the kms dependency
   'com.amazonaws.services.kms.AWSKMS',
   'com.amazonaws.services.kms.AWSKMSClient',
   'com.amazonaws.services.kms.model.DecryptRequest',

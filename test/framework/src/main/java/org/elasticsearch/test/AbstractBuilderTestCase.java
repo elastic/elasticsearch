@@ -402,7 +402,12 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 
         public static Predicate<String> indexNameMatcher() {
             // Simplistic index name matcher used for testing
-            return pattern -> pattern.equals(index.getName());
+            return pattern ->{ 
+                if (pattern.endsWith("*")) {
+                    return index.getName().startsWith(pattern.substring(0, pattern.length()-1));
+                }
+                return pattern.equals(index.getName());
+            };
         }                 
 
         @Override

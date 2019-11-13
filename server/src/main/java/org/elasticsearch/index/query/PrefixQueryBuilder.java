@@ -175,7 +175,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
             // Special-case optimisation for canMatch phase:  
             // We can skip querying this shard if the index name doesn't match the value of this query on the "_index" field.
             QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-            if (shardContext != null && shardContext.index().getName().startsWith(value) == false) {
+            if (shardContext != null && shardContext.indexMatches(value + "*") == false) {
                 return new MatchNoneQueryBuilder();
             }            
         }

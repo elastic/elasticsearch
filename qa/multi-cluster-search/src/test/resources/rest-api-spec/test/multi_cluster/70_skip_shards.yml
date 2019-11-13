@@ -120,6 +120,38 @@
   - match: { _shards.skipped : 0}
   - match: { _shards.failed: 0 }
 
+  # check that we match the alias with prefix query
+  - do:
+     search:
+       rest_total_hits_as_int: true
+       index: "skip_shards_local_index"
+       pre_filter_shard_size: 1
+       ccs_minimize_roundtrips: false
+       body: { "size" : 10, "query" : { "prefix" : { "_index" : "test_skip_ali" } } }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: "skip_shards_local_index"}
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 0}
+  - match: { _shards.failed: 0 }
+
+  # check that we match the alias with wildcard query
+  - do:
+     search:
+       rest_total_hits_as_int: true
+       index: "skip_shards_local_index"
+       pre_filter_shard_size: 1
+       ccs_minimize_roundtrips: false
+       body: { "size" : 10, "query" : { "wildcard" : { "_index" : "test_skip_ali*" } } }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: "skip_shards_local_index"}
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 0}
+  - match: { _shards.failed: 0 }
+
 
   # check that skipped when we don't match the alias with a term query
   - do:
@@ -156,3 +188,40 @@
     # Testing against index with single shard never skips and 2 shards only reports 1 shard skipped.
   - match: { _shards.skipped : 1}
   - match: { _shards.failed: 0 }
+
+  # check that skipped when we don't match the alias with a prefix query
+  - do:
+     search:
+       rest_total_hits_as_int: true
+       index: "skip_shards_local_index"
+       pre_filter_shard_size: 1
+       ccs_minimize_roundtrips: false
+       body: { "size" : 10, "query" : { "prefix" : { "_index" : "does_not_matc" } } }
+
+
+  - match: { hits.total: 0 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+    # Not sure why skipped is 1 instead of 2 - seems we always fully query at least one shard?
+    # Testing against index with single shard never skips and 2 shards only reports 1 shard skipped.
+  - match: { _shards.skipped : 1}
+  - match: { _shards.failed: 0 }
+
+  # check that skipped when we don't match the alias with a wildcard query
+  - do:
+     search:
+       rest_total_hits_as_int: true
+       index: "skip_shards_local_index"
+       pre_filter_shard_size: 1
+       ccs_minimize_roundtrips: false
+       body: { "size" : 10, "query" : { "wildcard" : { "_index" : "does_not_matc*" } } }
+
+
+  - match: { hits.total: 0 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+    # Not sure why skipped is 1 instead of 2 - seems we always fully query at least one shard?
+    # Testing against index with single shard never skips and 2 shards only reports 1 shard skipped.
+  - match: { _shards.skipped : 1}
+  - match: { _shards.failed: 0 }
+

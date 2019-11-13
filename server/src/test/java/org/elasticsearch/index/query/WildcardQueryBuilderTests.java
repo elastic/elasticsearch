@@ -146,8 +146,10 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }   
     
-    public void testRewriteIndexQueryTNotoMatchNone() throws IOException {
-        WildcardQueryBuilder query = new WildcardQueryBuilder("_index", getIndex().getName());
+    public void testRewriteIndexQueryNotMatchNone() throws IOException {
+        String fullIndexName = getIndex().getName();
+        String firstHalfOfIndexName = fullIndexName.substring(0,fullIndexName.length()/2);
+        WildcardQueryBuilder query = new WildcardQueryBuilder("_index", firstHalfOfIndexName +"*");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(WildcardQueryBuilder.class));

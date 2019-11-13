@@ -69,6 +69,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                 .setModelId(modelId1))
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
+            .setEstimatedOperations(0)
+            .setEstimatedHeapMemory(0)
             .build();
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
             .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
@@ -77,6 +79,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                 .setTrainedModel(buildRegression())
                 .setModelId(modelId2))
             .setVersion(Version.CURRENT)
+            .setEstimatedOperations(0)
+            .setEstimatedHeapMemory(0)
             .setCreateTime(Instant.now())
             .build();
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();

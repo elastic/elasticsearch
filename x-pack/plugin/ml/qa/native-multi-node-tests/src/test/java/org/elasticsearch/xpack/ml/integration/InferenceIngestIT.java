@@ -366,12 +366,12 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
 
     private static final String REGRESSION_CONFIG = "{" +
         "  \"model_id\": \"test_regression\",\n" +
-        "  \"model_version\": 0,\n" +
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for regression\",\n" +
         "  \"version\": \"8.0.0\",\n" +
         "  \"created_by\": \"ml_test\",\n" +
-        "  \"model_type\": \"local\",\n" +
+        "  \"estimated_heap_memory_usage_bytes\": 0," +
+        "  \"estimated_operations\": 0," +
         "  \"created_time\": 0" +
         "}";
 
@@ -499,12 +499,12 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
     private static final String CLASSIFICATION_CONFIG = "" +
         "{\n" +
         "  \"model_id\": \"test_classification\",\n" +
-        "  \"model_version\": 0,\n" +
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for classification\",\n" +
         "  \"version\": \"8.0.0\",\n" +
         "  \"created_by\": \"benwtrent\",\n" +
-        "  \"model_type\": \"local\",\n" +
+        "  \"estimated_heap_memory_usage_bytes\": 0," +
+        "  \"estimated_operations\": 0," +
         "  \"created_time\": 0\n" +
         "}";
 

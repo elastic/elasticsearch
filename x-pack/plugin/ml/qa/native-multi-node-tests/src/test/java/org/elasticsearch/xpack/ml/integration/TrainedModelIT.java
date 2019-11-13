@@ -192,6 +192,8 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setCreatedBy("ml_test")
                 .setVersion(Version.CURRENT)
                 .setCreateTime(Instant.now())
+                .setEstimatedOperations(0)
+                .setEstimatedHeapMemory(0)
                 .build()
                 .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));
             return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);

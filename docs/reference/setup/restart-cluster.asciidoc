@@ -48,7 +48,7 @@ prevent new jobs from opening by using the
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=true
 --------------------------------------------------
-// TEST[continued]
+// TEST
 +
 When you disable upgrade mode, the jobs resume using the last model state that 
 was automatically saved. This option avoids the overhead of managing active jobs 

@@ -1,4 +1,3 @@
-
 dependencies {
   testCompile project(':x-pack:plugin:core')
 }
@@ -55,9 +54,9 @@ subprojects {
     testClassesDirs += project.files(testArtifactsDir)
     classpath += configurations.testArtifacts
     nonInputProperties.systemProperty 'tests.audit.logfile',
-        "${ -> testClusters.integTest.singleNode().getAuditLog()}"
+      "${-> testClusters.integTest.singleNode().getAuditLog()}"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
-        "${ -> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
+      "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
   }
 
   testingConventions.enabled = false

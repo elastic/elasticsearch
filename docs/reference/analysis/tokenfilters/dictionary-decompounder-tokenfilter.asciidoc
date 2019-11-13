@@ -98,7 +98,7 @@ The filter produces the following tokens:
 A list of subwords to look for in the token stream. If found, the subword is
 included in the token output.
 
-Either this or the `word_list_path` parameter is required.
+Either this parameter or `word_list_path` must be specified.
 --
 
 `word_list_path`::

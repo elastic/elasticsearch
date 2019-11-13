@@ -929,3 +929,9 @@ See <<docker-cli-run-dev-mode>>.
 === Audit logging
 
 See <<enable-audit-logging>>.
+
+[role="exclude",id="analysis-compound-word-tokenfilter"]
+=== Compound word token filters
+
+See <<analysis-dict-decomp-tokenfilter>> and
+<<analysis-hyp-decomp-tokenfilter>>.

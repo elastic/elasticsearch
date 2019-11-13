@@ -610,7 +610,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    private IndexShard getIndexShard(final ShardId shardId) {
+    protected IndexShard getIndexShard(final ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
     }
@@ -664,7 +664,7 @@ public abstract class TransportReplicationAction<
                     retry(new IndexNotFoundException(concreteIndex));
                     return;
                 }
-                if (request.indicesOptions().forbidClosedIndices() && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                     throw new IndexClosedException(indexMetaData.getIndex());
                 }
 

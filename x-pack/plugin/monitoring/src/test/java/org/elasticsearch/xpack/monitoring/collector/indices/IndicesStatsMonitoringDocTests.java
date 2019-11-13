@@ -85,7 +85,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
                 new IndicesStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indicesStats);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = XContentHelper.reformatJson(
+        final String expected = XContentHelper.stripWhitespace(
             "{"
                 + "  \"cluster_uuid\": \"_cluster\","
                 + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","

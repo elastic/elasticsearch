@@ -126,7 +126,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metaData, routingTable);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = XContentHelper.reformatJson(String.format(Locale.ROOT, "{"
+        final String expected = XContentHelper.stripWhitespace(String.format(Locale.ROOT, "{"
             + "  \"cluster_uuid\": \"_cluster\","
             + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
             + "  \"interval_ms\": 1506593717631,"

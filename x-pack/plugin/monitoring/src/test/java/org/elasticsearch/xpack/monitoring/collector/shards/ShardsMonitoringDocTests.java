@@ -130,6 +130,6 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
             + "    \"index\": \"_index\""
             + "  }"
             + "}";
-        assertEquals(XContentHelper.reformatJson(expected), xContent.utf8ToString());
+        assertEquals(XContentHelper.stripWhitespace(expected), xContent.utf8ToString());
     }
 }

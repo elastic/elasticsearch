@@ -375,8 +375,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
         DiscoveryNode masterNode = this.remoteNode;
-        setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, allNodes))
-            .version(randomIntBetween(0, 10))); // use a random base version so it can go down when simulating a restart.
+        setState(
+            clusterService,
+            // use a random base version so it can go down when simulating a restart.
+            ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, allNodes)).version(randomIntBetween(0, 10))
+        );
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);

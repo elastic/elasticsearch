@@ -105,7 +105,7 @@ public abstract class BaseFilteredMonitoringDocTestCase<F extends FilteredMonito
             + "    ]"
             + "  }"
             + "}";
-        assertEquals(XContentHelper.reformatJson(expected), xContent.utf8ToString());
+        assertEquals(XContentHelper.stripWhitespace(expected), xContent.utf8ToString());
     }
 
     class TestFilteredMonitoringDoc extends FilteredMonitoringDoc {

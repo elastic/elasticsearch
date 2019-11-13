@@ -108,7 +108,7 @@ public class BytesReferenceMonitoringDocTests extends BaseMonitoringDocTestCase<
             + "    \"field\": \"value\""
             + "  }"
             + "}";
-        assertEquals(XContentHelper.reformatJson(expected), xContent.utf8ToString());
+        assertEquals(XContentHelper.stripWhitespace(expected), xContent.utf8ToString());
     }
 
     public void testEqualsAndHashcode() {

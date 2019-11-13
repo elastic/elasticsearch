@@ -159,7 +159,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         createIndex("my-condition-index", "my-payload-index");
         ensureGreen("my-condition-index", "my-payload-index");
 
-        index("my-payload-index", "payload", "mytestresult");
+        indexDoc("my-payload-index", "mytestresult");
         refresh();
 
         WatcherSearchTemplateRequest inputRequest = templateRequest(searchSource().query(matchAllQuery()), "my-condition-index");

@@ -1113,7 +1113,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {
         assertAcked(client().admin().indices().prepareCreate("test"));
-        indexRandom(true, client().prepareIndex("test_2", "test", "test").setSource("test", "test"));
+        indexRandom(true, client().prepareIndex("test_2").setId("test").setSource("test", "test"));
         assertAliasesVersionIncreases(
                 "test_2",
                 () -> assertAcked(client().admin().indices().prepareAliases().addAlias("test_2", "test").removeIndex("test")));

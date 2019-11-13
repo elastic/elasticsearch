@@ -116,7 +116,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
                 new IndexRecoveryMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, recoveryResponse);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = XContentHelper.reformatJson(
+        final String expected = XContentHelper.stripWhitespace(
             String.format(
                 Locale.ROOT,
                 "{"

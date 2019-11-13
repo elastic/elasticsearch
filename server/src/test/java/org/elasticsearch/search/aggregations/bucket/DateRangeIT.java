@@ -97,7 +97,8 @@ public class DateRangeIT extends ESIntegTestCase {
                 indexDoc(2, 15, 3), // Feb 15
                 indexDoc(3, 2, 4),  // Mar 2
                 indexDoc(3, 15, 5), // Mar 15
-                indexDoc(3, 23, 6))); // Mar 23
+                indexDoc(3, 23, 6)  // Mar 23
+        ));
 
         // dummy docs
         for (int i = docs.size(); i < numDocs; ++i) {
@@ -105,7 +106,7 @@ public class DateRangeIT extends ESIntegTestCase {
         }
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer"));
         for (int i = 0; i < 2; i++) {
-            docs.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+            docs.add(client().prepareIndex("empty_bucket_idx").setId(""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i*2)
                     .endObject()));
@@ -891,9 +892,9 @@ public class DateRangeIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true,
-                client().prepareIndex("cache_test_idx", "type", "1")
+                client().prepareIndex("cache_test_idx").setId("1")
                         .setSource(jsonBuilder().startObject().timeField("date", date(1, 1)).endObject()),
-                client().prepareIndex("cache_test_idx", "type", "2")
+                client().prepareIndex("cache_test_idx").setId("2")
                         .setSource(jsonBuilder().startObject().timeField("date", date(2, 1)).endObject()));
 
         // Make sure we are starting with a clear cache
@@ -939,9 +940,9 @@ public class DateRangeIT extends ESIntegTestCase {
         String indexName = "dateformat_test_idx";
         assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=strict_hour_minute_second"));
         indexRandom(true,
-                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
-                client().prepareIndex(indexName, "type", "2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
-                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject()));
+                client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
+                client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
+                client().prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject()));
 
         // using no format should work when to/from is compatible with format in
         // mapping
@@ -989,9 +990,9 @@ public class DateRangeIT extends ESIntegTestCase {
         String indexName = "dateformat_numeric_test_idx";
         assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=epoch_second"));
         indexRandom(true,
-                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
-                client().prepareIndex(indexName, "type", "2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
-                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", 3008).endObject()));
+                client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
+                client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
+                client().prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("date", 3008).endObject()));
 
         // using no format should work when to/from is compatible with format in
         // mapping

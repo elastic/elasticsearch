@@ -44,8 +44,10 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
         String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
-        String policyType =
-            (String) XContentMapValues.extractValue("_meta." + EnrichPolicyRunner.ENRICH_POLICY_TYPE_FIELD_NAME, mappingAsMap);
+        String policyType = (String) XContentMapValues.extractValue(
+            "_meta." + EnrichPolicyRunner.ENRICH_POLICY_TYPE_FIELD_NAME,
+            mappingAsMap
+        );
         String matchField = (String) XContentMapValues.extractValue("_meta." + EnrichPolicyRunner.ENRICH_MATCH_FIELD_NAME, mappingAsMap);
 
         boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
@@ -58,13 +60,32 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
-                return new MatchProcessor(tag, client, policyName, field, targetField, overrideEnabled, ignoreMissing, matchField,
-                    maxMatches);
+                return new MatchProcessor(
+                    tag,
+                    client,
+                    policyName,
+                    field,
+                    targetField,
+                    overrideEnabled,
+                    ignoreMissing,
+                    matchField,
+                    maxMatches
+                );
             case EnrichPolicy.GEO_MATCH_TYPE:
                 String relationStr = ConfigurationUtils.readStringProperty(TYPE, tag, config, "shape_relation", "intersects");
                 ShapeRelation shapeRelation = ShapeRelation.getRelationByName(relationStr);
-                return new GeoMatchProcessor(tag, client, policyName, field, targetField, overrideEnabled, ignoreMissing, matchField,
-                    maxMatches, shapeRelation);
+                return new GeoMatchProcessor(
+                    tag,
+                    client,
+                    policyName,
+                    field,
+                    targetField,
+                    overrideEnabled,
+                    ignoreMissing,
+                    matchField,
+                    maxMatches,
+                    shapeRelation
+                );
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policyType + "]");
         }

@@ -59,7 +59,6 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -252,7 +251,7 @@ public class NativePrivilegeStore {
             final String name = privilege.getName();
             final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
             ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, toDocId(privilege.getApplication(), name))
+                client.prepareIndex(SECURITY_MAIN_ALIAS).setId(toDocId(privilege.getApplication(), name))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(refreshPolicy)
                     .request(), listener, client::index);

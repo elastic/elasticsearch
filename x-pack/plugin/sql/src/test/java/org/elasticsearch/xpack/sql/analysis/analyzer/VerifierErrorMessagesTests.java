@@ -377,7 +377,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultipleColumns() {
-        assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
+        // We get only one message back because the messages are grouped by the node that caused the issue
+        assertEquals("1:43: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
     }
 

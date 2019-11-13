@@ -137,7 +137,7 @@ public class SplitIndexIT extends ESIntegTestCase {
 
         BiFunction<String, Integer, IndexRequestBuilder> indexFunc = (index, id) -> {
             try {
-                return client().prepareIndex(index, "t1", Integer.toString(id))
+                return client().prepareIndex(index).setId(Integer.toString(id))
                     .setSource(jsonBuilder().startObject()
                         .field("foo", "bar")
                         .field("i", id)
@@ -468,7 +468,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             .addMapping("type", "id", "type=keyword,doc_values=true")
             .get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("source", "type", Integer.toString(i))
+            client().prepareIndex("source").setId(Integer.toString(i))
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON).get();
         }
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node

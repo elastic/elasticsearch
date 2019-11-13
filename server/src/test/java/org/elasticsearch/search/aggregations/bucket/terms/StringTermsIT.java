@@ -157,7 +157,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").get();
 
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject()));
         }
         indexRandom(true, builders);
@@ -1122,8 +1122,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=keyword")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", "foo"),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", "bar"));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", "foo"),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", "bar"));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

@@ -105,7 +105,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                 new NodeStatsMonitoringDoc("_cluster", 1502107402133L, 1506593717631L, node, "_node_id", true, nodeStats, false);
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, false);
-        final String expected = XContentHelper.reformatJson(
+        final String expected = XContentHelper.stripWhitespace(
             "{"
                 + "  \"cluster_uuid\": \"_cluster\","
                 + "  \"timestamp\": \"2017-08-07T12:03:22.133Z\","

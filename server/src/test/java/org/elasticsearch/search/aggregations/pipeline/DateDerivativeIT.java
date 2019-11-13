@@ -86,7 +86,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
                     jsonBuilder().startObject().field("value", i * 2).endObject()));
         }
         builders.addAll(Arrays.asList(indexDoc(1, 2, 1), // date: Jan 2, dates: Jan 2, Feb 3

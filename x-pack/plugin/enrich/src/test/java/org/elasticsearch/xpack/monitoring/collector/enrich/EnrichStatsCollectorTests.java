@@ -140,15 +140,16 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         int numCoordinatorStats = randomIntBetween(0, 8);
         List<CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatorStats);
         for (int i = 0; i < numCoordinatorStats; i++) {
-            coordinatorStats.add(new CoordinatorStats(
-                randomAlphaOfLength(4),
-                randomIntBetween(0, Integer.MAX_VALUE),
-                randomIntBetween(0, Integer.MAX_VALUE),
-                randomNonNegativeLong(),
-                randomNonNegativeLong()
-            ));
+            coordinatorStats.add(
+                new CoordinatorStats(
+                    randomAlphaOfLength(4),
+                    randomIntBetween(0, Integer.MAX_VALUE),
+                    randomIntBetween(0, Integer.MAX_VALUE),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+            );
         }
-
 
         @SuppressWarnings("unchecked")
         final ActionFuture<EnrichStatsAction.Response> future = (ActionFuture<EnrichStatsAction.Response>) mock(ActionFuture.class);
@@ -157,8 +158,7 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         when(client.execute(eq(EnrichStatsAction.INSTANCE), any(EnrichStatsAction.Request.class))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
-        final EnrichStatsCollector collector =
-            new EnrichStatsCollector(clusterService, licenseState, client, threadContext, settings);
+        final EnrichStatsCollector collector = new EnrichStatsCollector(clusterService, licenseState, client, threadContext, settings);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final long interval = randomNonNegativeLong();
@@ -197,10 +197,12 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         }
     }
 
-    private EnrichStatsCollector createCollector(Settings settings,
-                                                 ClusterService clusterService,
-                                                 XPackLicenseState licenseState,
-                                                 Client client) {
+    private EnrichStatsCollector createCollector(
+        Settings settings,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        Client client
+    ) {
         return new EnrichStatsCollector(clusterService, licenseState, client, settings);
     }
 

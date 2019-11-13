@@ -92,6 +92,8 @@ public final class MockTransportService extends TransportService {
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
 
+    private final List<Runnable> onStopListeners = new CopyOnWriteArrayList<>();
+
     public static class TestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
@@ -525,6 +527,16 @@ public final class MockTransportService extends TransportService {
             }
             l.onResponse(connection);
         }));
+    }
+
+    public void addOnStopListener(Runnable listener) {
+        onStopListeners.add(listener);
+    }
+
+    @Override
+    protected void doStop() {
+        onStopListeners.forEach(Runnable::run);
+        super.doStop();
     }
 
     @Override

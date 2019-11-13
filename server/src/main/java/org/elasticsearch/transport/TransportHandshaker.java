@@ -231,8 +231,7 @@ final class TransportHandshaker {
             // During the handshake process, nodes set their stream version to the minimum compatibility
             // version they support. When deserializing the response, we use the version the other node
             // told us that it actually is in the handshake response (`version`).
-            // TODO: On backport update to 6.7
-            if (requestVersion.onOrAfter(Version.V_8_0_0) && version.onOrAfter(Version.V_8_0_0)) {
+            if (requestVersion.onOrAfter(Version.V_7_6_0) && version.onOrAfter(Version.V_7_6_0)) {
                 clusterName = new ClusterName(in);
                 discoveryNode = new DiscoveryNode(in);
             } else {
@@ -249,8 +248,7 @@ final class TransportHandshaker {
             // version they support. When deciding what response to send, we use the version the other node
             // told us that it actually is in the handshake request (`requestVersion`). If it did not tell
             // us a `requestVersion`, it is at least a pre-7.6 node.
-            // TODO: On backport update to 6.7
-            if (requestVersion != null && requestVersion.onOrAfter(Version.V_8_0_0) && version.onOrAfter(Version.V_8_0_0)) {
+            if (requestVersion != null && requestVersion.onOrAfter(Version.V_7_6_0) && version.onOrAfter(Version.V_7_6_0)) {
                 clusterName.writeTo(out);
                 discoveryNode.writeTo(out);
             }

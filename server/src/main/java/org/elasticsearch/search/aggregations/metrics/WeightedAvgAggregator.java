@@ -117,16 +117,11 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         double sum = values.get(bucket);
         double compensation = compensations.get(bucket);
 
-        if (Double.isFinite(value) == false) {
-            sum += value;
-        } else if (Double.isFinite(sum)) {
-            double corrected = value - compensation;
-            double newSum = sum + corrected;
-            compensation = (newSum - sum) - corrected;
-            sum = newSum;
-        }
-        values.set(bucket, sum);
-        compensations.set(bucket, compensation);
+        CompensatedSum kahanSummation = new CompensatedSum(sum, compensation)
+            .add(value);
+
+        values.set(bucket, kahanSummation.value());
+        compensations.set(bucket, kahanSummation.delta());
     }
 
     @Override

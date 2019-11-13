@@ -923,3 +923,9 @@ See <<monitor-elasticsearch-cluster>>.
 [role="exclude",id="docker-cli-run"]
 
 See <<docker-cli-run-dev-mode>>.
+
+[role="exclude",id="analysis-compound-word-tokenfilter"]
+=== Compound word token filters
+
+See <<analysis-dict-decomp-tokenfilter>> and
+<<analysis-hyp-decomp-tokenfilter>>.

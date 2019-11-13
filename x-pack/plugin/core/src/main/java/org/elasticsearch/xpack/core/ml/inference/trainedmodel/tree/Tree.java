@@ -87,7 +87,10 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     Tree(List<String> featureNames, List<TreeNode> nodes, TargetType targetType, List<String> classificationLabels) {
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
-        this.nodes = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(nodes, TREE_STRUCTURE));
+        if(ExceptionsHelper.requireNonNull(nodes, TREE_STRUCTURE).size() == 0) {
+            throw new IllegalArgumentException("[tree_structure] must not be empty");
+        }
+        this.nodes = Collections.unmodifiableList(nodes);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
         this.highestOrderCategory = new CachedSupplier<>(() -> this.maxLeafValue());
@@ -271,9 +274,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     private void detectCycle() {
-        if (nodes.isEmpty()) {
-            return;
-        }
         Set<Integer> visited = new HashSet<>(nodes.size());
         Queue<Integer> toVisit = new ArrayDeque<>(nodes.size());
         toVisit.add(0);
@@ -294,10 +294,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     private void detectMissingNodes() {
-        if (nodes.isEmpty()) {
-            return;
-        }
-
         List<Integer> missingNodes = new ArrayList<>();
         for (int i = 0; i < nodes.size(); i++) {
             TreeNode currentNode = nodes.get(i);

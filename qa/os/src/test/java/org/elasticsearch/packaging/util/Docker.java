@@ -21,6 +21,7 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.elasticsearch.common.CheckedRunnable;
 
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
@@ -409,7 +410,7 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
     }
 
-    private static void withLogging(ThrowingRunnable r) throws Exception {
+    private static void withLogging(CheckedRunnable r) throws Exception {
         try {
             r.run();
         } catch (Exception e) {
@@ -417,9 +418,5 @@ public class Docker {
             logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
             throw e;
         }
-    }
-
-    private interface ThrowingRunnable {
-        void run() throws Exception;
     }
 }

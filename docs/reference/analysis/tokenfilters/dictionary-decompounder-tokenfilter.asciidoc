@@ -105,7 +105,7 @@ Either this parameter or `word_list_path` must be specified.
 +
 --
 (Required+++*+++, string)
-Path to a file containing a list of subwords to find in the token stream. If
+Path to a file that contains a list of subwords to find in the token stream. If
 found, the subword is included in the token output.
 
 This path must be absolute or relative to the `config` location. The file must

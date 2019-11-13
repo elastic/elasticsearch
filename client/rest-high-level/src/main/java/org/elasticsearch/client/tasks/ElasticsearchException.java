@@ -70,6 +70,10 @@ public class ElasticsearchException {
         return suppressed;
     }
 
+    void addSuppressed(List<ElasticsearchException> suppressed){
+        this.suppressed.addAll(suppressed);
+    }
+
     /**
      * Generate a {@link ElasticsearchException} from a {@link XContentParser}. This does not
      * return the original exception type (ie NodeClosedException for example) but just wraps
@@ -173,7 +177,7 @@ public class ElasticsearchException {
         return e;
     }
 
-    private void addHeader(String key, List<String> value) {
+    void addHeader(String key, List<String> value) {
         headers.put(key,value);
 
     }

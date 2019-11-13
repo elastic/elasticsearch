@@ -36,9 +36,8 @@ public class CancelTasksRequest implements Validatable {
 
     CancelTasksRequest(){}
 
-    CancelTasksRequest setNodes(List<String> nodes) {
+    void setNodes(List<String> nodes) {
         this.nodes.addAll(nodes);
-        return this;
     }
 
     public List<String> getNodes() {

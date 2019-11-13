@@ -1,3 +1,21 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.client.tasks;
 
 import org.elasticsearch.ElasticsearchException;
@@ -19,14 +37,19 @@ import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTasksResponseTests.ByNodeCancelTasksResponse, org.elasticsearch.client.tasks.CancelTasksResponse> {
+public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTasksResponseTests.ByNodeCancelTasksResponse,
+    org.elasticsearch.client.tasks.CancelTasksResponse> {
 
     private static String NODE_ID = "node_id";
 
@@ -44,7 +67,7 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
             nodeFailures.add(new ElasticsearchException(new RuntimeException(randomAlphaOfLength(10))));
         }
 
-        for (int i = 0; i < 4 ; i++) {
+        for (int i = 0; i < 4; i++) {
             tasks.add(new org.elasticsearch.tasks.TaskInfo(
                 new TaskId(NODE_ID, (long) i),
                 randomAlphaOfLength(4),
@@ -76,20 +99,22 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
         Map<org.elasticsearch.client.tasks.TaskId, org.elasticsearch.client.tasks.TaskInfo> cTasksMap =
             cTasks.stream().collect(Collectors.toMap(org.elasticsearch.client.tasks.TaskInfo::getTaskId,
                 Function.identity()));
-        for(TaskInfo ti: sTasks){
-            org.elasticsearch.client.tasks.TaskInfo taskInfo = cTasksMap.get(new org.elasticsearch.client.tasks.TaskId(ti.getTaskId().getNodeId(), ti.getTaskId().getId()));
-            assertEquals(ti.getAction(),taskInfo.getAction());
-            assertEquals(ti.getDescription(),taskInfo.getDescription());
-            assertEquals(new HashMap<>(ti.getHeaders()),new HashMap<>(taskInfo.getHeaders()));
-            assertEquals(ti.getType(),taskInfo.getType());
-            assertEquals(ti.getStartTime(),taskInfo.getStartTime());
-            assertEquals(ti.getRunningTimeNanos(),taskInfo.getRunningTimeNanos());
-            assertEquals(ti.isCancellable(),taskInfo.isCancellable());
-            assertEquals(ti.getParentTaskId().getNodeId(),taskInfo.getParentTaskId().getNodeId());
-            assertEquals(ti.getParentTaskId().getId(),taskInfo.getParentTaskId().getId());
+        for (TaskInfo ti : sTasks) {
+            org.elasticsearch.client.tasks.TaskInfo taskInfo = cTasksMap.get(
+                new org.elasticsearch.client.tasks.TaskId(ti.getTaskId().getNodeId(), ti.getTaskId().getId())
+            );
+            assertEquals(ti.getAction(), taskInfo.getAction());
+            assertEquals(ti.getDescription(), taskInfo.getDescription());
+            assertEquals(new HashMap<>(ti.getHeaders()), new HashMap<>(taskInfo.getHeaders()));
+            assertEquals(ti.getType(), taskInfo.getType());
+            assertEquals(ti.getStartTime(), taskInfo.getStartTime());
+            assertEquals(ti.getRunningTimeNanos(), taskInfo.getRunningTimeNanos());
+            assertEquals(ti.isCancellable(), taskInfo.isCancellable());
+            assertEquals(ti.getParentTaskId().getNodeId(), taskInfo.getParentTaskId().getNodeId());
+            assertEquals(ti.getParentTaskId().getId(), taskInfo.getParentTaskId().getId());
             FakeTaskStatus status = (FakeTaskStatus) ti.getStatus();
-            assertEquals(status.code,taskInfo.getStatus().get("code"));
-            assertEquals(status.status,taskInfo.getStatus().get("status"));
+            assertEquals(status.code, taskInfo.getStatus().get("code"));
+            assertEquals(status.status, taskInfo.getStatus().get("status"));
 
         }
 
@@ -97,13 +122,15 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
         List<ElasticsearchException> serverNodeFailures = serverTestInstance.getNodeFailures();
         List<org.elasticsearch.client.tasks.ElasticsearchException> cNodeFailures = clientInstance.getNodeFailures();
         List<String> sExceptionsMessages = serverNodeFailures.stream().map(x ->
-            org.elasticsearch.client.tasks.ElasticsearchException.buildMessage("exception", x.getMessage(), null)).collect(Collectors.toList()
+            org.elasticsearch.client.tasks.ElasticsearchException.buildMessage(
+                "exception", x.getMessage(), null)
+        ).collect(Collectors.toList()
         );
 
         List<String> cExceptionsMessages = cNodeFailures.stream().map(
             org.elasticsearch.client.tasks.ElasticsearchException::getMsg
         ).collect(Collectors.toList());
-        assertEquals(new HashSet<>(sExceptionsMessages),new HashSet<>(cExceptionsMessages));
+        assertEquals(new HashSet<>(sExceptionsMessages), new HashSet<>(cExceptionsMessages));
 
         List<TaskOperationFailure> sTaskFailures = serverTestInstance.getTaskFailures();
         List<org.elasticsearch.client.tasks.TaskOperationFailure> cTaskFailures = clientInstance.getTaskFailures();
@@ -112,11 +139,11 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
             cTaskFailures.stream().collect(Collectors.toMap(
                 org.elasticsearch.client.tasks.TaskOperationFailure::getTaskId,
                 Function.identity()));
-        for(TaskOperationFailure tof: sTaskFailures){
+        for (TaskOperationFailure tof : sTaskFailures) {
             org.elasticsearch.client.tasks.TaskOperationFailure failure = cTasksFailuresMap.get(tof.getTaskId());
-            assertEquals(tof.getNodeId(),failure.getNodeId());
+            assertEquals(tof.getNodeId(), failure.getNodeId());
             assertTrue(failure.getReason().getMsg().contains("runtime_exception"));
-            assertTrue(failure.getStatus().contains(""+tof.getStatus().name()));
+            assertTrue(failure.getStatus().contains("" + tof.getStatus().name()));
         }
     }
 
@@ -157,11 +184,11 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
      */
     static class ByNodeCancelTasksResponse extends CancelTasksResponse {
 
-        public ByNodeCancelTasksResponse(StreamInput in) throws IOException {
+        ByNodeCancelTasksResponse(StreamInput in) throws IOException {
             super(in);
         }
 
-        public ByNodeCancelTasksResponse(
+        ByNodeCancelTasksResponse(
             List<TaskInfo> tasks,
             List<TaskOperationFailure> taskFailures,
             List<? extends ElasticsearchException> nodeFailures) {
@@ -174,10 +201,10 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<CancelTas
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
             DiscoveryNodes.Builder dnBuilder = new DiscoveryNodes.Builder();
-            InetAddress inetAddress = InetAddress.getByAddress(new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
+            InetAddress inetAddress = InetAddress.getByAddress(new byte[]{(byte) 192, (byte) 168, (byte) 0, (byte) 1});
             TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
-            dnBuilder.add(new DiscoveryNode(NODE_ID,NODE_ID, transportAddress, emptyMap(), emptySet(), Version.CURRENT));
+            dnBuilder.add(new DiscoveryNode(NODE_ID, NODE_ID, transportAddress, emptyMap(), emptySet(), Version.CURRENT));
 
             DiscoveryNodes build = dnBuilder.build();
             builder.startObject();

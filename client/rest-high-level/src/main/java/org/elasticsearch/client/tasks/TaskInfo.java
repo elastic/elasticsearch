@@ -25,8 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
-
 
 /**
  * client side counterpart of server side
@@ -46,14 +44,6 @@ public class TaskInfo {
     private final Map<String, Object> status = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
 
-    /**
-     * as it is a named object
-     * in the JSON structure, it requires
-     * a name in the constructor to cope with signature of:
-     * {@link ObjectParser#declareNamedObjects(BiConsumer, ObjectParser.NamedObjectParser, ParseField)}
-     *
-     * @param taskId the aggregate identifier of a task (node id + task id )
-     */
     public TaskInfo(TaskId taskId) {
         this.taskId = taskId;
     }
@@ -138,10 +128,7 @@ public class TaskInfo {
         return status;
     }
 
-    void noOpParse(Object s) {}
-
-
-
+    private void noOpParse(Object s) {}
 
     public static final ObjectParser.NamedObjectParser<TaskInfo, Void> PARSER;
 

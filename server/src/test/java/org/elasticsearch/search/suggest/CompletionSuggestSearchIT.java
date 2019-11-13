@@ -1069,11 +1069,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .startArray("input").value("The Beatles").endArray()
                 .endObject().endObject()
         ).get();
+        // we have 2 docs in a segment...
         client().prepareIndex(INDEX).setId("2").setSource(jsonBuilder()
                 .startObject()
                 .field("somefield", "somevalue")
                 .endObject()
-        ).get(); // we have 2 docs in a segment...
+        ).get();
         ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();

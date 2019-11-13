@@ -85,7 +85,7 @@ the authentication chain for {es}.
 
 This realm has a few mandatory settings, and a number of optional settings.
 The available settings are described in detail in
-<<ref-oidc-settings. This
+<<ref-oidc-settings>>. This
 guide will explore the most common settings.
 
 Create an OpenID Connect (the realm type is `oidc`) realm in your `elasticsearch.yml` file

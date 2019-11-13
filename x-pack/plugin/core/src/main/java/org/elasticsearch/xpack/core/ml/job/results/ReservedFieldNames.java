@@ -74,6 +74,7 @@ public final class ReservedFieldNames {
             AnomalyCause.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyCause.TYPICAL.getPreferredName(),
             AnomalyCause.ACTUAL.getPreferredName(),
+            AnomalyCause.GEO_RESULTS.getPreferredName(),
             AnomalyCause.INFLUENCERS.getPreferredName(),
             AnomalyCause.FIELD_NAME.getPreferredName(),
 
@@ -88,6 +89,7 @@ public final class ReservedFieldNames {
             AnomalyRecord.FUNCTION_DESCRIPTION.getPreferredName(),
             AnomalyRecord.TYPICAL.getPreferredName(),
             AnomalyRecord.ACTUAL.getPreferredName(),
+            AnomalyRecord.GEO_RESULTS.getPreferredName(),
             AnomalyRecord.INFLUENCERS.getPreferredName(),
             AnomalyRecord.FIELD_NAME.getPreferredName(),
             AnomalyRecord.OVER_FIELD_NAME.getPreferredName(),
@@ -96,6 +98,9 @@ public final class ReservedFieldNames {
             AnomalyRecord.RECORD_SCORE.getPreferredName(),
             AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName(),
             AnomalyRecord.BUCKET_SPAN.getPreferredName(),
+
+            GeoResults.TYPICAL_POINT.getPreferredName(),
+            GeoResults.ACTUAL_POINT.getPreferredName(),
 
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),

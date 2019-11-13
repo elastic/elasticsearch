@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -62,6 +63,7 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
             randomBoolean());
         rankEvalRequest.indicesOptions(indicesOptions);
+        rankEvalRequest.searchType(randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         return rankEvalRequest;
     }
 
@@ -77,8 +79,17 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
         mutators.add(() -> mutation.indices(ArrayUtils.concat(instance.indices(), new String[] { randomAlphaOfLength(10) })));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(instance.indicesOptions(),
                 () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+        mutators.add(() -> {
+            if (instance.searchType() == SearchType.DFS_QUERY_THEN_FETCH) {
+                mutation.searchType(SearchType.QUERY_THEN_FETCH);
+            } else {
+                mutation.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+            }
+        });
+        mutators.add(() -> mutation.setRankEvalSpec(RankEvalSpecTests.mutateTestItem(instance.getRankEvalSpec())));
         mutators.add(() -> mutation.setRankEvalSpec(RankEvalSpecTests.mutateTestItem(instance.getRankEvalSpec())));
         randomFrom(mutators).run();
         return mutation;
     }
+
 }

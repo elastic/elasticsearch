@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -40,10 +41,12 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -117,10 +120,11 @@ public class IndicesClusterStateServiceTests extends ESTestCase {
                     final Exception e = randomFrom(
                         new AlreadyClosedException("closed"),
                         new IndexShardClosedException(indexShard.shardId()),
-                        new TransportException(randomFrom(
-                            "failed",
-                            "TransportService is closed stopped can't send request",
-                            "transport stopped, action: indices:admin/seq_no/retention_lease_background_sync[p]")),
+                        new TransportException("failed"),
+                        new SendRequestTransportException(null, randomFrom(
+                            "some-action",
+                            "indices:admin/seq_no/retention_lease_background_sync[p]"
+                        ), new NodeClosedException((DiscoveryNode) null)),
                         new RuntimeException("failed"));
                     listener.onFailure(e);
                     if (e.getMessage().equals("failed")) {

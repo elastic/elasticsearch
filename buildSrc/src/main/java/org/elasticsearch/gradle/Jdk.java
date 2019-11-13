@@ -111,11 +111,11 @@ public class Jdk implements Buildable, Iterable<File> {
         return configuration.getBuildDependencies();
     }
 
-    public Object getLazyPath() {
+    public Object getBinJavaPath() {
         return new Object() {
             @Override
             public String toString() {
-                return getPath();
+                return getPath() + "/bin/java";
             }
         };
     }

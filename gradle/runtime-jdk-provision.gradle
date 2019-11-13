@@ -18,7 +18,7 @@ allprojects {
             test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
         } else {
             test.dependsOn(rootProject.jdks.provisioned_runtime)
-            test.executable = rootProject.jdks.provisioned_runtime.getLazyPath()
+            test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
         }
     }
 }

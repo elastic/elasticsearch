@@ -143,3 +143,20 @@ task regen {
     }
   }
 }
+
+// Until this project is always being formatted with spotless, we need to
+// guard against `spotless()` not existing.
+try {
+  spotless {
+    java {
+      // Contains large data tables that do not format well.
+      targetExclude 'src/main/java/org/elasticsearch/xpack/sql/type/DataType.java'
+    }
+  }
+}
+catch (Exception e) {
+  if (e.getMessage().contains("Could not find method spotless") == false) {
+    throw e;
+  }
+}
+

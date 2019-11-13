@@ -16,6 +16,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
+/*
+ * This file is not automatically formatted in order to preserve the formatting
+ * of the DataType enum. This can be changes in the project's build.gradle.
+ */
+
 /**
  * Elasticsearch SQL data types.
  * This class also implements JDBC {@link SQLType} for properly receiving and setting values.
@@ -24,7 +29,6 @@ import java.util.Map.Entry;
  */
 public enum DataType {
 
-    // @formatter:off
     //             esType            jdbc type,          size,              defPrecision,dispSize, int,   rat,   docvals
     NULL(          "null",           JDBCType.NULL,      0,                 0,                 0,  false, false, false),
     UNSUPPORTED(                     JDBCType.OTHER,     0,                 0,                 0,  false, false, false),
@@ -79,7 +83,6 @@ public enum DataType {
     INTERVAL_HOUR_TO_MINUTE(  ExtTypes.INTERVAL_HOUR_TO_MINUTE,  Long.BYTES,      23,   23,  false, false, false),
     INTERVAL_HOUR_TO_SECOND(  ExtTypes.INTERVAL_HOUR_TO_SECOND,  Long.BYTES,      23,   23,  false, false, false),
     INTERVAL_MINUTE_TO_SECOND(ExtTypes.INTERVAL_MINUTE_TO_SECOND,Long.BYTES,      23,   23,  false, false, false);
-    // @formatter:on
 
     private static final Map<String, DataType> ODBC_TO_ES = new HashMap<>(36);
     static {
@@ -129,7 +132,6 @@ public enum DataType {
         ODBC_TO_ES.put("SQL_INTERVAL_DAY_TO_MINUTE", INTERVAL_DAY_TO_MINUTE);
         ODBC_TO_ES.put("SQL_INTERVAL_DAY_TO_SECOND", INTERVAL_DAY_TO_SECOND);
     }
-
 
     private static final Map<String, DataType> SQL_TO_ES = new HashMap<>(45);
     static {
@@ -205,13 +207,28 @@ public enum DataType {
      */
     public final boolean defaultDocValues;
 
-    DataType(SQLType sqlType, int size, int defaultPrecision, int displaySize, boolean isInteger,
-            boolean isRational, boolean defaultDocValues) {
+    DataType(
+        SQLType sqlType,
+        int size,
+        int defaultPrecision,
+        int displaySize,
+        boolean isInteger,
+        boolean isRational,
+        boolean defaultDocValues
+    ) {
         this(null, sqlType, size, defaultPrecision, displaySize, isInteger, isRational, defaultDocValues);
     }
 
-    DataType(String esType, SQLType sqlType, int size, int defaultPrecision, int displaySize, boolean isInteger,
-             boolean isRational, boolean defaultDocValues) {
+    DataType(
+        String esType,
+        SQLType sqlType,
+        int size,
+        int defaultPrecision,
+        int displaySize,
+        boolean isInteger,
+        boolean isRational,
+        boolean defaultDocValues
+    ) {
         this.typeName = name().toLowerCase(Locale.ROOT);
         this.esType = esType;
         this.sqlType = sqlType;
@@ -283,18 +300,18 @@ public enum DataType {
     public boolean isDayTimeInterval() {
         int ordinal = this.ordinal();
         return (ordinal >= INTERVAL_DAY.ordinal() && ordinal <= INTERVAL_SECOND.ordinal())
-                || (ordinal >= INTERVAL_DAY_TO_HOUR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal());
+            || (ordinal >= INTERVAL_DAY_TO_HOUR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal());
     }
-    
+
     // data type extract-able from _source or from docvalue_fields
     public boolean isFromDocValuesOnly() {
         return this == KEYWORD  // because of ignore_above. Extracting this from _source wouldn't make sense if it wasn't indexed at all.
-                || this == DATE         // because of date formats
-                || this == DATETIME
-                || this == SCALED_FLOAT // because of scaling_factor
-                || this == GEO_POINT
-                || this == GEO_SHAPE
-                || this == SHAPE;
+            || this == DATE         // because of date formats
+            || this == DATETIME
+            || this == SCALED_FLOAT // because of scaling_factor
+            || this == GEO_POINT
+            || this == GEO_SHAPE
+            || this == SHAPE;
     }
 
     public static DataType fromOdbcType(String odbcType) {

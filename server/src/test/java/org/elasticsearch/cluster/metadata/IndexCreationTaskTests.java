@@ -131,7 +131,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testApplyDataFromTemplate() throws Exception {
         addMatchingTemplate(builder -> builder
                 .putAlias(AliasMetaData.builder("alias1"))
-                .putMapping("mapping1", createMapping())
+                .putMapping("_doc", createMapping())
                 .settings(Settings.builder().put("key1", "value1"))
         );
 
@@ -319,9 +319,10 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     public void testTypedTemplate() throws Exception {
-        addMatchingTemplate(builder -> builder.putMapping("type", "{\"type\": {}}"));
+        addMatchingTemplate(builder -> builder.putMapping("type",
+            "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}"));
         executeTask();
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("_doc"));
     }
 
     public void testTypelessTemplate() throws Exception {

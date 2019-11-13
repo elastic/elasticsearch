@@ -387,8 +387,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private RepositoryData safeRepositoryData(long repositoryStateId, Map<String, BlobMetaData> rootBlobs) {
         final long generation = latestGeneration(rootBlobs.keySet());
-        final long genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
-        if (genToLoad != generation) {
+        final long genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, repositoryStateId));
+        if (genToLoad > generation) {
             // It's always a possibility to not see the latest index-N in the listing here on an eventually consistent blob store, just
             // debug log it. Any blobs leaked as a result of an inconsistent listing here will be cleaned up in a subsequent cleanup or
             // snapshot delete run anyway.
@@ -396,8 +396,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 "current generation is at least [" + genToLoad + "]");
         }
         if (genToLoad != repositoryStateId) {
-            throw new IllegalStateException("Determined latest repository generation to be [" + genToLoad + "] but this operation " +
-                "assumes generation [" + repositoryStateId + "]");
+            throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
+                repositoryStateId + "], actual current generation [" + genToLoad + "]");
         }
         return getRepositoryData(genToLoad);
     }
@@ -932,8 +932,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
             }
             final long genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
-            if (genToLoad != generation) {
-                logger.warn("Determined repository generation [" + generation
+            if (genToLoad > generation) {
+                logger.debug("Determined repository generation [" + generation
                     + "] from repository contents but correct generation must be at least [" + genToLoad + "]");
             }
             try {
@@ -966,9 +966,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // If we fail to load the generation we tracked in latestKnownRepoGen we reset it.
             // This is done as a fail-safe in case a user manually deletes the contents of the repository in which case subsequent
             // operations must start from the EMPTY_REPO_GEN again
-            if (RepositoryData.EMPTY_REPO_GEN ==
-                latestKnownRepoGen.updateAndGet(known -> known == indexGen ? RepositoryData.EMPTY_REPO_GEN : known)) {
-                logger.warn("Resetting repository generation tracker because we failed to read generation [" + indexGen + "]");
+            if (latestKnownRepoGen.compareAndSet(indexGen, RepositoryData.EMPTY_REPO_GEN)) {
+                logger.warn("Resetting repository generation tracker because we failed to read generation [" + indexGen + "]", ioe);
             }
             throw new RepositoryException(metadata.name(), "could not read repository data from index blob", ioe);
         }
@@ -1004,11 +1003,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
         writeAtomic(indexBlob,
             BytesReference.bytes(repositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), writeShardGens)), true);
-        final long newLatestGen = latestKnownRepoGen.updateAndGet(known -> Math.max(known, newGen));
-        if (newGen != newLatestGen) {
+        final long latestKnownGen = latestKnownRepoGen.updateAndGet(known -> Math.max(known, newGen));
+        if (newGen < latestKnownGen) {
             // Don't mess up the index.latest blob
             throw new IllegalStateException(
-                "Wrote generation [" + newGen + "] but latest known repo gen concurrently changed to [" + newLatestGen + "]");
+                "Wrote generation [" + newGen + "] but latest known repo gen concurrently changed to [" + latestKnownGen + "]");
         }
         // write the current generation to the index-latest file
         final BytesReference genBytes;

@@ -303,7 +303,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             long totalBytesWriting = 0;
             for (IndexShard shard : availableShards()) {
 
-                // Give shard a chance to transition to inactive so sync'd flush can happen:
+                // Give shard a chance to transition to inactive so we can flush
                 checkIdle(shard, inactiveTime.nanos());
 
                 // How many bytes this shard is currently (async'd) moving from heap to disk:

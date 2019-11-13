@@ -31,8 +31,13 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testCreateProcessorInstance() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList("source_index"), "my_key",
-            enrichValues);
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            Collections.singletonList("source_index"),
+            "my_key",
+            enrichValues
+        );
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.metaData = createMetaData("majestic", policy);
 
@@ -145,8 +150,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testUnsupportedPolicy() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
-        EnrichPolicy policy =
-            new EnrichPolicy("unsupported", null, Collections.singletonList("source_index"), "my_key", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy("unsupported", null, Collections.singletonList("source_index"), "my_key", enrichValues);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.metaData = createMetaData("majestic", policy);
 
@@ -165,8 +169,13 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testCompactEnrichValuesFormat() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null,
-            Collections.singletonList("source_index"), "host", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            Collections.singletonList("source_index"),
+            "host",
+            enrichValues
+        );
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.metaData = createMetaData("majestic", policy);
 
@@ -184,8 +193,13 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testNoTargetField() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null,
-            Collections.singletonList("source_index"), "host", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            Collections.singletonList("source_index"),
+            "host",
+            enrichValues
+        );
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.metaData = createMetaData("majestic", policy);
 
@@ -199,8 +213,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testIllegalMaxMatches() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Arrays.asList("source_index"), "my_key",
-            enrichValues);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Arrays.asList("source_index"), "my_key", enrichValues);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.metaData = createMetaData("majestic", policy);
 
@@ -222,8 +235,14 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             .build();
         IndexMetaData.Builder builder = IndexMetaData.builder(EnrichPolicy.getBaseName(name) + "-1");
         builder.settings(settings);
-        builder.putMapping("_doc", "{\"_meta\": {\"enrich_match_field\": \"" + policy.getMatchField() +
-            "\", \"enrich_policy_type\": \"" + policy.getType() + "\"}}");
+        builder.putMapping(
+            "_doc",
+            "{\"_meta\": {\"enrich_match_field\": \""
+                + policy.getMatchField()
+                + "\", \"enrich_policy_type\": \""
+                + policy.getType()
+                + "\"}}"
+        );
         builder.putAlias(AliasMetaData.builder(EnrichPolicy.getBaseName(name)).build());
         return MetaData.builder().put(builder).build();
     }

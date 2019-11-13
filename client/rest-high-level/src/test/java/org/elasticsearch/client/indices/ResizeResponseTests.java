@@ -30,7 +30,8 @@ public class ResizeResponseTests extends
 
     @Override
     protected org.elasticsearch.action.admin.indices.shrink.ResizeResponse createServerTestInstance(XContentType xContentType) {
-        return new org.elasticsearch.action.admin.indices.shrink.ResizeResponse(randomBoolean(), randomBoolean(), randomAlphaOfLength(5));
+        boolean acked = randomBoolean();
+        return new org.elasticsearch.action.admin.indices.shrink.ResizeResponse(acked, acked, randomAlphaOfLength(5));
     }
 
     @Override

@@ -150,7 +150,7 @@ thirdPartyAudit.ignoreMissingClasses(
   'com.amazonaws.services.kms.model.EncryptResult',
   'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
   'com.amazonaws.services.kms.model.GenerateDataKeyResult',
-  
+
   'com.google.appengine.api.datastore.Blob',
   'com.google.appengine.api.datastore.DatastoreService',
   'com.google.appengine.api.datastore.DatastoreServiceFactory',

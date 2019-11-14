@@ -177,7 +177,7 @@ buildRestTests.setups['ledger'] = '''
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
             {"index":{}}
-            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "decription": "another thing"}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "description": "another thing"}
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
             {"index":{}}

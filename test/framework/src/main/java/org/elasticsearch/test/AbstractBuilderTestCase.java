@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -402,12 +403,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 
         public static Predicate<String> indexNameMatcher() {
             // Simplistic index name matcher used for testing
-            return pattern ->{ 
-                if (pattern.endsWith("*")) {
-                    return index.getName().startsWith(pattern.substring(0, pattern.length()-1));
-                }
-                return pattern.equals(index.getName());
-            };
+            return pattern -> Regex.simpleMatch(pattern, index.getName());
         }                 
 
         @Override

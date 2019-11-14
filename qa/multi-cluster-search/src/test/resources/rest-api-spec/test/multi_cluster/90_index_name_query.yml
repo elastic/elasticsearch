@@ -70,7 +70,7 @@ teardown:
   - do:
      search:
        ccs_minimize_roundtrips: false
-       rest_total_hits_as_int: true
+       track_total_hits: true
        index: "single_doc_index,my_remote_cluster:single_doc_index"
        pre_filter_shard_size: 1
        body:
@@ -78,7 +78,7 @@ teardown:
             term:
               "_index": "does_not_match"
 
-  - match: { hits.total: 0 }
+  - match: { hits.total.value: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
   - match: { _shards.skipped : 1}
@@ -87,7 +87,7 @@ teardown:
   - do:
       search:
         ccs_minimize_roundtrips: false
-        rest_total_hits_as_int: true
+        track_total_hits: true
         index: "single_doc_index,my_remote_cluster:single_doc_index"
         pre_filter_shard_size: 1
         body:
@@ -95,8 +95,8 @@ teardown:
             term:
               "_index": "my_remote_cluster:does_not_match"
 
-  - match: { hits.total: 0 }
+  - match: { hits.total.value: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
   - match: { _shards.skipped : 1}
-  - match: { _shards.failed: 0 }  
+  - match: { _shards.failed: 0 }

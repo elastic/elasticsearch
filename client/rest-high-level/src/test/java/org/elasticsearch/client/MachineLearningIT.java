@@ -101,6 +101,8 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.PutTrainedModelRequest;
+import org.elasticsearch.client.ml.PutTrainedModelResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -149,6 +151,7 @@ import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
@@ -162,14 +165,11 @@ import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -178,11 +178,9 @@ import org.elasticsearch.search.SearchHit;
 import org.junit.After;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -190,7 +188,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -2192,6 +2189,25 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testPutTrainedModel() throws Exception {
+        String modelId = "test-put-trained-model";
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder(TargetType.REGRESSION).build();
+        TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
+            .setDefinition(definition)
+            .setModelId(modelId)
+            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setDescription("test model")
+            .build();
+        PutTrainedModelResponse putTrainedModelResponse = execute(new PutTrainedModelRequest(trainedModelConfig),
+            machineLearningClient::putTrainedModel,
+            machineLearningClient::putTrainedModelAsync);
+        TrainedModelConfig createdModel = putTrainedModelResponse.getResponse();
+        assertThat(createdModel.getModelId(), equalTo(modelId));
+    }
+
     public void testGetTrainedModelsStats() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String modelIdPrefix = "a-get-trained-model-stats-";
@@ -2474,56 +2490,13 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     private void putTrainedModel(String modelId) throws IOException {
         TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder(TargetType.REGRESSION).build();
-        highLevelClient().index(
-            new IndexRequest(".ml-inference-000001")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(modelConfigString(modelId), XContentType.JSON)
-                .id(modelId),
-            RequestOptions.DEFAULT);
-
-        highLevelClient().index(
-            new IndexRequest(".ml-inference-000001")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(modelDocString(compressDefinition(definition), modelId), XContentType.JSON)
-                .id("trained_model_definition_doc-" + modelId + "-0"),
-            RequestOptions.DEFAULT);
-    }
-
-    private String compressDefinition(TrainedModelDefinition definition) throws IOException {
-        BytesReference reference = XContentHelper.toXContent(definition, XContentType.JSON, false);
-        BytesStreamOutput out = new BytesStreamOutput();
-        try (OutputStream compressedOutput = new GZIPOutputStream(out, 4096)) {
-            reference.writeTo(compressedOutput);
-        }
-        return new String(Base64.getEncoder().encode(BytesReference.toBytes(out.bytes())), StandardCharsets.UTF_8);
-    }
-
-    private static String modelConfigString(String modelId) {
-        return "{\n" +
-            "  \"doc_type\": \"trained_model_config\",\n" +
-            "  \"model_id\": \"" + modelId + "\",\n" +
-            "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
-            "  \"description\": \"test model\",\n" +
-            "  \"version\": \"7.6.0\",\n" +
-            "  \"license_level\": \"platinum\",\n" +
-            "  \"created_by\": \"ml_test\",\n" +
-            "  \"estimated_heap_memory_usage_bytes\": 0," +
-            "  \"estimated_operations\": 0," +
-            "  \"created_time\": 0\n" +
-            "}";
-    }
-
-    private static String modelDocString(String compressedDefinition, String modelId) {
-        return "" +
-            "{" +
-            "\"model_id\": \"" + modelId + "\",\n" +
-            "\"doc_num\": 0,\n" +
-            "\"doc_type\": \"trained_model_definition_doc\",\n" +
-            "  \"compression_version\": " + 1 + ",\n" +
-            "  \"total_definition_length\": " + compressedDefinition.length() + ",\n" +
-            "  \"definition_length\": " + compressedDefinition.length() + ",\n" +
-            "\"definition\": \"" + compressedDefinition + "\"\n" +
-            "}";
+        TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
+            .setDefinition(definition)
+            .setModelId(modelId)
+            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setDescription("test model")
+            .build();
+        highLevelClient().machineLearning().putTrainedModel(new PutTrainedModelRequest(trainedModelConfig), RequestOptions.DEFAULT);
     }
 
     private void waitForJobToClose(String jobId) throws Exception {

@@ -114,6 +114,8 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
+import org.elasticsearch.client.ml.PutTrainedModelRequest;
+import org.elasticsearch.client.ml.PutTrainedModelResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -165,7 +167,9 @@ import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -3625,6 +3629,69 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testPutTrainedModel() throws Exception {
+        TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder(TargetType.REGRESSION).build();
+        // tag::put-trained-model-config
+        TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
+            .setDefinition(definition) // <1>
+            .setModelId("my-new-trained-model") // <2>
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <3>
+            .setDescription("test model") // <4>
+            .setMetadata(new HashMap<>()) // <5>
+            .setTags("my_regression_models") // <6>
+            .build();
+        // end::put-trained-model-config
+
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::put-trained-model-request
+            PutTrainedModelRequest request = new PutTrainedModelRequest(trainedModelConfig); // <1>
+            // end::put-trained-model-request
+
+            // tag::put-trained-model-execute
+            PutTrainedModelResponse response = client.machineLearning().putTrainedModel(request, RequestOptions.DEFAULT);
+            // end::put-trained-model-execute
+
+            // tag::put-trained-model-response
+            TrainedModelConfig model = response.getResponse();
+            // end::put-trained-model-response
+
+            assertThat(model.getModelId(), equalTo(trainedModelConfig.getModelId()));
+            highLevelClient().machineLearning()
+                .deleteTrainedModel(new DeleteTrainedModelRequest("my-new-trained-model"), RequestOptions.DEFAULT);
+        }
+        {
+            PutTrainedModelRequest request = new PutTrainedModelRequest(trainedModelConfig);
+            
+            // tag::put-trained-model-execute-listener
+            ActionListener<PutTrainedModelResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(PutTrainedModelResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-trained-model-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-trained-model-execute-async
+            client.machineLearning().putTrainedModelAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-trained-model-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+            highLevelClient().machineLearning()
+                .deleteTrainedModel(new DeleteTrainedModelRequest("my-new-trained-model"), RequestOptions.DEFAULT);
+        }
+    }
+
     public void testGetTrainedModelsStats() throws Exception {
         putTrainedModel("my-trained-model");
         RestHighLevelClient client = highLevelClient();
@@ -4088,20 +4155,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     private void putTrainedModel(String modelId) throws IOException {
-        TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder().build();
-        highLevelClient().index(
-            new IndexRequest(".ml-inference-000001")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(modelConfigString(modelId), XContentType.JSON)
-                .id(modelId),
-            RequestOptions.DEFAULT);
-
-        highLevelClient().index(
-            new IndexRequest(".ml-inference-000001")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .source(modelDocString(compressDefinition(definition), modelId), XContentType.JSON)
-                .id("trained_model_definition_doc-" + modelId + "-0"),
-            RequestOptions.DEFAULT);
+        TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder(TargetType.REGRESSION).build();
+        TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
+            .setDefinition(definition)
+            .setModelId(modelId)
+            .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
+            .setDescription("test model")
+            .build();
+        highLevelClient().machineLearning().putTrainedModel(new PutTrainedModelRequest(trainedModelConfig), RequestOptions.DEFAULT);
     }
 
     private String compressDefinition(TrainedModelDefinition definition) throws IOException {

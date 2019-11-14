@@ -24,25 +24,130 @@
   - match: { count: 0 }
   - match: { trained_model_configs: [] }
 ---
-"Test delete given unused trained model":
+"Test get models":
+  - do:
+      ml.put_trained_model:
+        model_id: regression-model-0
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
+          }
+  - match: { model_id: "regression-model-0" }
 
   - do:
-      index:
-        id: trained_model_config-unused-regression-model-0
-        index: .ml-inference-000001
+      ml.put_trained_model:
+        model_id: regression-model-1
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
+          }
+  - match: { model_id: "regression-model-1" }
+
+  - do:
+      ml.put_trained_model:
+        model_id: classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+  - match: { model_id: "classification-model" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+  - match: { count: 3 }
+  - match: { trained_model_configs.0.model_id: "classification-model" }
+  - match: { trained_model_configs.1.model_id: "regression-model-0" }
+  - match: { trained_model_configs.2.model_id: "regression-model-1" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "regression*"
+  - match: { count: 2 }
+  - match: { trained_model_configs.0.model_id: "regression-model-0" }
+  - match: { trained_model_configs.1.model_id: "regression-model-1" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        from: 0
+        size: 2
+  - match: { count: 3 }
+  - match: { trained_model_configs.0.model_id: "classification-model" }
+  - match: { trained_model_configs.1.model_id: "regression-model-0" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        from: 1
+        size: 1
+  - match: { count: 3 }
+  - match: { trained_model_configs.0.model_id: "regression-model-0" }
+---
+"Test delete given unused trained model":
+  - do:
+      ml.put_trained_model:
+        model_id: unused-regression-model
         body: >
           {
             "model_id": "unused-regression-model",
-            "created_by": "ml_tests",
-            "version": "8.0.0",
+            "input": {"field_names": ["field1", "field2"]},
             "description": "empty model for tests",
-            "create_time": 0,
-            "model_version": 0,
-            "model_type": "local"
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
           }
-  - do:
-      indices.refresh: {}
 
+  - match: { model_id: "unused-regression-model" }
   - do:
       ml.delete_trained_model:
         model_id: "unused-regression-model"
@@ -58,22 +163,28 @@
 ---
 "Test delete given used trained model":
   - do:
-      index:
-        id: trained_model_config-used-regression-model-0
-        index: .ml-inference-000001
+      ml.put_trained_model:
+        model_id: used-regression-model
         body: >
           {
             "model_id": "used-regression-model",
-            "created_by": "ml_tests",
-            "version": "8.0.0",
+            "input": {"field_names": ["field1", "field2"]},
             "description": "empty model for tests",
-            "create_time": 0,
-            "model_version": 0,
-            "model_type": "local"
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
           }
-  - do:
-      indices.refresh: {}
 
+  - match: { model_id: "used-regression-model" }
   - do:
       ingest.put_pipeline:
         id: "regression-model-pipeline"

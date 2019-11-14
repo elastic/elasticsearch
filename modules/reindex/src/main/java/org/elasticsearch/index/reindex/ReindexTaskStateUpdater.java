@@ -246,7 +246,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 }
             }
 
-            private void reschedule(TimeValue nextDelay, @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
+            private void reschedule(TimeValue nextDelay, @Nullable BulkByScrollResponse reindexResponse,
+                                    @Nullable ElasticsearchException exception) {
                 try {
                     threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay, ThreadPool.Names.SAME);
                 } catch (EsRejectedExecutionException rejection) {

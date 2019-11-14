@@ -1,5 +1,16 @@
 #!/bin/bash
 
+JAVA_HOME=${JAVA_HOME:-$HOME/.java/openjdk12}
+RUNTIME_JAVA_HOME=${RUNTIME_JAVA_HOME:-$HOME/.java/openjdk11}
+
+JAVA7_HOME=$HOME/.java/java7
+JAVA8_HOME=$HOME/.java/java8
+JAVA9_HOME=$HOME/.java/java9
+JAVA10_HOME=$HOME/.java/java10
+JAVA11_HOME=$HOME/.java/java11
+JAVA12_HOME=$HOME/.java/openjdk12
+JAVA13_HOME=$HOME/.java/openjdk13
+
 # drop page cache and kernel slab objects on linux
 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
 
@@ -11,8 +22,8 @@ if [ -f /proc/cpuinfo ] ; then
 else
    if [[ "$OSTYPE" == "darwin"* ]]; then
       MAX_WORKERS=`sysctl -n hw.physicalcpu | sed 's/\s\+//g'`
-      # Looks like it's too much for our workers so reduce it further
-      MAX_WORKERS=$(($MAX_WORKERS/2))
+      # Looks like it's too much for our workers so we reduce it for now
+      MAX_WORKERS=2
    else
       echo "Unsupported OS Type: $OSTYPE"
       exit 1

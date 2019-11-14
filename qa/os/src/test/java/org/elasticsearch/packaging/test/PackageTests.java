@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -288,7 +289,7 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test81CustomPathConfAndJvmOptions() throws Exception {
-        withCustomConfig(() -> {
+        withCustomConfig(tempConf -> {
             append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
 
             startElasticsearch(sh, installation);
@@ -342,9 +343,9 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test90DoNotCloseStderrWhenQuiet() throws Exception {
-        withCustomConfig(() -> {
-            // Create a bootstrap problem by configuring an extra GC type
-            append(installation.envFile, "ES_JAVA_OPTS=\"-XX:+UseSerialGC -XX:+UseG1GC\"\n");
+        withCustomConfig(tempConf -> {
+            // Create a startup problem by adding an invalid YAML line to the config
+            append(tempConf.resolve("elasticsearch.yml"), "discovery.zen.ping.unicast.hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
 
             // Make sure we don't pick up the journal entries for previous ES instances.
             clearJournal(sh);
@@ -352,11 +353,16 @@ public class PackageTests extends PackagingTestCase {
 
             final Result logs = sh.run("journalctl -u elasticsearch.service");
 
-            assertThat(logs.stdout, containsString("Multiple garbage collectors selected"));
+            assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
         });
     }
 
-    private <E extends Exception> void withCustomConfig(CheckedRunnable<E> runnable) throws Exception {
+    @FunctionalInterface
+    private interface CustomConfigConsumer {
+        void accept(Path path) throws Exception;
+    }
+
+    private void withCustomConfig(CustomConfigConsumer pathConsumer) throws Exception {
         assumeTrue(isSystemd());
 
         assertPathsExist(installation.envFile);
@@ -386,7 +392,7 @@ public class PackageTests extends PackagingTestCase {
             cp(installation.envFile, tempConf.resolve("elasticsearch.bk"));// backup
             append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
 
-            runnable.run();
+            pathConsumer.accept(tempConf);
         } finally {
             rm(installation.envFile);
             cp(tempConf.resolve("elasticsearch.bk"), installation.envFile);

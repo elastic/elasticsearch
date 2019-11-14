@@ -40,11 +40,11 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(random(), Lucene.STANDARD_ANALYZER));
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").endObject()
                 .endObject().endObject());
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
         MapperService mapperService = index.mapperService();
         DocumentMapper mapper = mapperService.documentMapper();
 
@@ -61,7 +61,7 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         assertNotNull(doc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type")
+        client().admin().indices().preparePutMapping("test")
             .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         writer.addDocument(doc.rootDoc());

@@ -1,11 +1,11 @@
 apply plugin: 'base'
 
 task buildOssUbiDockerBuildContext(type: Tar) {
-    extension = 'tar.gz'
-    compression = Compression.GZIP
-    archiveClassifier = "oss-ubi-docker-build-context"
-    archiveBaseName = "elasticsearch"
-    with dockerBuildContext(true, true, false)
+  extension = 'tar.gz'
+  compression = Compression.GZIP
+  archiveClassifier = "docker-build-context"
+  archiveBaseName = "elasticsearch-oss-ubi7"
+  with dockerBuildContext(true, true, false)
 }
 
 assemble.dependsOn buildOssUbiDockerBuildContext

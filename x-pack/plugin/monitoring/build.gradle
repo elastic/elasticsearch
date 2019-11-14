@@ -2,46 +2,46 @@ evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
-    name 'x-pack-monitoring'
-    description 'Elasticsearch Expanded Pack Plugin - Monitoring'
-    classname 'org.elasticsearch.xpack.monitoring.Monitoring'
-    extendedPlugins = ['x-pack-core']
+  name 'x-pack-monitoring'
+  description 'Elasticsearch Expanded Pack Plugin - Monitoring'
+  classname 'org.elasticsearch.xpack.monitoring.Monitoring'
+  extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-monitoring'
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
-    // monitoring deps
-    compile project(':client:rest')
-    compile project(':client:sniffer')
+  // monitoring deps
+  compile project(':client:rest')
+  compile project(':client:sniffer')
 
-    // baz - this goes away after we separate out the actions #27759
-    testCompile project(xpackModule('watcher'))
+  // baz - this goes away after we separate out the actions #27759
+  testCompile project(xpackModule('watcher'))
 
-    testCompile project(xpackModule('ilm'))
+  testCompile project(xpackModule('ilm'))
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 configurations {
-    testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testRuntime
 }
 task testJar(type: Jar) {
-    appendix 'test'
-    from sourceSets.test.output
+  appendix 'test'
+  from sourceSets.test.output
 }
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
-    archives jar
-    testArtifacts testJar
+  // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+  archives jar
+  testArtifacts testJar
 }
 
 dependencyLicenses {
-    mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
-    mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
+  mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
+  mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so
@@ -52,11 +52,11 @@ integTest.enabled = false
 // Instead we create a separate task to run the
 // tests based on ESIntegTestCase
 task internalClusterTest(type: Test) {
-    description = 'Multi-node tests'
-    mustRunAfter test
+  description = 'Multi-node tests'
+  mustRunAfter test
 
-    include '**/*IT.class'
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  include '**/*IT.class'
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
 check.dependsOn internalClusterTest

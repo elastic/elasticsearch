@@ -25,29 +25,29 @@ apply plugin: 'elasticsearch.rest-test'
 // TODO: this test works, but it isn't really a rest test...should we have another plugin for "non rest test that just needs N clusters?"
 
 dependencies {
-    testCompile project(path: ':client:transport', configuration: 'runtime') // randomly swapped in as a transport
+  testCompile project(path: ':client:transport', configuration: 'runtime') // randomly swapped in as a transport
 }
 
 task singleNodeIntegTest(type: RestIntegTestTask) {
-    mustRunAfter(precommit)
+  mustRunAfter(precommit)
 }
 
 testClusters.singleNodeIntegTest {
-    setting 'discovery.type', 'single-node'
+  setting 'discovery.type', 'single-node'
 }
 
 integTest {
-    dependsOn singleNodeIntegTest
+  dependsOn singleNodeIntegTest
 }
 
 check.dependsOn(integTest)
 
 
 testingConventions {
-    naming.clear()
-    naming {
-        IT {
-            baseClass 'org.elasticsearch.smoketest.ESSmokeClientTestCase'
-        }
+  naming.clear()
+  naming {
+    IT {
+      baseClass 'org.elasticsearch.smoketest.ESSmokeClientTestCase'
     }
+  }
 }

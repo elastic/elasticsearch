@@ -162,6 +162,9 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::cancel-tasks-request
 
             // tag::cancel-tasks-request-filter
+            CancelTasksRequest byTaskIdRequest = new org.elasticsearch.client.tasks.CancelTasksRequest.Builder()
+                .withTaskId(new org.elasticsearch.client.tasks.TaskId("myNode",44L))
+                .build();
             // end::cancel-tasks-request-filter
 
         }

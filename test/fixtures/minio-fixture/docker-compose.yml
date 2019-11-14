@@ -2,7 +2,11 @@ version: '3'
 services:
   minio-fixture:
     build:
-      context: ./build/minio-docker
+      context: .
+      args:
+        bucket: "bucket"
+        accessKey: "access_key"
+        secretKey: "secret_key"
       dockerfile: Dockerfile
     ports:
       - "9000"

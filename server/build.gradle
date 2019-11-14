@@ -43,11 +43,11 @@ if (!isEclipse && !isIdea) {
       }
     }
   }
-  
+
   configurations {
     java12Compile.extendsFrom(compile)
   }
-  
+
   dependencies {
     java12Compile sourceSets.main.output
   }
@@ -206,7 +206,7 @@ processResources {
   dependsOn generateModulesList, generatePluginsList
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -322,9 +322,9 @@ dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||
-            // keep the following org.elasticsearch jars in
-            (it.name == 'jna' ||
-             it.name == 'securesm')
+      // keep the following org.elasticsearch jars in
+      (it.name == 'jna' ||
+        it.name == 'securesm')
   }
 }
 
@@ -333,13 +333,13 @@ task integTest(type: Test) {
   description = 'Multi-node tests'
   mustRunAfter test
 
-   include '**/*IT.class'
+  include '**/*IT.class'
 }
 
 check.dependsOn integTest
 
 task internalClusterTest {
-   dependsOn integTest
+  dependsOn integTest
 }
 
 

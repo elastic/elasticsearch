@@ -210,14 +210,36 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(deviceStats.writeOperations(), deserializedDeviceStats.writeOperations());
                     }
                 }
-                if (nodeStats.getTransport() == null) {
-                    assertNull(deserializedNodeStats.getTransport());
+                TransportStats transportStats = nodeStats.getTransport();
+                TransportStats deserializedTransportStats = deserializedNodeStats.getTransport();
+
+                if (transportStats == null) {
+                    assertNull(deserializedTransportStats);
                 } else {
-                    assertEquals(nodeStats.getTransport().getRxCount(), deserializedNodeStats.getTransport().getRxCount());
-                    assertEquals(nodeStats.getTransport().getRxSize(), deserializedNodeStats.getTransport().getRxSize());
-                    assertEquals(nodeStats.getTransport().getServerOpen(), deserializedNodeStats.getTransport().getServerOpen());
-                    assertEquals(nodeStats.getTransport().getTxCount(), deserializedNodeStats.getTransport().getTxCount());
-                    assertEquals(nodeStats.getTransport().getTxSize(), deserializedNodeStats.getTransport().getTxSize());
+                    assertEquals(transportStats.getRxCount(), deserializedTransportStats.getRxCount());
+                    assertEquals(transportStats.getRxSize(), deserializedTransportStats.getRxSize());
+                    assertEquals(transportStats.getServerOpen(), deserializedTransportStats.getServerOpen());
+                    assertEquals(transportStats.getTxCount(), deserializedTransportStats.getTxCount());
+                    assertEquals(transportStats.getTxSize(), deserializedTransportStats.getTxSize());
+                    TransportStats.InboundConnectionsStats inboundStats = transportStats.getInboundConnectionsStats();
+                    TransportStats.InboundConnectionsStats deserializedInboundStats =
+                            deserializedTransportStats.getInboundConnectionsStats();
+                    if (inboundStats == null) {
+                        assertNull(deserializedInboundStats);
+                    } else {
+                        assertEquals(inboundStats.getOpenedChannels(), deserializedInboundStats.getOpenedChannels());
+                        assertEquals(inboundStats.getClosedChannels(), deserializedInboundStats.getClosedChannels());
+                        assertEquals(inboundStats.getKeepAlivePingsReceivedBytes(),
+                                deserializedInboundStats.getKeepAlivePingsReceivedBytes());
+                        assertEquals(inboundStats.getKeepAlivePingsReceivedCount(),
+                                deserializedInboundStats.getKeepAlivePingsReceivedCount());
+                        assertEquals(inboundStats.getKeepAlivePongsSentBytes(), deserializedInboundStats.getKeepAlivePongsSentBytes());
+                        assertEquals(inboundStats.getKeepAlivePongsSentCount(), deserializedInboundStats.getKeepAlivePongsSentCount());
+                        assertEquals(inboundStats.getRequestsReceivedBytes(), deserializedInboundStats.getRequestsReceivedBytes());
+                        assertEquals(inboundStats.getRequestsReceivedCount(), deserializedInboundStats.getRequestsReceivedCount());
+                        assertEquals(inboundStats.getResponseSentBytes(), deserializedInboundStats.getResponseSentBytes());
+                        assertEquals(inboundStats.getResponsesSentCount(), deserializedInboundStats.getResponsesSentCount());
+                    }
                 }
                 if (nodeStats.getHttp() == null) {
                     assertNull(deserializedNodeStats.getHttp());
@@ -412,8 +434,13 @@ public class NodeStatsTests extends ESTestCase {
             }
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
+
+        TransportStats.InboundConnectionsStats inboundConnectionsStats = frequently() ? new TransportStats.InboundConnectionsStats(
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()
+        ) : null;
         TransportStats transportStats = frequently() ? new TransportStats(randomNonNegativeLong(), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()) : null;
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), inboundConnectionsStats) : null;
         HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {

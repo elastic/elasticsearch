@@ -19,11 +19,11 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -36,13 +36,149 @@ public class TransportStats implements Writeable, ToXContentFragment {
     private final long rxSize;
     private final long txCount;
     private final long txSize;
+    private static final Version CONNECTION_STATS_INTRODUCED = Version.V_8_0_0;
+    private final InboundConnectionsStats inboundConnectionsStats;
 
-    public TransportStats(long serverOpen, long rxCount, long rxSize, long txCount, long txSize) {
+    public InboundConnectionsStats getInboundConnectionsStats() {
+        return inboundConnectionsStats;
+    }
+
+    public static class InboundConnectionsStats implements Writeable, ToXContentFragment {
+        private final long openedChannels;
+        private final long closedChannels;
+        private final long requestsReceivedCount;
+        private final long requestsReceivedBytes;
+        private final long responsesSentCount;
+        private final long responseSentBytes;
+        private final long keepAlivePingsReceivedCount;
+        private final long keepAlivePingsReceivedBytes;
+        private final long keepAlivePongsSentCount;
+        private final long keepAlivePongsSentBytes;
+
+        static final String INBOUND_CONNECTIONS = "inbound_connections";
+        static final String OPENED_CHANNELS = "opened_channels";
+        static final String REQUESTS_RECEIVED_COUNT = "req_rcv_count";
+        static final String REQUESTS_RECEIVED_SIZE = "req_rcv_size";
+        static final String REQUESTS_RECEIVED_SIZE_IN_BYTES = "req_rcv_size_in_bytes";
+        static final String RESPONSES_SENT_COUNT = "resp_sent_count";
+        static final String RESPONSES_SENT_SIZE = "resp_sent_size";
+        static final String RESPONSES_SENT_SIZE_IN_BYTES = "resp_sent_size_in_bytes";
+        static final String KEEP_ALIVE_PINGS_RECEIVED_COUNT = "keep_alive_pings_rcv_count";
+        static final String KEEP_ALIVE_PINGS_RECEIVED_SIZE = "keep_alive_pings_rcv_size";
+        static final String KEEP_ALIVE_PINGS_RECEIVED_SIZE_IN_BYTES = "keep_alive_pings_rcv_size_in_bytes";
+        static final String KEEP_ALIVE_PONGS_SENT_COUNT = "keep_alive_pongs_sent_count";
+        static final String KEEP_ALIVE_PONGS_SENT_SIZE = "keep_alive_pongs_sent_size";
+        static final String KEEP_ALIVE_PONGS_SENT_SIZE_IN_BYTES = "keep_alive_pongs_sent_size_in_bytes";
+
+        public InboundConnectionsStats(long openedChannels, long closedChannels, long requestsReceivedCount, long requestsReceivedBytes,
+                                long responsesSentCount, long responseSentBytes, long keepAlivePingsReceivedCount,
+                                long keepAlivePingsReceivedBytes, long keepAlivePongsSentCount, long keepAlivePongsSentBytes) {
+            this.openedChannels = openedChannels;
+            this.closedChannels = closedChannels;
+            this.requestsReceivedCount = requestsReceivedCount;
+            this.requestsReceivedBytes = requestsReceivedBytes;
+            this.responsesSentCount = responsesSentCount;
+            this.responseSentBytes = responseSentBytes;
+            this.keepAlivePingsReceivedCount = keepAlivePingsReceivedCount;
+            this.keepAlivePingsReceivedBytes = keepAlivePingsReceivedBytes;
+            this.keepAlivePongsSentCount = keepAlivePongsSentCount;
+            this.keepAlivePongsSentBytes = keepAlivePongsSentBytes;
+        }
+
+        public InboundConnectionsStats(StreamInput in) throws IOException {
+            this.openedChannels = in.readVLong();
+            this.closedChannels = in.readVLong();
+            this.requestsReceivedCount = in.readVLong();
+            this.requestsReceivedBytes = in.readVLong();
+            this.responsesSentCount = in.readVLong();
+            this.responseSentBytes = in.readVLong();
+            this.keepAlivePingsReceivedCount = in.readVLong();
+            this.keepAlivePingsReceivedBytes = in.readVLong();
+            this.keepAlivePongsSentCount = in.readVLong();
+            this.keepAlivePongsSentBytes = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(openedChannels);
+            out.writeVLong(closedChannels);
+            out.writeVLong(requestsReceivedCount);
+            out.writeVLong(requestsReceivedBytes);
+            out.writeVLong(responsesSentCount);
+            out.writeVLong(responseSentBytes);
+            out.writeVLong(keepAlivePingsReceivedCount);
+            out.writeVLong(keepAlivePingsReceivedBytes);
+            out.writeVLong(keepAlivePongsSentCount);
+            out.writeVLong(keepAlivePongsSentBytes);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(INBOUND_CONNECTIONS);
+            builder.field(OPENED_CHANNELS, openedChannels);
+            builder.field(REQUESTS_RECEIVED_COUNT, requestsReceivedCount);
+            builder.humanReadableField(REQUESTS_RECEIVED_SIZE_IN_BYTES, REQUESTS_RECEIVED_SIZE, new ByteSizeValue(requestsReceivedBytes));
+            builder.field(RESPONSES_SENT_COUNT, responsesSentCount);
+            builder.humanReadableField(RESPONSES_SENT_SIZE_IN_BYTES, RESPONSES_SENT_SIZE, new ByteSizeValue(responseSentBytes));
+            builder.field(KEEP_ALIVE_PINGS_RECEIVED_COUNT, keepAlivePingsReceivedCount);
+            builder.humanReadableField(KEEP_ALIVE_PINGS_RECEIVED_SIZE_IN_BYTES, KEEP_ALIVE_PINGS_RECEIVED_SIZE,
+                    new ByteSizeValue(keepAlivePingsReceivedBytes));
+            builder.field(KEEP_ALIVE_PONGS_SENT_COUNT, keepAlivePongsSentCount);
+            builder.humanReadableField(KEEP_ALIVE_PONGS_SENT_SIZE_IN_BYTES, KEEP_ALIVE_PONGS_SENT_SIZE,
+                    new ByteSizeValue(keepAlivePongsSentBytes));
+            builder.endObject();
+            return builder;
+        }
+
+        public long getOpenedChannels() {
+            return openedChannels;
+        }
+
+        public long getClosedChannels() {
+            return closedChannels;
+        }
+
+        public long getRequestsReceivedCount() {
+            return requestsReceivedCount;
+        }
+
+        public long getRequestsReceivedBytes() {
+            return requestsReceivedBytes;
+        }
+
+        public long getResponsesSentCount() {
+            return responsesSentCount;
+        }
+
+        public long getResponseSentBytes() {
+            return responseSentBytes;
+        }
+
+        public long getKeepAlivePingsReceivedCount() {
+            return keepAlivePingsReceivedCount;
+        }
+
+        public long getKeepAlivePingsReceivedBytes() {
+            return keepAlivePingsReceivedBytes;
+        }
+
+        public long getKeepAlivePongsSentCount() {
+            return keepAlivePongsSentCount;
+        }
+
+        public long getKeepAlivePongsSentBytes() {
+            return keepAlivePongsSentBytes;
+        }
+    }
+
+    public TransportStats(long serverOpen, long rxCount, long rxSize, long txCount, long txSize,
+                          InboundConnectionsStats inboundConnectionsStats) {
         this.serverOpen = serverOpen;
         this.rxCount = rxCount;
         this.rxSize = rxSize;
         this.txCount = txCount;
         this.txSize = txSize;
+        this.inboundConnectionsStats = inboundConnectionsStats;
     }
 
     public TransportStats(StreamInput in) throws IOException {
@@ -51,6 +187,15 @@ public class TransportStats implements Writeable, ToXContentFragment {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
+        if (in.getVersion().onOrAfter(CONNECTION_STATS_INTRODUCED)) {
+            if (in.readBoolean()) {
+                inboundConnectionsStats = new InboundConnectionsStats(in);
+            } else {
+                inboundConnectionsStats = null;
+            }
+        } else {
+            inboundConnectionsStats = null;
+        }
     }
 
     @Override
@@ -60,6 +205,14 @@ public class TransportStats implements Writeable, ToXContentFragment {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
+        if (out.getVersion().onOrAfter(CONNECTION_STATS_INTRODUCED)) {
+            if (inboundConnectionsStats != null) {
+                out.writeBoolean(true);
+                inboundConnectionsStats.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     public long serverOpen() {
@@ -110,6 +263,9 @@ public class TransportStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, new ByteSizeValue(rxSize));
         builder.field(Fields.TX_COUNT, txCount);
         builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, new ByteSizeValue(txSize));
+        if (inboundConnectionsStats != null) {
+            inboundConnectionsStats.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }

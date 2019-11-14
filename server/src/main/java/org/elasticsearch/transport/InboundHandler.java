@@ -44,6 +44,9 @@ public class InboundHandler {
     private static final Logger logger = LogManager.getLogger(InboundHandler.class);
 
     private final MeanMetric readBytesMetric = new MeanMetric();
+    private final MeanMetric inboundRequestsMetric = new MeanMetric();
+    private final MeanMetric inboundPingsMetric = new MeanMetric();
+    private final MeanMetric inboundPongsMetric = new MeanMetric();
     private final ThreadPool threadPool;
     private final OutboundHandler outboundHandler;
     private final CircuitBreakerService circuitBreakerService;
@@ -92,14 +95,23 @@ public class InboundHandler {
         }
     }
 
+    private int getMessageSizeWithHeader(BytesReference message) {
+        return message.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
+    }
+
     void inboundMessage(TcpChannel channel, BytesReference message) throws Exception {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         TransportLogger.logInboundMessage(channel, message);
-        readBytesMetric.inc(message.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
+        readBytesMetric.inc(getMessageSizeWithHeader(message));
         // Message length of 0 is a ping
         if (message.length() != 0) {
             messageReceived(message, channel);
         } else {
+            if (channel.isServerChannel()) {
+                inboundPingsMetric.inc(getMessageSizeWithHeader(message));
+            } else {
+                inboundPongsMetric.inc(getMessageSizeWithHeader(message));
+            }
             keepAlive.receiveKeepAlive(channel);
         }
     }
@@ -114,6 +126,7 @@ public class InboundHandler {
             message.getStoredContext().restore();
             threadContext.putTransient("_remote_address", remoteAddress);
             if (message.isRequest()) {
+                inboundRequestsMetric.inc(getMessageSizeWithHeader(reference));
                 handleRequest(channel, (InboundMessage.Request) message, reference.length());
             } else {
                 final TransportResponseHandler<?> handler;
@@ -243,6 +256,14 @@ public class InboundHandler {
                 logger.error(() -> new ParameterizedMessage("failed to handle exception response [{}]", handler), e);
             }
         });
+    }
+
+    MeanMetric getInboundRequests() {
+        return inboundRequestsMetric;
+    }
+
+    MeanMetric getInboundKeepAlivePings() {
+        return inboundPingsMetric;
     }
 
     private static class RequestHandler extends AbstractRunnable {

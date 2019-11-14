@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -116,6 +117,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
     private final Set<TcpChannel> acceptedChannels = ConcurrentCollections.newConcurrentSet();
+    private final CounterMetric inboundOpenedChannels = new CounterMetric();
+    private final CounterMetric inboundClosedChannels = new CounterMetric();
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
@@ -159,7 +162,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             (v, channel, response, requestId) -> outboundHandler.sendResponse(v, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, response, false, true));
         InboundMessage.Reader reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());
-        this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
+        this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendPing);
         this.inboundHandler = new InboundHandler(threadPool, outboundHandler, reader, circuitBreakerService, handshaker,
             keepAlive);
     }
@@ -636,7 +639,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         assert addedOnThisCall : "Channel should only be added to accepted channel set once";
         // Mark the channel init time
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        channel.addCloseListener(ActionListener.wrap(() -> acceptedChannels.remove(channel)));
+        inboundOpenedChannels.inc();
+        channel.addCloseListener(ActionListener.wrap(() -> {
+            acceptedChannels.remove(channel);
+            inboundClosedChannels.inc();
+        }));
         logger.trace(() -> new ParameterizedMessage("Tcp transport channel accepted: {}", channel));
     }
 
@@ -873,8 +880,24 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public final TransportStats getStats() {
         MeanMetric transmittedBytes = outboundHandler.getTransmittedBytes();
         MeanMetric readBytes = inboundHandler.getReadBytes();
+        MeanMetric inboundRequests = inboundHandler.getInboundRequests();
+        MeanMetric outboundResponses = outboundHandler.getOutboundResponses();
+        MeanMetric inboundKeepAlivePings = inboundHandler.getInboundKeepAlivePings();
+        MeanMetric outboundKeepAlivePongs = outboundHandler.getOutboundKeepAlivePongs();
+        TransportStats.InboundConnectionsStats inboundConnectionsStats = new TransportStats.InboundConnectionsStats(
+                inboundOpenedChannels.count(),
+                inboundClosedChannels.count(),
+                inboundRequests.count(),
+                inboundRequests.sum(),
+                outboundResponses.count(),
+                outboundResponses.sum(),
+                inboundKeepAlivePings.count(),
+                inboundKeepAlivePings.sum(),
+                outboundKeepAlivePongs.count(),
+                outboundKeepAlivePongs.sum()
+        );
         return new TransportStats(acceptedChannels.size(), readBytes.count(), readBytes.sum(), transmittedBytes.count(),
-            transmittedBytes.sum());
+            transmittedBytes.sum(), inboundConnectionsStats);
     }
 
     /**

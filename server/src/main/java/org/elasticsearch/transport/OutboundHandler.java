@@ -46,6 +46,11 @@ final class OutboundHandler {
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
+    private final MeanMetric outboundResponsesMetric = new MeanMetric();
+    private final MeanMetric outboundRequestsMetric = new MeanMetric();
+    private final MeanMetric outboundPongsMetric = new MeanMetric();
+    private final MeanMetric outboundPingsMetric = new MeanMetric();
+    private final MeanMetric otherBytesMetric = new MeanMetric();
 
     private final String nodeName;
     private final Version version;
@@ -60,8 +65,24 @@ final class OutboundHandler {
         this.bigArrays = bigArrays;
     }
 
+    void sendPing(TcpChannel channel, BytesReference serializedPing, ActionListener<Void> listener) {
+        MeanMetric bytesMetric;
+        if (channel.isServerChannel()) {
+            bytesMetric = outboundPongsMetric;
+        } else {
+            bytesMetric = outboundPingsMetric;
+        }
+        SendContext sendContext = new SendContext(channel, bytesMetric, () -> serializedPing, listener);
+        try {
+            internalSend(channel, sendContext);
+        } catch (IOException e) {
+            // This should not happen as the bytes are already serialized
+            throw new AssertionError(e);
+        }
+    }
+
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
-        SendContext sendContext = new SendContext(channel, () -> bytes, listener);
+        SendContext sendContext = new SendContext(channel, otherBytesMetric, () -> bytes, listener);
         try {
             internalSend(channel, sendContext);
         } catch (IOException e) {
@@ -82,7 +103,7 @@ final class OutboundHandler {
             new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressRequest);
         ActionListener<Void> listener = ActionListener.wrap(() ->
             messageListener.onRequestSent(node, requestId, action, request, options));
-        sendMessage(channel, message, listener);
+        sendMessage(channel, message, outboundRequestsMetric, listener);
     }
 
     /**
@@ -97,7 +118,7 @@ final class OutboundHandler {
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), response, version,
             requestId, isHandshake, compress);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
-        sendMessage(channel, message, listener);
+        sendMessage(channel, message, outboundResponsesMetric, listener);
     }
 
     /**
@@ -111,12 +132,14 @@ final class OutboundHandler {
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId,
             false, false);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
-        sendMessage(channel, message, listener);
+        sendMessage(channel, message, outboundResponsesMetric, listener);
     }
 
-    private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
+    private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, MeanMetric bytesMetric, ActionListener<Void> listener)
+            throws IOException {
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
-        SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
+        SendContext sendContext = new SendContext(channel, bytesMetric, serializer, listener,
+                serializer);
         internalSend(channel, sendContext);
     }
 
@@ -143,6 +166,14 @@ final class OutboundHandler {
         } else {
             throw new IllegalStateException("Cannot set message listener twice");
         }
+    }
+
+    MeanMetric getOutboundResponses() {
+        return outboundResponsesMetric;
+    }
+
+    MeanMetric getOutboundKeepAlivePongs() {
+        return outboundPongsMetric;
     }
 
     private static class MessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
@@ -175,15 +206,17 @@ final class OutboundHandler {
         private final ActionListener<Void> listener;
         private final Releasable optionalReleasable;
         private long messageSize = -1;
+        private final MeanMetric bytesMetric;
 
-        private SendContext(TcpChannel channel, CheckedSupplier<BytesReference, IOException> messageSupplier,
+        private SendContext(TcpChannel channel, MeanMetric bytesMetric, CheckedSupplier<BytesReference, IOException> messageSupplier,
                             ActionListener<Void> listener) {
-            this(channel, messageSupplier, listener, null);
+            this(channel, bytesMetric, messageSupplier, listener, null);
         }
 
-        private SendContext(TcpChannel channel, CheckedSupplier<BytesReference, IOException> messageSupplier,
+        private SendContext(TcpChannel channel, MeanMetric bytesMetric, CheckedSupplier<BytesReference, IOException> messageSupplier,
                             ActionListener<Void> listener, Releasable optionalReleasable) {
             this.channel = channel;
+            this.bytesMetric = bytesMetric;
             this.messageSupplier = messageSupplier;
             this.listener = listener;
             this.optionalReleasable = optionalReleasable;
@@ -206,6 +239,7 @@ final class OutboundHandler {
         protected void innerOnResponse(Void v) {
             assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
             transmittedBytesMetric.inc(messageSize);
+            bytesMetric.inc(messageSize);
             closeAndCallback(() -> listener.onResponse(v));
         }
 

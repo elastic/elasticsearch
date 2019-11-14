@@ -126,9 +126,10 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
             return null;
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
-        TrainedModelDefinition inferenceModel = TrainedModelDefinitionTests.createRandomBuilder().build();
+        List<String> expectedFieldNames = Arrays.asList("foo", "bar", "baz");
+        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder(JOB_ID);
         givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
-        AnalyticsResultProcessor resultProcessor = createResultProcessor();
+        AnalyticsResultProcessor resultProcessor = createResultProcessor(expectedFieldNames);
 
         resultProcessor.process(process);
         resultProcessor.awaitForCompletion();
@@ -142,7 +143,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getCreatedBy(), equalTo("data-frame-analytics"));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
-        assertThat(storedModel.getDefinition(), equalTo(inferenceModel));
+        assertThat(storedModel.getDefinition(), equalTo(inferenceModel.build()));
+        assertThat(storedModel.getInput().getFieldNames(), equalTo(expectedFieldNames));
         Map<String, Object> metadata = storedModel.getMetadata();
         assertThat(metadata.size(), equalTo(1));
         assertThat(metadata, hasKey("analytics_config"));
@@ -166,7 +168,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
             return null;
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
-        TrainedModelDefinition inferenceModel = TrainedModelDefinitionTests.createRandomBuilder().build();
+        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder("failed_model");
         givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
@@ -192,7 +194,11 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     private AnalyticsResultProcessor createResultProcessor() {
+        return createResultProcessor(Collections.emptyList());
+    }
+
+    private AnalyticsResultProcessor createResultProcessor(List<String> fieldNames) {
         return new AnalyticsResultProcessor(analyticsConfig, dataFrameRowsJoiner, () -> false, progressTracker, trainedModelProvider,
-            auditor);
+            auditor, fieldNames);
     }
 }

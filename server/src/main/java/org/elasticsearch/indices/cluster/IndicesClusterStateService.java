@@ -77,6 +77,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -229,8 +230,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // TODO: feels hacky, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
         if (state.blocks().disableStatePersistence()) {
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-                indicesService.removeIndex(indexService.index(), NO_LONGER_ASSIGNED,
-                    "cleaning index (disabled block persistence)"); // also cleans shards
+                // also cleans shards
+                indicesService.removeIndex(indexService.index(), NO_LONGER_ASSIGNED, "cleaning index (disabled block persistence)");
             }
             return;
         }
@@ -334,8 +335,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 ActionListener.wrap(
                     r -> {},
                     e -> {
-                        if (ExceptionsHelper.isTransportStoppedForAction(e, RetentionLeaseBackgroundSyncAction.ACTION_NAME + "[p]")) {
-                            // we are likely shutting down
+                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
+                            // node shutting down
                             return;
                         }
                         if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {

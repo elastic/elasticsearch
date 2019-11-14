@@ -415,7 +415,7 @@ module to provide Kerberos support. To enable debug logs on {es} for the login
 module use following Kerberos realm setting:
 [source,yaml]
 ----------------
-xpack.security.authc.realms.<realm-name>.krb.debug: true
+xpack.security.authc.realms.kerberos.<realm-name>.krb.debug: true
 ----------------
 
 For detailed information, see <<ref-kerberos-settings>>.
@@ -549,6 +549,57 @@ authentication message. Since the message can't be processed, {es} is not aware
 of who the to-be authenticated user is and the `<unauthenticated-saml-user>`
 placeholder is used instead. To diagnose the _actual_ problem, you must check
 the {es} logs for further details.
+--
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the {es}
+logs:
+
+....
+Authentication to realm <saml-realm-name> failed - SAML Attribute [<AttributeName0>] for
+[xpack.security.authc.realms.saml.<saml-realm-name>.attributes.principal] not found in saml attributes
+[<AttributeName1>=<AttributeValue1>, <AttributeName2>=<AttributeValue2>, ...] or NameID [ NameID(format)=value ]
+....
+
+*Resolution:*
+
+This error indicates that {es} failed to find the necessary SAML attribute in the SAML response that the
+Identity Provider sent. In this example, {es} is configured as follows:
+....
+xpack.security.authc.realms.saml.<saml-realm-name>.attributes.principal: AttributeName0
+....
+This configuration means that {es} expects to find a SAML Attribute with the name `AttributeName0` or a `NameID` with the appropriate format in the SAML
+response so that <<saml-attribute-mapping,it can map it>> to the `principal` user property. The `principal` user property is a
+mandatory one, so if this mapping can't happen, the authentication fails.
+
+If you are attempting to map a `NameID`, make sure that the expected `NameID` format matches the one that is sent.
+See <<saml-attribute-mapping-nameid>> for more details.
+
+If you are attempting to map a SAML attribute and it is not part of the list in the error message, it might mean
+that you have misspelled the attribute name, or that the IdP is not sending this particular attribute. You might
+be able to use another attribute from the list to map to `principal` or consult with your IdP administrator to
+determine if the required attribute can be sent.
+
+--
+
+. *Symptoms:*
++
+--
+Authentication in {kib} fails and the following error is printed in the {es}
+logs:
+
+....
+Cannot find [{urn:oasis:names:tc:SAML:2.0:metadata}IDPSSODescriptor]/[urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect] in descriptor
+....
+
+*Resolution:*
+
+This error indicates that the SAML metadata for your Identity Provider do not contain a `<SingleSignOnService>` endpoint with binding of
+HTTP-Redirect (urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect). {es} supports only the `HTTP-Redirect` binding for SAML authentication
+requests (and it doesn't support the `HTTP-POST` binding). Consult your IdP administrator in order to enable at least one
+`<SingleSignOnService>` supporting `HTTP-Redirect` binding and update your IdP SAML Metadata.
 --
 
 . *Symptoms:*

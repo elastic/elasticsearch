@@ -334,7 +334,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             new SnapshotsInProgress.Entry(
                 snapshot, true, false, SnapshotsInProgress.State.INIT,
                 Collections.singletonList(new IndexId("name", "id")), 0, 0,
-                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), Collections.emptyMap()));
+                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), Collections.emptyMap(),
+                randomBoolean()));
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotsInProgress.TYPE, inProgress)
             .build();

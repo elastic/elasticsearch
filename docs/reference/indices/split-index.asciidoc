@@ -166,7 +166,7 @@ Indices can only be split if they satisfy the following requirements:
 
 * The source index must have fewer primary shards than the target index.
 
-* The number of primary shards in the target index must be a factor of the
+* The number of primary shards in the target index must be a multiple of the
   number of primary shards in the source index.
 
 * The node handling the split process must have sufficient free disk space to
@@ -191,7 +191,7 @@ POST /my_source_index/_split/my_target_index
 --------------------------------------------------
 // TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true, "index.number_of_shards": "1"}}\n/]
 
-<1> The number of shards in the target index. This must be a factor of the
+<1> The number of shards in the target index. This must be a multiple of the
     number of shards in the source index.
 
 

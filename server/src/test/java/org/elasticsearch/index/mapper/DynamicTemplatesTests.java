@@ -47,7 +47,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         client().admin().indices().preparePutMapping("test").setType("person").setSource(builder).get();
 
         MapperService mapperService = index.mapperService();
-        DocumentMapper docMapper = mapperService.documentMapper("person");
+        DocumentMapper docMapper = mapperService.documentMapper();
         builder = JsonXContent.contentBuilder();
         builder.startObject().field("s", "hello").field("l", 1).endObject();
         ParsedDocument parsedDoc = docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder),
@@ -66,13 +66,13 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper docMapper = index.mapperService().documentMapper("person");
+        DocumentMapper docMapper = index.mapperService().documentMapper();
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = docMapper.parse(new SourceToParse("test", "1", new BytesArray(json),
                 XContentType.JSON));
         client().admin().indices().preparePutMapping("test").setType("person")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
-        docMapper = index.mapperService().documentMapper("person");
+        docMapper = index.mapperService().documentMapper();
         Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
@@ -125,13 +125,13 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper docMapper = index.mapperService().documentMapper("person");
+        DocumentMapper docMapper = index.mapperService().documentMapper();
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
         ParsedDocument parsedDoc = docMapper.parse(new SourceToParse("test", "1", new BytesArray(json),
                 XContentType.JSON));
         client().admin().indices().preparePutMapping("test").setType("person")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
-        docMapper = index.mapperService().documentMapper("person");
+        docMapper = index.mapperService().documentMapper();
         Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");

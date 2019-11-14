@@ -36,7 +36,7 @@ public class RunTask extends DefaultTestClustersTask {
 
     @Override
     public void beforeStart() {
-        int debugPort = 8000;
+        int debugPort = 5005;
         int httpPort = 9200;
         int transportPort = 9300;
         Map<String, String> additionalSettings = System.getProperties().entrySet().stream()
@@ -57,7 +57,7 @@ public class RunTask extends DefaultTestClustersTask {
                         "Running elasticsearch in debug mode, {} suspending until connected on debugPort {}",
                         node, debugPort
                     );
-                    node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=" + debugPort);
+                    node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
                     debugPort += 1;
                 }
             }

@@ -117,7 +117,13 @@ class DatafeedJob {
     }
 
     public void finishReportingTimingStats() {
-        timingStatsReporter.finishReporting();
+        try {
+            timingStatsReporter.finishReporting();
+        } catch (Exception e) {
+            // We don't want the exception to propagate out of this method as it can leave the datafeed in the "stopping" state forever.
+            // Since persisting datafeed timing stats is not critical, we just log a warning here.
+            LOGGER.warn("[{}] Datafeed timing stats could not be reported due to: {}", jobId, e);
+        }
     }
 
     Long runLookBack(long startTime, Long endTime) throws Exception {

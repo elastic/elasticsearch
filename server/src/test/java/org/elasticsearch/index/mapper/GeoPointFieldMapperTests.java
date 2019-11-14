@@ -352,7 +352,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         for (int i=0; i<numDocs; ++i) {
             final GeoPoint pt = RandomGeoGenerator.randomPoint(random());
-            client().prepareIndex("test", "pin").setSource(jsonBuilder().startObject()
+            client().prepareIndex("test").setSource(jsonBuilder().startObject()
                 .startObject("location").field("lat", pt.lat())
                 .field("lon", pt.lon()).endObject().endObject()).setRefreshPolicy(IMMEDIATE).get();
         }

@@ -49,7 +49,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
-        index("test", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index("test", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen("test");
         assertIndexInMetaState(dataNode, "test");
         assertIndexInMetaState(masterNode, "test");
@@ -65,7 +65,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
         String index = "index";
         assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.number_of_replicas", 0)
             .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node1)));
-        index(index, "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+        index(index, "1", jsonBuilder().startObject().field("text", "some text").endObject());
         ensureGreen();
         assertIndexInMetaState(node1, index);
         Index resolveIndex = resolveIndex(index);

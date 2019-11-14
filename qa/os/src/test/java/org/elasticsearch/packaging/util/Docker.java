@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.common.CheckedRunnable;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -355,63 +356,47 @@ public class Docker {
 
         Stream.of(es.plugins, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
-        // FIXME these files should all have the same permissions
-        Stream
-            .of(
-                "elasticsearch.keystore",
-                // "elasticsearch.yml",
-                "jvm.options"
-                // "log4j2.properties"
-            )
+        Stream.of("elasticsearch.keystore", "elasticsearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
-
-        Stream
-            .of("elasticsearch.yml", "log4j2.properties")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p644));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
         Stream.of(es.bin, es.lib).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
-        Stream
-            .of(
-                "elasticsearch",
-                "elasticsearch-cli",
-                "elasticsearch-env",
-                "elasticsearch-enve",
-                "elasticsearch-keystore",
-                "elasticsearch-node",
-                "elasticsearch-plugin",
-                "elasticsearch-shard"
-            )
-            .forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
+        Stream.of(
+            "elasticsearch",
+            "elasticsearch-cli",
+            "elasticsearch-env",
+            "elasticsearch-enve",
+            "elasticsearch-keystore",
+            "elasticsearch-node",
+            "elasticsearch-plugin",
+            "elasticsearch-shard"
+        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.textile").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
     }
 
     private static void verifyDefaultInstallation(Installation es) {
-        Stream
-            .of(
-                "elasticsearch-certgen",
-                "elasticsearch-certutil",
-                "elasticsearch-croneval",
-                "elasticsearch-saml-metadata",
-                "elasticsearch-setup-passwords",
-                "elasticsearch-sql-cli",
-                "elasticsearch-syskeygen",
-                "elasticsearch-users",
-                "x-pack-env",
-                "x-pack-security-env",
-                "x-pack-watcher-env"
-            )
-            .forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
+        Stream.of(
+            "elasticsearch-certgen",
+            "elasticsearch-certutil",
+            "elasticsearch-croneval",
+            "elasticsearch-saml-metadata",
+            "elasticsearch-setup-passwords",
+            "elasticsearch-sql-cli",
+            "elasticsearch-syskeygen",
+            "elasticsearch-users",
+            "x-pack-env",
+            "x-pack-security-env",
+            "x-pack-watcher-env"
+        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
         // the version through here
         assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p755);
 
-        Stream
-            .of("role_mapping.yml", "roles.yml", "users", "users_roles")
+        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
     }
 
@@ -424,7 +409,12 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
     }
 
-    private static void withLogging(ThrowingRunnable r) throws Exception {
+    /**
+     * Runs the provided closure, and captures logging information if an exception is thrown.
+     * @param r the closure to run
+     * @throws Exception any exception encountered while running the closure are propagated.
+     */
+    private static <E extends Exception> void withLogging(CheckedRunnable<E> r) throws Exception {
         try {
             r.run();
         } catch (Exception e) {
@@ -432,10 +422,6 @@ public class Docker {
             logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
             throw e;
         }
-    }
-
-    private interface ThrowingRunnable {
-        void run() throws Exception;
     }
 
     public static JsonNode getJson(String path) throws IOException {

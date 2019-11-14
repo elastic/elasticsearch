@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -62,6 +63,7 @@ import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
@@ -196,8 +198,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that there are Amazon trusted certificates in the cacaerts keystore.
      */
     public void test43AmazonCaCertsAreInTheKeystore() {
-        final boolean matches = sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout
-            .lines()
+        final boolean matches = sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout.lines()
             .anyMatch(line -> line.contains("amazonrootca"));
 
         assertTrue("Expected Amazon trusted cert in cacerts", matches);
@@ -283,14 +284,13 @@ public class DockerTests extends PackagingTestCase {
         // ELASTIC_PASSWORD_FILE
         Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
 
-        Map<String, String> envVars = Map
-            .of(
-                "ELASTIC_PASSWORD_FILE",
-                "/run/secrets/" + passwordFilename,
-                // Enable security so that we can test that the password has been used
-                "xpack.security.enabled",
-                "true"
-            );
+        Map<String, String> envVars = Map.of(
+            "ELASTIC_PASSWORD_FILE",
+            "/run/secrets/" + passwordFilename,
+            // Enable security so that we can test that the password has been used
+            "xpack.security.enabled",
+            "true"
+        );
 
         // File permissions need to be secured in order for the ES wrapper to accept
         // them for populating env var values
@@ -327,8 +327,10 @@ public class DockerTests extends PackagingTestCase {
         Files.writeString(tempDir.resolve(optionsFilename), "-XX:-UseCompressedOops\n");
 
         Map<String, String> envVars = Map.of(
-            "ES_JAVA_OPTS", "-XX:+UseCompressedOops",
-            "ES_JAVA_OPTS_FILE", "/run/secrets/" + optionsFilename
+            "ES_JAVA_OPTS",
+            "-XX:+UseCompressedOops",
+            "ES_JAVA_OPTS_FILE",
+            "/run/secrets/" + optionsFilename
         );
 
         // File permissions need to be secured in order for the ES wrapper to accept
@@ -542,9 +544,15 @@ public class DockerTests extends PackagingTestCase {
      * the wrong version.
      */
     public void test131JavaHasExpectedVersion() {
-        final String version = sh.run("jdk/bin/java -version").stdout.trim();
+        final String[] versionLines = sh.run("jdk/bin/java -version").stdout.split("\n");
 
-        assertThat("Expected Java version to be 13.0.0 or higher", version, matchesPattern("openjdk 13\\.\\d+\\.\\d+"));
+        assertThat(versionLines, not(emptyArray()));
+
+        assertThat(
+            "Expected Java version to be 13.0.0 or higher",
+            versionLines[0],
+            matchesPattern("openjdk version \"?13\\.\\d+\\.\\d+\"?.*")
+        );
     }
 
     public void test140CgroupOsStatsAreAvailable() throws Exception {

@@ -61,6 +61,7 @@ import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
@@ -1558,10 +1559,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .order(10)
             .create(randomBoolean())
             .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
-            .mapping("{ \"properties\":{"
-                    + "\"host_name\": {\"type\":\"keyword\"}"
-                    + "}"
-                    + "}", XContentType.JSON)
+            .mapping("{ \"properties\": { \"host_name\": { \"type\": \"keyword\" } } }", XContentType.JSON)
+            .alias(new Alias("alias-1").indexRouting("abc"))
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
         AcknowledgedResponse putTemplateResponse = execute(putTemplateRequest,
@@ -1585,13 +1584,18 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             .order(10)
             .create(randomBoolean())
             .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
-            .mapping("{ "
-                    + "\"my_doc_type\":{"
-                    + "\"properties\":{"
-                    + "\"host_name\": {\"type\":\"keyword\"}"
-                    + "}"
-                    + "}"
-                    + "}", XContentType.JSON)
+            .mapping(
+                "{"
+                    + "  \"my_doc_type\": {"
+                    + "    \"properties\": {"
+                    + "      \"host_name\": {"
+                    + "        \"type\": \"keyword\""
+                    + "      }"
+                    + "    }"
+                    + "  }"
+                    + "}",
+                XContentType.JSON
+            )
             .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
 
 
@@ -1688,8 +1692,16 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(index, Settings.EMPTY);
         Request postDoc = new Request(HttpPost.METHOD_NAME, "/" + index + "/_doc");
         postDoc.setJsonEntity(
-            "{\"type\":\"act\",\"line_id\":1,\"play_name\":\"Henry IV\", \"speech_number\":\"\"," +
-                "\"line_number\":\"\",\"speaker\":\"\",\"text_entry\":\"ACT I\"}");
+            "{"
+                + "  \"type\": \"act\","
+                + "  \"line_id\": 1,"
+                + "  \"play_name\": \"Henry IV\","
+                + "  \"speech_number\": \"\","
+                + "  \"line_number\": \"\","
+                + "  \"speaker\": \"\","
+                + "  \"text_entry\": \"ACT I\""
+                + "}"
+        );
         assertOK(client().performRequest(postDoc));
 
         QueryBuilder builder = QueryBuilders
@@ -1935,5 +1947,33 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             client.indices()::reloadAnalyzersAsync);
         assertNotNull(reloadResponse.shards());
         assertTrue(reloadResponse.getReloadedDetails().containsKey("test"));
+    }
+
+    public void testDeleteAlias() throws IOException {
+        String index = "test";
+        createIndex(index, Settings.EMPTY);
+
+        String alias = "alias";
+        String alias2 = "alias2";
+        IndicesAliasesRequest aliasesAddRemoveRequest = new IndicesAliasesRequest();
+        aliasesAddRemoveRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).indices(index).alias(alias));
+        aliasesAddRemoveRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).indices(index).alias(alias + "2"));
+        AcknowledgedResponse aliasResponse = execute(aliasesAddRemoveRequest, highLevelClient().indices()::updateAliases,
+            highLevelClient().indices()::updateAliasesAsync);
+        assertTrue(aliasResponse.isAcknowledged());
+        assertThat(aliasExists(alias), equalTo(true));
+        assertThat(aliasExists(alias2), equalTo(true));
+        assertThat(aliasExists(index, alias), equalTo(true));
+        assertThat(aliasExists(index, alias2), equalTo(true));
+
+        DeleteAliasRequest request = new DeleteAliasRequest(index, alias);
+        org.elasticsearch.client.core.AcknowledgedResponse aliasDeleteResponse = execute(request,
+            highLevelClient().indices()::deleteAlias,
+            highLevelClient().indices()::deleteAliasAsync);
+
+        assertThat(aliasExists(alias), equalTo(false));
+        assertThat(aliasExists(alias2), equalTo(true));
+        assertThat(aliasExists(index, alias), equalTo(false));
+        assertThat(aliasExists(index, alias2), equalTo(true));
     }
 }

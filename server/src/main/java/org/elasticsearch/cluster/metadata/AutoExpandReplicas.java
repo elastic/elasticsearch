@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 
+import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.isIndexVerifiedBeforeClosed;
+
 /**
  * This class acts as a functional wrapper around the {@code index.auto_expand_replicas} setting.
  * This setting or rather it's value is expanded into a min and max value which requires special handling
@@ -133,7 +135,7 @@ public final class AutoExpandReplicas {
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
 
         for (final IndexMetaData indexMetaData : metaData) {
-            if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
+            if (indexMetaData.getState() == IndexMetaData.State.OPEN || isIndexVerifiedBeforeClosed(indexMetaData)) {
                 AutoExpandReplicas autoExpandReplicas = SETTING.get(indexMetaData.getSettings());
                 autoExpandReplicas.getDesiredNumberOfReplicas(dataNodeCount).ifPresent(numberOfReplicas -> {
                     if (numberOfReplicas != indexMetaData.getNumberOfReplicas()) {

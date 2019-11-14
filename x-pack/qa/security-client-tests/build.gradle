@@ -19,7 +19,7 @@ integTest.runner {
 }
 
 testClusters.integTest {
-  testDistribution = "default"  
+  testDistribution = "default"
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'

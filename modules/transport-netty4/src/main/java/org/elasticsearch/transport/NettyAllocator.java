@@ -60,10 +60,6 @@ public class NettyAllocator {
         }
     }
 
-    public static boolean useCopySocket() {
-        return ALLOCATOR instanceof NoDirectBuffers;
-    }
-
     public static ByteBufAllocator getAllocator() {
         return ALLOCATOR;
     }
@@ -148,26 +144,17 @@ public class NettyAllocator {
 
         @Override
         public ByteBuf directBuffer() {
-            // TODO: Currently the Netty SslHandler requests direct ByteBufs even when interacting with the
-            //  JDK SSLEngine. This will be fixed in a future version of Netty. For now, return a heap
-            //  ByteBuf. After a Netty upgrade, return to throwing UnsupportedOperationException
-            return heapBuffer();
+            throw new UnsupportedOperationException("Direct buffers not supported");
         }
 
         @Override
         public ByteBuf directBuffer(int initialCapacity) {
-            // TODO: Currently the Netty SslHandler requests direct ByteBufs even when interacting with the
-            //  JDK SSLEngine. This will be fixed in a future version of Netty. For now, return a heap
-            //  ByteBuf. After a Netty upgrade, return to throwing UnsupportedOperationException
-            return heapBuffer(initialCapacity);
+            throw new UnsupportedOperationException("Direct buffers not supported");
         }
 
         @Override
         public ByteBuf directBuffer(int initialCapacity, int maxCapacity) {
-            // TODO: Currently the Netty SslHandler requests direct ByteBufs even when interacting with the
-            //  JDK SSLEngine. This will be fixed in a future version of Netty. For now, return a heap
-            //  ByteBuf. After a Netty upgrade, return to throwing UnsupportedOperationException
-            return heapBuffer(initialCapacity, maxCapacity);
+            throw new UnsupportedOperationException("Direct buffers not supported");
         }
 
         @Override

@@ -61,7 +61,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+                source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
                 params:
                   query_vector: {"1": 10}
 
@@ -83,7 +83,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+                source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
                 params:
                   query_vector: {"1": 10.0}
 
@@ -127,7 +127,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10.0}
 - match: { error.root_cause.0.type: "script_exception" }
@@ -145,7 +145,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "doc['my_sparse_vector'].size() == 0 ? 0 : cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "doc['my_sparse_vector'].size() == 0 ? 0 : cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10.0}
 
@@ -194,7 +194,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"100": -200.0, "11" : 300.33, "12": -34.8988, "2": 230.0, "30": 15.555}
 
@@ -229,7 +229,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "dotProduct(params.query_vector, doc['my_sparse_vector'])"
+              source: "dotProduct(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: [0.5, 111]
 - match: { error.root_cause.0.type: "script_exception" }
@@ -272,7 +272,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "dotProductSparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "dotProductSparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10, "5": 5}
 
@@ -303,7 +303,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10, "5" : 5}
 
@@ -333,7 +333,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "l1normSparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "l1normSparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10, "5": 5}
 
@@ -360,7 +360,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "l2normSparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "l2normSparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"1": 10, "5": 5}
 

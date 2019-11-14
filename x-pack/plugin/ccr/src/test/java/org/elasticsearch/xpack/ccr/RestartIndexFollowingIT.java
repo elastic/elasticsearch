@@ -93,13 +93,10 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         String address = getLeaderCluster().getMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-
-        assertBusy(() -> {
-            List<RemoteConnectionInfo> infos =
-                followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
-            assertThat(infos.size(), equalTo(1));
-            assertThat(infos.get(0).getNumNodesConnected(), greaterThanOrEqualTo(1));
-        });
+        List<RemoteConnectionInfo> infos =
+            followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        assertThat(infos.size(), equalTo(1));
+        assertThat(infos.get(0).getNumNodesConnected(), greaterThanOrEqualTo(1));
     }
 
     private void cleanRemoteCluster() throws Exception {

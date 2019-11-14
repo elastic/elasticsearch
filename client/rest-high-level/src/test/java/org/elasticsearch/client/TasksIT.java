@@ -93,8 +93,16 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         RestClient lowClient = highLevelClient().getLowLevelClient();
         Request request = new Request("POST", "_reindex");
         request.addParameter("wait_for_completion", "false");
-        request.setJsonEntity("{" + "  \"source\": {\n" + "    \"index\": \"source1\"\n" + "  },\n" + "  \"dest\": {\n"
-                + "    \"index\": \"dest\"\n" + "  }" + "}");
+        request.setJsonEntity(
+            "{"
+                + "  \"source\": {\n"
+                + "    \"index\": \"source1\"\n"
+                + "  },\n"
+                + "  \"dest\": {\n"
+                + "    \"index\": \"dest\"\n"
+                + "  }"
+                + "}"
+        );
         Response response = lowClient.performRequest(request);
         Map<String, Object> map = entityAsMap(response);
         Object taskId = map.get("task");

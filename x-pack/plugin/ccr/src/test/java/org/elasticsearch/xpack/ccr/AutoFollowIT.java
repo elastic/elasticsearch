@@ -502,17 +502,14 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // start creating new indices on the remote cluster
         final Thread createNewLeaderIndicesThread = new Thread(() -> {
-            int leaderIndicesCount;
-            while (running.get() && (leaderIndicesCount = leaderIndices.incrementAndGet()) < 20) {
+            while (running.get() && leaderIndices.get() < 20) {
                 final String prefix = randomFrom(prefixes);
-                final String leaderIndex = prefix + leaderIndicesCount;
+                final String leaderIndex = prefix + leaderIndices.incrementAndGet();
                 try {
                     createLeaderIndex(leaderIndex, leaderIndexSettings);
                     ensureLeaderGreen(leaderIndex);
                     if (pausedAutoFollowerPatterns.stream().noneMatch(pattern -> pattern.startsWith(prefix))) {
-                        final String followingIndex = "copy-" + leaderIndex;
-                        assertBusy(() -> assertTrue(followerClient().admin().indices()
-                            .exists(new IndicesExistsRequest(followingIndex)).actionGet().isExists()));
+                        ensureFollowerGreen("copy-" + leaderIndex);
                     } else {
                         Thread.sleep(200L);
                     }
@@ -534,7 +531,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // wait for more leader indices to be created on the remote cluster
         assertBusy(() -> assertThat(leaderIndices.get(), greaterThanOrEqualTo(6)));
-        assertBusy(() -> assertThat(getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), greaterThanOrEqualTo(6L)));
 
         // resume auto follow patterns
         pausedAutoFollowerPatterns.forEach(this::resumeAutoFollowPattern);
@@ -542,7 +538,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // wait for more leader indices to be created on the remote cluster
         assertBusy(() -> assertThat(leaderIndices.get(), greaterThanOrEqualTo(9)));
-        assertBusy(() -> assertThat(getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), greaterThanOrEqualTo(9L)));
+        assertBusy(() -> assertThat(getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), greaterThanOrEqualTo(9L)),
+            30L, TimeUnit.SECONDS);
 
         running.set(false);
         createNewLeaderIndicesThread.join();

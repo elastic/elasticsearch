@@ -132,7 +132,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         final IndexShard newPrimary = reinitShard(oldPrimary);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newPrimary.markAsRecovering("store", new RecoveryState(newPrimary.routingEntry(), localNode, null));
-        assertTrue(newPrimary.recoverFromStore());
+        assertTrue(recoverFromStore(newPrimary));
         IndexShardTestCase.updateRoutingEntry(newPrimary, newPrimary.routingEntry().moveToStarted());
         newPrimary.advanceMaxSeqNoOfUpdatesOrDeletes(seqno);
         // The second bulk includes some operations from the first bulk which were processed already;

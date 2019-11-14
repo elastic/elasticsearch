@@ -63,7 +63,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
 
         int numDocs = randomIntBetween(10, 100);
-        try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
+        try (BulkProcessor processor = BulkProcessor.builder(client()::bulk, listener)
                 //let's make sure that the bulk action limit trips, one single execution will index all the documents
                 .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
@@ -87,7 +87,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
 
         int numDocs = randomIntBetween(10, 100);
 
-        try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
+        try (BulkProcessor processor = BulkProcessor.builder(client()::bulk, listener)
                 //let's make sure that this bulk won't be automatically flushed
                 .setConcurrentRequests(randomIntBetween(0, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
@@ -122,7 +122,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
 
         MultiGetRequestBuilder multiGetRequestBuilder;
 
-        try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
+        try (BulkProcessor processor = BulkProcessor.builder(client()::bulk, listener)
                 .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
                 //set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
@@ -204,7 +204,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
         BulkProcessorTestListener listener = new BulkProcessorTestListener();
 
         int numDocs = randomIntBetween(10, 100);
-        BulkProcessor processor = BulkProcessor.builder(client(), listener)
+        BulkProcessor processor = BulkProcessor.builder(client()::bulk, listener)
                 //let's make sure that the bulk action limit trips, one single execution will index all the documents
                 .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
@@ -251,7 +251,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
         MultiGetRequestBuilder multiGetRequestBuilder = client().prepareMultiGet();
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch, closeLatch);
 
-        try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
+        try (BulkProcessor processor = BulkProcessor.builder(client()::bulk, listener)
                 .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
                         //set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {

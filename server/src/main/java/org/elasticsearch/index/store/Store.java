@@ -138,12 +138,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public static final Setting<Boolean> FORCE_RAM_TERM_DICT = Setting.boolSetting("index.force_memory_term_dictionary", false,
         Property.IndexScope, Property.Deprecated);
     static final String CODEC = "store";
-    static final int VERSION_WRITE_THROWABLE= 2; // we write throwable since 2.0
-    static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
-    static final int VERSION_START = 0;
-    static final int VERSION = VERSION_WRITE_THROWABLE;
+    static final int CORRUPTED_MARKER_CODEC_VERSION = 2;
     // public is for test purposes
-    public static final String CORRUPTED = "corrupted_";
+    public static final String CORRUPTED_MARKER_NAME_PREFIX = "corrupted_";
     public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
 
@@ -448,7 +445,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                                                         Logger logger) throws IOException {
         try (ShardLock lock = shardLocker.lock(shardId, "read metadata snapshot", TimeUnit.SECONDS.toMillis(5));
              Directory dir = new SimpleFSDirectory(indexLocation)) {
-            failIfCorrupted(dir, shardId);
+            failIfCorrupted(dir);
             return new MetadataSnapshot(null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
@@ -469,7 +466,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                                         Logger logger) throws IOException, ShardLockObtainFailedException {
         try (ShardLock lock = shardLocker.lock(shardId, "open index", TimeUnit.SECONDS.toMillis(5));
              Directory dir = new SimpleFSDirectory(indexLocation)) {
-            failIfCorrupted(dir, shardId);
+            failIfCorrupted(dir);
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
             logger.trace("{} loaded segment info [{}]", shardId, segInfo);
         }
@@ -550,7 +547,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         final String[] files = directory().listAll();
         for (String file : files) {
-            if (file.startsWith(CORRUPTED)) {
+            if (file.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
                 return true;
             }
         }
@@ -566,7 +563,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         IOException firstException = null;
         final String[] files = directory.listAll();
         for (String file : files) {
-            if (file.startsWith(CORRUPTED)) {
+            if (file.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
                 try {
                     directory.deleteFile(file);
                 } catch (IOException ex) {
@@ -585,40 +582,25 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public void failIfCorrupted() throws IOException {
         ensureOpen();
-        failIfCorrupted(directory, shardId);
+        failIfCorrupted(directory);
     }
 
-    private static void failIfCorrupted(Directory directory, ShardId shardId) throws IOException {
+    private static void failIfCorrupted(Directory directory) throws IOException {
         final String[] files = directory.listAll();
         List<CorruptIndexException> ex = new ArrayList<>();
         for (String file : files) {
-            if (file.startsWith(CORRUPTED)) {
+            if (file.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
                 try (ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
-                    int version = CodecUtil.checkHeader(input, CODEC, VERSION_START, VERSION);
-
-                    if (version == VERSION_WRITE_THROWABLE) {
-                        final int size = input.readVInt();
-                        final byte[] buffer = new byte[size];
-                        input.readBytes(buffer, 0, buffer.length);
-                        StreamInput in = StreamInput.wrap(buffer);
-                        Exception t = in.readException();
-                        if (t instanceof CorruptIndexException) {
-                            ex.add((CorruptIndexException) t);
-                        } else {
-                            ex.add(new CorruptIndexException(t.getMessage(), "preexisting_corruption", t));
-                        }
+                    CodecUtil.checkHeader(input, CODEC, CORRUPTED_MARKER_CODEC_VERSION, CORRUPTED_MARKER_CODEC_VERSION);
+                    final int size = input.readVInt();
+                    final byte[] buffer = new byte[size];
+                    input.readBytes(buffer, 0, buffer.length);
+                    StreamInput in = StreamInput.wrap(buffer);
+                    Exception t = in.readException();
+                    if (t instanceof CorruptIndexException) {
+                        ex.add((CorruptIndexException) t);
                     } else {
-                        assert version == VERSION_START || version == VERSION_STACK_TRACE;
-                        String msg = input.readString();
-                        StringBuilder builder = new StringBuilder(shardId.toString());
-                        builder.append(" Preexisting corrupted index [");
-                        builder.append(file).append("] caused by: ");
-                        builder.append(msg);
-                        if (version == VERSION_STACK_TRACE) {
-                            builder.append(System.lineSeparator());
-                            builder.append(input.readString());
-                        }
-                        ex.add(new CorruptIndexException(builder.toString(), "preexisting_corruption"));
+                        ex.add(new CorruptIndexException(t.getMessage(), "preexisting_corruption", t));
                     }
                     CodecUtil.checkFooter(input);
                 }
@@ -654,7 +636,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 } catch (IOException ex) {
                     if (existingFile.startsWith(IndexFileNames.SEGMENTS)
                             || existingFile.equals(IndexFileNames.OLD_SEGMENTS_GEN)
-                            || existingFile.startsWith(CORRUPTED)) {
+                            || existingFile.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
                         // TODO do we need to also fail this if we can't delete the pending commit file?
                         // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit
                         // point around?
@@ -1386,9 +1368,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
         if (!isMarkedCorrupted()) {
-            String uuid = CORRUPTED + UUIDs.randomBase64UUID();
-            try (IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
-                CodecUtil.writeHeader(output, CODEC, VERSION);
+            final String corruptionMarkerName = CORRUPTED_MARKER_NAME_PREFIX + UUIDs.randomBase64UUID();
+            try (IndexOutput output = this.directory().createOutput(corruptionMarkerName, IOContext.DEFAULT)) {
+                CodecUtil.writeHeader(output, CODEC, CORRUPTED_MARKER_CODEC_VERSION);
                 BytesStreamOutput out = new BytesStreamOutput();
                 out.writeException(exception);
                 BytesReference bytes = out.bytes();
@@ -1399,7 +1381,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             } catch (IOException ex) {
                 logger.warn("Can't mark store as corrupted", ex);
             }
-            directory().sync(Collections.singleton(uuid));
+            directory().sync(Collections.singleton(corruptionMarkerName));
         }
     }
 

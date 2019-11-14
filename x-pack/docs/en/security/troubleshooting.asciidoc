@@ -415,7 +415,7 @@ module to provide Kerberos support. To enable debug logs on {es} for the login
 module use following Kerberos realm setting:
 [source,yaml]
 ----------------
-xpack.security.authc.realms.<realm-name>.krb.debug: true
+xpack.security.authc.realms.kerberos.<realm-name>.krb.debug: true
 ----------------
 
 For detailed information, see {ref}/security-settings.html#ref-kerberos-settings[Kerberos realm settings].

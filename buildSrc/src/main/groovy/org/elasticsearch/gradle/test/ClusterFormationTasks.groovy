@@ -25,6 +25,7 @@ import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -706,7 +707,7 @@ class ClusterFormationTasks {
     }
 
     public static boolean useRuntimeJava(Project project, NodeInfo node) {
-        return (project.isRuntimeJavaHomeSet ||
+        return (BuildParams.isRuntimeJavaHomeSet ||
                 (node.isBwcNode == false && node.nodeVersion.before(Version.fromString("7.0.0"))) ||
                 node.config.distribution == 'integ-test-zip')
     }
@@ -762,7 +763,7 @@ class ClusterFormationTasks {
         start.doLast(elasticsearchRunner)
         start.doFirst {
             // If the node runs in a FIPS 140-2 JVM, the BCFKS default keystore will be password protected
-            if (project.inFipsJvm){
+            if (BuildParams.inFipsJvm) {
                 node.config.systemProperties.put('javax.net.ssl.trustStorePassword', 'password')
                 node.config.systemProperties.put('javax.net.ssl.keyStorePassword', 'password')
             }

@@ -283,7 +283,7 @@ public class GatewayMetaState {
                     incrementalClusterStateWriter.setCurrentTerm(event.state().term());
                 }
 
-                incrementalClusterStateWriter.updateClusterState(event.state(), event.previousState());
+                incrementalClusterStateWriter.updateClusterState(event.state());
                 incrementalClusterStateWriter.setIncrementalWrite(true);
             } catch (WriteStateException e) {
                 logger.warn("Exception occurred when storing new meta data", e);
@@ -325,9 +325,9 @@ public class GatewayMetaState {
         @Override
         public void setLastAcceptedState(ClusterState clusterState) {
             try {
-                final ClusterState previousClusterState = incrementalClusterStateWriter.getPreviousClusterState();
-                incrementalClusterStateWriter.setIncrementalWrite(previousClusterState.term() == clusterState.term());
-                incrementalClusterStateWriter.updateClusterState(clusterState, previousClusterState);
+                incrementalClusterStateWriter.setIncrementalWrite(
+                    incrementalClusterStateWriter.getPreviousClusterState().term() == clusterState.term());
+                incrementalClusterStateWriter.updateClusterState(clusterState);
             } catch (WriteStateException e) {
                 logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
                 e.rethrowAsErrorOrUncheckedException();

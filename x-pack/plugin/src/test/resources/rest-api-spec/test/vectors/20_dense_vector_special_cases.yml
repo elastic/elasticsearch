@@ -62,7 +62,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                source: "cosineSimilarity(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [10, 10, 10]
 
@@ -81,7 +81,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                source: "cosineSimilarity(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [10.0, 10.0, 10.0]
 
@@ -111,7 +111,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                source: "cosineSimilarity(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [1, 2, 3, 4]
   - match: { error.root_cause.0.type: "script_exception" }
@@ -125,7 +125,7 @@ setup:
             script_score:
               query: {match_all: {} }
               script:
-                source: "dotProduct(params.query_vector, doc['my_dense_vector'])"
+                source: "dotProduct(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [1, 2, 3, 4]
   - match: { error.root_cause.0.type: "script_exception" }
@@ -161,7 +161,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+              source: "cosineSimilarity(params.query_vector, 'my_dense_vector')"
               params:
                 query_vector: [10.0, 10.0, 10.0]
 - match: { error.root_cause.0.type: "script_exception" }
@@ -177,7 +177,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "doc['my_dense_vector'].size() == 0 ? 0 : cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+              source: "doc['my_dense_vector'].size() == 0 ? 0 : cosineSimilarity(params.query_vector, 'my_dense_vector')"
               params:
                 query_vector: [10.0, 10.0, 10.0]
 
@@ -208,7 +208,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "dotProductSparse(params.query_vector, doc['my_dense_vector'])"
+              source: "dotProductSparse(params.query_vector, 'my_dense_vector')"
               params:
                 query_vector: {"2": 0.5, "10" : 111.3, "3": 44}
 - match: { error.root_cause.0.type: "script_exception" }

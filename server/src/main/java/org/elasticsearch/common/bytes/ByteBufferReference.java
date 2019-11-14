@@ -31,7 +31,7 @@ import java.nio.ByteBuffer;
  * changed, those changes will not be reflected in this reference. Any changes to the underlying data in the
  * byte buffer will be reflected in this reference.
  */
-public class ByteBufferReference extends BytesReference {
+public class ByteBufferReference extends AbstractBytesReference {
 
     private final ByteBuffer buffer;
     private final int length;

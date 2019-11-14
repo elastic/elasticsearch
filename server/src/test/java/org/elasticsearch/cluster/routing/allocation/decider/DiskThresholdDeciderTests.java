@@ -754,17 +754,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test2", 0, "node2", "node3");
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
-            logger.info("--> before starting: {}", clusterState);
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-            logger.info("--> after starting: {}", clusterState);
             clusterState = strategy.reroute(clusterState, cmds, false, false).getClusterState();
-            logger.info("--> after running another command: {}", clusterState);
             logShardStates(clusterState);
 
             clusterInfoReference.set(overfullClusterInfo);
 
-            clusterState = strategy.reroute(clusterState, "foo");
-            logger.info("--> after another reroute: {}", clusterState);
+            strategy.reroute(clusterState, "foo"); // ensure reroute doesn't fail even though there is negative free space
         }
     }
 

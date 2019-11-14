@@ -15,8 +15,8 @@ dependencies {
 
 
 integTest.runner {
-    dependsOn buildZip
-    systemProperty 'tests.security.manager', 'false'
+  dependsOn buildZip
+  systemProperty 'tests.security.manager', 'false'
 }
 
 testClusters.integTest {
@@ -35,5 +35,5 @@ testClusters.integTest {
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
-  user  username: "test_user", password: "x-pack-test-password"
+  user username: "test_user", password: "x-pack-test-password"
 }

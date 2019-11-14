@@ -40,13 +40,8 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_MulticlassClassification_DefaultMetrics() {
-        EvaluateDataFrameAction.Request evaluateDataFrameRequest =
-            new EvaluateDataFrameAction.Request()
-                .setIndices(Arrays.asList(ANIMALS_DATA_INDEX))
-                .setEvaluation(new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, null));
-
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            client().execute(EvaluateDataFrameAction.INSTANCE, evaluateDataFrameRequest).actionGet();
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, null));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
@@ -105,14 +100,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_MulticlassClassification_ConfusionMatrixMetricWithDefaultSize() {
-        EvaluateDataFrameAction.Request evaluateDataFrameRequest =
-            new EvaluateDataFrameAction.Request()
-                .setIndices(Arrays.asList(ANIMALS_DATA_INDEX))
-                .setEvaluation(
-                    new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix())));
-
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            client().execute(EvaluateDataFrameAction.INSTANCE, evaluateDataFrameRequest).actionGet();
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX,
+                new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
@@ -171,14 +162,10 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     public void testEvaluate_MulticlassClassification_ConfusionMatrixMetricWithUserProvidedSize() {
-        EvaluateDataFrameAction.Request evaluateDataFrameRequest =
-            new EvaluateDataFrameAction.Request()
-                .setIndices(Arrays.asList(ANIMALS_DATA_INDEX))
-                .setEvaluation(
-                    new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix(3))));
-
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            client().execute(EvaluateDataFrameAction.INSTANCE, evaluateDataFrameRequest).actionGet();
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX,
+                new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix(3))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));

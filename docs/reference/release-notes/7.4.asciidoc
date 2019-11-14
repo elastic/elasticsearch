@@ -1,3 +1,13 @@
+[[release-notes-7.4.2]]
+== {es} version 7.4.2
+
+[float]
+[[bug-7.4.2]]
+=== Bug fixes
+
+Transform::
+* Prevent assignment if any node is older than 7.4 {pull}48055[#48055] (issue: {issue}48019[#48019])
+
 [[release-notes-7.4.1]]
 == {es} version 7.4.1
 
@@ -16,7 +26,9 @@ Infra/Circuit Breakers::
 * Emit log message when parent circuit breaker trips {pull}47000[#47000]
 
 Machine Learning::
-* [ML] Throttle the delete-by-query of expired results {pull}47177[#47177] (issues: {issue}47003[#47003], {issue}47103[#47103])
+* Throttle the delete-by-query of expired results {pull}47177[#47177] (issues: {issue}47003[#47003])
+* The {ml} native processes are now arranged in a `.app` directory structure on
+  macOS, to allow for notarization on macOS Catalina. {ml-pull}593[#593]
 
 
 
@@ -62,8 +74,9 @@ Infra/Scripting::
 * Drop stored scripts with the old style-id {pull}48078[#48078] (issue: {issue}47593[#47593])
 
 Machine Learning::
-* [ML] Fix detection of syslog-like timestamp in find_file_structure {pull}47970[#47970]
-* [ML] Reinstate ML daily maintenance actions {pull}47103[#47103] (issue: {issue}47003[#47003])
+* Fix detection of syslog-like timestamp in find_file_structure {pull}47970[#47970]
+* Reinstate ML daily maintenance actions {pull}47103[#47103] (issue: {issue}47003[#47003])
+* Fix possibility of crash when calculating forecasts that overflow to disk {ml-pull}688[#688]
 
 Network::
 * Fix es.http.cname_in_publish_address Deprecation Logging {pull}47451[#47451] (issue: {issue}47436[#47436])
@@ -86,9 +99,7 @@ Store::
 * Allow truncation of clean translog {pull}47866[#47866]
 
 Transform::
-* [7.5][Transform] prevent assignment if any node is older than 7.4 {pull}48055[#48055] (issue: {issue}48019[#48019])
-* [Transform] prevent assignment to nodes older than 7.4 {pull}48044[#48044] (issue: {issue}48019[#48019])
-* [ML][Transforms] fix bwc serialization with 7.3 {pull}48021[#48021]
+* Fix bwc serialization with 7.3 {pull}48021[#48021]
 
 
 

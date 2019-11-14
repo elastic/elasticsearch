@@ -80,7 +80,7 @@ NODE_SETTINGS
 
     password=$(cat /tmp/bootstrap.password)
     clusterHealth=$(sudo curl -u "elastic:$password" -H "Content-Type: application/json" \
-	                          -XGET "http://127.0.0.1:9200/_cluster/health?wait_for_status=green&timeout=30s")
+	                          -XGET "http://127.0.0.1:9200/_cluster/health?wait_for_status=green&timeout=180s")
     echo "$clusterHealth" | grep '"status":"green"' || {
         echo "Expected cluster health to be green but got:"
         echo "$clusterHealth"

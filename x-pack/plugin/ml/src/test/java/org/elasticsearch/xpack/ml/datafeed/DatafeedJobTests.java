@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,6 +61,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -452,6 +454,15 @@ public class DatafeedJobTests extends ESTestCase {
         DatafeedJob.AnalysisProblemException analysisProblemException =
                 expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runRealtime());
         assertThat(analysisProblemException.shouldStop, is(true));
+    }
+
+    public void testFinishReportingTimingStats() {
+        doThrow(new EsRejectedExecutionException()).when(timingStatsReporter).finishReporting();
+
+        long frequencyMs = 100;
+        long queryDelayMs = 1000;
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1, randomBoolean());
+        datafeedJob.finishReportingTimingStats();
     }
 
     private DatafeedJob createDatafeedJob(long frequencyMs, long queryDelayMs, long latestFinalBucketEndTimeMs,

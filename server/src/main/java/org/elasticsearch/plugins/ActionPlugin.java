@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestHeaderDefinition;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -93,7 +94,7 @@ public interface ActionPlugin {
     /**
      * Returns headers which should be copied through rest requests on to internal requests.
      */
-    default Collection<String> getRestHeaders() {
+    default Collection<RestHeaderDefinition> getRestHeaders() {
         return Collections.emptyList();
     }
 

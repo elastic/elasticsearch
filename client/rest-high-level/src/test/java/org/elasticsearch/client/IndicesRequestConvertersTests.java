@@ -38,7 +38,6 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
@@ -46,6 +45,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
@@ -55,6 +55,7 @@ import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.RandomCreateIndexGenerator;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
+import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
@@ -78,6 +79,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.indices.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.client.indices.RandomCreateIndexGenerator.randomMapping;
+import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAlias;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
@@ -828,35 +830,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         resizeTest(ResizeType.SPLIT, IndicesRequestConverters::split);
     }
 
-    public void testSplitWrongResizeType() {
-        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
-        ResizeType wrongType = randomFrom(ResizeType.SHRINK, ResizeType.CLONE);
-        resizeRequest.setResizeType(wrongType);
-        IllegalArgumentException iae = LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-            -> IndicesRequestConverters.split(resizeRequest));
-        Assert.assertEquals("Wrong resize type [" + wrongType.name() + "] for indices split request", iae.getMessage());
-    }
-
     public void testClone() throws IOException {
         resizeTest(ResizeType.CLONE, IndicesRequestConverters::clone);
-    }
-
-    public void testCloneWrongResizeType() {
-        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
-        ResizeType wrongType = randomFrom(ResizeType.SHRINK, ResizeType.SPLIT);
-        resizeRequest.setResizeType(wrongType);
-        IllegalArgumentException iae = LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-            -> IndicesRequestConverters.clone(resizeRequest));
-        Assert.assertEquals("Wrong resize type [" + wrongType.name() + "] for indices clone request", iae.getMessage());
-    }
-
-    public void testShrinkWrongResizeType() {
-        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
-        ResizeType wrongType = randomFrom(ResizeType.SPLIT, ResizeType.CLONE);
-        resizeRequest.setResizeType(wrongType);
-        IllegalArgumentException iae = LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
-            -> IndicesRequestConverters.shrink(resizeRequest));
-        Assert.assertEquals("Wrong resize type [" + wrongType.name() + "] for indices shrink request", iae.getMessage());
     }
 
     public void testShrink() throws IOException {
@@ -867,28 +842,31 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             throws IOException {
         String[] indices = RequestConvertersTests.randomIndicesNames(2, 2);
         ResizeRequest resizeRequest = new ResizeRequest(indices[0], indices[1]);
-        resizeRequest.setResizeType(resizeType);
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomMasterTimeout(resizeRequest, expectedParams);
-        RequestConvertersTests.setRandomTimeout(resizeRequest::timeout, resizeRequest.timeout(), expectedParams);
+        RequestConvertersTests.setRandomTimeout(s -> resizeRequest.setTimeout(TimeValue.parseTimeValue(s, "timeout")),
+            resizeRequest.timeout(), expectedParams);
 
         if (ESTestCase.randomBoolean()) {
-            org.elasticsearch.action.admin.indices.create.CreateIndexRequest createIndexRequest =
-                new org.elasticsearch.action.admin.indices.create.CreateIndexRequest(ESTestCase.randomAlphaOfLengthBetween(3, 10));
             if (ESTestCase.randomBoolean()) {
-                createIndexRequest.settings(randomIndexSettings());
+                resizeRequest.setSettings(randomIndexSettings());
             }
             if (ESTestCase.randomBoolean()) {
-                org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases(createIndexRequest);
+                int count = randomIntBetween(0, 2);
+                for (int i = 0; i < count; i++) {
+                    resizeRequest.setAliases(singletonList(randomAlias()));
+                }
             }
-            resizeRequest.setTargetIndex(createIndexRequest);
         }
         RequestConvertersTests.setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
+        if (resizeType == ResizeType.SPLIT) {
+            resizeRequest.setSettings(Settings.builder().put("index.number_of_shards", 2).build());
+        }
 
         Request request = function.apply(resizeRequest);
         Assert.assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         String expectedEndpoint = "/" + resizeRequest.getSourceIndex() + "/_" + resizeType.name().toLowerCase(Locale.ROOT) + "/"
-                + resizeRequest.getTargetIndexRequest().index();
+                + resizeRequest.getTargetIndex();
         Assert.assertEquals(expectedEndpoint, request.getEndpoint());
         Assert.assertEquals(expectedParams, request.getParameters());
         RequestConvertersTests.assertToXContentBody(resizeRequest, request.getEntity());
@@ -1240,6 +1218,20 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Request request = IndicesRequestConverters.reloadAnalyzers(reloadRequest);
         Assert.assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         Assert.assertThat(request.getEndpoint(), equalTo(endpoint + "/_reload_search_analyzers"));
+        Assert.assertThat(request.getParameters(), equalTo(expectedParams));
+        Assert.assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testDeleteAlias() {
+        DeleteAliasRequest deleteAliasRequest = new DeleteAliasRequest(randomAlphaOfLength(4), randomAlphaOfLength(4));
+
+        Map<String, String> expectedParams = new HashMap<>();
+        RequestConvertersTests.setRandomMasterTimeout(deleteAliasRequest, expectedParams);
+        RequestConvertersTests.setRandomTimeout(deleteAliasRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request request = IndicesRequestConverters.deleteAlias(deleteAliasRequest);
+        Assert.assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        Assert.assertThat(request.getEndpoint(), equalTo("/" + deleteAliasRequest.getIndex() + "/_alias/" + deleteAliasRequest.getAlias()));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
         Assert.assertThat(request.getEntity(), nullValue());
     }

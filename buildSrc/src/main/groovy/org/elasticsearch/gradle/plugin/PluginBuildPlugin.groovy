@@ -24,10 +24,10 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -151,8 +151,8 @@ class PluginBuildPlugin implements Plugin<Project> {
             // always configure publishing for client jars
             project.plugins.apply(MavenScmPlugin.class)
             project.publishing.publications.nebula(MavenPublication).artifactId(extension.name + "-client")
-            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
-                generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
+            project.tasks.withType(GenerateMavenPom.class).configureEach { GenerateMavenPom generatePOMTask ->
+                generatePOMTask.destination = "${project.buildDir}/distributions/${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
             }
         } else {
             if (project.plugins.hasPlugin(MavenPublishPlugin)) {
@@ -163,7 +163,7 @@ class PluginBuildPlugin implements Plugin<Project> {
 
     private static void configureDependencies(Project project) {
         project.dependencies {
-            if (ClasspathUtils.isElasticsearchProject(project)) {
+            if (BuildParams.internal) {
                 compileOnly project.project(':server')
                 testCompile project.project(':test:framework')
             } else {

@@ -60,7 +60,6 @@ import java.util.Objects;
  * which is the minimum number of documents the terms occurs in.
  * </p>
  */
-// TODO maybe contribute to Lucene
 public abstract class BlendedTermQuery extends Query {
 
     private final Term[] terms;
@@ -246,36 +245,82 @@ public abstract class BlendedTermQuery extends Query {
         return builder.toString();
     }
 
-    private volatile Term[] equalTerms = null;
+    private class TermAndBoost implements Comparable<TermAndBoost> {
+        protected final Term term;
+        protected float boost;
 
-    private Term[] equalsTerms() {
-        if (terms.length == 1) {
-            return terms;
+        protected TermAndBoost(Term term, float boost) {
+            this.term = term;
+            this.boost = boost;
         }
-        if (equalTerms == null) {
+
+        @Override
+        public int compareTo(TermAndBoost other) {
+            int compareTo = term.compareTo(other.term);
+            if (compareTo == 0) {
+                compareTo = Float.compare(boost, other.boost);
+            }
+            return compareTo;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof TermAndBoost == false) {
+                return false;
+            }
+
+            TermAndBoost that = (TermAndBoost) o;
+            return term.equals(that.term) && (Float.compare(boost, that.boost) == 0);
+        }
+
+        @Override
+        public int hashCode() {
+            return  31 * term.hashCode() + Float.hashCode(boost);
+        }
+    }
+
+    private volatile TermAndBoost[] equalTermsAndBoosts = null;
+
+    private TermAndBoost[] equalsTermsAndBoosts() {
+        if (equalTermsAndBoosts != null) {
+            return equalTermsAndBoosts;
+        }
+        if (terms.length == 1) {
+            float boost = (boosts != null ? boosts[0] : 1f);
+            equalTermsAndBoosts = new TermAndBoost[] {new TermAndBoost(terms[0], boost)};
+        } else {
             // sort the terms to make sure equals and hashCode are consistent
             // this should be a very small cost and equivalent to a HashSet but less object creation
-            final Term[] t = new Term[terms.length];
-            System.arraycopy(terms, 0, t, 0, terms.length);
-            ArrayUtil.timSort(t);
-            equalTerms = t;
+            equalTermsAndBoosts = new TermAndBoost[terms.length];
+            for (int i = 0; i < terms.length; i++) {
+                float boost = (boosts != null ? boosts[i] : 1f);
+                equalTermsAndBoosts[i] = new TermAndBoost(terms[i], boost);
+            }
+            ArrayUtil.timSort(equalTermsAndBoosts);
         }
-        return equalTerms;
-
+        return equalTermsAndBoosts;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (sameClassAs(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (sameClassAs(o) == false) {
+            return false;
+        }
 
         BlendedTermQuery that = (BlendedTermQuery) o;
-        return Arrays.equals(equalsTerms(), that.equalsTerms());
+        return Arrays.equals(equalsTermsAndBoosts(), that.equalsTermsAndBoosts());
+
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), Arrays.hashCode(equalsTerms()));
+        return Objects.hash(classHash(), Arrays.hashCode(equalsTermsAndBoosts()));
     }
 
     /**

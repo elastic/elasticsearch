@@ -12,7 +12,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
@@ -210,14 +209,14 @@ final class QueryTranslator {
     }
 
     static class GroupingContext {
-        final Map<ExpressionId, GroupByKey> groupMap;
+        final Map<NamedExpression, GroupByKey> groupMap;
         final GroupByKey tail;
 
-        GroupingContext(Map<ExpressionId, GroupByKey> groupMap) {
+        GroupingContext(Map<NamedExpression, GroupByKey> groupMap) {
             this.groupMap = groupMap;
 
             GroupByKey lastAgg = null;
-            for (Entry<ExpressionId, GroupByKey> entry : groupMap.entrySet()) {
+            for (Entry<NamedExpression, GroupByKey> entry : groupMap.entrySet()) {
                 lastAgg = entry.getValue();
             }
 
@@ -232,7 +231,7 @@ final class QueryTranslator {
                     GroupByKey matchingGroup = null;
                     // group found - finding the dedicated agg
                     if (f.field() instanceof NamedExpression) {
-                        matchingGroup = groupMap.get(((NamedExpression) f.field()).id());
+                        matchingGroup = groupMap.get(f.field());
                     }
                     // return matching group or the tail (last group)
                     return matchingGroup != null ? matchingGroup : tail;
@@ -242,7 +241,7 @@ final class QueryTranslator {
                 }
             }
             if (exp instanceof NamedExpression) {
-                return groupMap.get(((NamedExpression) exp).id());
+                return groupMap.get(exp);
             }
             throw new SqlIllegalArgumentException("Don't know how to find group for expression {}", exp);
         }
@@ -261,18 +260,18 @@ final class QueryTranslator {
             return null;
         }
 
-        Map<ExpressionId, GroupByKey> aggMap = new LinkedHashMap<>();
+        Map<NamedExpression, GroupByKey> aggMap = new LinkedHashMap<>();
 
         for (Expression exp : groupings) {
             GroupByKey key = null;
-            ExpressionId id;
+            NamedExpression id;
             String aggId;
 
             if (exp instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) exp;
 
-                id = ne.id();
-                aggId = id.toString();
+                id = ne;
+                aggId = ne.id().toString();
 
                 // change analyzed to non non-analyzed attributes
                 if (exp instanceof FieldAttribute) {

@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -234,15 +235,23 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                             TimeValue nextDelay = getNextDelay(delay);
                             logger.info(new ParameterizedMessage("Failed to read from {} index on FINISHED, retrying in {}",
                                 REINDEX_INDEX, nextDelay), e);
-                            threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay,
-                                ThreadPool.Names.SAME);
+                            reschedule(nextDelay, reindexResponse, exception);
                         }
                     });
                 } else {
                     TimeValue nextDelay = getNextDelay(delay);
                     logger.info(new ParameterizedMessage("Failed to write to {} index on FINISHED, retrying in {} [task-id={}]",
                         REINDEX_INDEX, nextDelay, taskId), e);
+                    reschedule(nextDelay, reindexResponse, exception);
+                }
+            }
+
+            private void reschedule(TimeValue nextDelay, @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
+                try {
                     threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay, ThreadPool.Names.SAME);
+                } catch (EsRejectedExecutionException rejection) {
+                    assert threadPool.scheduler().isShutdown();
+                    // this node is stopping, will leave task lingering until shutdown completes.
                 }
             }
         });

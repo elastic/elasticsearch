@@ -1,8 +1,8 @@
 apply plugin: 'java'
 
 jar {
-    archiveName = "${project.name}.jar"
-    manifest {
-        attributes 'Main-Class': 'org.elasticsearch.gradle.reaper.Reaper'
-    }
+  archiveName = "${project.name}.jar"
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.gradle.reaper.Reaper'
+  }
 }

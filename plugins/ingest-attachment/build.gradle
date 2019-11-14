@@ -84,8 +84,8 @@ forbiddenPatterns {
   exclude '**/*.vsdx'
 }
 
-thirdPartyAudit{ 
-    ignoreMissingClasses()
+thirdPartyAudit {
+  ignoreMissingClasses()
 }
 
 thirdPartyAudit.onlyIf {

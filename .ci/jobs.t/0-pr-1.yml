@@ -1,0 +1,6 @@
+jjbb-template: pr.yml
+vars:
+  - name: elasticsearch-ci/1
+  - command: ".ci/build.sh checkPart1"
+  - node-label: "general-purpose"
+

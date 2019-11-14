@@ -1,0 +1,9 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+branch-consistency-next
+    display-name: "elastic / elasticsearch # %BRANCH% - branch consistency (experimental)"
+    triggers:
+      - timed: "H 7 * * *"
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          .ci/build.sh branchConsistency

@@ -1,0 +1,34 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob-windows-compatibility-next
+    workspace: /var/lib/jenkins/elastic+elasticsearch+%BRANCH%+multijob-windows-compatibility-next
+    display-name: "elastic / elasticsearch # %BRANCH% - OS compatibility - Windows (experimental)"
+    project-type: matrix
+    axes:
+      - axis:
+          type: label-expression
+          name: os
+          values:
+            - "windows-2012-r2"
+            - "windows-2016"
+            - "windows-2019"
+    builders:
+      - powershell: |
+          java -jar "C:\Program Files\infra\bin\runbld" `
+            --program powershell.exe `
+            --redirect-stderr `
+            --last-good-commit elastic+elasticsearch+%BRANCH%+intake `
+            --args "-NonInteractive -ExecutionPolicy ByPass -File .\.ci\build.ps1 check"`
+    publishers:
+      - postbuildscript:
+          builders:
+            - role: SLAVE
+              build-steps:
+                # We need this to override the default that uses curl
+                - shell: "echo Notify H.O.M.E.R."
+                - powershell: |-
+                    Invoke-WebRequest `
+                    -Method Post `
+                    -ContentType "text/plain" `
+                    -Body "$env:BUILD_URL" `
+                    -Uri "https://homer.app.elstc.co/webhook/jenkins/build-finished" `
+                    -ErrorAction Ignore

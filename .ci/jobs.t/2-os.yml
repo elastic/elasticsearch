@@ -1,0 +1,23 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+os-compatibility
+    workspace: /var/lib/jenkins/elastic+elasticsearch+%BRANCH%+os-compatibility
+    display-name: "elastic / elasticsearch # %BRANCH% - OS compatibility (experimental)"
+    triggers:
+      - timed: "H H/12 * * *"
+    project-type: multijob
+    builders:
+      - multijob:
+          name: os compatibility tests
+          projects:
+            - name: elastic+elasticsearch+%BRANCH%+multijob-unix-compatibility-next
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob-windows-compatibility-next
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+
+
+
+

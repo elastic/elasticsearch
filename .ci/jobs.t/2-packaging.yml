@@ -1,0 +1,20 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+packaging
+    display-name: "elastic / elasticsearch # %BRANCH% - packaging (experimental)"
+    triggers:
+        - timed: "H H/8 * * *"
+    project-type: multijob
+    node: light
+    builders:
+        - multijob:
+            name: Packaging test
+            projects:
+              - name: elastic+elasticsearch+%BRANCH%+multijob+packaging-unix
+                kill-phase-on: NEVER
+                current-parameters: true
+                git-revision: true
+              - name: elastic+elasticsearch+%BRANCH%+multijob+packaging-windows
+                kill-phase-on: NEVER
+                current-parameters: true
+                git-revision: true
+

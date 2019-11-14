@@ -1,0 +1,6 @@
+jjbb-template: pr-windows.yml
+vars:
+  - name: elasticsearch-ci/packaging-windows
+  - command: "./.ci/os.ps1"
+  - node-label: "windows-2019"
+

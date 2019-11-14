@@ -8,10 +8,13 @@
 ##### JOB DEFAULTS
 
 - job:
+    description: "See https://github.com/elastic/elasticsearch/blob/master/TESTING.asciidoc"
     vault:
       url: https://secrets.elastic.co:8200
       role_id: 1ba1ac3e-aee4-d040-d9a3-6ae23bd2b3db
     node: "general-purpose"
+    # Run everything on a ramdisk by default
+    workspace: /dev/shm/elasticsearch
     concurrent: true
     logrotate:
       daysToKeep: 30
@@ -37,15 +40,11 @@
       - timestamps
       - gradle-build-scan
     properties:
-        - github:
-            url: https://github.com/elastic/elasticsearch/
-        - inject:
-            properties-content: |
-              HOME=$JENKINS_HOME
-    builders:
-       - shell: |
-          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+git+push
-          .ci/build.sh -Dbwc.checkout.align=true check
+      - github:
+          url: https://github.com/elastic/elasticsearch/
+      - inject:
+          properties-content: |
+            HOME=$JENKINS_HOME
     publishers:
       - email:
           recipients: infra-root+build@elastic.co
@@ -64,9 +63,9 @@
           builders:
             - role: SLAVE
               build-on:
-                  - SUCCESS
-                  - FAILURE
-                  - UNSTABLE
+                - SUCCESS
+                - FAILURE
+                - UNSTABLE
               build-steps:
                 - shell: |
                     curl -sS -X POST \
@@ -76,4 +75,4 @@
 
 
 
-            
+

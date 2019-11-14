@@ -1,0 +1,37 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+packaging-vagrant
+    display-name: "elastic / elasticsearch # %BRANCH% - packaging tests on vagrant (experimental)"
+    triggers:
+      - timed: "@daily"
+    project-type: matrix
+    axes:
+      - axis:
+          type: label-expression
+          name: nodes
+          values:
+            - "metal"
+      - axis:
+          type: user-defined
+          name: OS
+          values:
+            - "centos-6"
+            - "centos-7"
+            - "debian-8"
+            - "debian-9"
+            - "fedora-29"
+            - "oel-6"
+            - "oel-7"
+            - "opensuse-42"
+            - "sles-12"
+            - "ubuntu-1604"
+            - "ubuntu-1804"
+            - "windows-2012r2"
+            - "windows-2016"
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
+          .ci/build.sh \
+             -Dbwc.checkout.align=true \
+              -p qa/os/$OS \
+              packagingTest
+

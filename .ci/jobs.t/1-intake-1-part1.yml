@@ -1,0 +1,14 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob+intake+part1
+    display-name: "elastic / elasticsearch # %BRANCH% - intake - part 1 (experimental)"
+    description: "Subset 1 of intake verification.\n"
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          .ci/build.sh \
+             -Dbwc.checkout.align=true \
+             -Dorg.elasticsearch.build.cache.push=true \
+             -Dignore.tests.seed \
+             -Dscan.capture-task-input-files \
+             --build-cache
+             checkPart1

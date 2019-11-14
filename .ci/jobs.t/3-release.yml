@@ -1,0 +1,16 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+release-tests-next
+    display-name: "elastic / elasticsearch # %BRANCH% - release tests (experimental)"
+    triggers:
+      - timed: "H H/8 * * *"
+    builders:
+      - shell: |
+          #!/bin/bash
+          .ci/setup-license-key.sh
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
+          .ci/build.sh -Dbwc.checkout.align=true \
+          -Dbuild.snapshot=false \
+          -Dtests.jvm.argline=-Dbuild.snapshot=false \
+          -Dlicense.key=/var/lib/jenkins/.license/license.key \
+          build

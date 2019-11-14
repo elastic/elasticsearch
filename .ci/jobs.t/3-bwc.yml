@@ -1,0 +1,24 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+BWC-next
+    display-name: "elastic / elasticsearch # %BRANCH% - Backwards Compatibility (experimental)"
+    triggers:
+      - timed: "H H/8 * * *"
+    project-type: matrix
+    axes:
+      - axis:
+          type: label-expression
+          name: nodes
+          values:
+            # Some of the versions 6.8 is compatible with do not work on cgroups2 so we pick a platform
+            # that doesn't have it.
+            - "centos-7&&immutable"
+      - axis:
+          type: yaml
+          filename: '.ci/bwcVersions'
+          name: BWC_VERSION
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
+          .ci/build.sh -Dbwc.checkout.align=true -Dtests.distribution=oss v$BWC_VERSION#bwcTest
+          .ci/build.sh -Dbwc.checkout.align=true -Dtests.distribution=default v$BWC_VERSION#bwcTest
+

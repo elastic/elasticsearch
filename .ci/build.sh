@@ -15,7 +15,7 @@ JAVA13_HOME=$HOME/.java/openjdk13
 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
 
 rm -Rfv ~/.gradle/init.d/init.gradle
-mkdir -p ~/.gradle/init.d && cp -v $WORKSPACE/.ci/init.gradle ~/.gradle/init.d
+mkdir -p ~/.gradle/init.d && cp -v .ci/init.gradle ~/.gradle/init.d
 
 if [ -f /proc/cpuinfo ] ; then
    MAX_WORKERS=`grep '^cpu\scores' /proc/cpuinfo  | uniq | sed 's/\s\+//g' |  cut -d':' -f 2`
@@ -40,5 +40,6 @@ export GRADLE_OPTS="-XX:+HeapDumpOnOutOfMemoryError -Xmx128m -Xms128m"
 set -e
 ./gradlew --parallel --scan \
   -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ \
+  --build-case \
   --parallel --max-workers=$MAX_WORKERS \
    "$@"

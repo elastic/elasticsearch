@@ -1,0 +1,31 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob-unix-compatibility-next
+    display-name: "elastic / elasticsearch # %BRANCH% - OS compatibility - Unix (experimental)"
+    # We want to make sure we test against the actual filesystems and not a ramdisk here
+    workspace: /var/lib/jenkins/elastic+elasticsearch+%BRANCH%+multijob-unix-compatibility-next
+    project-type: matrix
+    axes:
+      - axis:
+          type: label-expression
+          name: os
+          values:
+            - "macosx"
+            - "amazon"
+            - "centos-6&&immutable"
+            - "centos-7&&immutable"
+            - "debian-8&&immutable"
+            - "debian-9&&immutable"
+            - "debian-10&&immutable"
+            - "fedora-29&&immutable"
+            - "opensuse-15-1&&immutable"
+            - "oraclelinux-6&&immutable"
+            - "oraclelinux-7&&immutable"
+            - "sles-12&&immutable"
+            - "sles-15&&immutable"
+            - "ubuntu-16.04&&immutable"
+            - "ubuntu-18.04&&immutable"
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
+          .ci/build.sh -Dbwc.checkout.align=true check
+

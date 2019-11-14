@@ -1,0 +1,18 @@
+- job:
+    name: elastic+elasticsearch+pr+fwc
+    display-name: "elastic / elasticsearch # PR fwc (experimental)"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elaticsearch-ci/fwc.*'
+          github-hooks: true
+          status-context: elaticsearch-ci/fwc
+          cancel-builds-on-update: true
+          whitelist-list-labels:
+            - 'test-forwards'
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          .ci/test-fwc.sh

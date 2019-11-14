@@ -1,0 +1,35 @@
+- job-template:
+    name: elastic+elasticsearch+pr+{name}
+    display-name: "elastic / elasticsearch # PR {name} (experimental)"
+    node: "{node-label}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+{name}.*'
+          github-hooks: true
+          status-context: {name}
+          cancel-builds-on-update: true
+          black-list-labels:
+            - '>test-mute'
+    builders:
+      - powershell: |
+          java -jar "C:\Program Files\infra\bin\runbld" `
+            --program powershell.exe `
+            --redirect-stderr `
+            --args "-NonInteractive -ExecutionPolicy ByPass -File {command}"`
+    publishers:
+      - postbuildscript:
+          builders:
+            - role: SLAVE
+              build-steps:
+                # We need this to override the default that uses curl
+                - shell: "echo Notify H.O.M.E.R."
+                - powershell: |-
+                    Invoke-WebRequest `
+                    -Method Post `
+                    -ContentType "text/plain" `
+                    -Body "$env:BUILD_URL" `
+                    -Uri "https://homer.app.elstc.co/webhook/jenkins/build-finished" `
+                    -ErrorAction Ignore

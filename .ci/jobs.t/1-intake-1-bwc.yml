@@ -1,0 +1,13 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob+intake+bwc
+    display-name: "elastic / elasticsearch # %BRANCH% - intake - bwc (experimental)"
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          .ci/build.sh \
+             -Dbwc.checkout.align=true \
+             -Dorg.elasticsearch.build.cache.push=true \
+             -Dignore.tests.seed \
+             -Dscan.capture-task-input-files \
+             --build-cache
+             bwcTestSnapshots

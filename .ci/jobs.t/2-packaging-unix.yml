@@ -1,0 +1,27 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob+packaging-unix
+    workspace: /var/lib/jenkins/elastic+elasticsearch+%BRANCH%+multijob+packaging-unix
+    display-name: "elastic / elasticsearch # %BRANCH% - packaging - Unix (experimental)"
+    project-type: matrix
+    axes:
+      - axis:
+          type: label-expression
+          name: os
+          values:
+            - "centos-6-packaging"
+            - "centos-7-packaging"
+            - "debian-8-packaging"
+            - "debian-9-packaging"
+            - "debian-10-packaging"
+            - "fedora-29-packaging"
+            - "opensuse-15-1-packaging"
+            - "oraclelinux-6-packaging"
+            - "oraclelinux-7-packaging"
+            - "sles-12-packaging"
+            - "sles-15-packaging"
+            - "ubuntu-16.04-packaging"
+            - "ubuntu-18.04-packaging"
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
+          ./.ci/os.sh

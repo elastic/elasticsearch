@@ -1,0 +1,6 @@
+jjbb-template: pr.yml
+vars:
+  - name: elasticsearch-ci/packaging-centos
+  - command: "./.ci/os.sh"
+  - node-label: "centos-7-packaging"
+

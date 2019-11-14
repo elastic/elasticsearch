@@ -1,0 +1,9 @@
+- job:
+    name: elastic+elasticsearch+%BRANCH%+periodic-next
+    display-name: "elastic / elasticsearch # %BRANCH% - periodic (experimental)"
+    triggers:
+      - timed: "H H * * *"
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
+            BRANCH=%BRANCH% .ci/thirdparty-test.sh

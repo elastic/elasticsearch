@@ -1,0 +1,6 @@
+jjbb-template: pr.yml
+vars:
+  - name: elasticsearch-ci/bwc
+  - command: ".ci/build.sh bwcTestSnapshots"
+  - node-label: "general-purpose"
+

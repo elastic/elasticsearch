@@ -1,0 +1,6 @@
+jjbb-template: pr.yml
+vars:
+  - name: elasticsearch-ci/packaging-ubuntu
+  - command: "./.ci/os.sh"
+  - node-label: "ubuntu-16.04-packaging"
+

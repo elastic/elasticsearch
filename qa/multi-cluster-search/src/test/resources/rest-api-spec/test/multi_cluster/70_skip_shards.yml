@@ -166,8 +166,7 @@
   - match: { hits.total: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-    # Not sure why skipped is 1 instead of 2 - seems we always fully query at least one shard?
-    # Testing against index with single shard never skips and 2 shards only reports 1 shard skipped.
+    # When all shards are skipped current logic returns 1 to produce a valid search result
   - match: { _shards.skipped : 1}
   - match: { _shards.failed: 0 }
 
@@ -184,8 +183,7 @@
   - match: { hits.total: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-    # Not sure why skipped is 1 instead of 2 - seems we always fully query at least one shard?
-    # Testing against index with single shard never skips and 2 shards only reports 1 shard skipped.
+    # When all shards are skipped current logic returns 1 to produce a valid search result
   - match: { _shards.skipped : 1}
   - match: { _shards.failed: 0 }
 
@@ -202,8 +200,7 @@
   - match: { hits.total: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-    # Not sure why skipped is 1 instead of 2 - seems we always fully query at least one shard?
-    # Testing against index with single shard never skips and 2 shards only reports 1 shard skipped.
+    # When all shards are skipped current logic returns 1 to produce a valid search result
   - match: { _shards.skipped : 1}
   - match: { _shards.failed: 0 }
 
@@ -220,8 +217,7 @@
   - match: { hits.total: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-    # Not sure why skipped is 1 instead of 2 - seems we always fully query at least one shard?
-    # Testing against index with single shard never skips and 2 shards only reports 1 shard skipped.
+    # When all shards are skipped current logic returns 1 to produce a valid search result
   - match: { _shards.skipped : 1}
   - match: { _shards.failed: 0 }
 

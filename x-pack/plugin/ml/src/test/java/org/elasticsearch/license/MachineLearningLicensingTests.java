@@ -626,6 +626,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             "  \"description\": \"test model for classification\",\n" +
             "  \"version\": \"8.0.0\",\n" +
             "  \"created_by\": \"benwtrent\",\n" +
+            "  \"estimated_heap_memory_usage_bytes\": 0,\n" +
+            "  \"estimated_operations\": 0,\n" +
             "  \"created_time\": 0\n" +
             "}";
         String definition = "" +

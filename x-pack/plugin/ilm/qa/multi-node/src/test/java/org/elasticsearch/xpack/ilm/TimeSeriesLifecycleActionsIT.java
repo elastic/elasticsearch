@@ -290,6 +290,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertEquals("true", getOnlyIndexSettings(originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49073")
     public void testRolloverAlreadyExists() throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";

@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -200,13 +201,19 @@ public class InboundHandler {
     private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
                                                               final TransportResponseHandler<T> handler, int messageLengthBytes) {
         final T response;
-        long bytesNeedToRelease = 0;
-        CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
         try {
             if (handler.canTripCircuitBreaker() && messageLengthBytes > 1024) {
                 // the main purpose is to check memory before deserialization for large size of response
-                bytesNeedToRelease = messageLengthBytes;
-                breaker.addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_response>");
+                CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+                try {
+                    breaker.addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_response>");
+                } catch (CircuitBreakingException e) {
+                    handleException(handler, e);
+                    return;
+                } finally {
+                    // release message bytes from request breaker even the real memory has not been released yet
+                    breaker.addWithoutBreaking(-messageLengthBytes);
+                }
             }
 
             response = handler.read(stream);
@@ -215,11 +222,6 @@ public class InboundHandler {
             handleException(handler, new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler.getClass().getName() + "]", e));
             return;
-        } finally {
-            // release message bytes from request breaker even the real memory has not been released yet
-            if (bytesNeedToRelease > 0) {
-                breaker.addWithoutBreaking(-bytesNeedToRelease);
-            }
         }
         threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
             @Override

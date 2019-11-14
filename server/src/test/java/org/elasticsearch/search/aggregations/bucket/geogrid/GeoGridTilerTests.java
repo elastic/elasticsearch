@@ -18,18 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
-import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
@@ -77,55 +69,6 @@ public class GeoGridTilerTests extends ESTestCase {
             assertThat(GEOTILE.getBoundingTileCount(value, 15), equalTo(16L));
             assertThat(count, equalTo(16));
         }
-    }
-
-
-    public void testSpecificPolygon() throws Exception {
-        XContentParser shapeXContentParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            new BytesArray("{\n" +
-                "        \"type\": \"Polygon\",\n" +
-                "        \"coordinates\": [\n" +
-                "          [\n" +
-                "            [\n" +
-                "              -122.17208862304686,\n" +
-                "              37.42470717168675\n" +
-                "            ],\n" +
-                "            [\n" +
-                "              -122.04711914062499,\n" +
-                "              37.353784446515775\n" +
-                "            ],\n" +
-                "            [\n" +
-                "              -121.90567016601562,\n" +
-                "              37.45959832290546\n" +
-                "            ],\n" +
-                "            [\n" +
-                "              -122.14874267578125,\n" +
-                "              37.61858263247881\n" +
-                "            ],\n" +
-                "            [\n" +
-                "              -122.21054077148438,\n" +
-                "              37.489025074767866\n" +
-                "            ],\n" +
-                "            [\n" +
-                "              -122.17208862304686,\n" +
-                "              37.42470717168675\n" +
-                "            ]\n" +
-                "          ]\n" +
-                "        ]\n" +
-                "}\n"), XContentType.JSON);
-        shapeXContentParser.nextToken();
-        Geometry geometry = new GeometryParser(true, true, true).parse(shapeXContentParser);
-        GeometryTreeWriter writer = new GeometryTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        GeometryTreeReader geometryReader = new GeometryTreeReader(output.bytes().toBytesRef(), GeoShapeCoordinateEncoder.INSTANCE);
-        MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(geometryReader);
-        long[] values = new long[42];
-
-        int count = GEOTILE.setValues(values, value, 13);
-        assertThat(GEOTILE.getBoundingTileCount(value, 13), equalTo(63L));
-        assertThat(count, equalTo(42));
     }
 
     public void testGeoHash() throws Exception {

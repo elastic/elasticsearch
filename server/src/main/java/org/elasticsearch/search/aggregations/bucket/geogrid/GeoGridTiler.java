@@ -23,11 +23,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 
-import java.util.Deque;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.DelayQueue;
-
 /**
  * The tiler to use to convert a geo value into long-encoded bucket keys for aggregating.
  */

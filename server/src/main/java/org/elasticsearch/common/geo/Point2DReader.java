@@ -96,7 +96,7 @@ class Point2DReader implements ShapeTreeReader {
 
     @Override
     public boolean within(Extent extent) throws IOException {
-        return intersects(extent);
+        return false; // within against extent is not defined for points, so it is always false
     }
 
     private int readX(int pointIdx) throws IOException {

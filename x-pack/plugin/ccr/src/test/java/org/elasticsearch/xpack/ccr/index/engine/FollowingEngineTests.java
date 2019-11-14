@@ -485,7 +485,7 @@ public class FollowingEngineTests extends ESTestCase {
                 }
                 assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
                 assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
-                EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, createMapperService("test"));
+                EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, createMapperService());
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
             }
         };
@@ -520,7 +520,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     private void fetchOperations(AtomicBoolean stopped, AtomicLong lastFetchedSeqNo,
                                  InternalEngine leader, FollowingEngine follower) throws IOException {
-        final MapperService mapperService = EngineTestCase.createMapperService("test");
+        final MapperService mapperService = EngineTestCase.createMapperService();
         final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), follower.config().getIndexSettings());
         while (stopped.get() == false) {
             final long checkpoint = leader.getProcessedLocalCheckpoint();

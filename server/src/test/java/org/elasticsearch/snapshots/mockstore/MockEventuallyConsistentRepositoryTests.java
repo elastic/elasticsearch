@@ -49,7 +49,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext, random())) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
             final String blobName = randomAlphaOfLength(10);
@@ -69,7 +69,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext, random())) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
             final String blobName = randomAlphaOfLength(10);
@@ -85,7 +85,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext, random())) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
             final String blobName = randomAlphaOfLength(10);
@@ -103,7 +103,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext, random())) {
             repository.start();
             final BlobContainer container = repository.blobStore().blobContainer(repository.basePath());
             final String blobName = randomAlphaOfLength(10);
@@ -120,7 +120,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
+            xContentRegistry(), mock(ThreadPool.class), blobStoreContext, random())) {
             repository.start();
             final BlobContainer container =
                 repository.blobStore().blobContainer(repository.basePath().add("indices").add("someindex").add("0"));
@@ -140,7 +140,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), threadPool, blobStoreContext)) {
+            xContentRegistry(), threadPool, blobStoreContext, random())) {
             repository.start();
 
             // We create a snap- blob for snapshot "foo" in the first generation

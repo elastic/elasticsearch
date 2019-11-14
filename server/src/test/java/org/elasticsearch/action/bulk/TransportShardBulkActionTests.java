@@ -88,8 +88,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     private IndexMetaData indexMetaData() throws IOException {
         return IndexMetaData.builder("index")
-            .putMapping("_doc",
-                "{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" +
+            .putMapping("{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" +
                     "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}")
             .settings(idxSettings)
             .primaryTerm(0, 1).build();
@@ -251,7 +250,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         AtomicInteger updateCalled = new AtomicInteger();
         TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
-            (update, shardId, type, listener) -> {
+            (update, shardId, listener) -> {
                 // There should indeed be a mapping update
                 assertNotNull(update);
                 updateCalled.incrementAndGet();
@@ -269,7 +268,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .thenReturn(success);
 
         TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
-            (update, shardId, type, listener) -> fail("should not have had to update the mappings"), listener -> {},
+            (update, shardId, listener) -> fail("should not have had to update the mappings"), listener -> {},
             ASSERTING_DONE_LISTENER);
 
 
@@ -739,14 +738,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 DocWriteRequest.OpType.DELETE,
                 DocWriteRequest.OpType.INDEX
             ),
-            new BulkItemResponse.Failure("index", "1", exception, 1L)
+            new BulkItemResponse.Failure("index", "1", exception, 1L, 1L)
         ));
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         itemRequests[0] = itemRequest;
         BulkShardRequest bulkShardRequest = new BulkShardRequest(
             shard.shardId(), RefreshPolicy.NONE, itemRequests);
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
-        verify(shard, times(1)).markSeqNoAsNoop(1, exception.toString());
+        verify(shard, times(1)).markSeqNoAsNoop(1, 1, exception.toString());
         closeShards(shard);
     }
 
@@ -857,7 +856,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     /** Doesn't perform any mapping updates */
     public static class NoopMappingUpdatePerformer implements MappingUpdatePerformer {
         @Override
-        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
+        public void updateMappings(Mapping update, ShardId shardId, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
     }
@@ -871,7 +870,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         }
 
         @Override
-        public void updateMappings(Mapping update, ShardId shardId, String type, ActionListener<Void> listener) {
+        public void updateMappings(Mapping update, ShardId shardId, ActionListener<Void> listener) {
             listener.onFailure(e);
         }
     }

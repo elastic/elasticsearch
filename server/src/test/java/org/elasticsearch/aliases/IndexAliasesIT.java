@@ -392,7 +392,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("test1", "test2", "test3");
 
         assertAcked(client().admin().indices().preparePutMapping("test1", "test2", "test3")
-                .setType("type1")
                 .setSource("name", "type=text"));
 
         ensureGreen();
@@ -707,7 +706,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("bazbar");
 
         assertAcked(client().admin().indices().preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar")
-                .setType("type").setSource("field", "type=text"));
+                .setSource("field", "type=text"));
         ensureGreen();
 
         logger.info("--> creating aliases [alias1, alias2]");

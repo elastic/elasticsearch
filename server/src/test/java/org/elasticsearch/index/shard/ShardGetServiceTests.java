@@ -44,7 +44,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
             .build();
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
@@ -58,7 +58,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
-        Engine.IndexResult test1 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar");
+        Engine.IndexResult test1 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
@@ -73,7 +73,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         // now again from the reader
-        Engine.IndexResult test2 = indexDoc(primary, "test", "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar");
+        Engine.IndexResult test2 = indexDoc(primary, "1", "{\"foo\" : \"baz\"}",  XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(new String(testGet1.source(), StandardCharsets.UTF_8), "{\"foo\" : \"baz\"}");
@@ -101,7 +101,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
         String expectedResult = noSource ? "" : "{\"bar\":\"bar\"}";
         IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\", \"store\": true }, " +
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\", \"store\": true }, " +
                 "\"bar\":  { \"type\": \"text\"}}, \"_source\": { "
                 + sourceOptions + "}}}")
             .settings(settings)
@@ -117,7 +117,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
 
-        Engine.IndexResult test1 = indexDoc(primary, "test", "1", docToIndex,  XContentType.JSON, "foobar");
+        Engine.IndexResult test1 = indexDoc(primary, "1", docToIndex,  XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet1 = primary.getService().getForUpdate("1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
         assertEquals(new String(testGet1.source() == null ? new byte[0] : testGet1.source(), StandardCharsets.UTF_8), expectedResult);
@@ -131,7 +131,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             assertEquals(searcher.getIndexReader().maxDoc(), 2);
         }
 
-        Engine.IndexResult test2 = indexDoc(primary, "test", "2", docToIndex,  XContentType.JSON, "foobar");
+        Engine.IndexResult test2 = indexDoc(primary, "2", docToIndex,  XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet2 = primary.getService().get("2", new String[]{"foo"}, true, 1, VersionType.INTERNAL,
             FetchSourceContext.FETCH_SOURCE);
@@ -163,7 +163,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .build();
         IndexMetaData metaData = IndexMetaData.builder("index")
-                .putMapping("some_type", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+                .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
                 .settings(settings)
                 .primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);

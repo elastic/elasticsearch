@@ -21,7 +21,6 @@ package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
@@ -31,7 +30,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 

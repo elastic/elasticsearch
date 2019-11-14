@@ -31,7 +31,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -62,7 +64,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
             .put("node.name", id)
             .put(settings)
             .build();
-        MockTransportService newService = MockTransportService.createNewService(settings, version, threadPool);
+        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool);
         try {
             newService.start();
             newService.acceptIncomingRequests();
@@ -259,6 +261,37 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                         assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
                     }
                     assertTrue(strategy.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testSimpleStrategyWillResolveAddressesEachConnect() throws Exception {
+        try (MockTransportService transport1 = startTransport("seed_node", Version.CURRENT)) {
+            TransportAddress address = transport1.boundAddress().publishAddress();
+
+            CountDownLatch multipleResolveLatch = new CountDownLatch(2);
+            Supplier<TransportAddress> addressSupplier = () -> {
+                multipleResolveLatch.countDown();
+                return address;
+            };
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                int numOfConnections = randomIntBetween(4, 8);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         numOfConnections,  addresses(address), Collections.singletonList(addressSupplier))) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    remoteConnectionManager.getAnyRemoteConnection().close();
+
+                    assertTrue(multipleResolveLatch.await(30L, TimeUnit.SECONDS));
                 }
             }
         }

@@ -621,7 +621,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
     private void putInferenceModel(String modelId) {
         String config = "" +
             "{\n" +
-            "  \"model_id\": \"" + modelId +"\",\n" +
+            "  \"model_id\": \"" + modelId + "\",\n" +
             "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
             "  \"description\": \"test model for classification\",\n" +
             "  \"version\": \"8.0.0\",\n" +
@@ -661,7 +661,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             "      ],\n" +
             "     \"target_type\": \"regression\"\n" +
             "    }\n" +
-            "  },"+
+            "  }," +
             "  \"model_id\": \"" + modelId + "\"\n" +
             "}";
         assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)

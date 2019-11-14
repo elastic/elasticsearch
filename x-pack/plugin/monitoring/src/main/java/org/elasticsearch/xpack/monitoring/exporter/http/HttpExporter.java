@@ -252,7 +252,7 @@ public class HttpExporter extends Exporter {
                                 final String namespace =
                                     HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
                                         HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
-                                final List<Setting<?>> settings = List.of(
+                                final List<Setting<?>> settings = Collections.singletonList(
                                     HttpExporter.AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
                                 return settings.iterator();
                             }

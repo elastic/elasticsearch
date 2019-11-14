@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -248,12 +247,8 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
             private void reschedule(TimeValue nextDelay, @Nullable BulkByScrollResponse reindexResponse,
                                     @Nullable ElasticsearchException exception) {
-                try {
-                    threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay, ThreadPool.Names.SAME);
-                } catch (EsRejectedExecutionException rejection) {
-                    assert threadPool.scheduler().isShutdown();
-                    // this node is stopping, will leave task lingering until shutdown completes.
-                }
+                threadPool.scheduleUnlessShuttingDown(nextDelay, ThreadPool.Names.SAME,
+                    () -> writeFinishedState(reindexResponse, exception, nextDelay));
             }
         });
     }

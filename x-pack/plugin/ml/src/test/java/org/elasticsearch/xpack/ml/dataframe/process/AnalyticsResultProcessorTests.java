@@ -127,7 +127,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
         List<String> expectedFieldNames = Arrays.asList("foo", "bar", "baz");
-        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder(JOB_ID);
+        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor(expectedFieldNames);
 
@@ -143,7 +143,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getCreatedBy(), equalTo("data-frame-analytics"));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
-        assertThat(storedModel.getDefinition(), equalTo(inferenceModel.build()));
+        assertThat(storedModel.getModelDefinition(), equalTo(inferenceModel.build()));
         assertThat(storedModel.getInput().getFieldNames(), equalTo(expectedFieldNames));
         assertThat(storedModel.getEstimatedHeapMemory(), equalTo(inferenceModel.build().ramBytesUsed()));
         assertThat(storedModel.getEstimatedOperations(), equalTo(inferenceModel.build().getTrainedModel().estimatedNumOperations()));
@@ -170,7 +170,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
             return null;
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
-        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder("failed_model");
+        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 

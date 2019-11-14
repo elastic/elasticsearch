@@ -13,12 +13,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 
@@ -81,9 +81,10 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
+        getConfigHolder.get().ensureParsedDefinition(xContentRegistry());
         assertThat(getConfigHolder.get(), is(not(nullValue())));
         assertThat(getConfigHolder.get(), equalTo(config));
-        assertThat(getConfigHolder.get().getDefinition(), is(not(nullValue())));
+        assertThat(getConfigHolder.get().getModelDefinition(), is(not(nullValue())));
     }
 
     public void testGetTrainedModelConfigWithoutDefinition() throws Exception {
@@ -99,10 +100,11 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
 
         blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, false, listener), getConfigHolder, exceptionHolder);
+        getConfigHolder.get().ensureParsedDefinition(xContentRegistry());
         assertThat(getConfigHolder.get(), is(not(nullValue())));
         assertThat(getConfigHolder.get(),
-            equalTo(configBuilder.setCreateTime(config.getCreateTime()).setDefinition((TrainedModelDefinition) null).build()));
-        assertThat(getConfigHolder.get().getDefinition(), is(nullValue()));
+            equalTo(configBuilder.setCreateTime(config.getCreateTime()).setParsedDefinition(null).build()));
+        assertThat(getConfigHolder.get().getModelDefinition(), is(nullValue()));
     }
 
     public void testGetMissingTrainingModelConfig() throws Exception {
@@ -126,7 +128,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
 
         client().delete(new DeleteRequest(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .id(TrainedModelDefinition.docId(config.getModelId()))
+            .id(TrainedModelDefinitionDoc.docId(config.getModelId(), 0))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
             .actionGet();
 
@@ -140,7 +142,8 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
     private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
-            .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
+            .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setVersion(Version.CURRENT)

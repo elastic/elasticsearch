@@ -34,11 +34,12 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.utils.ToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
@@ -468,7 +469,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         listener.actionGet();
     }
 
-    public void testMachineLearningCreateInferenceProcessorRestricted() {
+    public void testMachineLearningCreateInferenceProcessorRestricted() throws Exception {
         String modelId = "modelprocessorlicensetest";
         assertMLAllowed(true);
         putInferenceModel(modelId);
@@ -618,7 +619,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
     }
 
-    private void putInferenceModel(String modelId) {
+    private void putInferenceModel(String modelId) throws Exception {
         String config = "" +
             "{\n" +
             "  \"model_id\": \"" + modelId + "\",\n" +
@@ -663,8 +664,14 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             "      ],\n" +
             "     \"target_type\": \"regression\"\n" +
             "    }\n" +
-            "  }," +
-            "  \"model_id\": \"" + modelId + "\"\n" +
+            "  }" +
+            "}";
+        String compressedDefinition = "" +
+            "{" +
+            "  \"model_id\": \"" + modelId + "\",\n" +
+            "  \"doc_type\": \"" + TrainedModelDefinitionDoc.NAME + "\",\n" +
+            "  \"doc_num\": " + 0 + ",\n" +
+            "  \"definition\": \"" + ToXContentCompressor.deflate(new BytesArray(definition.getBytes(StandardCharsets.UTF_8))) + "\"\n" +
             "}";
         assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setId(modelId)
@@ -672,8 +679,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get().status(), equalTo(RestStatus.CREATED));
         assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setId(TrainedModelDefinition.docId(modelId))
-            .setSource(definition, XContentType.JSON)
+            .setId(TrainedModelDefinitionDoc.docId(modelId, 0))
+            .setSource(compressedDefinition, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get().status(), equalTo(RestStatus.CREATED));
     }

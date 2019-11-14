@@ -75,6 +75,7 @@ public final class InferenceInternalIndex {
             .endObject();
 
         addInferenceDocFields(builder);
+        addDefinitionDocFields(builder);
         return builder.endObject()
             .endObject()
             .endObject();
@@ -110,6 +111,15 @@ public final class InferenceInternalIndex {
             .endObject()
             .startObject(TrainedModelConfig.ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName())
             .field(TYPE, LONG)
+            .endObject();
+    }
+
+    private static void addDefinitionDocFields(XContentBuilder builder) throws IOException {
+        builder.startObject(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TrainedModelDefinitionDoc.DEFINITION.getPreferredName())
+            .field(ENABLED, false)
             .endObject();
     }
 }

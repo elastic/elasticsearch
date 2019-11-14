@@ -27,7 +27,7 @@ dependencies {
   testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   testCompile(project(":test:framework")) {
-     exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
   }
 }
 

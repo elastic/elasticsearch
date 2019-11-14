@@ -90,7 +90,7 @@ public class Classification implements DataFrameAnalysis {
         }
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
-        this.predictionFieldName = predictionFieldName;
+        this.predictionFieldName = predictionFieldName == null ? dependentVariable + "_prediction" : predictionFieldName;
         this.numTopClasses = numTopClasses == null ? DEFAULT_NUM_TOP_CLASSES : numTopClasses;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
     }
@@ -109,6 +109,10 @@ public class Classification implements DataFrameAnalysis {
 
     public String getDependentVariable() {
         return dependentVariable;
+    }
+
+    public String getPredictionFieldName() {
+        return predictionFieldName;
     }
 
     public int getNumTopClasses() {

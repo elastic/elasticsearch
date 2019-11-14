@@ -43,6 +43,14 @@ supports a remote debugging option:
 ./gradlew run --debug-jvm
 ---------------------------------------------------------------------------
 
+This will instruct all JVMs (including any that run cli tools such as creating the keyring or adding users)
+to suspend and initiate a debug connection on port incrementing from `5005`.
+As such the IDE needs to be instructed to listen for connections on this port.
+Since we might run multiple JVMs as part of configuring and starting the cluster it's
+recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option
+is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting
+needs to be configured with a greater value (ie 10 or more).
+
 ==== Distribution
 
 By default a node is started with the zip distribution.

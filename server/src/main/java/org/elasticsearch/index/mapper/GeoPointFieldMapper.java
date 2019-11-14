@@ -131,6 +131,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
+        @SuppressWarnings("rawtypes")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new GeoPointFieldMapper.Builder(name);

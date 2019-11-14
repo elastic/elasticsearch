@@ -43,8 +43,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class TransformsCheckpointServiceTests extends ESTestCase {
 
     public void testExtractIndexCheckpoints() {
@@ -104,11 +102,15 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
 
         ShardStats[] shardStatsArray = createRandomShardStats(expectedCheckpoints, indices, randomBoolean(), true, false);
 
-        // fail
-        CheckpointException e = expectThrows(CheckpointException.class,
-                () -> DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices));
+        Map<String, long[]> checkpoints = DefaultCheckpointProvider.extractIndexCheckPoints(shardStatsArray, indices);
 
-        assertThat(e.getMessage(), containsString("Global checkpoints mismatch"));
+        assertEquals(expectedCheckpoints.size(), checkpoints.size());
+        assertEquals(expectedCheckpoints.keySet(), checkpoints.keySet());
+
+        // global checkpoints should be max() of all global checkpoints
+        for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
+        }
     }
 
     /**
@@ -176,8 +178,8 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                 }
 
                 // SeqNoStats asserts that checkpoints are logical
-                long localCheckpoint = randomLongBetween(0L, 100000000L);
-                long globalCheckpoint = randomBoolean() ? localCheckpoint : randomLongBetween(0L, 100000000L);
+                long localCheckpoint = randomLongBetween(100L, 100000000L);
+                long globalCheckpoint = randomBoolean() ? localCheckpoint : randomLongBetween(100L, 100000000L);
                 long maxSeqNo = Math.max(localCheckpoint, globalCheckpoint);
 
                 SeqNoStats validSeqNoStats = null;
@@ -221,7 +223,7 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                     if (inconsistentReplica == replica) {
                         // overwrite
                         SeqNoStats invalidSeqNoStats =
-                            new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint + randomLongBetween(10L, 100L));
+                            new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint - randomLongBetween(10L, 100L));
                         shardStats.add(
                             new ShardStats(shardRouting,
                                 new ShardPath(false, path, path, shardId), stats, null, invalidSeqNoStats, null));

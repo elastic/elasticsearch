@@ -12,6 +12,13 @@ Creates an enrich policy.
 [source,console]
 ----
 PUT /users
+{
+    "mappings" : {
+        "properties" : {
+            "email" : { "type" : "keyword" }
+        }
+    }
+}
 ----
 ////
 

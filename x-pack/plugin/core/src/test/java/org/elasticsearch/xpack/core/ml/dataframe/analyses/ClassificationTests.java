@@ -73,6 +73,14 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         assertThat(e.getMessage(), equalTo("[num_top_classes] must be an integer in [0, 1000]"));
     }
 
+    public void testGetPredictionFieldName() {
+        Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 50.0);
+        assertThat(classification.getPredictionFieldName(), equalTo("result"));
+
+        classification = new Classification("foo", BOOSTED_TREE_PARAMS, null, 3, 50.0);
+        assertThat(classification.getPredictionFieldName(), equalTo("foo_prediction"));
+    }
+
     public void testGetNumTopClasses() {
         Classification classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 7, 1.0);
         assertThat(classification.getNumTopClasses(), equalTo(7));

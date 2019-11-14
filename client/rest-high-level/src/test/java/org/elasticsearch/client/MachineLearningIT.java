@@ -126,8 +126,10 @@ import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.PhaseProgress;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -1267,6 +1269,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setIndex("put-test-dest-index")
                 .build())
             .setAnalysis(org.elasticsearch.client.ml.dataframe.Regression.builder("my_dependent_variable")
+                .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
                 .build())
             .setDescription("this is a regression")
@@ -1301,6 +1304,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setIndex("put-test-dest-index")
                 .build())
             .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable")
+                .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
                 .setNumTopClasses(1)
                 .build())
@@ -1775,7 +1779,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .add(docForClassification(indexName, "dog", "dog"))
             .add(docForClassification(indexName, "dog", "dog"))
             .add(docForClassification(indexName, "dog", "dog"))
-            .add(docForClassification(indexName, "horse", "cat"));
+            .add(docForClassification(indexName, "ant", "cat"));
         highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
@@ -1798,11 +1802,23 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(
                 mcmResult.getConfusionMatrix(),
                 equalTo(
-                    Map.of(
-                        "cat", Map.of("cat", 3L, "dog", 1L, "horse", 0L, "_other_", 1L),
-                        "dog", Map.of("cat", 1L, "dog", 3L, "horse", 0L),
-                        "horse", Map.of("cat", 1L, "dog", 0L, "horse", 0L))));
-            assertThat(mcmResult.getOtherClassesCount(), equalTo(0L));
+                    List.of(
+                        new ActualClass(
+                            "ant",
+                            1L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
+                            0L),
+                        new ActualClass(
+                            "cat",
+                            5L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
+                            1L),
+                        new ActualClass(
+                            "dog",
+                            4L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
+                            0L))));
+            assertThat(mcmResult.getOtherActualClassCount(), equalTo(0L));
         }
         {  // Explicit size provided for MulticlassConfusionMatrixMetric metric
             EvaluateDataFrameRequest evaluateDataFrameRequest =
@@ -1822,10 +1838,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(
                 mcmResult.getConfusionMatrix(),
                 equalTo(
-                    Map.of(
-                        "cat", Map.of("cat", 3L, "dog", 1L, "_other_", 1L),
-                        "dog", Map.of("cat", 1L, "dog", 3L))));
-            assertThat(mcmResult.getOtherClassesCount(), equalTo(1L));
+                    List.of(
+                        new ActualClass("cat", 5L, List.of(new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)), 1L),
+                        new ActualClass("dog", 4L, List.of(new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)), 0L)
+                    )));
+            assertThat(mcmResult.getOtherActualClassCount(), equalTo(1L));
         }
     }
 

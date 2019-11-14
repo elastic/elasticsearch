@@ -1,12 +1,13 @@
 setup:
   - skip:
-      features: headers
+      features: [headers, warnings]
       version: " - 7.2.99"
       reason: "sparse_vector functions were introduced in 7.3.0"
 
   - do:
+      warnings:
+        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
       indices.create:
-        include_type_name: false
         index: test-index
         body:
           settings:
@@ -44,6 +45,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:
@@ -51,7 +54,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "dotProductSparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "dotProductSparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"2": 0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
 
@@ -74,6 +77,8 @@ setup:
 - do:
     headers:
       Content-Type: application/json
+    warnings:
+      - The [sparse_vector] field type is deprecated and will be removed in 8.0.
     search:
       rest_total_hits_as_int: true
       body:
@@ -81,7 +86,7 @@ setup:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              source: "cosineSimilaritySparse(params.query_vector, 'my_sparse_vector')"
               params:
                 query_vector: {"2": -0.5, "10" : 111.3, "50": -13.0, "113": 14.8, "4545": -156.0}
 

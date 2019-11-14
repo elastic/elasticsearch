@@ -198,7 +198,6 @@ public class VagrantMachine {
             if (progress != null) {
                 progressLogger.progress(progress);
             }
-            System.out.println(line);
         }
 
         @Override

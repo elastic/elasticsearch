@@ -95,7 +95,9 @@ import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
 
@@ -122,6 +124,8 @@ import java.util.concurrent.TimeUnit;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -139,6 +143,15 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @Override
+    protected Settings restAdminSettings() {
+        String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+                .put(ThreadContext.PREFIX + ".Authorization", token)
+                .build();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48440")
     public void testGetUsers() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         String[] usernames = new String[] {"user1", "user2", "user3"};
@@ -191,6 +204,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // 9 users are expected to be returned
             // test_users (3): user1, user2, user3
             // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
+            logger.info(users);
             assertThat(users.size(), equalTo(9));
         }
 
@@ -739,7 +753,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
-            assertThat(user.getRoles(), contains(new String[]{"superuser"}));
+            assertThat(user.getRoles(), contains(new String[]{"admin"}));
             assertThat(user.getFullName(), nullValue());
             assertThat(user.getEmail(), nullValue());
             assertThat(user.getMetadata().isEmpty(), is(true));

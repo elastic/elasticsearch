@@ -2,5 +2,5 @@ apply plugin: 'elasticsearch.build'
 test.enabled = false
 
 dependencies {
-    compile project(':test:framework')
+  compile project(':test:framework')
 }

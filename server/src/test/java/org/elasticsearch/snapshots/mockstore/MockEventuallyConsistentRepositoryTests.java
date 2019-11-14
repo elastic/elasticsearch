@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -138,6 +139,8 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
+        when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
+            new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10)));
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
             new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), threadPool, blobStoreContext)) {
@@ -146,8 +149,9 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             // We create a snap- blob for snapshot "foo" in the first generation
             final PlainActionFuture<SnapshotInfo> future = PlainActionFuture.newFuture();
             final SnapshotId snapshotId = new SnapshotId("foo", UUIDs.randomBase64UUID());
-            repository.finalizeSnapshot(snapshotId, Collections.emptyList(), 1L, null, 5, Collections.emptyList(),
-                -1L, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), future);
+            // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
+            repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, 1L, null, 5, Collections.emptyList(),
+                -1L, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), true, future);
             future.actionGet();
 
             // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
@@ -155,8 +159,8 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
                 () -> {
                     final PlainActionFuture<SnapshotInfo> fut = PlainActionFuture.newFuture();
                     repository.finalizeSnapshot(
-                        snapshotId, Collections.emptyList(), 1L, null, 6, Collections.emptyList(),
-                        0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), fut);
+                        snapshotId, ShardGenerations.EMPTY, 1L, null, 6, Collections.emptyList(),
+                        0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), true, fut);
                     fut.actionGet();
                 });
             assertThat(assertionError.getMessage(), equalTo("\nExpected: <6>\n     but: was <5>"));
@@ -164,8 +168,8 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             // We try to write yet another snap- blob for "foo" in the next generation.
             // It passes cleanly because the content of the blob except for the timestamps.
             final PlainActionFuture<SnapshotInfo> future2 = PlainActionFuture.newFuture();
-            repository.finalizeSnapshot(snapshotId, Collections.emptyList(), 1L, null, 5, Collections.emptyList(),
-                0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), future2);
+            repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, 1L, null, 5, Collections.emptyList(),
+                0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(),true, future2);
             future2.actionGet();
         }
     }

@@ -1,10 +1,9 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Copyright 2012 Jeff Hain
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -14,16 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.elasticsearch.common.util;
 
 /*
  * =============================================================================
+ * Notice of fdlibm package this program is partially derived from:
  *
- * sinh and atan ported from
- * https://github.com/yannrichet/jmathplot/blob/f25426e0ab0e68647ad2b75f577c7be050ecac86/src/main/java/org/math/plot/utils/FastMath.java
- * (Apache 2.0) Copyright 2012 Jeff Hain, which is partially derived from fdlibm package
- *
- * =============================================================================
  * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
  *
  * Developed at SunSoft, a Sun Microsystems, Inc. business.
@@ -33,13 +27,18 @@ package org.elasticsearch.common.util;
  * =============================================================================
  */
 
-
-/**
- * Similar to Lucene's SloppyMath, but for additional math functions.
+/*
+ * This code sourced from:
+ * https://github.com/yannrichet/jmathplot/blob/f25426e0ab0e68647ad2b75f577c7be050ecac86/src/main/java/org/math/plot/utils/FastMath.java
  */
-public class ESSloppyMath {
 
-    private ESSloppyMath() {}
+package org.elasticsearch.common.util;
+
+public final class FastMath {
+
+    private FastMath() {
+
+    }
 
     //--------------------------------------------------------------------------
     // RE-USABLE CONSTANTS
@@ -177,4 +176,5 @@ public class ESSloppyMath {
             }
         }
     }
+
 }

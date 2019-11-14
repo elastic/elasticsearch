@@ -933,7 +933,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final long genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
             if (genToLoad > generation) {
-                logger.debug("Determined repository generation [" + generation
+                logger.info("Determined repository generation [" + generation
                     + "] from repository contents but correct generation must be at least [" + genToLoad + "]");
             }
             try {

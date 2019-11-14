@@ -130,7 +130,7 @@ class ScrollDataExtractor implements DataExtractor {
                         context.query, context.extractedFields.timeField(), start, context.end));
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
-            searchRequestBuilder.addDocValueField(docValueField.getName(), docValueField.getDocValueFormat());
+            searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
         }
         String[] sourceFields = context.extractedFields.getSourceFields();
         if (sourceFields.length == 0) {

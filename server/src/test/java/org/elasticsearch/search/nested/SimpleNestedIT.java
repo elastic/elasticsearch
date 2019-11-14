@@ -1361,7 +1361,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         // Now add nested mapping
         assertAcked(
-                client().admin().indices().preparePutMapping("test").setType("type").setSource("array1", "type=nested")
+                client().admin().indices().preparePutMapping("test").setSource("array1", "type=nested")
         );
 
         XContentBuilder builder = jsonBuilder().startObject()

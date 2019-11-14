@@ -290,6 +290,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertEquals("true", getOnlyIndexSettings(originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49073")
     public void testRolloverAlreadyExists() throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
@@ -312,11 +313,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // index another doc to trigger the policy
         index(client(), originalIndex, "_id", "foo", "bar");
         assertBusy(() -> {
-            logger.info(originalIndex + ": " + getStepKeyForIndex(originalIndex));
+            Map<String, Object> explainIndexResponse = explainIndex(originalIndex);
+            logger.info(originalIndex + ": " + getStepKey(explainIndexResponse));
             logger.info(secondIndex + ": " + getStepKeyForIndex(secondIndex));
-            assertThat(getStepKeyForIndex(originalIndex), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
-            assertThat(getFailedStepForIndex(originalIndex), equalTo(WaitForRolloverReadyStep.NAME));
-            assertThat(getReasonForIndex(originalIndex), containsString("already exists"));
+            assertThat(getStepKey(explainIndexResponse), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
+            assertThat(explainIndexResponse.get("failed_step"), equalTo(WaitForRolloverReadyStep.NAME));
+            @SuppressWarnings("unchecked")
+            String reason = ((Map<String, String>) explainIndexResponse.get("step_info")).get("reason");
+            assertThat(reason, containsString("already exists"));
         });
     }
 
@@ -805,6 +809,42 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    public void testMoveToStepRereadsPolicy() throws Exception {
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
+
+        createIndexWithSettings("test-1", Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"),
+            true);
+
+        assertBusy(() -> assertThat(getStepKeyForIndex("test-1"), equalTo(new StepKey("hot", "rollover", "check-rollover-ready"))));
+
+        createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueSeconds(1), null), TimeValue.ZERO);
+
+        // Move to the same step, which should re-read the policy
+        Request moveToStepRequest = new Request("POST", "_ilm/move/test-1");
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": { \n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"check-rollover-ready\"\n" +
+            "  },\n" +
+            "  \"next_step\": { \n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"check-rollover-ready\"\n" +
+            "  }\n" +
+            "}");
+        assertOK(client().performRequest(moveToStepRequest));
+
+        // Make sure we actually rolled over
+        assertBusy(() -> {
+            indexExists("test-000002");
+        });
+    }
+
     public void testCanStopILMWithPolicyUsingNonexistentPolicy() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -835,6 +875,23 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         createFullPolicy(TimeValue.ZERO);
 
+        {
+            // Create a "shrink-only-policy"
+            Map<String, LifecycleAction> warmActions = new HashMap<>();
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17));
+            Map<String, Phase> phases = new HashMap<>();
+            phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
+            LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-only-policy", phases);
+            // PUT policy
+            XContentBuilder builder = jsonBuilder();
+            lifecyclePolicy.toXContent(builder, null);
+            final StringEntity entity = new StringEntity(
+                "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+            Request request = new Request("PUT", "_ilm/policy/shrink-only-policy");
+            request.setEntity(entity);
+            assertOK(client().performRequest(request));
+        }
+
         createIndexWithSettings(goodIndex, Settings.builder()
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -842,7 +899,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
         createIndexWithSettingsNoAlias(errorIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-only-policy")
         );
         createIndexWithSettingsNoAlias(nonexistantPolicyIndex, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -1071,15 +1128,20 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return (Map<String, Object>) response.get("settings");
     }
 
+
     public static StepKey getStepKeyForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
         if (indexResponse == null) {
             return new StepKey(null, null, null);
         }
 
-        String phase = (String) indexResponse.get("phase");
-        String action = (String) indexResponse.get("action");
-        String step = (String) indexResponse.get("step");
+        return getStepKey(indexResponse);
+    }
+
+    private static StepKey getStepKey(Map<String, Object> explainIndexResponse) {
+        String phase = (String) explainIndexResponse.get("phase");
+        String action = (String) explainIndexResponse.get("action");
+        String step = (String) explainIndexResponse.get("step");
         return new StepKey(phase, action, step);
     }
 
@@ -1088,14 +1150,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         if (indexResponse == null) return null;
 
         return (String) indexResponse.get("failed_step");
-    }
-
-    @SuppressWarnings("unchecked")
-    private String getReasonForIndex(String indexName) throws IOException {
-        Map<String, Object> indexResponse = explainIndex(indexName);
-        if (indexResponse == null) return null;
-
-        return ((Map<String, String>) indexResponse.get("step_info")).get("reason");
     }
 
     private static Map<String, Object> explainIndex(String indexName) throws IOException {

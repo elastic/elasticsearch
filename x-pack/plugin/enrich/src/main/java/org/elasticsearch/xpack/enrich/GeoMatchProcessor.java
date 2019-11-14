@@ -25,30 +25,35 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
 
     private ShapeRelation shapeRelation;
 
-    GeoMatchProcessor(String tag,
-                      Client client,
-                      String policyName,
-                      String field,
-                      String targetField,
-                      boolean overrideEnabled,
-                      boolean ignoreMissing,
-                      String matchField,
-                      int maxMatches,
-                      ShapeRelation shapeRelation) {
+    GeoMatchProcessor(
+        String tag,
+        Client client,
+        String policyName,
+        String field,
+        String targetField,
+        boolean overrideEnabled,
+        boolean ignoreMissing,
+        String matchField,
+        int maxMatches,
+        ShapeRelation shapeRelation
+    ) {
         super(tag, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
     }
 
     /** used in tests **/
-    GeoMatchProcessor(String tag,
-                      BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
-                      String policyName,
-                      String field,
-                      String targetField,
-                      boolean overrideEnabled,
-                      boolean ignoreMissing,
-                      String matchField,
-                      int maxMatches, ShapeRelation shapeRelation) {
+    GeoMatchProcessor(
+        String tag,
+        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
+        String policyName,
+        String field,
+        String targetField,
+        boolean overrideEnabled,
+        boolean ignoreMissing,
+        String matchField,
+        int maxMatches,
+        ShapeRelation shapeRelation
+    ) {
         super(tag, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
     }

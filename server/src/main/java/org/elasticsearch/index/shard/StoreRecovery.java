@@ -31,7 +31,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -57,7 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -81,31 +80,27 @@ final class StoreRecovery {
      * exist on disk ie. has been previously allocated or if the shard is a brand new allocation without pre-existing index
      * files / transaction logs. This
      * @param indexShard the index shard instance to recovery the shard into
-     * @return  <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
-     * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
+     * @param listener resolves to <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
+     *                 has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      * @see Store
      */
-    boolean recoverFromStore(final IndexShard indexShard) {
+    void recoverFromStore(final IndexShard indexShard, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
             assert recoveryType == RecoverySource.Type.EMPTY_STORE || recoveryType == RecoverySource.Type.EXISTING_STORE :
                 "expected store recovery type but was: " + recoveryType;
-            final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-            final ActionListener<Boolean> recoveryListener = recoveryListener(indexShard, future);
-            try {
+            ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from store ...");
                 internalRecoverFromStore(indexShard);
-                recoveryListener.onResponse(true);
-            } catch (Exception e) {
-                recoveryListener.onFailure(e);
-            }
-            return future.actionGet();
+                return true;
+            });
+        } else {
+            listener.onResponse(false);
         }
-        return false;
     }
 
-    boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer,
-                                        final IndexShard indexShard, final List<LocalShardSnapshot> shards) {
+    void recoverFromLocalShards(Consumer<MappingMetaData> mappingUpdateConsumer, final IndexShard indexShard,
+                                   final List<LocalShardSnapshot> shards, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
             assert recoveryType == RecoverySource.Type.LOCAL_SHARDS: "expected local shards recovery type: " + recoveryType;
@@ -118,15 +113,14 @@ final class StoreRecovery {
             }
             IndexMetaData sourceMetaData = shards.get(0).getIndexMetaData();
             if (sourceMetaData.mapping() != null) {
-                mappingUpdateConsumer.accept(sourceMetaData.mapping().type(), sourceMetaData.mapping());
+                mappingUpdateConsumer.accept(sourceMetaData.mapping());
             }
             indexShard.mapperService().merge(sourceMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             // now that the mapping is merged we can validate the index sort configuration.
             Sort indexSort = indexShard.getIndexSort();
             final boolean hasNested = indexShard.mapperService().hasNested();
             final boolean isSplit = sourceMetaData.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
-            final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-            ActionListener.completeWith(recoveryListener(indexShard, future), () -> {
+            ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
@@ -146,10 +140,9 @@ final class StoreRecovery {
                     throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
                 }
             });
-            assert future.isDone();
-            return future.actionGet();
+        } else {
+            listener.onResponse(false);
         }
-        return false;
     }
 
     void addIndices(final RecoveryState.Index indexRecoveryStats, final Directory target, final Sort indexSort, final Directory[] sources,

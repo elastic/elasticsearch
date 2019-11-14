@@ -38,8 +38,12 @@ public class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
 
     public static class EnrichTransportXPackInfoAction extends TransportXPackInfoAction {
         @Inject
-        public EnrichTransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters,
-                                              LicenseService licenseService, NodeClient client) {
+        public EnrichTransportXPackInfoAction(
+            TransportService transportService,
+            ActionFilters actionFilters,
+            LicenseService licenseService,
+            NodeClient client
+        ) {
             super(transportService, actionFilters, licenseService, client);
         }
 

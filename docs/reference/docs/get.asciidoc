@@ -35,11 +35,11 @@ that it exists.
 ===== Realtime
 
 By default, the get API is realtime, and is not affected by the refresh
-rate of the index (when data will become visible for search). If a document
-has been updated but is not yet refreshed, the get API will issue a refresh
-call in-place to make the document visible. This will also make other documents
-changed since the last refresh visible. In order to disable realtime GET,
-one can set the `realtime` parameter to `false`.
+rate of the index (when data will become visible for search). In case where
+stored fields are requested (see `stored_fields` parameter) and the document
+has been updated but is not yet refreshed, the get API will have to parse
+and analyze the source to extract the stored fields. In order to disable
+realtime GET, the `realtime` parameter can be set to `false`.
 
 [float]
 [[get-source-filtering]]

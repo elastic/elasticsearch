@@ -88,7 +88,7 @@ public class IndexLifecycleService
 
     public ClusterState moveClusterStateToStep(ClusterState currentState, String indexName, StepKey currentStepKey, StepKey nextStepKey) {
         return IndexLifecycleRunner.moveClusterStateToStep(indexName, currentState, currentStepKey, nextStepKey,
-            nowSupplier, policyRegistry, false);
+            nowSupplier, policyRegistry);
     }
 
     public ClusterState moveClusterStateToPreviouslyFailedStep(ClusterState currentState, String[] indices) {

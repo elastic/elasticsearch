@@ -43,9 +43,10 @@ Valid columns are:
 
 `node.role`, `r`, `role`, `nodeRole`::
 (Default) Roles of the node. Returned values include `m` (master-eligible node),
-`d` (data node), `i` (ingest node), `v` (voting-only node), and `-` (coordinating node only).
+`d` (data node), `i` (ingest node), `l` (machine learning node), v` (voting-only node), and `-` (coordinating node only).
 +
-For example, `mdi` indicates a master-eligible data and ingest node.
+For example, `mdi` indicates a master-eligible data and ingest node. See
+<<modules-node>>.
 
 `master`, `m`::
 (Default) Indicates whether the node is the elected master node. Returned values

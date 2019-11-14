@@ -121,10 +121,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
-            (update, shardId, type, mappingListener) -> {
+            (update, shardId, mappingListener) -> {
                 assert update != null;
                 assert shardId != null;
-                mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update, mappingListener);
+                mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
             },
             mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
@@ -277,7 +277,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
 
             mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(),
-                MapperService.SINGLE_MAPPING_NAME,
                 new ActionListener<>() {
                     @Override
                     public void onResponse(Void v) {

@@ -27,6 +27,7 @@ import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
 
 import java.nio.file.Files
 import java.nio.file.Path
+
 // need this so Zip/Tar tasks get basic defaults...
 apply plugin: 'base'
 
@@ -38,7 +39,7 @@ task createLogsDir(type: EmptyDirTask) {
   dir = "${logsDir}"
   dirMode = 0755
 }
-ext.pluginsDir= new File(buildDir, 'plugins-hack/plugins')
+ext.pluginsDir = new File(buildDir, 'plugins-hack/plugins')
 task createPluginsDir(type: EmptyDirTask) {
   dir = "${pluginsDir}"
   dirMode = 0755

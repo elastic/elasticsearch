@@ -61,13 +61,15 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             final String id = Long.toString(i);
             SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), id,
                 new BytesArray("{}"), XContentType.JSON);
-            indexShard.applyIndexOperationOnReplica(++seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+            indexShard.applyIndexOperationOnReplica(++seqNo, indexShard.getOperationPrimaryTerm(), 1,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
         }
         long seqNoBeforeGap = seqNo;
         seqNo += 8;
         SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "9",
             new BytesArray("{}"), XContentType.JSON);
-        indexShard.applyIndexOperationOnReplica(seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+        indexShard.applyIndexOperationOnReplica(seqNo, indexShard.getOperationPrimaryTerm(), 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false, sourceToParse);
 
         // promote the replica to primary:
         final ShardRouting replicaRouting = indexShard.routingEntry();

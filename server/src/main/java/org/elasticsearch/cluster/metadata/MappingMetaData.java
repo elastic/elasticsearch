@@ -118,6 +118,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     /**
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {

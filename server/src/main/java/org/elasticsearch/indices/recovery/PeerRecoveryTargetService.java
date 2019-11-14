@@ -333,7 +333,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             try {
                 final String expectedTranslogUUID = metadataSnapshot.getCommitUserData().get(Translog.TRANSLOG_UUID_KEY);
                 final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
-                assert globalCheckpoint > startingSeqNo : "invalid startingSeqNo [" + startingSeqNo + "] >= [" + globalCheckpoint + "]";
+                assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
             } catch (IOException | TranslogCorruptedException e) {
                 logger.warn(new ParameterizedMessage("error while reading global checkpoint from translog, " +
                     "resetting the starting sequence number from {} to unassigned and recovering as if there are none", startingSeqNo), e);

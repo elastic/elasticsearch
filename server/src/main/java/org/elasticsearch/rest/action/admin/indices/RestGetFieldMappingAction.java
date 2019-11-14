@@ -73,29 +73,9 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                             status = NOT_FOUND;
                         }
                         response.toXContent(builder, request);
-                        logger.warn(Strings.toString(response));
                         return new BytesRestResponse(status, builder);
                     }
                 });
     }
 
-    /**
-     * Helper method to find out if the only included fieldmapping metadata is typed NULL, which means
-     * that the index exists, but the field did not
-     */
-    private boolean isFieldMappingMissingField(Map<String, Map<String, FieldMappingMetaData>> mappingsByIndex) {
-        if (mappingsByIndex.size() != 1) {
-            return false;
-        }
-
-        for (Map<String, FieldMappingMetaData> fieldValue : mappingsByIndex.values()) {
-            for (Map.Entry<String, FieldMappingMetaData> fieldMappingMetaDataEntry : fieldValue.entrySet()) {
-                if (fieldMappingMetaDataEntry.getValue().isNull()) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
 }

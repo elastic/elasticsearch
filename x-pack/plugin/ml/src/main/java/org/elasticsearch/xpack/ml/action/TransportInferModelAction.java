@@ -10,9 +10,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
@@ -24,19 +27,27 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
 
     private final ModelLoadingService modelLoadingService;
     private final Client client;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportInferModelAction(TransportService transportService,
                                      ActionFilters actionFilters,
                                      ModelLoadingService modelLoadingService,
-                                     Client client) {
+                                     Client client,
+                                     XPackLicenseState licenseState) {
         super(InferModelAction.NAME, transportService, actionFilters, InferModelAction.Request::new);
         this.modelLoadingService = modelLoadingService;
         this.client = client;
+        this.licenseState = licenseState;
     }
 
     @Override
     protected void doExecute(Task task, InferModelAction.Request request, ActionListener<InferModelAction.Response> listener) {
+
+        if (licenseState.isMachineLearningAllowed() == false) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+            return;
+        }
 
         ActionListener<Model> getModelListener = ActionListener.wrap(
             model -> {

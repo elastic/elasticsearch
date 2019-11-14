@@ -26,7 +26,11 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.LicenseStateListener;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -144,20 +148,28 @@ public class InferenceProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory implements Processor.Factory, Consumer<ClusterState> {
+    public static final class Factory implements Processor.Factory, Consumer<ClusterState>, LicenseStateListener {
 
         private static final Logger logger = LogManager.getLogger(Factory.class);
 
         private final Client client;
         private final IngestService ingestService;
+        private final XPackLicenseState licenseState;
         private volatile int currentInferenceProcessors;
         private volatile int maxIngestProcessors;
         private volatile Version minNodeVersion = Version.CURRENT;
+        private volatile boolean inferenceAllowed;
 
-        public Factory(Client client, ClusterService clusterService, Settings settings, IngestService ingestService) {
+        public Factory(Client client,
+                       ClusterService clusterService,
+                       Settings settings,
+                       IngestService ingestService,
+                       XPackLicenseState licenseState) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
             this.ingestService = ingestService;
+            this.licenseState = licenseState;
+            this.inferenceAllowed = licenseState.isMachineLearningAllowed();
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
 
@@ -198,6 +210,10 @@ public class InferenceProcessor extends AbstractProcessor {
         @Override
         public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config)
             throws Exception {
+
+            if (inferenceAllowed == false) {
+                throw LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING);
+            }
 
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException("Max number of inference processors reached, total inference processors [{}]. " +
@@ -271,6 +287,11 @@ public class InferenceProcessor extends AbstractProcessor {
                     config.getMinimalSupportedVersion(),
                     minNodeVersion));
             }
+        }
+
+        @Override
+        public void licenseStateChanged() {
+            this.inferenceAllowed = licenseState.isMachineLearningAllowed();
         }
     }
 }

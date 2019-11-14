@@ -342,10 +342,16 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        if (this.enabled == false) {
+            return Collections.emptyMap();
+        }
+
         InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(parameters.client,
             parameters.ingestService.getClusterService(),
             this.settings,
-            parameters.ingestService);
+            parameters.ingestService,
+            getLicenseState());
+        getLicenseState().addListener(inferenceFactory);
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
     }

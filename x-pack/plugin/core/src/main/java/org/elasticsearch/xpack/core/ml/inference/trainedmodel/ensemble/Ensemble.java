@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalDouble;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
@@ -249,6 +250,14 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                 "[target_type] should be [classification] if [classification_labels] is provided, and vice versa");
         }
         this.models.forEach(TrainedModel::validate);
+    }
+
+    @Override
+    public long estimatedNumOperations() {
+        OptionalDouble avg = models.stream().mapToLong(TrainedModel::estimatedNumOperations).average();
+        assert avg.isPresent() : "unexpected null when calculating number of operations";
+        // Average operations for each model and the operations required for processing and aggregating with the outputAggregator
+        return (long)Math.ceil(avg.getAsDouble()) + 2 * (models.size() - 1);
     }
 
     public static Builder builder() {

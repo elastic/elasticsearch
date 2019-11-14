@@ -445,6 +445,18 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
     }
 
+    public void testOperationsEstimations() {
+        Tree tree1 = TreeTests.buildRandomTree(Arrays.asList("foo", "bar"), 2);
+        Tree tree2 = TreeTests.buildRandomTree(Arrays.asList("foo", "bar", "baz"), 5);
+        Tree tree3 = TreeTests.buildRandomTree(Arrays.asList("foo", "baz"), 3);
+        Ensemble ensemble = Ensemble.builder().setTrainedModels(Arrays.asList(tree1, tree2, tree3))
+            .setTargetType(TargetType.CLASSIFICATION)
+            .setFeatureNames(Arrays.asList("foo", "bar", "baz"))
+            .setOutputAggregator(new LogisticRegression(new double[]{0.1, 0.4, 1.0}))
+            .build();
+        assertThat(ensemble.estimatedNumOperations(), equalTo(9L));
+    }
+
     private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {
         return IntStream.range(0, keys.size()).boxed().collect(Collectors.toMap(keys::get, values::get));
     }

@@ -300,6 +300,11 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         assertThat(ex.getMessage(), equalTo(msg));
     }
 
+    public void testOperationsEstimations() {
+        Tree tree = buildRandomTree(Arrays.asList("foo", "bar", "baz"), 5);
+        assertThat(tree.estimatedNumOperations(), equalTo(7L));
+    }
+
     private static Map<String, Object> zipObjMap(List<String> keys, List<? extends Object> values) {
         return IntStream.range(0, keys.size()).boxed().collect(Collectors.toMap(keys::get, values::get));
     }

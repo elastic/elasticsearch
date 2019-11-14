@@ -50,4 +50,9 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
      * @throws org.elasticsearch.ElasticsearchException if validations fail
      */
     void validate();
+
+    /**
+     * @return The estimated number of operations required at inference time
+     */
+    long estimatedNumOperations();
 }

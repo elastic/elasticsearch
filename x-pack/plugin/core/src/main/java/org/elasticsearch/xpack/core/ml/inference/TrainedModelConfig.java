@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,6 +35,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public static final String NAME = "trained_model_config";
 
+    private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
+
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField CREATED_BY = new ParseField("created_by");
     public static final ParseField VERSION = new ParseField("version");
@@ -43,6 +46,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
     public static final ParseField INPUT = new ParseField("input");
+    public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
+    public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -66,6 +71,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         parser.declareObject(TrainedModelConfig.Builder::setInput,
             (p, c) -> TrainedModelInput.fromXContent(p, ignoreUnknownFields),
             INPUT);
+        parser.declareLong(TrainedModelConfig.Builder::setEstimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
+        parser.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
         return parser;
     }
 
@@ -81,6 +88,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final List<String> tags;
     private final Map<String, Object> metadata;
     private final TrainedModelInput input;
+    private final long estimatedHeapMemory;
+    private final long estimatedOperations;
 
     private final TrainedModelDefinition definition;
 
@@ -92,7 +101,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        TrainedModelDefinition definition,
                        List<String> tags,
                        Map<String, Object> metadata,
-                       TrainedModelInput input) {
+                       TrainedModelInput input,
+                       Long estimatedHeapMemory,
+                       Long estimatedOperations) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
@@ -102,6 +113,15 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.tags = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(tags, TAGS));
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
         this.input = ExceptionsHelper.requireNonNull(input, INPUT);
+        if (ExceptionsHelper.requireNonNull(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES) < 0) {
+            throw new IllegalArgumentException(
+                "[" + ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName() + "] must be greater than or equal to 0");
+        }
+        this.estimatedHeapMemory = estimatedHeapMemory;
+        if (ExceptionsHelper.requireNonNull(estimatedOperations, ESTIMATED_OPERATIONS) < 0) {
+            throw new IllegalArgumentException("[" + ESTIMATED_OPERATIONS.getPreferredName() + "] must be greater than or equal to 0");
+        }
+        this.estimatedOperations = estimatedOperations;
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -114,6 +134,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         tags = Collections.unmodifiableList(in.readList(StreamInput::readString));
         metadata = in.readMap();
         input = new TrainedModelInput(in);
+        estimatedHeapMemory = in.readVLong();
+        estimatedOperations = in.readVLong();
     }
 
     public String getModelId() {
@@ -157,6 +179,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return new Builder();
     }
 
+    public long getEstimatedHeapMemory() {
+        return estimatedHeapMemory;
+    }
+
+    public long getEstimatedOperations() {
+        return estimatedOperations;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
@@ -168,6 +198,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeCollection(tags, StreamOutput::writeString);
         out.writeMap(metadata);
         input.writeTo(out);
+        out.writeVLong(estimatedHeapMemory);
+        out.writeVLong(estimatedOperations);
     }
 
     @Override
@@ -192,6 +224,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
         }
         builder.field(INPUT.getPreferredName(), input);
+        builder.humanReadableField(
+            ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+            ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
+            new ByteSizeValue(estimatedHeapMemory));
+        builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
         builder.endObject();
         return builder;
     }
@@ -214,6 +251,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             Objects.equals(definition, that.definition) &&
             Objects.equals(tags, that.tags) &&
             Objects.equals(input, that.input) &&
+            Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
+            Objects.equals(estimatedOperations, that.estimatedOperations) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -227,6 +266,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             description,
             tags,
             metadata,
+            estimatedHeapMemory,
+            estimatedOperations,
             input);
     }
 
@@ -241,6 +282,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Map<String, Object> metadata;
         private TrainedModelInput input;
         private TrainedModelDefinition definition;
+        private Long estimatedHeapMemory;
+        private Long estimatedOperations;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -296,6 +339,16 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setEstimatedHeapMemory(long estimatedHeapMemory) {
+            this.estimatedHeapMemory = estimatedHeapMemory;
+            return this;
+        }
+
+        public Builder setEstimatedOperations(long estimatedOperations) {
+            this.estimatedOperations = estimatedOperations;
+            return this;
+        }
+
         // TODO move to REST level instead of here in the builder
         public void validate() {
             // We require a definition to be available here even though it will be stored in a different doc
@@ -326,6 +379,16 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
                     CREATE_TIME.getPreferredName());
             }
+
+            if (estimatedHeapMemory != null) {
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
+                    ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName());
+            }
+
+            if (estimatedOperations != null) {
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
+                    ESTIMATED_OPERATIONS.getPreferredName());
+            }
         }
 
         public TrainedModelConfig build() {
@@ -338,7 +401,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 definition,
                 tags,
                 metadata,
-                input);
+                input,
+                estimatedHeapMemory,
+                estimatedOperations);
         }
     }
 

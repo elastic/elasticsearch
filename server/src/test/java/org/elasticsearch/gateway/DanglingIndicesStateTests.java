@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -35,30 +36,38 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Map;
 
+import static org.elasticsearch.gateway.DanglingIndicesState.ALLOCATE_DANGLING_INDICES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DanglingIndicesStateTests extends ESTestCase {
 
-    private static Settings indexSettings = Settings.builder()
+    private static Settings indexSettings = Settings
+        .builder()
         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
         .build();
 
-    private static final Settings allocateSettings = Settings.builder().put("index.allocate_dangling", true).build();
+    private static final Settings allocateSettings = Settings.builder().put(ALLOCATE_DANGLING_INDICES_SETTING.getKey(), true).build();
 
     public void testCleanupWhenEmpty() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
             DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
 
+            // Given an empty state
             assertTrue(danglingState.getDanglingIndices().isEmpty());
+
+            // When passed an empty metadata
             MetaData metaData = MetaData.builder().build();
             danglingState.cleanupAllocatedDangledIndices(metaData);
+
+            // Then the state remains empty
             assertTrue(danglingState.getDanglingIndices().isEmpty());
         }
     }
@@ -68,15 +77,24 @@ public class DanglingIndicesStateTests extends ESTestCase {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
             DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
 
+            // Given an empty state
             assertTrue(danglingState.getDanglingIndices().isEmpty());
+
+            // When passed a metdata with an unknown index
             MetaData metaData = MetaData.builder().build();
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
             IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
             metaStateService.writeIndex("test_write", dangledIndex);
             Map<Index, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+
+            // Then that index is considered dangling
             assertTrue(newDanglingIndices.containsKey(dangledIndex.getIndex()));
+
+            // And when passed another metadata with that index
             metaData = MetaData.builder().put(dangledIndex, false).build();
             newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+
+            // Then then index is not considered to be a new dangling index for a second time
             assertFalse(newDanglingIndices.containsKey(dangledIndex.getIndex()));
         }
     }
@@ -171,7 +189,8 @@ public class DanglingIndicesStateTests extends ESTestCase {
             DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService);
 
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
-            IndexMetaData dangledIndex = IndexMetaData.builder("test1")
+            IndexMetaData dangledIndex = IndexMetaData
+                .builder("test1")
                 .settings(settings)
                 .putAlias(AliasMetaData.newAliasMetaDataBuilder("test_aliasd").build())
                 .build();
@@ -205,7 +224,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
             danglingState.findNewAndAddDanglingIndices(metaData);
 
             // When calling the allocate method
-            danglingState.allocateDanglingIndices(metaData);
+            danglingState.allocateDanglingIndices();
 
             // Ensure that allocation is not attempted
             verify(localAllocateDangledIndices, never()).allocateDangled(any(), any());
@@ -230,7 +249,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
             danglingState.findNewAndAddDanglingIndices(metaData);
 
             // When calling the allocate method
-            danglingState.allocateDanglingIndices(metaData);
+            danglingState.allocateDanglingIndices();
 
             // Ensure that allocation is attempted
             verify(localAllocateDangledIndices).allocateDangled(any(), any());
@@ -241,7 +260,16 @@ public class DanglingIndicesStateTests extends ESTestCase {
         return createDanglingIndicesState(env, metaStateService, null);
     }
 
-    private DanglingIndicesState createDanglingIndicesState(NodeEnvironment env, MetaStateService metaStateService, LocalAllocateDangledIndices allocateDangledIndices) {
-        return new DanglingIndicesState(env, metaStateService, allocateDangledIndices, mock(ClusterService.class));
+    private DanglingIndicesState createDanglingIndicesState(
+        NodeEnvironment env,
+        MetaStateService metaStateService,
+        LocalAllocateDangledIndices indexAllocator
+    ) {
+        final ClusterService clusterServiceMock = mock(ClusterService.class);
+        when(clusterServiceMock.getClusterSettings())
+            .thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        when(clusterServiceMock.getSettings()).thenReturn(allocateSettings);
+
+        return new DanglingIndicesState(env, metaStateService, indexAllocator, clusterServiceMock);
     }
 }

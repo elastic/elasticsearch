@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
@@ -57,8 +58,9 @@ public class DanglingIndicesState implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
 
     public static final Setting<Boolean> ALLOCATE_DANGLING_INDICES_SETTING = Setting.boolSetting(
-        "index.allocate_dangling",
+        "cluster.allocate_dangling",
         false,
+        Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
@@ -68,6 +70,8 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
+    private volatile boolean allocateDanglingIndices;
+
     @Inject
     public DanglingIndicesState(NodeEnvironment nodeEnv, MetaStateService metaStateService,
                                 LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {
@@ -75,6 +79,15 @@ public class DanglingIndicesState implements ClusterStateListener {
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
         clusterService.addListener(this);
+
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        this.allocateDanglingIndices = ALLOCATE_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
+        clusterSettings
+            .addSettingsUpdateConsumer(ALLOCATE_DANGLING_INDICES_SETTING, this::setAllocateDanglingIndicesSetting);
+    }
+
+    private void setAllocateDanglingIndicesSetting(boolean allocateDanglingIndices) {
+        this.allocateDanglingIndices = allocateDanglingIndices;
     }
 
     /**
@@ -87,7 +100,7 @@ public class DanglingIndicesState implements ClusterStateListener {
         }
         cleanupAllocatedDangledIndices(metaData);
         findNewAndAddDanglingIndices(metaData);
-        allocateDanglingIndices(metaData);
+        allocateDanglingIndices();
     }
 
     /**
@@ -178,8 +191,8 @@ public class DanglingIndicesState implements ClusterStateListener {
      * Allocates the provided list of the dangled indices by sending them to the master node
      * for allocation.
      */
-    void allocateDanglingIndices(MetaData metaData) {
-        if (ALLOCATE_DANGLING_INDICES_SETTING.get(metaData.settings()) == false) {
+    void allocateDanglingIndices() {
+        if (this.allocateDanglingIndices == false) {
             return;
         }
 

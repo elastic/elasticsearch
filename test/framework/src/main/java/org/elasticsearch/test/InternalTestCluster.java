@@ -121,6 +121,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
@@ -150,10 +151,11 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertEquals;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -1467,21 +1469,22 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Stops a random data node in the cluster. Returns true if a node was found to stop, false otherwise.
+     * Stops a random data node in the cluster and removes it.
+     * @return the name of the stopped node, if a node was found to stop.
      */
-    public synchronized boolean stopRandomDataNode() throws IOException {
+    public synchronized Optional<String> stopRandomDataNode() throws IOException {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(DATA_NODE_PREDICATE);
         if (nodeAndClient != null) {
             logger.info("Closing random node [{}] ", nodeAndClient.name);
             stopNodesAndClient(nodeAndClient);
-            return true;
+            return Optional.of(nodeAndClient.name);
         }
-        return false;
+        return Optional.empty();
     }
 
     /**
-     * Stops a random node in the cluster that applies to the given filter or non if the non of the nodes applies to the
+     * Stops a random node in the cluster that applies to the given filter. Does nothing if none of the nodes match the
      * filter.
      */
     public synchronized void stopRandomNode(final Predicate<Settings> filter) throws IOException {
@@ -1900,6 +1903,12 @@ public final class InternalTestCluster extends TestCluster {
      */
     public String startNode(Settings settings) {
         return startNodes(settings).get(0);
+    }
+
+    public void startNode(String nodeName) {
+        final NodeAndClient nodeAndClient = nodes.get(nodeName);
+        assertNotNull("No client found for node name: " + nodeName, nodeAndClient);
+        nodeAndClient.startNode();
     }
 
     /**

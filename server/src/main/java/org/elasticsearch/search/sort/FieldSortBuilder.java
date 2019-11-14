@@ -19,6 +19,12 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -28,12 +34,16 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -41,10 +51,13 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.search.NestedHelper.parentObject;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
@@ -357,6 +370,81 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             field = fieldData.sortField(missing, localSortMode, nested, reverse);
         }
         return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
+    }
+
+    /**
+     * Return true if the primary sort in the provided <code>source</code>
+     * is an instance of {@link FieldSortBuilder}.
+     */
+    public static boolean hasPrimaryFieldSort(SearchSourceBuilder source) {
+        return getPrimaryFieldSortOrNull(source) == null;
+    }
+
+    /**
+     * Return the {@link FieldSortBuilder} if the primary sort in the provided <code>source</code>
+     * is an instance of this class, null otherwise.
+     */
+    public static FieldSortBuilder getPrimaryFieldSortOrNull(SearchSourceBuilder source) {
+        if (source == null || source.sorts() == null || source.sorts().isEmpty()) {
+            return null;
+        }
+        return source.sorts().get(0) instanceof FieldSortBuilder ? (FieldSortBuilder) source.sorts().get(0) : null;
+    }
+
+    /**
+     * Return the maximum {@link Comparable} indexed value from the provided {@link FieldSortBuilder} or <code>null</code> if the
+     * value is unknown. The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other field
+     * and configuration return <code>null</code>
+     * NOTE: The maximum value is the minimum if the order of the provided {@link FieldSortBuilder} is {@link SortOrder#DESC}.
+     */
+    public static Comparable getMaxSortValueOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
+        SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
+        SortField sortField = sort.sort.getSort()[0];
+        if (sortField.getField() == null) {
+            return null;
+        }
+        MappedFieldType fieldType = context.fieldMapper(sortField.getField());
+        if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
+            return null;
+        }
+        String fieldName = fieldType.name();
+        IndexReader reader = context.getIndexReader();
+        if (reader == null) {
+            return null;
+        }
+        switch (IndexSortConfig.getSortFieldType(sortField)) {
+            case LONG:
+            case INT:
+            case DOUBLE:
+            case FLOAT:
+                final Function<byte[], Comparable> converter;
+                if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+                    NumberFieldMapper.NumberFieldType numberFieldType = (NumberFieldMapper.NumberFieldType) fieldType;
+                    converter = v -> (Comparable) numberFieldType.parsePoint(v);
+                } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
+                    converter = v -> (Comparable) LongPoint.decodeDimension(v, 0);
+                } else {
+                    break;
+                }
+                byte[] sortValue = sortField.getReverse() ?
+                    PointValues.getMinPackedValue(reader, fieldName) : PointValues.getMaxPackedValue(reader, fieldName);
+                return sortValue != null ? converter.apply(sortValue) : null;
+
+            case STRING:
+            case STRING_VAL:
+                if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                    Terms terms = MultiTerms.getTerms(reader, fieldName);
+                    if (terms == null) {
+                        return null;
+                    }
+                    return sortField.getReverse() ? terms.getMin() : terms.getMax();
+                }
+                break;
+
+            default:
+                break;
+        }
+        return null;
     }
 
     /**

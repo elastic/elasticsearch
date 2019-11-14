@@ -816,7 +816,7 @@ public class NumberFieldMapper extends FieldMapper {
             return name;
         }
         /** Get the associated numeric type */
-        final NumericType numericType() {
+        public final NumericType numericType() {
             return numericType;
         }
         public abstract Query termQuery(String field, Object value);

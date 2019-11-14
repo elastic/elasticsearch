@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
@@ -31,6 +32,7 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -92,6 +94,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -1012,7 +1015,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * This method can have false positives while if it returns <code>false</code> the query won't match any documents on the current
      * shard.
      */
-    public boolean canMatch(ShardSearchRequest request) throws IOException {
+    public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
@@ -1022,18 +1025,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), searcher,
                 request::nowInMillis, request.getClusterAlias());
             Rewriteable.rewrite(request.getRewriteable(), context, false);
+            FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
+            Comparable sortValue = sortBuilder != null ? FieldSortBuilder.getMaxSortValueOrNull(context, sortBuilder) : null;
             if (canRewriteToMatchNone(request.source())) {
                 QueryBuilder queryBuilder = request.source().query();
-                return queryBuilder instanceof MatchNoneQueryBuilder == false;
+                return new CanMatchResponse(queryBuilder instanceof MatchNoneQueryBuilder == false, sortValue);
             }
-            return true; // null query means match_all
+            // null query means match_all
+            return new CanMatchResponse(true, sortValue);
         }
     }
 
-
     public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
         try {
-            listener.onResponse(new CanMatchResponse(canMatch(request)));
+            listener.onResponse(canMatch(request));
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -1051,6 +1056,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         AggregatorFactories.Builder aggregations = source.aggregations();
         return aggregations == null || aggregations.mustVisitAllDocs() == false;
     }
+
 
     /*
      * Rewrites the search request with a light weight rewrite context in order to fetch resources asynchronously
@@ -1087,23 +1093,38 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final class CanMatchResponse extends SearchPhaseResult {
         private final boolean canMatch;
+        private final Comparable sortValue;
 
         public CanMatchResponse(StreamInput in) throws IOException {
             super(in);
             this.canMatch = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                sortValue = Lucene.readSortValue(in);
+            } else {
+                sortValue = null;
+            }
         }
 
-        public CanMatchResponse(boolean canMatch) {
+        public CanMatchResponse(boolean canMatch, @Nullable Comparable sortValue) {
             this.canMatch = canMatch;
+            this.sortValue = sortValue;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(canMatch);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                Lucene.writeSortValue(out, sortValue);
+            }
         }
 
         public boolean canMatch() {
             return canMatch;
+        }
+
+        @Nullable
+        public Comparable sortValue() {
+            return sortValue;
         }
     }
 

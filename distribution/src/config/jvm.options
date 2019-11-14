@@ -38,10 +38,10 @@
 8-13:-XX:+UseCMSInitiatingOccupancyOnly
 
 ## G1GC Configuration
-# to use G1GC, uncomment the next line and update the version on the following
-# lines to your version of the JDK
+# to use G1GC, uncomment the next two lines and update the version on the
+# following three lines to your version of the JDK
 # 8-13:-XX:-UseConcMarkSweepGC
-14-:-XX:-UseCMSInitiatingOccupancyOnly
+# 8-13:-XX:-UseCMSInitiatingOccupancyOnly
 14-:-XX:+UseG1GC
 14-:-XX:G1ReservePercent=25
 14-:-XX:InitiatingHeapOccupancyPercent=30

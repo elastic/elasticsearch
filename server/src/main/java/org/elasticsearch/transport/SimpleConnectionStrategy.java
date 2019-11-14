@@ -82,7 +82,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
             transportService,
             connectionManager,
             REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            REMOTE_CLUSTER_ADDRESSES.get(settings));
+            REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
     SimpleConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,

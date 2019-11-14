@@ -45,8 +45,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     enum ConnectionStrategy {
-        SNIFF,
-        SIMPLE
+        SNIFF(6),
+        SIMPLE(1);
+
+        private final int numberOfChannels;
+
+        ConnectionStrategy(int numberOfChannels) {
+            this.numberOfChannels = numberOfChannels;
+        }
     }
 
     public static final Setting.AffixSetting<ConnectionStrategy> REMOTE_CONNECTION_MODE = Setting.affixKeySetting(
@@ -73,6 +79,33 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.transportService = transportService;
         this.connectionManager = connectionManager;
         connectionManager.getConnectionManager().addListener(this);
+    }
+
+    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
+        ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder()
+            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
+            .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
+            .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE,
+                TransportRequestOptions.Type.RECOVERY)
+            // TODO: Evaluate if we actually need PING channels?
+            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING);
+        return builder.build();
+    }
+
+    static RemoteConnectionStrategy buildStrategy(String clusterAlias, TransportService transportService,
+                                                  RemoteConnectionManager connectionManager, Settings settings) {
+        ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        switch (mode) {
+            case SNIFF:
+                return new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+            case SIMPLE:
+                return new SimpleConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+            default:
+                throw new AssertionError("Invalid connection strategy" + mode);
+        }
     }
 
     /**

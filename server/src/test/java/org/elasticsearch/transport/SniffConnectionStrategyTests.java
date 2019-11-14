@@ -60,7 +60,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class SniffConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
-    private final ConnectionProfile profile = RemoteClusterConnection.buildConnectionProfileFromSettings(Settings.EMPTY, "cluster");
+    private final String modeKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+    private final Settings settings = Settings.builder().put(modeKey, "sniff").build();
+    private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile("cluster", settings);
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Override

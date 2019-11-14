@@ -46,7 +46,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     public StringStatsAggregationBuilder(String name) {
-        super(name, ValuesSourceType.BYTES, ValueType.STRING);
+        super(name, ValueType.STRING);
     }
 
     public StringStatsAggregationBuilder(StringStatsAggregationBuilder clone,

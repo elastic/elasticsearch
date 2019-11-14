@@ -91,7 +91,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
@@ -111,7 +110,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
-    protected final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
+    protected final String indexMapping = "{ \"_doc\": {} }";
 
     protected ReplicationGroup createGroup(int replicas) throws IOException {
         return createGroup(replicas, Settings.EMPTY);
@@ -126,11 +125,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         return buildIndexMetaData(replicas, indexMapping);
     }
 
-    protected IndexMetaData buildIndexMetaData(int replicas, Map<String, String> mappings) throws IOException {
+    protected IndexMetaData buildIndexMetaData(int replicas, String mappings) throws IOException {
         return buildIndexMetaData(replicas, Settings.EMPTY, mappings);
     }
 
-    protected IndexMetaData buildIndexMetaData(int replicas, Settings indexSettings, Map<String, String> mappings) throws IOException {
+    protected IndexMetaData buildIndexMetaData(int replicas, Settings indexSettings, String mappings) {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -141,10 +140,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName())
             .settings(settings)
+            .putMapping(mappings)
             .primaryTerm(0, randomIntBetween(1, 100));
-        for (Map.Entry<String, String> typeMapping : mappings.entrySet()) {
-            metaData.putMapping(typeMapping.getKey(), typeMapping.getValue());
-        }
         return metaData.build();
     }
 

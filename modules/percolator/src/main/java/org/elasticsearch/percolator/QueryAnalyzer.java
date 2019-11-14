@@ -19,9 +19,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.BinaryRange;
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -32,23 +30,17 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.SpanFirstQuery;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
@@ -56,15 +48,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-
-import static java.util.stream.Collectors.toSet;
 
 final class QueryAnalyzer {
 
@@ -99,14 +87,13 @@ final class QueryAnalyzer {
      * @param indexVersion  The create version of the index containing the percolator queries.
      */
     static Result analyze(Query query, Version indexVersion) {
-        System.out.println("analyze");
-        ResultBuilder builder = new ResultBuilder(query, false);
+        ResultBuilder builder = new ResultBuilder(false);
         query.visit(builder);
         return builder.getResult();
     }
 
     private static final Set<Class<?>> verifiedQueries = Set.of(
-        TermQuery.class, TermInSetQuery.class, SynonymQuery.class, SpanTermQuery.class,
+        TermQuery.class, TermInSetQuery.class, SynonymQuery.class, SpanTermQuery.class, SpanOrQuery.class,
         BooleanQuery.class, DisjunctionMaxQuery.class, ConstantScoreQuery.class, BoostQuery.class
     );
 
@@ -120,8 +107,8 @@ final class QueryAnalyzer {
     private static class ResultBuilder extends QueryVisitor {
 
         final boolean conjointTerms;
-        Map<Query, List<ResultBuilder>> conjunctions = new IdentityHashMap<>();
-        Map<Query, List<ResultBuilder>> disjunctions = new IdentityHashMap<>();
+        List<ResultBuilder> conjunctions = new ArrayList<>();
+        List<ResultBuilder> disjunctions = new ArrayList<>();
         boolean verified = true;
         int minimumShouldMatch = 0;
         List<Result> results = new ArrayList<>();
@@ -136,18 +123,12 @@ final class QueryAnalyzer {
                 partialResults.add(conjointTerms ? handleConjunction(results) : handleDisjunction(results, minimumShouldMatch));
             }
             if (disjunctions.isEmpty() == false && (minimumShouldMatch > 0 || conjunctions.isEmpty())) {
-                List<Result> toReduce = new ArrayList<>();
-                for (List<ResultBuilder> ds : disjunctions.values()) {
-                    List<Result> childResults = ds.stream().map(c -> c.getResult()).collect(Collectors.toList());
-                    if (childResults.size() > 1) {
-                        toReduce.add(handleDisjunction(childResults, minimumShouldMatch));
-                    }
-                    else {
-                        toReduce.add(childResults.get(0));
-                    }
+                List<Result> childResults = disjunctions.stream().map(c -> c.getResult()).collect(Collectors.toList());
+                if (childResults.size() > 1) {
+                    partialResults.add(handleDisjunction(childResults, minimumShouldMatch));
+                } else {
+                    partialResults.add(childResults.get(0));
                 }
-
-
             }
             if (conjunctions.isEmpty() == false) {
                 List<Result> childResults = conjunctions.stream().map(c -> c.getResult()).collect(Collectors.toList());
@@ -174,18 +155,18 @@ final class QueryAnalyzer {
             this.verified = isVerified(parent);
             if (occur == Occur.MUST || occur == Occur.FILTER) {
                 ResultBuilder builder = new ResultBuilder(true);
-                children.add(builder);
+                conjunctions.add(builder);
                 return builder;
             }
             if (occur == Occur.MUST_NOT) {
                 this.verified = false;
                 return QueryVisitor.EMPTY_VISITOR;
             }
-            ResultBuilder builder = new ResultBuilder(parent, true);
+            ResultBuilder builder = new ResultBuilder(false);
             if (parent instanceof BooleanQuery) {
                 builder.minimumShouldMatch = ((BooleanQuery)parent).getMinimumNumberShouldMatch();
             }
-            children.add(builder);
+            disjunctions.add(builder);
             return builder;
         }
 
@@ -200,6 +181,9 @@ final class QueryAnalyzer {
             else if (query instanceof PointRangeQuery) {
                 results.add(pointRangeQuery((PointRangeQuery)query));
             }
+            else {
+                results.add(Result.UNKNOWN);
+            }
         }
 
         @Override
@@ -207,77 +191,14 @@ final class QueryAnalyzer {
             System.out.println("Terms " + Arrays.toString(terms));
             boolean verified = verifiedQueries.contains(query.getClass());
             Set<QueryExtraction> qe = Arrays.stream(terms).map(QueryExtraction::new).collect(Collectors.toUnmodifiableSet());
-            results.add(new Result(verified, qe, isDisjunction ? 1 : qe.size()));
+            if (qe.size() > 0) {
+                results.add(new Result(verified, qe, conjointTerms ? qe.size() : 1));
+            }
         }
 
     }
 
-    private static BiFunction<Query, Version, Result> matchNoDocsQuery() {
-        return (query, version) -> new Result(true, Collections.emptySet(), 0);
-    }
 
-    private static BiFunction<Query, Version, Result> matchAllDocsQuery() {
-        return (query, version) -> new Result(true, true);
-    }
-
-    private static BiFunction<Query, Version, Result> constantScoreQuery() {
-        return (query, boosts) -> {
-            Query wrappedQuery = ((ConstantScoreQuery) query).getQuery();
-            return analyze(wrappedQuery, boosts);
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> boostQuery() {
-        return (query, version) -> {
-            Query wrappedQuery = ((BoostQuery) query).getQuery();
-            return analyze(wrappedQuery, version);
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> termQuery() {
-        return (query, version) -> {
-            TermQuery termQuery = (TermQuery) query;
-            return new Result(true, Collections.singleton(new QueryExtraction(termQuery.getTerm())), 1);
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> termInSetQuery() {
-        return (query, version) -> {
-            TermInSetQuery termInSetQuery = (TermInSetQuery) query;
-            Set<QueryExtraction> terms = new HashSet<>();
-            PrefixCodedTerms.TermIterator iterator = termInSetQuery.getTermData().iterator();
-            for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
-                terms.add(new QueryExtraction(new Term(iterator.field(), term)));
-            }
-            return new Result(true, terms, Math.min(1, terms.size()));
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> synonymQuery() {
-        return (query, version) -> {
-            Set<QueryExtraction> terms = ((SynonymQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
-            return new Result(true, terms, Math.min(1, terms.size()));
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> blendedTermQuery() {
-        return (query, version) -> {
-            Set<QueryExtraction> terms = ((BlendedTermQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
-            return new Result(true, terms, Math.min(1, terms.size()));
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> phraseQuery() {
-        return (query, version) -> {
-            Term[] terms = ((PhraseQuery) query).getTerms();
-            if (terms.length == 0) {
-                return new Result(true, Collections.emptySet(), 0);
-            }
-
-            Set<QueryExtraction> extractions = Arrays.stream(terms).map(QueryExtraction::new).collect(toSet());
-            return new Result(false, extractions, extractions.size());
-        };
-    }
 
     private static BiFunction<Query, Version, Result> multiPhraseQuery() {
         return (query, version) -> {
@@ -301,53 +222,6 @@ final class QueryAnalyzer {
         };
     }
 
-    private static BiFunction<Query, Version, Result> spanTermQuery() {
-        return (query, version) -> {
-            Term term = ((SpanTermQuery) query).getTerm();
-            return new Result(true, Collections.singleton(new QueryExtraction(term)), 1);
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> spanNearQuery() {
-        return (query, version) -> {
-            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
-            // This has the same problem as boolean queries when it comes to duplicated clauses
-            // so we rewrite to a boolean query to keep things simple.
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (SpanQuery clause : spanNearQuery.getClauses()) {
-                builder.add(clause, Occur.FILTER);
-            }
-            // make sure to unverify the result
-            return booleanQuery().apply(builder.build(), version).unverify();
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> spanOrQuery() {
-        return (query, version) -> {
-            SpanOrQuery spanOrQuery = (SpanOrQuery) query;
-            // handle it like a boolean query to not dulplicate eg. logic
-            // about duplicated terms
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (SpanQuery clause : spanOrQuery.getClauses()) {
-                builder.add(clause, Occur.SHOULD);
-            }
-            return booleanQuery().apply(builder.build(), version);
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> spanNotQuery() {
-        return (query, version) -> {
-            Result result = analyze(((SpanNotQuery) query).getInclude(), version);
-            return new Result(false, result.extractions, result.minimumShouldMatch);
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> spanFirstQuery() {
-        return (query, version) -> {
-            Result result = analyze(((SpanFirstQuery) query).getMatch(), version);
-            return new Result(false, result.extractions, result.minimumShouldMatch);
-        };
-    }
 
     private static BiFunction<Query, Version, Result> booleanQuery() {
         return (query, version) -> {
@@ -413,38 +287,9 @@ final class QueryAnalyzer {
         };
     }
 
-    private static BiFunction<Query, Version, Result> disjunctionMaxQuery() {
-        return (query, version) -> {
-            List<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
-            if (disjuncts.isEmpty()) {
-                return new Result(false, Collections.emptySet(), 0);
-            } else {
-                return handleDisjunctionQuery(disjuncts, 1, version);
-            }
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> functionScoreQuery() {
-        return (query, version) -> {
-            FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) query;
-            Result result = analyze(functionScoreQuery.getSubQuery(), version);
-
-            // If min_score is specified we can't guarantee upfront that this percolator query matches,
-            // so in that case we set verified to false.
-            // (if it matches with the percolator document matches with the extracted terms.
-            // Min score filters out docs, which is different than the functions, which just influences the score.)
-            boolean verified = result.verified && functionScoreQuery.getMinScore() == null;
-            if (result.matchAllDocs) {
-                return new Result(result.matchAllDocs, verified);
-            } else {
-                return new Result(verified, result.extractions, result.minimumShouldMatch);
-            }
-        };
-    }
-
     private static Result pointRangeQuery(PointRangeQuery query) {
         if (query.getNumDims() != 1) {
-            throw new UnsupportedQueryException(query);
+            return Result.UNKNOWN;
         }
 
         byte[] lowerPoint = query.getLowerPoint();
@@ -485,42 +330,27 @@ final class QueryAnalyzer {
     }
 
     private static Result handleConjunctionQuery(List<Query> conjunctions, Version version) {
-        UnsupportedQueryException uqe = null;
         List<Result> results = new ArrayList<>(conjunctions.size());
-        boolean success = false;
         for (Query query : conjunctions) {
-            try {
-                Result subResult = analyze(query, version);
-                if (subResult.isMatchNoDocs()) {
-                    return subResult;
-                }
-                results.add(subResult);
-                success = true;
-            } catch (UnsupportedQueryException e) {
-                uqe = e;
+            Result subResult = analyze(query, version);
+            if (subResult.isMatchNoDocs()) {
+                return subResult;
             }
+            results.add(subResult);
         }
-
-                    if (success == false) {
-            // No clauses could be extracted
-                        if (uqe != null) {
-
-                            throw uqe;
-                        } else {
-                            // Empty conjunction
-                            return new Result(true, Collections.emptySet(), 0);
-            }
-                        }
-                    Result result = handleConjunction(results);
-        if (uqe != null) {
-            result = result.unverify();
-        }
-        return result;
+        return handleConjunction(results);
     }
 
-    private static Result handleConjunction(List<Result> conjunctions) {
+    private static Result handleConjunction(List<Result> conjunctionsWithUnknowns) {
+        List<Result> conjunctions = conjunctionsWithUnknowns.stream().filter(r -> r.isUnknown() == false).collect(Collectors.toList());
         if (conjunctions.isEmpty()) {
-            throw new IllegalArgumentException("Must have at least on conjunction sub result");
+            if (conjunctionsWithUnknowns.isEmpty()) {
+                throw new IllegalArgumentException("Must have at least on conjunction sub result");
+            }
+            return conjunctionsWithUnknowns.get(0); // all conjunctions are unknown, so just return the first one
+        }
+        if (conjunctionsWithUnknowns.size() == 1) {
+            return conjunctionsWithUnknowns.get(0);
         }
         for (Result subResult : conjunctions) {
             if (subResult.isMatchNoDocs()) {
@@ -528,7 +358,7 @@ final class QueryAnalyzer {
             }
         }
         int msm = 0;
-        boolean verified = true;
+        boolean verified = conjunctionsWithUnknowns.size() == conjunctions.size();
         boolean matchAllDocs = true;
         boolean hasDuplicateTerms = false;
         Set<QueryExtraction> extractions = new HashSet<>();
@@ -599,6 +429,12 @@ final class QueryAnalyzer {
     }
 
     private static Result handleDisjunction(List<Result> disjunctions, int requiredShouldClauses) {
+        if (disjunctions.stream().anyMatch(Result::isUnknown)) {
+            return Result.UNKNOWN;
+        }
+        if (disjunctions.size() == 1) {
+            return disjunctions.get(0);
+        }
         // Keep track of the msm for each clause:
         List<Integer> clauses = new ArrayList<>(disjunctions.size());
         boolean verified = true;
@@ -719,9 +555,30 @@ final class QueryAnalyzer {
             }
         }
 
+        boolean isUnknown() {
+            return false;
+        }
+
         boolean isMatchNoDocs() {
             return matchAllDocs == false && extractions.isEmpty();
         }
+
+        static final Result UNKNOWN = new Result(false, false, Collections.emptySet(), 0){
+            @Override
+            boolean isUnknown() {
+                return true;
+            }
+
+            @Override
+            boolean isMatchNoDocs() {
+                return false;
+            }
+
+            @Override
+            public String toString() {
+                return "UNKNOWN";
+            }
+        };
     }
 
     static class QueryExtraction {
@@ -771,26 +628,6 @@ final class QueryAnalyzer {
                 "term=" + term +
                 ",range=" + range +
                 '}';
-        }
-    }
-
-    /**
-     * Exception indicating that none or some query terms couldn't extracted from a percolator query.
-     */
-    static class UnsupportedQueryException extends RuntimeException {
-
-        private final Query unsupportedQuery;
-
-        UnsupportedQueryException(Query unsupportedQuery) {
-            super(LoggerMessageFormat.format("no query terms can be extracted from query [{}]", unsupportedQuery));
-            this.unsupportedQuery = unsupportedQuery;
-        }
-
-        /**
-         * The actual Lucene query that was unsupported and caused this exception to be thrown.
-         */
-        Query getUnsupportedQuery() {
-            return unsupportedQuery;
         }
     }
 

@@ -71,11 +71,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.percolator.QueryAnalyzer.UnsupportedQueryException;
 import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class QueryAnalyzerTests extends ESTestCase {
 
@@ -722,18 +720,14 @@ public class QueryAnalyzerTests extends ESTestCase {
 
     public void testExtractQueryMetadata_unsupportedQuery() {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
-        UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class,
-            () -> analyze(termRangeQuery, Version.CURRENT));
-        assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
+        assertEquals(Result.UNKNOWN, analyze(termRangeQuery, Version.CURRENT));
 
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termRangeQuery, BooleanClause.Occur.SHOULD);
         BooleanQuery bq = builder.build();
-
-        e = expectThrows(UnsupportedQueryException.class, () -> analyze(bq, Version.CURRENT));
-        assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
+        assertEquals(Result.UNKNOWN, analyze(bq, Version.CURRENT));
     }
 
     public void testExtractQueryMetadata_unsupportedQueryInBoolQueryWithMustClauses() {
@@ -765,8 +759,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
         builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
         BooleanQuery bq2 = builder.build();
-        UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class, () -> analyze(bq2, Version.CURRENT));
-        assertThat(e.getUnsupportedQuery(), sameInstance(unsupportedQuery));
+        assertEquals(Result.UNKNOWN, analyze(bq2, Version.CURRENT));
     }
 
     public void testExtractQueryMetadata_disjunctionMaxQuery() {
@@ -936,10 +929,10 @@ public class QueryAnalyzerTests extends ESTestCase {
     public void testTooManyPointDimensions() {
         // For now no extraction support for geo queries:
         Query query1 = LatLonPoint.newBoxQuery("_field", 0, 1, 0, 1);
-        expectThrows(UnsupportedQueryException.class, () -> analyze(query1, Version.CURRENT));
+        assertEquals(Result.UNKNOWN, analyze(query1, Version.CURRENT));
 
         Query query2 = LongPoint.newRangeQuery("_field", new long[]{0, 0, 0}, new long[]{1, 1, 1});
-        expectThrows(UnsupportedQueryException.class, () -> analyze(query2, Version.CURRENT));
+        assertEquals(Result.UNKNOWN, analyze(query2, Version.CURRENT));
     }
 
     public void testPointRangeQuery_lowerUpperReversed() {

@@ -32,6 +32,8 @@ import java.util.Map;
  *
  * @deprecated The sparse_vector type was deprecated in 7.x and removed in 8.0. This mapper
  * definition only exists so that 7.x indices can be read without error.
+ *
+ * TODO: remove in 9.0.
  */
 @Deprecated
 public class SparseVectorFieldMapper extends FieldMapper {

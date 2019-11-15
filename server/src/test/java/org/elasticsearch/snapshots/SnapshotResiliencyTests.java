@@ -396,7 +396,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
 
         continueOrDie(deleteSnapshotStepListener, acknowledgedResponse -> masterNode.client.admin().cluster()
-            .prepareCreateSnapshot(repoName, snapshotName).execute(createAnotherSnapshotResponseStepListener));
+            .prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).execute(createAnotherSnapshotResponseStepListener));
         continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
             assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS));
 
@@ -1133,7 +1133,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 } else {
                     return metaData -> {
                         final Repository repository = new MockEventuallyConsistentRepository(
-                            metaData, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext);
+                            metaData, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext, random());
                         repository.start();
                         return repository;
                     };

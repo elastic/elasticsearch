@@ -32,8 +32,6 @@ List projects = [
   'distribution:docker:docker-export',
   'distribution:docker:oss-docker-build-context',
   'distribution:docker:oss-docker-export',
-  'distribution:docker:oss-ubi-docker-build-context',
-  'distribution:docker:oss-ubi-docker-export',
   'distribution:docker:ubi-docker-build-context',
   'distribution:docker:ubi-docker-export',
   'distribution:packages:oss-deb',
@@ -59,6 +57,7 @@ List projects = [
   'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:logger-usage'
 ]

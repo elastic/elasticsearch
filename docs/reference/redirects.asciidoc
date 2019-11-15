@@ -935,3 +935,30 @@ See <<enable-audit-logging>>.
 
 See <<analysis-dict-decomp-tokenfilter>> and
 <<analysis-hyp-decomp-tokenfilter>>.
+
+
+[role="exclude",id="configuring-saml-realm"]
+=== Configuring a SAML realm
+
+See <<saml-realm-configuration>>.
+
+[role="exclude",id="saml-settings"]
+==== SAML realm settings
+
+See <<ref-saml-settings>>. 
+
+[role="exclude",id="_saml_realm_signing_settings"]
+==== SAML realm signing settings
+
+See <<ref-saml-signing-settings>>. 
+
+[role="exclude",id="_saml_realm_encryption_settings"]
+==== SAML realm encryption settings
+
+See <<ref-saml-encryption-settings>>. 
+
+[role="exclude",id="_saml_realm_ssl_settings"]
+==== SAML realm SSL settings
+
+See <<ref-saml-ssl-settings>>. 
+

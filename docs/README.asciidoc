@@ -18,7 +18,7 @@ See: https://github.com/elastic/docs
   improvements.  
 
 * Doc PRs opened against out of maintenance, non-EOL versions can be merged to that version. 
-  Where applicable, the change should be applied to master and backported through 
+  Where applicable, the change should be merged to master and backported through 
   to the current version. 
   
 * Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions]. 

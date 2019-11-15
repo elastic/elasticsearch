@@ -13,11 +13,13 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregator;
+import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
+import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,11 +42,23 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
-        return singletonList(new PipelineAggregationSpec(
-            CumulativeCardinalityPipelineAggregationBuilder.NAME,
-            CumulativeCardinalityPipelineAggregationBuilder::new,
-            CumulativeCardinalityPipelineAggregator::new,
-            CumulativeCardinalityPipelineAggregationBuilder::parse));
+        return singletonList(
+            new PipelineAggregationSpec(
+                CumulativeCardinalityPipelineAggregationBuilder.NAME,
+                CumulativeCardinalityPipelineAggregationBuilder::new,
+                CumulativeCardinalityPipelineAggregator::new,
+                CumulativeCardinalityPipelineAggregationBuilder::parse)
+        );
+    }
+
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        return singletonList(
+            new AggregationSpec(
+                StringStatsAggregationBuilder.NAME,
+                StringStatsAggregationBuilder::new,
+                StringStatsAggregationBuilder::parse).addResultReader(InternalStringStats::new)
+        );
     }
 
     @Override

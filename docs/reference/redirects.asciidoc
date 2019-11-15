@@ -1001,3 +1001,12 @@ See <<tls-ldap>>.
 
 See <<kerberos-realm-configuration>>.
 
+[role="exclude",id="configuring-pki-realm"]
+=== Configuring a PKI realm
+
+See <<pki-realm-configuration>>.
+
+[role="exclude",id="pki-settings"]
+==== PKI realm settings
+
+See <<ref-pki-settings>>.

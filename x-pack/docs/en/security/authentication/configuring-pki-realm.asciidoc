@@ -1,7 +1,3 @@
-[role="xpack"]
-[[configuring-pki-realm]]
-=== Configuring a PKI realm
-
 You can configure {es} to use Public Key Infrastructure (PKI) certificates to
 authenticate users. This requires clients connecting directly to {es} to
 present X.509 certificates. The certificates must first be accepted for
@@ -14,10 +10,6 @@ requires some <<pki-realm-for-proxied-clients,additional configuration>>. On
 authentication and to submit the client certificates to {es} for further
 validation by a PKI realm.
 
-For more general information, see <<pki-realm>>.
-
-[float]
-[role="xpack"]
 [[pki-realm-for-direct-clients]]
 ==== PKI authentication for clients connecting directly to {es}
 
@@ -216,8 +208,6 @@ alternative to role mapping.
 
 --
 
-[float]
-[role="xpack"]
 [[pki-realm-for-proxied-clients]]
 ==== PKI authentication for clients connecting to {kib}
 

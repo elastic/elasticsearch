@@ -77,7 +77,7 @@ your subscription. For more information, see https://www.elastic.co/subscription
 ** <<kerberos-realm,Kerberos realms>>
 ** <<ldap-realm,LDAP realms>>
 ** <<native-realm,Native realms>>
-** <<configuring-pki-realm,PKI realms>>
+** <<pki-realm,PKI realms>>
 ** <<saml-realm,SAML realms>>
 
 . Set up roles and users to control access to {es}.

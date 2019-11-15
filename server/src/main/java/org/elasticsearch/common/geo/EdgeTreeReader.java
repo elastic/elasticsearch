@@ -200,6 +200,13 @@ public class EdgeTreeReader implements ShapeTreeReader {
                     extent.minX(), extent.maxY(), extent.minX(), extent.minY())) {
                 return true;
             }
+
+            // does this edge fully reside within the rectangle's area
+            if (extent.minX() <= Math.min(root.x1, root.x2) && extent.minY() <= Math.min(root.y1, root.y2)
+                && extent.maxX() >= Math.max(root.x1, root.x2) && extent.maxY() >= Math.max(root.y1, root.y2)) {
+                return true;
+            }
+
             /* has left node */
             if (root.rightOffset > 0 && crosses(readLeft(root), extent)) {
                 return true;

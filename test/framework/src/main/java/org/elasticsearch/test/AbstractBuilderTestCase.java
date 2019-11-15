@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -92,6 +93,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -399,6 +401,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }
+                
+        public static Predicate<String> indexNameMatcher() {
+            // Simplistic index name matcher used for testing
+            return pattern -> Regex.simpleMatch(pattern, index.getName());
+        }                 
 
         @Override
         public void close() throws IOException {
@@ -407,7 +414,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
                 indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
-                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, null);
+                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher());
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

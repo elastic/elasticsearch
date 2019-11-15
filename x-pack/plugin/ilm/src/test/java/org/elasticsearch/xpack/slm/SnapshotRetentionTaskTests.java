@@ -413,33 +413,35 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
     }
 
     private void doTestRunManuallyDuringMode(OperationMode mode) throws Exception {
-        try (ThreadPool threadPool = new TestThreadPool("slm-test");
-             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ThreadPool threadPool = new TestThreadPool("slm-test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
              Client noOpClient = new NoOpClient("slm-test")) {
             final String policyId = "policy";
             final String repoId = "repo";
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyId, "snap", "1 * * * * ?",
                 repoId, null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
-
+    
             ClusterState state = createState(mode, policy);
             ClusterServiceUtils.setState(clusterService, state);
-
+    
             AtomicBoolean retentionWasRun = new AtomicBoolean(false);
             MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService,
-                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> { }),
+                new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> {
+                }),
                 threadPool,
                 () -> {
                     retentionWasRun.set(true);
                     return Collections.emptyMap();
                 },
-                (deletionPolicyId, repo, snapId, slmStats, listener) -> { },
+                (deletionPolicyId, repo, snapId, slmStats, listener) -> {
+                },
                 System::nanoTime);
-
+    
             long time = System.currentTimeMillis();
             task.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID, time, time));
-
+    
             assertTrue("retention should be run manually even if SLM is disabled", retentionWasRun.get());
-
+        } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }

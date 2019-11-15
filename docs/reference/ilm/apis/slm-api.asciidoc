@@ -81,7 +81,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 ==== {api-request-body-title}
 
 `schedule`::
-(Required, <<schedule-cron,Cron scheduler configuration>>)
+(Required, <<cron-expressions,Cron syntax>>)
 Periodic or absolute schedule
 at which the policy creates snapshots
 and deletes expired snapshots.

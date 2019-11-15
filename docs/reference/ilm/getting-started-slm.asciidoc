@@ -107,7 +107,7 @@ PUT /_slm/policy/nightly-snapshots
 --------------------------------------------------
 // TEST[continued]
 <1> when the snapshot should be taken, using 
-    <<schedule-cron,Cron syntax>>, in this 
+    <<cron-expressions,Cron syntax>>, in this
     case at 1:30AM each day
 <2> whe name each snapshot should be given, using 
     <<date-math-index-names,date math>> to include the current date in the name

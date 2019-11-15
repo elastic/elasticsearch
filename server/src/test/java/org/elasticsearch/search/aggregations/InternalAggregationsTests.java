@@ -55,7 +55,7 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testNonFinalReduceTopLevelPipelineAggs()  {
         InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
-            10, 1, Collections.emptyList(), Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
+            10, 1, Collections.emptyList(), Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0L);
         List<SiblingPipelineAggregator> topLevelPipelineAggs = new ArrayList<>();
         MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
         topLevelPipelineAggs.add((SiblingPipelineAggregator)maxBucketPipelineAggregationBuilder.create());
@@ -69,7 +69,7 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testFinalReduceTopLevelPipelineAggs()  {
         InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
-            10, 1, Collections.emptyList(), Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
+            10, 1, Collections.emptyList(), Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0L);
 
         MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
         SiblingPipelineAggregator siblingPipelineAggregator = (SiblingPipelineAggregator) maxBucketPipelineAggregationBuilder.create();

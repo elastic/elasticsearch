@@ -106,7 +106,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
     public StringTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
-            List<Bucket> buckets, long docCountError) {
+            List<Bucket> buckets, Long docCountError) {
         super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format,
                 shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
     }

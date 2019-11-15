@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,11 +45,11 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     protected final List<B> buckets;
     protected Map<String, B> bucketMap;
 
-    protected long docCountError;
+    protected Long docCountError;
 
     protected InternalMappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData, DocValueFormat format, int shardSize,
-            boolean showTermDocCountError, long otherDocCount, List<B> buckets, long docCountError) {
+            boolean showTermDocCountError, long otherDocCount, List<B> buckets, Long docCountError) {
         super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
         this.format = format;
         this.shardSize = shardSize;
@@ -63,7 +64,14 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
      */
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
-        docCountError = in.readZLong();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo fix after backport
+            docCountError = in.readOptionalLong();
+        } else {
+            docCountError = in.readZLong();
+            if (docCountError == 0) {
+                docCountError = null;
+            }
+        }
         format = in.readNamedWriteable(DocValueFormat.class);
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
@@ -73,7 +81,11 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
-        out.writeZLong(docCountError);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // todo fix after backport
+            out.writeOptionalLong(docCountError);
+        } else {
+            out.writeZLong(docCountError == null ? 0 : docCountError);
+        }
         out.writeNamedWriteable(format);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
@@ -92,7 +104,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     }
 
     @Override
-    public long getDocCountError() {
+    public Long getDocCountError() {
         return docCountError;
     }
 

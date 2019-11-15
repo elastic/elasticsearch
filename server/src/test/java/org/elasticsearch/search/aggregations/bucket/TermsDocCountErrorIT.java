@@ -31,8 +31,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -100,70 +100,83 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                     .field(DOUBLE_FIELD_NAME, 1.0 * randomInt(numUniqueTerms))
                     .endObject()));
         }
-        assertAcked(prepareCreate("idx_fixed_docs_0").addMapping("type", STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
-        Map<String, Integer> shard0DocsPerTerm = new HashMap<>();
-        shard0DocsPerTerm.put("A", 25);
-        shard0DocsPerTerm.put("B", 18);
-        shard0DocsPerTerm.put("C", 6);
-        shard0DocsPerTerm.put("D", 3);
-        shard0DocsPerTerm.put("E", 2);
-        shard0DocsPerTerm.put("F", 2);
-        shard0DocsPerTerm.put("G", 2);
-        shard0DocsPerTerm.put("H", 2);
-        shard0DocsPerTerm.put("I", 1);
-        shard0DocsPerTerm.put("J", 1);
-        for (Map.Entry<String, Integer> entry : shard0DocsPerTerm.entrySet()) {
-            for (int i = 0; i < entry.getValue(); i++) {
-                String term = entry.getKey();
-                builders.add(client().prepareIndex("idx_fixed_docs_0").setId(term + "-" + i)
-                        .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).endObject()));
-            }
-        }
+        Map<String, Integer> shard0DocsPerTerm = Map.of(
+            "A", 25,
+            "B", 18,
+            "C", 6,
+            "D", 3,
+            "E", 2,
+            "F", 2,
+            "G", 2,
+            "H", 2,
+            "I", 1,
+            "J", 1
+        );
+        buildIndex(shard0DocsPerTerm, "idx_fixed_docs_0", 0, builders);
 
-        assertAcked(prepareCreate("idx_fixed_docs_1").addMapping("type", STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
-        Map<String, Integer> shard1DocsPerTerm = new HashMap<>();
-        shard1DocsPerTerm.put("A", 30);
-        shard1DocsPerTerm.put("B", 25);
-        shard1DocsPerTerm.put("F", 17);
-        shard1DocsPerTerm.put("Z", 16);
-        shard1DocsPerTerm.put("G", 15);
-        shard1DocsPerTerm.put("H", 14);
-        shard1DocsPerTerm.put("I", 10);
-        shard1DocsPerTerm.put("Q", 6);
-        shard1DocsPerTerm.put("J", 8);
-        shard1DocsPerTerm.put("C", 4);
-        for (Map.Entry<String, Integer> entry : shard1DocsPerTerm.entrySet()) {
-            for (int i = 0; i < entry.getValue(); i++) {
-                String term = entry.getKey();
-                builders.add(client().prepareIndex("idx_fixed_docs_1").setId(term + "-" + i)
-                        .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).field("shard", 1).endObject()));
-            }
-        }
+        Map<String, Integer> shard1DocsPerTerm = Map.of(
+            "A", 30,
+            "B", 25,
+            "F", 17,
+            "Z", 16,
+            "G", 15,
+            "H", 14,
+            "I", 10,
+            "Q", 6,
+            "J", 8,
+            "C", 4
+        );
+        buildIndex(shard1DocsPerTerm, "idx_fixed_docs_1", 1, builders);
 
-        assertAcked(prepareCreate("idx_fixed_docs_2")
-                .addMapping("type", STRING_FIELD_NAME, "type=keyword")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
-        Map<String, Integer> shard2DocsPerTerm = new HashMap<>();
-        shard2DocsPerTerm.put("A", 45);
-        shard2DocsPerTerm.put("C", 44);
-        shard2DocsPerTerm.put("Z", 36);
-        shard2DocsPerTerm.put("G", 30);
-        shard2DocsPerTerm.put("E", 29);
-        shard2DocsPerTerm.put("H", 28);
-        shard2DocsPerTerm.put("Q", 2);
-        shard2DocsPerTerm.put("D", 1);
-        for (Map.Entry<String, Integer> entry : shard2DocsPerTerm.entrySet()) {
-            for (int i = 0; i < entry.getValue(); i++) {
-                String term = entry.getKey();
-                builders.add(client().prepareIndex("idx_fixed_docs_2").setId(term + "-" + i)
-                        .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).field("shard", 2).endObject()));
-            }
-        }
+        Map<String, Integer> shard2DocsPerTerm = Map.of(
+            "A", 45,
+            "C", 44,
+            "Z", 36,
+            "G", 30,
+            "E", 29,
+            "H", 28,
+            "Q", 2,
+            "D", 1
+        );
+        buildIndex(shard2DocsPerTerm, "idx_fixed_docs_2", 2, builders);
+
+        //------
+
+        Map<String, Integer> shard3DocsPerTerm = Map.of(
+            "A", 1,
+            "B", 1,
+            "C", 1
+        );
+        buildIndex(shard3DocsPerTerm, "idx_fixed_docs_3", 3, builders);
+
+        Map<String, Integer> shard4DocsPerTerm = Map.of(
+            "K", 1,
+            "L", 1,
+            "M", 1
+        );
+        buildIndex(shard4DocsPerTerm, "idx_fixed_docs_4", 4, builders);
+
+        Map<String, Integer> shard5DocsPerTerm = Map.of(
+            "X", 1,
+            "Y", 1,
+            "Z", 1
+        );
+        buildIndex(shard5DocsPerTerm, "idx_fixed_docs_5", 5, builders);
 
         indexRandom(true, builders);
         ensureSearchable();
+    }
+
+    private void buildIndex(Map<String, Integer> docsPerTerm, String index, int shard, List<IndexRequestBuilder> builders) throws IOException {
+        assertAcked(prepareCreate(index).addMapping("type", STRING_FIELD_NAME, "type=keyword")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
+        for (Map.Entry<String, Integer> entry : docsPerTerm.entrySet()) {
+            for (int i = 0; i < entry.getValue(); i++) {
+                String term = entry.getKey();
+                builders.add(client().prepareIndex(index).setId(term + "-" + i)
+                    .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).field("shard", shard).endObject()));
+            }
+        }
     }
 
     private void assertDocCountErrorWithinBounds(int size, SearchResponse accurateResponse, SearchResponse testResponse) {
@@ -1026,4 +1039,17 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertThat(bucket.getDocCountError(), equalTo(29L));
     }
 
+    public void testIncrementalReductionBug() {
+        SearchResponse response = client().prepareSearch("idx_fixed_docs_3", "idx_fixed_docs_4", "idx_fixed_docs_5")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(STRING_FIELD_NAME)
+                .showTermDocCountError(true)
+                .size(5).shardSize(5)
+                .collectMode(randomFrom(SubAggCollectionMode.values())))
+            .get();
+        assertSearchResponse(response);
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms.getDocCountError(), equalTo(0L));
+    }
 }

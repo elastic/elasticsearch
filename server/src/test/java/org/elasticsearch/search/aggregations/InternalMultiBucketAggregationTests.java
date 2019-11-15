@@ -150,7 +150,7 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
             internalStringAggs, false, 0, DocValueFormat.RAW));
 
         InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0, Collections.emptyList(),
-            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0);
+            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0L);
         InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(termsAgg));
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
@@ -171,7 +171,7 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
             internalStringAggs, false, 0, DocValueFormat.RAW));
 
         InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0, Collections.emptyList(),
-            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0);
+            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0L);
         InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(termsAgg));
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);

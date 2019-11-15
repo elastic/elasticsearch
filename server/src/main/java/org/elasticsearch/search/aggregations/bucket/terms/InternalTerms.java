@@ -217,7 +217,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             if (terms.getBuckets().size() < getShardSize() || InternalOrder.isKeyOrder(order)) {
                 thisAggDocCountError = 0;
             } else if (InternalOrder.isCountDesc(order)) {
-                if (terms.getDocCountError() > 0) {
+                if (terms.getDocCountError() != null) {
                     // If there is an existing docCountError for this agg then
                     // use this as the error for this aggregation
                     thisAggDocCountError = terms.getDocCountError();

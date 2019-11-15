@@ -43,7 +43,7 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
     protected long sumOtherDocCount;
 
     @Override
-    public long getDocCountError() {
+    public Long getDocCountError() {
         return docCountErrorUpperBound;
     }
 

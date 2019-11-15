@@ -109,7 +109,7 @@
  * <p>
  * Generally, expression nodes have member data that evaluate static and def types.  The typical order for an expression node
  * during the analysis phase looks like the following:
- * {@code
+ * <pre>{@code
  * For known expected types:
  *
  * expression.child.expected = expectedType      // set the known expected type
@@ -132,7 +132,7 @@
  * expression.child = expression.child.cast(...) // add an implicit cast node if the child node's
  *                                               // actual type is not the expected type and set the
  *                                               // expression's child to the implicit cast node
- * }
+ * }</pre>
  * Expression nodes just call each child during the writing phase.
  * <p>
  * Postfix nodes represent postfixes in a variable/method chain including braces, calls, or fields.

@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -215,9 +214,11 @@ public class PeerFinderTests extends ESTestCase {
             = new ConnectionManager(settings, capturingTransport);
         StubbableConnectionManager connectionManager
             = new StubbableConnectionManager(innerConnectionManager, settings, capturingTransport);
-        connectionManager.setDefaultNodeConnectedBehavior(cm -> {
-            assertTrue(Sets.haveEmptyIntersection(connectedNodes, disconnectedNodes));
-            return connectedNodes;
+        connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> {
+            final boolean isConnected = connectedNodes.contains(discoveryNode);
+            final boolean isDisconnected = disconnectedNodes.contains(discoveryNode);
+            assert isConnected != isDisconnected : discoveryNode + ": isConnected=" + isConnected + ", isDisconnected=" + isDisconnected;
+            return isConnected;
         });
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> capturingTransport.createConnection(discoveryNode));
         transportService = new TransportService(settings, capturingTransport, deterministicTaskQueue.getThreadPool(),

@@ -15,17 +15,16 @@ beta[]
 [[delete-transform-request]]
 ==== {api-request-title}
 
-`DELETE _data_frame/transforms/<transform_id>`
+`DELETE _transform/<transform_id>`
 
 [[delete-transform-prereqs]]
 ==== {api-prereq-title}
 
 * Before you can delete the {transform}, you must stop it.
-* If the {es} {security-features} are enabled, you must have
-`manage_data_frame_transforms` cluster privileges to use this API. The built-in
-`data_frame_transforms_admin` role has these privileges. For more information,
-see {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+* If the {es} {security-features} are enabled, you must have `manage_transform` 
+cluster privileges to use this API. The built-in `transform_admin` role has 
+these privileges. For more information, see <<security-privileges>> and 
+<<built-in-roles>>.
 
 
 [[delete-transform-path-parms]]
@@ -47,7 +46,7 @@ current state. The default value is `false`, meaning that the {transform} must b
 
 [source,console]
 --------------------------------------------------
-DELETE _data_frame/transforms/ecommerce_transform
+DELETE _transform/ecommerce_transform
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 

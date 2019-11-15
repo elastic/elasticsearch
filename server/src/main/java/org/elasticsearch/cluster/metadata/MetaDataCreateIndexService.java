@@ -483,12 +483,17 @@ public class MetaDataCreateIndexService {
                 final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
                 createdIndex = indexService.index();
                 // now add the mappings
+
                 MapperService mapperService = indexService.mapperService();
-                try {
-                    mapperService.merge(mappings, MergeReason.MAPPING_UPDATE);
-                } catch (Exception e) {
-                    removalExtraInfo = "failed on parsing default mapping/mappings on index creation";
-                    throw e;
+                if (mappings.isEmpty() == false) {
+                    assert mappings.size() == 1;
+                    String type = mappings.keySet().iterator().next();
+                    try {
+                        mapperService.merge(type, mappings.get(type), MergeReason.MAPPING_UPDATE);
+                    } catch (Exception e) {
+                        removalExtraInfo = "failed on parsing default mapping/mappings on index creation";
+                        throw e;
+                    }
                 }
 
                 if (request.recoverFrom() == null) {
@@ -766,10 +771,7 @@ public class MetaDataCreateIndexService {
         if (type == ResizeType.SHRINK) {
             final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, resizeSourceIndex.getName(),
                 mappingKeys, resizeIntoName, indexSettingsBuilder.build());
-            indexSettingsBuilder
-                .put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
-                // we only try once and then give up with a shrink index
-                .put("index.allocation.max_retries", 1);
+            indexSettingsBuilder.put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()));
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.putNull(initialRecoveryIdFilter);

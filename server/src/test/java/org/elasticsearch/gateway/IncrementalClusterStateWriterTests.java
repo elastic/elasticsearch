@@ -18,26 +18,36 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -48,29 +58,21 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
-
-    private ClusterState noIndexClusterState(boolean masterEligible) {
-        MetaData metaData = MetaData.builder().build();
-        RoutingTable routingTable = RoutingTable.builder().build();
-
-        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData)
-            .routingTable(routingTable)
-            .nodes(generateDiscoveryNodes(masterEligible))
-            .build();
-    }
 
     private ClusterState clusterStateWithUnassignedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
         MetaData metaData = MetaData.builder()
@@ -107,7 +109,7 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
             .metaData(metaDataNewClusterState).version(oldClusterState.getVersion() + 1).build();
     }
 
-    private ClusterState clusterStateWithClosedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
+    private ClusterState clusterStateWithNonReplicatedClosedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
         ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetaData, masterEligible);
 
         MetaData metaDataNewClusterState = MetaData.builder()
@@ -116,23 +118,41 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
             .version(oldClusterState.metaData().version() + 1)
             .build();
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaDataNewClusterState.index("test"))
+            .addAsRecovery(metaDataNewClusterState.index("test"))
             .build();
 
         return ClusterState.builder(oldClusterState).routingTable(routingTable)
             .metaData(metaDataNewClusterState).version(oldClusterState.getVersion() + 1).build();
     }
 
-    private ClusterState clusterStateWithJustOpenedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
-        ClusterState oldClusterState = clusterStateWithClosedIndex(indexMetaData, masterEligible);
+    private ClusterState clusterStateWithReplicatedClosedIndex(IndexMetaData indexMetaData, boolean masterEligible, boolean assigned) {
+        ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetaData, masterEligible);
 
         MetaData metaDataNewClusterState = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).state(IndexMetaData.State.OPEN)
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+                .put(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
+                .state(IndexMetaData.State.CLOSE)
                 .numberOfShards(5).numberOfReplicas(2))
             .version(oldClusterState.metaData().version() + 1)
             .build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsRecovery(metaDataNewClusterState.index("test"))
+            .build();
 
-        return ClusterState.builder(oldClusterState)
+        oldClusterState = ClusterState.builder(oldClusterState).routingTable(routingTable)
+            .metaData(metaDataNewClusterState).build();
+        if (assigned) {
+            AllocationService strategy = createAllocationService(Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", 100)
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
+                .build());
+
+            routingTable = strategy.reroute(oldClusterState, "reroute").routingTable();
+        }
+
+        return ClusterState.builder(oldClusterState).routingTable(routingTable)
             .metaData(metaDataNewClusterState).version(oldClusterState.getVersion() + 1).build();
     }
 
@@ -140,14 +160,6 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
         Set<DiscoveryNodeRole> dataOnlyRoles = Collections.singleton(DiscoveryNodeRole.DATA_ROLE);
         return DiscoveryNodes.builder().add(newNode("node1", masterEligible ? MASTER_DATA_ROLES : dataOnlyRoles))
             .add(newNode("master_node", MASTER_DATA_ROLES)).localNodeId("node1").masterNodeId(masterEligible ? "node1" : "master_node");
-    }
-
-    private Set<Index> randomPrevWrittenIndices(IndexMetaData indexMetaData) {
-        if (randomBoolean()) {
-            return Collections.singleton(indexMetaData.getIndex());
-        } else {
-            return Collections.emptySet();
-        }
     }
 
     private IndexMetaData createIndexMetaData(String name) {
@@ -160,56 +172,41 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
     public void testGetRelevantIndicesWithUnassignedShardsOnMasterEligibleNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithUnassignedIndex(indexMetaData, true),
-            noIndexClusterState(true),
-            randomPrevWrittenIndices(indexMetaData));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithUnassignedIndex(indexMetaData, true));
         assertThat(indices.size(), equalTo(1));
     }
 
     public void testGetRelevantIndicesWithUnassignedShardsOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithUnassignedIndex(indexMetaData, false),
-            noIndexClusterState(false),
-            randomPrevWrittenIndices(indexMetaData));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithUnassignedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesWithAssignedShards() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         boolean masterEligible = randomBoolean();
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithAssignedIndex(indexMetaData, masterEligible),
-            clusterStateWithUnassignedIndex(indexMetaData, masterEligible),
-            randomPrevWrittenIndices(indexMetaData));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithAssignedIndex(indexMetaData, masterEligible));
         assertThat(indices.size(), equalTo(1));
     }
 
-    public void testGetRelevantIndicesForClosedPrevWrittenIndexOnDataOnlyNode() {
+    public void testGetRelevantIndicesForNonReplicatedClosedIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithClosedIndex(indexMetaData, false),
-            clusterStateWithAssignedIndex(indexMetaData, false),
-            Collections.singleton(indexMetaData.getIndex()));
-        assertThat(indices.size(), equalTo(1));
-    }
-
-    public void testGetRelevantIndicesForClosedPrevNotWrittenIndexOnDataOnlyNode() {
-        IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithJustOpenedIndex(indexMetaData, false),
-            clusterStateWithClosedIndex(indexMetaData, false),
-            Collections.emptySet());
+            clusterStateWithNonReplicatedClosedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
-    public void testGetRelevantIndicesForWasClosedPrevWrittenIndexOnDataOnlyNode() {
+    public void testGetRelevantIndicesForReplicatedClosedButUnassignedIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithJustOpenedIndex(indexMetaData, false),
-            clusterStateWithClosedIndex(indexMetaData, false),
-            Collections.singleton(indexMetaData.getIndex()));
+            clusterStateWithReplicatedClosedIndex(indexMetaData, false, false));
+        assertThat(indices.size(), equalTo(0));
+    }
+
+    public void testGetRelevantIndicesForReplicatedClosedAndAssignedIndexOnDataOnlyNode() {
+        IndexMetaData indexMetaData = createIndexMetaData("test");
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
+            clusterStateWithReplicatedClosedIndex(indexMetaData, false, true));
         assertThat(indices.size(), equalTo(1));
     }
 
@@ -250,13 +247,19 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
         assertThat(actions, hasSize(3));
 
+        boolean keptPreviousGeneration = false;
+        boolean wroteNewIndex = false;
+        boolean wroteChangedIndex = false;
+
         for (IncrementalClusterStateWriter.IndexMetaDataAction action : actions) {
             if (action instanceof IncrementalClusterStateWriter.KeepPreviousGeneration) {
                 assertThat(action.getIndex(), equalTo(notChangedIndex.getIndex()));
                 IncrementalClusterStateWriter.AtomicClusterStateWriter writer
                     = mock(IncrementalClusterStateWriter.AtomicClusterStateWriter.class);
                 assertThat(action.execute(writer), equalTo(3L));
-                verifyZeroInteractions(writer);
+                verify(writer, times(1)).incrementIndicesSkipped();
+                verifyNoMoreInteractions(writer);
+                keptPreviousGeneration = true;
             }
             if (action instanceof IncrementalClusterStateWriter.WriteNewIndexMetaData) {
                 assertThat(action.getIndex(), equalTo(newIndex.getIndex()));
@@ -264,6 +267,8 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
                     = mock(IncrementalClusterStateWriter.AtomicClusterStateWriter.class);
                 when(writer.writeIndex("freshly created", newIndex)).thenReturn(0L);
                 assertThat(action.execute(writer), equalTo(0L));
+                verify(writer, times(1)).incrementIndicesWritten();
+                wroteNewIndex = true;
             }
             if (action instanceof IncrementalClusterStateWriter.WriteChangedIndexMetaData) {
                 assertThat(action.getIndex(), equalTo(newVersionChangedIndex.getIndex()));
@@ -273,10 +278,16 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
                 assertThat(action.execute(writer), equalTo(3L));
                 ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
                 verify(writer).writeIndex(reason.capture(), eq(newVersionChangedIndex));
+                verify(writer, times(1)).incrementIndicesWritten();
                 assertThat(reason.getValue(), containsString(Long.toString(versionChangedIndex.getVersion())));
                 assertThat(reason.getValue(), containsString(Long.toString(newVersionChangedIndex.getVersion())));
+                wroteChangedIndex = true;
             }
         }
+
+        assertTrue(keptPreviousGeneration);
+        assertTrue(wroteNewIndex);
+        assertTrue(wroteChangedIndex);
     }
 
     private static class MetaStateServiceWithFailures extends MetaStateService {
@@ -425,5 +436,85 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
             assertTrue(possibleMetaData.stream().anyMatch(md -> metaDataEquals(md, loadedMetaData)));
         }
+    }
+
+    @TestLogging(value = "org.elasticsearch.gateway:WARN", reason = "to ensure that we log gateway events on WARN level")
+    public void testSlowLogging() throws WriteStateException, IllegalAccessException {
+        final long slowWriteLoggingThresholdMillis;
+        final Settings settings;
+        if (randomBoolean()) {
+            slowWriteLoggingThresholdMillis = IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD.get(Settings.EMPTY).millis();
+            settings = Settings.EMPTY;
+        } else {
+            slowWriteLoggingThresholdMillis = randomLongBetween(2, 100000);
+            settings = Settings.builder()
+                .put(IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD.getKey(), slowWriteLoggingThresholdMillis + "ms")
+                .build();
+        }
+
+        final DiscoveryNode localNode = newNode("node");
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
+
+        final long startTimeMillis = randomLongBetween(0L, Long.MAX_VALUE - slowWriteLoggingThresholdMillis * 10);
+        final AtomicLong currentTime = new AtomicLong(startTimeMillis);
+        final AtomicLong writeDurationMillis = new AtomicLong(slowWriteLoggingThresholdMillis);
+
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final IncrementalClusterStateWriter incrementalClusterStateWriter
+            = new IncrementalClusterStateWriter(settings, clusterSettings, mock(MetaStateService.class),
+            new Manifest(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), Collections.emptyMap()),
+            clusterState, () -> currentTime.getAndAdd(writeDurationMillis.get()));
+
+        assertExpectedLogs(clusterState, incrementalClusterStateWriter, new MockLogAppender.SeenEventExpectation(
+            "should see warning at threshold",
+            IncrementalClusterStateWriter.class.getCanonicalName(),
+            Level.WARN,
+            "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                "wrote metadata for [0] indices and skipped [0] unchanged indices"));
+
+        writeDurationMillis.set(randomLongBetween(slowWriteLoggingThresholdMillis, slowWriteLoggingThresholdMillis * 2));
+        assertExpectedLogs(clusterState, incrementalClusterStateWriter, new MockLogAppender.SeenEventExpectation(
+            "should see warning above threshold",
+            IncrementalClusterStateWriter.class.getCanonicalName(),
+            Level.WARN,
+            "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                "wrote metadata for [0] indices and skipped [0] unchanged indices"));
+
+        writeDurationMillis.set(randomLongBetween(1, slowWriteLoggingThresholdMillis - 1));
+        assertExpectedLogs(clusterState, incrementalClusterStateWriter, new MockLogAppender.UnseenEventExpectation(
+            "should not see warning below threshold",
+            IncrementalClusterStateWriter.class.getCanonicalName(),
+            Level.WARN,
+            "*"));
+
+        clusterSettings.applySettings(Settings.builder()
+            .put(IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD.getKey(), writeDurationMillis.get() + "ms")
+            .build());
+        assertExpectedLogs(clusterState, incrementalClusterStateWriter, new MockLogAppender.SeenEventExpectation(
+            "should see warning at reduced threshold",
+            IncrementalClusterStateWriter.class.getCanonicalName(),
+            Level.WARN,
+            "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                "wrote metadata for [0] indices and skipped [0] unchanged indices"));
+
+        assertThat(currentTime.get(), lessThan(startTimeMillis + 10 * slowWriteLoggingThresholdMillis)); // ensure no overflow
+    }
+
+    private void assertExpectedLogs(ClusterState clusterState, IncrementalClusterStateWriter incrementalClusterStateWriter,
+                                    MockLogAppender.LoggingExpectation expectation) throws IllegalAccessException, WriteStateException {
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(expectation);
+        Logger classLogger = LogManager.getLogger(IncrementalClusterStateWriter.class);
+        Loggers.addAppender(classLogger, mockAppender);
+
+        try {
+            incrementalClusterStateWriter.updateClusterState(clusterState);
+        } finally {
+            Loggers.removeAppender(classLogger, mockAppender);
+            mockAppender.stop();
+        }
+        mockAppender.assertAllExpectationsMatched();
     }
 }

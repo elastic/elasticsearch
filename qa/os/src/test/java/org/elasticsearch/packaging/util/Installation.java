@@ -84,6 +84,20 @@ public class Installation {
         );
     }
 
+    public static Installation ofContainer() {
+        String root = "/usr/share/elasticsearch";
+        return new Installation(
+            Paths.get(root),
+            Paths.get(root + "/config"),
+            Paths.get(root + "/data"),
+            Paths.get(root + "/logs"),
+            Paths.get(root + "/plugins"),
+            Paths.get(root + "/modules"),
+            null,
+            null
+        );
+    }
+
     public Path bin(String executableName) {
         return bin.resolve(executableName);
     }

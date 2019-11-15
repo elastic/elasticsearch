@@ -49,9 +49,9 @@ specialized code may define new ways to use a Painless script.
 | Bucket selector aggregation       | <<painless-bucket-selector-agg-context, Painless Documentation>>
                                     | {ref}/search-aggregations-pipeline-bucket-selector-aggregation.html[Elasticsearch Documentation]
 | Watcher condition                 | <<painless-watcher-condition-context, Painless Documentation>>
-                                    | {xpack-ref}/condition-script.html[Elasticsearch Documentation]
+                                    | {ref}/condition-script.html[Elasticsearch Documentation]
 | Watcher transform                 | <<painless-watcher-transform-context, Painless Documentation>>
-                                    | {xpack-ref}/transform-script.html[Elasticsearch Documentation]
+                                    | {ref}/transform-script.html[Elasticsearch Documentation]
 |====
 
 include::painless-contexts/index.asciidoc[]

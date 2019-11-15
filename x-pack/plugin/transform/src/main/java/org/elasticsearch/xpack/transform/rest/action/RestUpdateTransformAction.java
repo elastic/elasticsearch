@@ -25,7 +25,7 @@ public class RestUpdateTransformAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "data_frame_update_transform_action";
+        return "transform_update_transform_action";
     }
 
     @Override

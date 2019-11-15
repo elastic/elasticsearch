@@ -5,7 +5,7 @@
 <titleabbrev>Ack watch</titleabbrev>
 ++++
 
-{stack-ov}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
+<<actions-ack-throttle,Acknowledging a watch>> enables you
 to manually throttle execution of the watch's actions.
 
 [[watcher-api-ack-watch-request]]
@@ -19,7 +19,7 @@ to manually throttle execution of the watch's actions.
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 [[watcher-api-ack-watch-desc]]
 ==== {api-description-title}

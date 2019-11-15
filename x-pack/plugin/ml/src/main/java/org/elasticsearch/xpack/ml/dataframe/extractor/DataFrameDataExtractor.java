@@ -23,15 +23,14 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -139,7 +138,7 @@ public class DataFrameDataExtractor {
         setFetchSource(searchRequestBuilder);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
-            searchRequestBuilder.addDocValueField(docValueField.getName(), docValueField.getDocValueFormat());
+            searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
         }
 
         return searchRequestBuilder;
@@ -232,13 +231,15 @@ public class DataFrameDataExtractor {
     }
 
     public List<String> getFieldNames() {
-        return context.extractedFields.getAllFields().stream().map(ExtractedField::getAlias).collect(Collectors.toList());
+        return context.extractedFields.getAllFields().stream().map(ExtractedField::getName).collect(Collectors.toList());
     }
 
     public DataSummary collectDataSummary() {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-        return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
+        long rows = searchResponse.getHits().getTotalHits().value;
+        LOGGER.debug("[{}] Data summary rows [{}]", context.jobId, rows);
+        return new DataSummary(rows, context.extractedFields.getAllFields().size());
     }
 
     public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {
@@ -265,15 +266,11 @@ public class DataFrameDataExtractor {
             .setTrackTotalHits(true);
     }
 
-    public Set<String> getCategoricalFields() {
-        Set<String> categoricalFields = new HashSet<>();
-        for (ExtractedField extractedField : context.extractedFields.getAllFields()) {
-            String fieldName = extractedField.getName();
-            if (Types.categorical().containsAll(extractedField.getTypes())) {
-                categoricalFields.add(fieldName);
-            }
-        }
-        return categoricalFields;
+    public Set<String> getCategoricalFields(DataFrameAnalysis analysis) {
+        return context.extractedFields.getAllFields().stream()
+            .filter(extractedField -> analysis.getAllowedCategoricalTypes(extractedField.getName()).containsAll(extractedField.getTypes()))
+            .map(ExtractedField::getName)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     public static class DataSummary {

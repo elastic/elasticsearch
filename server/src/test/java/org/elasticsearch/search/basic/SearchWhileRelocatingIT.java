@@ -55,7 +55,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         final int numDocs = between(10, 20);
         for (int i = 0; i < numDocs; i++) {
-            indexBuilders.add(client().prepareIndex("test", "type", Integer.toString(i))
+            indexBuilders.add(client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource(
                             jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 21)
                                     .endObject().endObject()));

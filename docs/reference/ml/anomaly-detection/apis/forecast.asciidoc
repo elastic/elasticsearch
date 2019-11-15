@@ -18,7 +18,7 @@ Predicts the future behavior of a time series by using its historical behavior.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-forecast-desc]]
 ==== {api-description-title}

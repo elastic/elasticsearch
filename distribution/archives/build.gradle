@@ -17,7 +17,6 @@
  * under the License.
  */
 
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.LoggedExec
@@ -40,7 +39,7 @@ task createLogsDir(type: EmptyDirTask) {
   dir = "${logsDir}"
   dirMode = 0755
 }
-ext.pluginsDir= new File(buildDir, 'plugins-hack/plugins')
+ext.pluginsDir = new File(buildDir, 'plugins-hack/plugins')
 task createPluginsDir(type: EmptyDirTask) {
   dir = "${pluginsDir}"
   dirMode = 0755
@@ -61,7 +60,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         with binFiles(distributionType, oss, jdk)
       }
       if (jdk) {
-        into('jdk') {
+        into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
           with jdkFiles(project, platform)
         }
       }
@@ -310,18 +309,8 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   group = "org.elasticsearch.distribution.integ-test-zip"
 
   integTest {
-    includePackaged = true
-  }
-
-  integTestCluster {
     dependsOn assemble
-    distribution = project.name
-  }
-  integTestRunner {
-    if (Os.isFamily(Os.FAMILY_WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
-      // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-      systemProperty 'tests.timeoutSuite', '1800000!'
-    }
+    includePackaged = true
   }
 
   processTestResources {

@@ -22,6 +22,6 @@ It does *not* grant privileges to create repositories, restore snapshots, or
 search within indices. Hence, the user can view and snapshot all indices, but cannot
 access or modify any data.
 
-For more information, see {stack-ov}/security-privileges.html[Security privileges]
-and {stack-ov}/built-in-roles.html[Built-in roles].
+For more information, see <<security-privileges>>
+and <<built-in-roles>>.
 ====

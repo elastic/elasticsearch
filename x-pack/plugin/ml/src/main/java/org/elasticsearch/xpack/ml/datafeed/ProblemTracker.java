@@ -74,16 +74,14 @@ class ProblemTracker {
      * Updates the tracking of empty data cycles. If the number of consecutive empty data
      * cycles reaches {@code EMPTY_DATA_WARN_COUNT}, a warning is reported.
      */
-    public void reportEmptyDataCount() {
-        if (emptyDataCount < EMPTY_DATA_WARN_COUNT) {
-            emptyDataCount++;
-            if (emptyDataCount == EMPTY_DATA_WARN_COUNT) {
-                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_NO_DATA));
-            }
+    public int reportEmptyDataCount() {
+        if (++emptyDataCount == EMPTY_DATA_WARN_COUNT) {
+            auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_NO_DATA));
         }
+        return emptyDataCount;
     }
 
-    public void reportNoneEmptyCount() {
+    public void reportNonEmptyDataCount() {
         if (emptyDataCount >= EMPTY_DATA_WARN_COUNT) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN));
         }

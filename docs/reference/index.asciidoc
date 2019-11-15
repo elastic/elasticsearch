@@ -50,7 +50,9 @@ include::data-rollup-transform.asciidoc[]
 
 include::high-availability.asciidoc[]
 
-include::security/index.asciidoc[]
+include::{xes-repo-dir}/security/index.asciidoc[]
+
+include::{xes-repo-dir}/watcher/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 

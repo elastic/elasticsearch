@@ -74,7 +74,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                 .put("analysis.filter.synonym_graph_filter.synonyms_path", synonymsFileName))
                 .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
 
-        client().prepareIndex(indexName, "_doc", "1").setSource("field", "Foo").get();
+        client().prepareIndex(indexName).setId("1").setSource("field", "Foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
 
         SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
@@ -155,7 +155,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                 .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
 
         assertEquals(
-                "Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
+                "Failed to parse mapping: analyzer [my_synonym_analyzer] "
                 + "contains filters [synonym_filter] that are not allowed to run in all mode.",
                 ex.getMessage());
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
@@ -88,6 +89,11 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
 
+        // Delete the documents gradually.
+        // With DEFAULT_SCROLL_SIZE = 1000 this implies we spread deletion of 1 million documents over 5000 seconds ~= 83 minutes.
+        request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE);
+        request.setRequestsPerSecond(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5);
+
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
                 ModelSizeStats.RESULT_TYPE_VALUE, ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE);
@@ -95,6 +101,9 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                 .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
                 .mustNot(excludeFilter);
         request.setQuery(query);
+
+        // _doc is the most efficient sort order and will also disable scoring
+        request.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
         return request;
     }
 

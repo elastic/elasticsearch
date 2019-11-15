@@ -124,6 +124,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                 builder.setVersion(Version.CURRENT);
             }
         }
+        if (randomBoolean()) {
+            builder.setAllowLazyStart(randomBoolean());
+        }
         return builder;
     }
 

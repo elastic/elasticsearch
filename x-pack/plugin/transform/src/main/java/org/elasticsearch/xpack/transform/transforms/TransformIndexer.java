@@ -521,12 +521,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }));
     }
 
-    private boolean isIrrecoverableFailure(Exception e) {
-        return e instanceof IndexNotFoundException
-            || e instanceof AggregationResultUtils.AggregationExtractionException
-            || e instanceof TransformConfigReloadingException;
-    }
-
     private IterationResult<TransformIndexerPosition> processBuckets(final CompositeAggregation agg) {
         // we reached the end
         if (agg.getBuckets().isEmpty()) {

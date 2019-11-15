@@ -39,6 +39,12 @@ public final class ExceptionRootCauseFinder {
         return t;
     }
 
+    /**
+     * Return the best error message possible given a already unwrapped exception.
+     *
+     * @param t the throwable
+     * @return the message string of the given throwable
+     */
     public static String getDetailedMessage(Throwable t) {
         if (t instanceof ElasticsearchException) {
             return ((ElasticsearchException) t).getDetailedMessage();

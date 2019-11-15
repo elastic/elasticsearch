@@ -105,7 +105,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         final String node_1 = nodesIds.get(1);
         assertThat(cluster().size(), equalTo(2));
 
-        logger.info("--> creating an index with no replicas");
+        logger.info("--> creating an index with auto-expand replicas");
         createIndex("test", Settings.builder()
             .put(AutoExpandReplicas.SETTING.getKey(), "0-all")
             .build());

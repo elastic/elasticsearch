@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
-import org.elasticsearch.xpack.transform.utils.SearchExceptionRootCauseFinder;
+import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -468,7 +468,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     synchronized void handleFailure(Exception e) {
         logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
-        ElasticsearchException unwrappedException = SearchExceptionRootCauseFinder.getRootCauseElasticsearchException(e);
+        Throwable unwrappedException = ExceptionRootCauseFinder.getRootCauseException(e);
 
         if (unwrappedException instanceof CircuitBreakingException) {
             handleCircuitBreakingException((CircuitBreakingException) unwrappedException);
@@ -480,13 +480,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             || unwrappedException instanceof TransformConfigReloadingException) {
             failIndexer("task encountered irrecoverable failure: " + e.getMessage());
         } else if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
-            String failure = unwrappedException != null ? unwrappedException.getDetailedMessage() : e.getMessage();
-            failIndexer("task encountered more than " + context.getNumFailureRetries() + " failures; latest failure: " + failure);
+            failIndexer(
+                "task encountered more than "
+                    + context.getNumFailureRetries()
+                    + " failures; latest failure: "
+                    + ExceptionRootCauseFinder.getDetailedMessage(unwrappedException)
+            );
         } else {
             // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
             // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
             if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                String message = unwrappedException == null ? e.getMessage() : unwrappedException.getDetailedMessage();
+                String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
 
                 auditor
                     .warning(

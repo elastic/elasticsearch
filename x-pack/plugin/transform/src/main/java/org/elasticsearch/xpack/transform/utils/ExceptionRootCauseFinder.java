@@ -13,34 +13,40 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 /**
  * Set of static utils to find the cause of a search exception.
  */
-public final class SearchExceptionRootCauseFinder {
+public final class ExceptionRootCauseFinder {
 
     /**
-     * Unwrap the Exceptionstack and return the most likely cause.
+     * Unwrap the exception stack and return the most likely cause.
      *
-     * @param e raw Exception
-     * @return unwrapped elasticsearch exception
+     * @param t raw Throwable
+     * @return unwrapped throwable if possible
      */
-    public static ElasticsearchException getRootCauseElasticsearchException(Exception e) {
+    public static Throwable getRootCauseException(Throwable t) {
         // circuit breaking exceptions are at the bottom
-        Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(e);
+        Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(t);
 
         if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
-            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) e;
+            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) t;
             for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
                 Throwable unwrappedShardFailure = org.elasticsearch.ExceptionsHelper.unwrapCause(shardFailure.getCause());
 
                 if (unwrappedShardFailure instanceof ElasticsearchException) {
-                    return (ElasticsearchException) unwrappedShardFailure;
+                    return unwrappedShardFailure;
                 }
             }
-        } else if (unwrappedThrowable instanceof ElasticsearchException) {
-            return (ElasticsearchException) unwrappedThrowable;
         }
 
-        return null;
+        return t;
     }
 
-    private SearchExceptionRootCauseFinder() {}
+    public static String getDetailedMessage(Throwable t) {
+        if (t instanceof ElasticsearchException) {
+            return ((ElasticsearchException) t).getDetailedMessage();
+        }
+
+        return t.getMessage();
+    }
+
+    private ExceptionRootCauseFinder() {}
 
 }

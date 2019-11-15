@@ -33,11 +33,13 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -283,55 +285,62 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
-        Map<ShardId, Long> shardSortValues = new ConcurrentHashMap<>();
-        Set<ShardId> shardToSkip = Collections.synchronizedSet(new HashSet<>());
-        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
-            @Override
-            public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
-                                     ActionListener<SearchService.CanMatchResponse> listener) {
-                Long rand = rarely() ? null : randomLong();
-                boolean canMatch = frequently();
-                shardSortValues.put(request.shardId(), rand);
-                if (canMatch == false) {
-                    shardToSkip.add(request.shardId());
-                }
-                new Thread(() -> listener.onResponse(new SearchService.CanMatchResponse(canMatch, rand))).start();
-            }
-        };
+        for (SortOrder order : SortOrder.values()) {
+            Map<ShardId, Long> shardSortValues = new HashMap<>();
+            Set<ShardId> shardToSkip = new HashSet<>();
 
-        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("logs",
-            new OriginalIndices(new String[]{"logs"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
-            randomIntBetween(2, 20), randomBoolean(), primaryNode, replicaNode);
-        final SearchRequest searchRequest = new SearchRequest();
-        searchRequest.source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")));
-        searchRequest.allowPartialSearchResults(true);
-
-        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
-            searchRequest, null, shardsIter, timeProvider, 0, null,
-            (iter) -> new SearchPhase("test") {
+            SearchTransportService searchTransportService = new SearchTransportService(null, null) {
                 @Override
-                public void run() {
-                    result.set(iter);
-                    latch.countDown();
-                }}, SearchResponse.Clusters.EMPTY);
+                public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
+                                         ActionListener<SearchService.CanMatchResponse> listener) {
+                    Long rand = rarely() ? null : randomLong();
+                    boolean canMatch = frequently();
+                    synchronized (shardSortValues) {
+                        shardSortValues.put(request.shardId(), rand);
+                        if (canMatch == false) {
+                            shardToSkip.add(request.shardId());
+                        }
+                    }
+                    new Thread(() -> listener.onResponse(new SearchService.CanMatchResponse(canMatch, rand))).start();
+                }
+            };
 
-        canMatchPhase.start();
-        latch.await();
-        ShardId[] expected = shardSortValues.entrySet().stream()
-            .sorted((a, b) -> compareShardSortValues(a.getKey(), b.getKey(), a.getValue(), b.getValue(), 1))
-            .map(Map.Entry::getKey)
-            .toArray(ShardId[]::new);
+            AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+            CountDownLatch latch = new CountDownLatch(1);
+            GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("logs",
+                new OriginalIndices(new String[]{"logs"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
+                randomIntBetween(2, 20), randomBoolean(), primaryNode, replicaNode);
+            final SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp").order(order)));
+            searchRequest.allowPartialSearchResults(true);
 
-        int pos = 0;
-        for (SearchShardIterator i : result.get()) {
-            assertEquals(shardToSkip.contains(i.shardId()), i.skip());
-            assertEquals(expected[pos++], i.shardId());
+            CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+                searchRequest, null, shardsIter, timeProvider, 0, null,
+                (iter) -> new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        result.set(iter);
+                        latch.countDown();
+                    }
+                }, SearchResponse.Clusters.EMPTY);
+
+            canMatchPhase.start();
+            latch.await();
+            ShardId[] expected = shardSortValues.entrySet().stream()
+                .sorted((a, b) -> compareShardSortValues(a.getKey(), b.getKey(), a.getValue(), b.getValue(),
+                    order == SortOrder.ASC ? 1 : -1))
+                .map(Map.Entry::getKey)
+                .toArray(ShardId[]::new);
+
+            int pos = 0;
+            for (SearchShardIterator i : result.get()) {
+                assertEquals(shardToSkip.contains(i.shardId()), i.skip());
+                assertEquals(expected[pos++], i.shardId());
+            }
         }
     }
 

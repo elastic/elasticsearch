@@ -131,16 +131,19 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
 
     static int compareShardSortValues(ShardId shard1, ShardId shard2, Comparable v1, Comparable v2, int sortMul) {
         final int cmp;
-        if (v1 == null && v2 == null) {
+        if (v1 == v2) {
             cmp = 0;
-        } else if (v1 == null) {
-            cmp = -1;
-        } else if (v2 == null) {
-            cmp = 1 * sortMul;
+        } else if (v1 == null || v2 == null) {
+            // sort null values last
+            if (v1 == null) {
+                cmp = -1;
+            } else {
+                cmp = 1;
+            }
         } else {
-            cmp = v1.compareTo(v2);
+            cmp = v1.compareTo(v2) * sortMul;
         }
-        return cmp != 0 ? cmp * sortMul : shard1.compareTo(shard2);
+        return cmp != 0 ? cmp : shard1.compareTo(shard2);
     }
 
     private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {

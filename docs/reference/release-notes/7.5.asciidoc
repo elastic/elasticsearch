@@ -154,7 +154,24 @@ Machine Learning::
 * Add lazy assignment job config option {pull}47726[#47726]
 * Additional outlier detection parameters {pull}47600[#47600]
 * More accurate job memory overhead {pull}47516[#47516]
-* Throttle the delete-by-query of expired results {pull}47177[#47177] (issues: {issue}47003[#47003], {issue}47103[#47103])
+* Throttle the delete-by-query of expired results {pull}47177[#47177] (issue: {issue}47003[#47003])
+* Improve performance and concurrency training boosted tree regression models.
+For large data sets, this change was observed to give a 10% to 20% decrease in
+train time. {ml-pull}622[#622]
+* Upgrade Boost libraries to version 1.71 {ml-pull}638[#638]
+* Improve initialisation of boosted tree training. This generally enables us to
+find lower loss models faster. {ml-pull}686[#686]
+* Include a smooth tree depth based penalty to regularized objective function for
+boosted tree training. Hard depth based regularization is often the strategy of
+choice to prevent over fitting for XGBoost. By smoothing, we can make better tradeoffs.
+Also, the parameters of the penalty function are more suited to optimising with our
+Bayesian optimisation based hyperparameter search. {ml-pull}698[#698]
+* Binomial logistic regression targeting cross entropy {ml-pull}713[#713] 
+* Improvements to count and sum anomaly detection for sparse data. This primarily
+aims to improve handling of data which are predictably present: detecting when they
+are unexpectedly missing. {ml-pull}721[#721]
+* Trap numeric errors causing bad hyperparameter search initialisation and repeated
+errors to be logged during boosted tree training {ml-pull}732[#732]
 
 Mapping::
 * Add migration tool checks for _field_names disabling {pull}46972[#46972] (issues: {issue}42854[#42854], {issue}46681[#46681])
@@ -317,12 +334,14 @@ MULTIPLE AREA LABELS::
 * Fix cluster alert for watcher/monitoring IndexOutOfBoundsExcep… {pull}45308[#45308] (issue: {issue}43184[#43184])
 
 Machine Learning::
-* Deduplicate multi-fields for data frame analytics {pull}48799[#48799] (issues: {issue}48756[#48756], {issue}48770[#48770])
+* Deduplicate multi-fields for data frame analytics {pull}48799[#48799] (issue: {issue}48756[#48756])
 * Prevent fetching multi-field from source {pull}48770[#48770] (issue: {issue}48756[#48756])
 * Fix detection of syslog-like timestamp in find_file_structure {pull}47970[#47970]
 * Fix serialization of evaluation response. {pull}47557[#47557]
 * Reinstate ML daily maintenance actions {pull}47103[#47103] (issue: {issue}47003[#47003])
 * Fix two datafeed flush lockup bugs {pull}46982[#46982]
+* Restore from checkpoint could damage seasonality modeling. For example, it could
+cause seasonal components to be overwritten in error. {ml-pull}821[#821]
 
 NOT CLASSIFIED::
 * Remove uniqueness constraint for API key name and make it optional {pull}47549[#47549] (issue: {issue}46646[#46646])
@@ -383,7 +402,6 @@ Task Management::
 Transform::
 * Do not fail checkpoint creation due to global checkpoint mismatch {pull}48423[#48423] (issue: {issue}48379[#48379])
 * Prevent assignment if any node is older than 7.4 {pull}48055[#48055] (issue: {issue}48019[#48019])
-* Prevent assignment to nodes older than 7.4 {pull}48044[#48044] (issue: {issue}48019[#48019])
 * Fix bwc serialization with 7.3 {pull}48021[#48021]
 * Signal listener early on task _stop failure {pull}47954[#47954]
 * Use field_caps API for mapping deduction {pull}46703[#46703] (issue: {issue}46694[#46694])

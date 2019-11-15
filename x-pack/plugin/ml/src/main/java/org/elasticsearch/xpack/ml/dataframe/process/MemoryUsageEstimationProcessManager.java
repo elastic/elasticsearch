@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -57,10 +58,13 @@ public class MemoryUsageEstimationProcessManager {
                                                DataFrameDataExtractorFactory dataExtractorFactory) {
         DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
         DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-        Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
         if (dataSummary.rows == 0) {
-            return new MemoryUsageEstimationResult(ByteSizeValue.ZERO, ByteSizeValue.ZERO);
+            throw ExceptionsHelper.badRequestException(
+                "[{}] Unable to estimate memory usage as there are no analyzable data in source indices [{}].",
+                jobId,
+                Strings.arrayToCommaDelimitedString(config.getSource().getIndex()));
         }
+        Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
         AnalyticsProcessConfig processConfig =
             new AnalyticsProcessConfig(
                 jobId,

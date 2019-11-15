@@ -85,9 +85,12 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
 
         processManager.runJobAsync(TASK_ID, dataFrameAnalyticsConfig, dataExtractorFactory, listener);
 
-        verify(listener).onResponse(resultCaptor.capture());
-        MemoryUsageEstimationResult result = resultCaptor.getValue();
-        assertThat(result, equalTo(PROCESS_RESULT_ZERO));
+        verify(listener).onFailure(exceptionCaptor.capture());
+        ElasticsearchException exception = (ElasticsearchException) exceptionCaptor.getValue();
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString(TASK_ID));
+        assertThat(
+            exception.getMessage(), containsString("Unable to estimate memory usage as there are no analyzable data in source indices"));
 
         verifyNoMoreInteractions(process, listener);
     }

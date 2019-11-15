@@ -26,6 +26,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,6 +34,9 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -114,6 +118,67 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
+    public static Set<String> getRemoteClusters(Settings settings) {
+        final Stream<Setting.AffixSetting<?>> enablementSettings = Arrays.stream(ConnectionStrategy.values())
+            .flatMap(strategy -> strategy.enabledSettings.stream());
+        return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
+    }
+
+    public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
+        ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        if (mode.equals(ConnectionStrategy.SNIFF)) {
+            List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            return seeds.isEmpty() == false;
+        } else {
+            return false;
+        }
+    }
+
+    private static <T> Stream<String> getClusterAlias(Settings settings, Setting.AffixSetting<T> affixSetting) {
+        Stream<Setting<T>> allConcreteSettings = affixSetting.getAllConcreteSettings(settings);
+        return allConcreteSettings.map(affixSetting::getNamespace);
+    }
+
+    static InetSocketAddress parseSeedAddress(String remoteHost) {
+        final Tuple<String, Integer> hostPort = parseHostPort(remoteHost);
+        final String host = hostPort.v1();
+        assert hostPort.v2() != null : remoteHost;
+        final int port = hostPort.v2();
+        InetAddress hostAddress;
+        try {
+            hostAddress = InetAddress.getByName(host);
+        } catch (UnknownHostException e) {
+            throw new IllegalArgumentException("unknown host [" + host + "]", e);
+        }
+        return new InetSocketAddress(hostAddress, port);
+    }
+
+    private static Tuple<String, Integer> parseHostPort(final String remoteHost) {
+        final String host = remoteHost.substring(0, indexOfPortSeparator(remoteHost));
+        final int port = parsePort(remoteHost);
+        return Tuple.tuple(host, port);
+    }
+
+    static int parsePort(String remoteHost) {
+        try {
+            int port = Integer.valueOf(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
+            if (port <= 0) {
+                throw new IllegalArgumentException("port number must be > 0 but was: [" + port + "]");
+            }
+            return port;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("failed to parse port", e);
+        }
+    }
+
+    private static int indexOfPortSeparator(String remoteHost) {
+        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
+        if (portSeparator == -1 || portSeparator == remoteHost.length()) {
+            throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");
+        }
+        return portSeparator;
+    }
+
     /**
      * Triggers a connect round unless there is one running already. If there is a connect round running, the listener will either
      * be queued or rejected and failed.
@@ -166,27 +231,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 }
             });
         }
-    }
-
-    public static Set<String> getRemoteClusters(Settings settings) {
-        final Stream<Setting.AffixSetting<?>> enablementSettings = Arrays.stream(ConnectionStrategy.values())
-            .flatMap(strategy -> strategy.enabledSettings.stream());
-        return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
-    }
-
-    public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
-        ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        if (mode.equals(ConnectionStrategy.SNIFF)) {
-            List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-            return seeds.isEmpty() == false;
-        } else {
-            return false;
-        }
-    }
-
-    private static <T> Stream<String> getClusterAlias(Settings settings, Setting.AffixSetting<T> affixSetting) {
-        Stream<Setting<T>> allConcreteSettings = affixSetting.getAllConcreteSettings(settings);
-        return allConcreteSettings.map(affixSetting::getNamespace);
     }
 
     boolean shouldRebuildConnection(Settings newSettings) {

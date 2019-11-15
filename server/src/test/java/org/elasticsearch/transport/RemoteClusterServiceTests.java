@@ -110,52 +110,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertEquals("failed to parse port", e.getMessage());
     }
 
-    // TODO: Re-enable
-
-//    public void testBuildRemoteClustersDynamicConfig() throws Exception {
-//        Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> map =
-//                RemoteClusterService.buildRemoteClustersDynamicConfig(
-//                        Settings.builder()
-//                                .put("cluster.remote.foo.seeds", "192.168.0.1:8080")
-//                                .put("cluster.remote.bar.seeds", "[::1]:9090")
-//                                .put("cluster.remote.boom.seeds", "boom-node1.internal:1000")
-//                                .put("cluster.remote.boom.proxy", "foo.bar.com:1234")
-//                                .put("cluster.remote.quux.seeds", "quux:9300")
-//                                .put("cluster.remote.quux.proxy", "quux-proxy:19300")
-//                                .build());
-//        assertThat(map.keySet(), containsInAnyOrder(equalTo("foo"), equalTo("bar"), equalTo("boom"), equalTo("quux")));
-//        assertThat(map.get("foo").v2(), hasSize(1));
-//        assertThat(map.get("bar").v2(), hasSize(1));
-//        assertThat(map.get("boom").v2(), hasSize(1));
-//        assertThat(map.get("quux").v2(), hasSize(1));
-//
-//        DiscoveryNode foo = map.get("foo").v2().get(0).v2().get();
-//        assertEquals("", map.get("foo").v1());
-//        assertEquals(foo.getAddress(), new TransportAddress(new InetSocketAddress(InetAddress.getByName("192.168.0.1"), 8080)));
-//        assertEquals(foo.getId(), "foo#192.168.0.1:8080");
-//        assertEquals(foo.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
-//
-//        DiscoveryNode bar = map.get("bar").v2().get(0).v2().get();
-//        assertEquals(bar.getAddress(), new TransportAddress(new InetSocketAddress(InetAddress.getByName("[::1]"), 9090)));
-//        assertEquals(bar.getId(), "bar#[::1]:9090");
-//        assertEquals("", map.get("bar").v1());
-//        assertEquals(bar.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
-//
-//        DiscoveryNode boom = map.get("boom").v2().get(0).v2().get();
-//        assertEquals(boom.getAddress(), new TransportAddress(TransportAddress.META_ADDRESS, 0));
-//        assertEquals("boom-node1.internal", boom.getHostName());
-//        assertEquals(boom.getId(), "boom#boom-node1.internal:1000");
-//        assertEquals("foo.bar.com:1234", map.get("boom").v1());
-//        assertEquals(boom.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
-//
-//        DiscoveryNode quux = map.get("quux").v2().get(0).v2().get();
-//        assertEquals(quux.getAddress(), new TransportAddress(TransportAddress.META_ADDRESS, 0));
-//        assertEquals("quux", quux.getHostName());
-//        assertEquals(quux.getId(), "quux#quux:9300");
-//        assertEquals("quux-proxy:19300", map.get("quux").v1());
-//        assertEquals(quux.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
-//    }
-
     public void testGroupClusterIndices() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);

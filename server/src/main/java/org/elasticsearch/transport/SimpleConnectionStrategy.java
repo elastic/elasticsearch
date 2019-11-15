@@ -40,7 +40,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
-import static org.elasticsearch.transport.RemoteClusterAware.parsePort;
 
 public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -213,6 +212,6 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private static TransportAddress resolveAddress(String address) {
-        return new TransportAddress(RemoteClusterAware.parseSeedAddress(address));
+        return new TransportAddress(parseSeedAddress(address));
     }
 }

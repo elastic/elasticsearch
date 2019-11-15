@@ -1527,7 +1527,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals(newLifecycleState.getStepTime(), newLifecycleState.getStepTime());
     }
 
-    private static class MockAsyncActionStep extends AsyncActionStep {
+    static class MockAsyncActionStep extends AsyncActionStep {
 
         private Exception exception;
         private boolean willComplete;
@@ -1576,7 +1576,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
-    private static class MockAsyncWaitStep extends AsyncWaitStep {
+    static class MockAsyncWaitStep extends AsyncWaitStep {
 
         private Exception exception;
         private boolean willComplete;

@@ -97,7 +97,12 @@ public class FsBlobContainer extends AbstractBlobContainer {
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
             for (Path file : stream) {
-                final BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
+                final BasicFileAttributes attrs;
+                try {
+                    attrs = Files.readAttributes(file, BasicFileAttributes.class);
+                } catch (FileNotFoundException e) {
+                    continue;
+                }
                 if (attrs.isRegularFile()) {
                     builder.put(file.getFileName().toString(), new PlainBlobMetaData(file.getFileName().toString(), attrs.size()));
                 }

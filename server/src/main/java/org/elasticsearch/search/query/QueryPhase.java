@@ -584,7 +584,7 @@ public class QueryPhase implements SearchPhase {
         long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
         long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
         while (minValue < maxValue) {
-            long avgValue = Math.floorDiv(minValue + maxValue, 2);
+            long avgValue = Math.floorDiv(minValue, 2) + Math.floorDiv(maxValue, 2); // to avoid overflow first divide each value by 2
             long countLeft = estimatePointCount(pointValues, minValue, avgValue);
             long countRight = estimatePointCount(pointValues, avgValue + 1, maxValue);
             if (countLeft >= countRight) {

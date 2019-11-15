@@ -57,8 +57,8 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
 
-    public static final Setting<Boolean> ALLOCATE_DANGLING_INDICES_SETTING = Setting.boolSetting(
-        "cluster.allocate_dangling",
+    public static final Setting<Boolean> AUTO_IMPORT_DANGLING_INDICES_SETTING = Setting.boolSetting(
+        "gateway.auto_import_dangling_indices",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -81,9 +81,9 @@ public class DanglingIndicesState implements ClusterStateListener {
         clusterService.addListener(this);
 
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        this.allocateDanglingIndices = ALLOCATE_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
+        this.allocateDanglingIndices = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
         clusterSettings
-            .addSettingsUpdateConsumer(ALLOCATE_DANGLING_INDICES_SETTING, this::setAllocateDanglingIndicesSetting);
+            .addSettingsUpdateConsumer(AUTO_IMPORT_DANGLING_INDICES_SETTING, this::setAllocateDanglingIndicesSetting);
     }
 
     public void setAllocateDanglingIndicesSetting(boolean allocateDanglingIndices) {

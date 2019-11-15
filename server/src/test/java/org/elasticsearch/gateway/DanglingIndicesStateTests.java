@@ -36,7 +36,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Map;
 
-import static org.elasticsearch.gateway.DanglingIndicesState.ALLOCATE_DANGLING_INDICES_SETTING;
+import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -277,7 +277,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
         MetaStateService metaStateService,
         LocalAllocateDangledIndices indexAllocator
     ) {
-        final Settings allocateSettings = Settings.builder().put(ALLOCATE_DANGLING_INDICES_SETTING.getKey(), false).build();
+        final Settings allocateSettings = Settings.builder().put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), false).build();
 
         final ClusterService clusterServiceMock = mock(ClusterService.class);
         when(clusterServiceMock.getClusterSettings()).thenReturn(

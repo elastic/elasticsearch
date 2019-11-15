@@ -11,7 +11,7 @@ import org.junit.After;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
-import static org.elasticsearch.gateway.DanglingIndicesState.ALLOCATE_DANGLING_INDICES_SETTING;
+import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -146,7 +146,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 .cluster()
                 .prepareUpdateSettings()
                 // Map.of doesn't like null ¯\_(ツ)_/¯
-                .setTransientSettings(Collections.singletonMap(ALLOCATE_DANGLING_INDICES_SETTING.getKey(), enabled))
+                .setTransientSettings(Collections.singletonMap(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), enabled))
         );
     }
 }

@@ -36,9 +36,9 @@ apply plugin: 'elasticsearch.testclusters'
 
 // Concatenates the dependencies CSV files into a single file
 task generateDependenciesReport(type: ConcatFilesTask) {
-  files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
+  files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license"
-  target = new File(System.getProperty('csv')?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
+  target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
 }
 
 /*****************************************************************************
@@ -138,7 +138,7 @@ void copyModule(Sync copyTask, Project module) {
       exclude 'config/log4j2.properties'
 
       eachFile { details ->
-        String name = module.plugins.hasPlugin('elasticsearch.esplugin') ? module.esplugin.name : module.es_meta_plugin.name 
+        String name = module.plugins.hasPlugin('elasticsearch.esplugin') ? module.esplugin.name : module.es_meta_plugin.name
         // Copy all non config/bin files
         // Note these might be unde a subdirectory in the case of a meta plugin
         if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
@@ -228,7 +228,7 @@ Project xpack = project(':x-pack:plugin')
 xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   File licenses = new File(xpackModule.projectDir, 'licenses')
   if (licenses.exists()) {
-    buildDefaultNotice.licensesDir licenses 
+    buildDefaultNotice.licensesDir licenses
   }
   copyModule(processDefaultOutputs, xpackModule)
   copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
@@ -298,9 +298,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         List excludePlatforms = ['linux', 'windows', 'darwin']
         if (platform != null) {
-           excludePlatforms.remove(excludePlatforms.indexOf(platform))
+          excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
-           excludePlatforms = []
+          excludePlatforms = []
         }
         from(buildModules) {
           for (String excludePlatform : excludePlatforms) {
@@ -337,7 +337,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     binFiles = { distributionType, oss, jdk ->
       copySpec {
-        // non-windows files, for all distributions 
+        // non-windows files, for all distributions
         with copySpec {
           from '../src/bin'
           exclude '*.exe'
@@ -387,7 +387,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           } else {
             from buildDefaultNoJdkNotice
           }
-      }  
+        }
       }
     }
 
@@ -395,7 +395,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       project.jdks {
         "bundled_${platform}" {
           it.platform = platform
-          it.version = VersionProperties.bundledJdk
+          it.version = VersionProperties.getBundledJdk(platform)
           it.vendor = VersionProperties.bundledJdkVendor
         }
       }
@@ -488,10 +488,10 @@ subprojects {
       licenseText = rootProject.file('licenses/ELASTIC-LICENSE.txt').getText('UTF-8')
     }
     // license text needs to be indented with a single space
-    licenseText = ' ' + licenseText.replace('\n', '\n ') 
+    licenseText = ' ' + licenseText.replace('\n', '\n ')
 
     String footer = "# Built for ${project.name}-${project.version} " +
-        "(${distributionType})"
+      "(${distributionType})"
     Map<String, Object> expansions = [
       'project.name': project.name,
       'project.version': version,
@@ -514,9 +514,9 @@ subprojects {
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
       ],
       'source.path.env': [
-         'deb': 'source /etc/default/elasticsearch',
-         'rpm': 'source /etc/sysconfig/elasticsearch',
-         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
+        'deb': 'source /etc/default/elasticsearch',
+        'rpm': 'source /etc/sysconfig/elasticsearch',
+        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
       ],
       'path.logs': [
         'deb': packagingPathLogs,
@@ -559,7 +559,6 @@ subprojects {
         'def': oss ? 'oss' : 'default'
       ],
 
-
       'es.distribution.type': [
         'deb': 'deb',
         'rpm': 'rpm',
@@ -593,7 +592,7 @@ subprojects {
     return result
   }
 
-  ext.assertLinesInFile =  { Path path, List<String> expectedLines ->
+  ext.assertLinesInFile = { Path path, List<String> expectedLines ->
     final List<String> actualLines = Files.readAllLines(path)
     int line = 0
     for (final String expectedLine : expectedLines) {
@@ -606,12 +605,12 @@ subprojects {
   }
 }
 
-['archives:windows-zip','archives:oss-windows-zip',
- 'archives:darwin-tar','archives:oss-darwin-tar',
- 'archives:linux-tar', 'archives:oss-linux-tar',
- 'archives:integ-test-zip',
- 'packages:rpm', 'packages:deb',
- 'packages:oss-rpm', 'packages:oss-deb',
+['archives:windows-zip', 'archives:oss-windows-zip',
+  'archives:darwin-tar', 'archives:oss-darwin-tar',
+  'archives:linux-tar', 'archives:oss-linux-tar',
+  'archives:integ-test-zip',
+  'packages:rpm', 'packages:deb',
+  'packages:oss-rpm', 'packages:oss-deb',
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)

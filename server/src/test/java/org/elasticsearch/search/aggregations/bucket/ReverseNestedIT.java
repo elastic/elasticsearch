@@ -524,7 +524,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
                         .addMapping("product", mapping)
         );
 
-        client().prepareIndex("idx3", "product", "1").setRefreshPolicy(IMMEDIATE).setSource(
+        client().prepareIndex("idx3").setId("1").setRefreshPolicy(IMMEDIATE).setSource(
                 jsonBuilder().startObject()
                         .startArray("sku")
                             .startObject()

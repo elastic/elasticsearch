@@ -255,8 +255,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            builders[i] = client().prepareIndex(sourceIdx, "_doc",
-                Integer.toString(i)).setSource(source).setRouting("r" + i);
+            builders[i] = client().prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();

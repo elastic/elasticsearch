@@ -153,7 +153,7 @@ public class HistogramIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, i * 2)
                     .endObject()));
@@ -1084,8 +1084,8 @@ public class HistogramIT extends ESIntegTestCase {
     public void testDecimalIntervalAndOffset() throws Exception {
         assertAcked(prepareCreate("decimal_values").addMapping("type", "d", "type=float").get());
         indexRandom(true,
-                client().prepareIndex("decimal_values", "type", "1").setSource("d", -0.6),
-                client().prepareIndex("decimal_values", "type", "2").setSource("d", 0.1));
+                client().prepareIndex("decimal_values").setId("1").setSource("d", -0.6),
+                client().prepareIndex("decimal_values").setId("2").setSource("d", 0.1));
 
         SearchResponse r = client().prepareSearch("decimal_values")
                 .addAggregation(histogram("histo").field("d").interval(0.7).offset(0.05))
@@ -1109,8 +1109,8 @@ public class HistogramIT extends ESIntegTestCase {
         assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=float")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("d", -0.6),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("d", 0.1));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("d", -0.6),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("d", 0.1));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

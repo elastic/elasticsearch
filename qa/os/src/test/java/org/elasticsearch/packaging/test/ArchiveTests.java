@@ -103,7 +103,16 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test50StartAndStop() throws Exception {
-        awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
+        try {
+            awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
+        } catch (Exception e ){
+            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
+                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
+                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+                sh.runIgnoreExitCode("jstack " + pid);
+            }
+            throw e;
+        }
 
         assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
         ServerUtils.runElasticsearchTests();

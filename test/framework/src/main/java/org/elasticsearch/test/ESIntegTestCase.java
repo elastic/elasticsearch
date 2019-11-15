@@ -105,7 +105,6 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -146,7 +145,6 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -437,10 +435,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // keep this low so we don't stall tests
             builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
                     RandomNumbers.randomIntBetween(random, 1, 15) + "ms");
-        }
-
-        if (randomBoolean()) {
-            builder.put(Store.FORCE_RAM_TERM_DICT.getKey(), true);
         }
 
         return builder;
@@ -1091,53 +1085,53 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for:
      * <pre>
-     *   client().prepareIndex(index, type).setSource(source).execute().actionGet();
+     *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, XContentBuilder source) {
+    protected final IndexResponse index(String index, XContentBuilder source) {
         return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   client().prepareIndex(index, type).setSource(source).execute().actionGet();
+     *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, Map<String, Object> source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    protected final IndexResponse index(String index, String id, Map<String, Object> source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, XContentBuilder source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    protected final IndexResponse index(String index, String id, XContentBuilder source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, Object... source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    protected final IndexResponse indexDoc(String index, String id, Object... source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      * <p>
      * where source is a JSON String.
      */
-    protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index, type, id).setSource(source, XContentType.JSON).execute().actionGet();
+    protected final IndexResponse index(String index, String id, String source) {
+        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
     /**
@@ -1952,19 +1946,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     @AfterClass
     public static void afterClass() throws Exception {
-        if (!runTestScopeLifecycle()) {
-            try {
+        try {
+            if (runTestScopeLifecycle()) {
+                clearClusters();
+            } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
-            } finally {
-                INSTANCE = null;
             }
-        } else {
-            clearClusters();
+        } finally {
+            SUITE_SEED = null;
+            currentCluster = null;
+            INSTANCE = null;
         }
-        SUITE_SEED = null;
-        currentCluster = null;
     }
 
     private static void initializeSuiteScope() throws Exception {
@@ -2091,6 +2085,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
+        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 }

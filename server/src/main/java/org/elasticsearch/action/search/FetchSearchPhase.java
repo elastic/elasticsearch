@@ -54,8 +54,7 @@ final class FetchSearchPhase extends SearchPhase {
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context) {
         this(resultConsumer, searchPhaseController, context,
-            (response, scrollId) -> new ExpandSearchPhase(context, response, // collapse only happens if the request has inner hits
-                (finalResponse) -> sendResponsePhase(finalResponse, scrollId, context)));
+            (response, scrollId) -> new ExpandSearchPhase(context, response, scrollId));
     }
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
@@ -111,10 +110,12 @@ final class FetchSearchPhase extends SearchPhase {
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
             final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
-            if (scoreDocs.length == 0) { // no docs to fetch -- sidestep everything and return
+            // no docs to fetch -- sidestep everything and return
+            if (scoreDocs.length == 0) {
+                // we have to release contexts here to free up resources
                 phaseResults.stream()
                     .map(SearchPhaseResult::queryResult)
-                    .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
+                    .forEach(this::releaseIrrelevantSearchContext);
                 finishPhase.run();
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollSearch ?
@@ -208,14 +209,5 @@ final class FetchSearchPhase extends SearchPhase {
         final InternalSearchResponse internalResponse = searchPhaseController.merge(context.getRequest().scroll() != null,
             reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
         context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, scrollId));
-    }
-
-    private static SearchPhase sendResponsePhase(InternalSearchResponse response, String scrollId, SearchPhaseContext context) {
-        return new SearchPhase("response") {
-            @Override
-            public void run() {
-                context.sendSearchResponse(response, scrollId);
-            }
-        };
     }
 }

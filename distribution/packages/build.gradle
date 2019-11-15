@@ -92,6 +92,7 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
     }
   }
 }
+
 addProcessFilesTask('deb', true, true)
 addProcessFilesTask('deb', true, false)
 addProcessFilesTask('deb', false, true)
@@ -111,7 +112,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
     }
     dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
-    arch (type == 'deb' ? 'amd64' : 'X86_64')
+    arch(type == 'deb' ? 'amd64' : 'X86_64')
     // Follow elasticsearch's file naming convention
     String jdkString = jdk ? "" : "no-jdk-"
     archiveName "${packageName}-${project.version}-${jdkString}${archString}.${type}"
@@ -193,16 +194,16 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       configurationFile '/etc/elasticsearch/users'
       configurationFile '/etc/elasticsearch/users_roles'
     }
-   from("${packagingFiles}") {
-     dirMode 02750
-     into('/etc')
-     permissionGroup 'elasticsearch'
-     includeEmptyDirs true
-     createDirectoryEntry true
-     include("elasticsearch") // empty dir, just to add directory entry
-   }
-   from("${packagingFiles}/etc/elasticsearch") {
-     into('/etc/elasticsearch')
+    from("${packagingFiles}") {
+      dirMode 02750
+      into('/etc')
+      permissionGroup 'elasticsearch'
+      includeEmptyDirs true
+      createDirectoryEntry true
+      include("elasticsearch") // empty dir, just to add directory entry
+    }
+    from("${packagingFiles}/etc/elasticsearch") {
+      into('/etc/elasticsearch')
       dirMode 02750
       fileMode 0660
       permissionGroup 'elasticsearch'
@@ -292,8 +293,8 @@ ospackage {
     signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
-            project.file(project.property('signing.secretKeyRingFile')) :
-            new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+      project.file(project.property('signing.secretKeyRingFile')) :
+      new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
   }
 
   // version found on oldest supported distro, centos-6
@@ -446,16 +447,16 @@ subprojects {
         onlyIf rpmExists
         final File rpmDatabase = new File(extractionDir, 'rpm-database')
         commandLine 'rpm',
-                '--badreloc',
-                '--nodeps',
-                '--noscripts',
-                '--notriggers',
-                '--dbpath',
-                rpmDatabase,
-                '--relocate',
-                "/=${packageExtractionDir}",
-                '-i',
-                "${-> buildDist.outputs.files.singleFile}"
+          '--badreloc',
+          '--nodeps',
+          '--noscripts',
+          '--notriggers',
+          '--dbpath',
+          rpmDatabase,
+          '--relocate',
+          "/=${packageExtractionDir}",
+          '-i',
+          "${-> buildDist.outputs.files.singleFile}"
       }
     }
 
@@ -480,8 +481,8 @@ subprojects {
             licenseFilename = "ELASTIC-LICENSE.txt"
           }
           final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
-                  "Copyright: Elasticsearch B.V. <info@elastic.co>",
-                  "License: " + expectedLicense)
+            "Copyright: Elasticsearch B.V. <info@elastic.co>",
+            "License: " + expectedLicense)
           final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
           final List<String> expectedLines = header + licenseLines.collect { " " + it }
           assertLinesInFile(copyrightPath, expectedLines)

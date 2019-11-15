@@ -64,10 +64,7 @@ public class TrainedModelDefinitionTests extends AbstractXContentTestCase<Traine
                         TargetMeanEncodingTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
-            .setTrainedModel(randomFrom(TreeTests.createRandom()))
-            .setInput(new TrainedModelDefinition.Input(Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomLongBetween(1, 10))
-                .collect(Collectors.toList())));
+            .setTrainedModel(randomFrom(TreeTests.createRandom()));
     }
 
     @Override

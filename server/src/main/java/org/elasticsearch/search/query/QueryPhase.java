@@ -94,8 +94,8 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.shortcutTot
  */
 public class QueryPhase implements SearchPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
-    public static final boolean SYS_PROP_LONG_SORT_OPTIMIZED =
-        Booleans.parseBoolean(System.getProperty("es.search.long_sort_optimized", "true"));
+    // TODO: remove this property in 8.0
+    public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("es.search.rewrite_sort", "true"));
 
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
@@ -226,7 +226,7 @@ public class QueryPhase implements SearchPhase {
 
             CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter = l -> {};
             // try to rewrite numeric or date sort to the optimized distanceFeatureQuery
-            if ((searchContext.sort() != null) && SYS_PROP_LONG_SORT_OPTIMIZED) {
+            if ((searchContext.sort() != null) && SYS_PROP_REWRITE_SORT) {
                 Query rewrittenQuery = tryRewriteLongSort(searchContext, searcher.getIndexReader(), query, hasFilterCollector);
                 if (rewrittenQuery != null) {
                     query = rewrittenQuery;
@@ -324,7 +324,7 @@ public class QueryPhase implements SearchPhase {
         collectors.addFirst(topDocsFactory);
 
         final Collector queryCollector;
-        if ( searchContext.getProfilers() != null) {
+        if (searchContext.getProfilers() != null) {
             InternalProfileCollector profileCollector = QueryCollectorContext.createQueryCollectorWithProfiler(collectors);
             searchContext.getProfilers().getCurrentQueryProfiler().setCollector(profileCollector);
             queryCollector = profileCollector;
@@ -355,10 +355,13 @@ public class QueryPhase implements SearchPhase {
         return topDocsFactory.shouldRescore();
     }
 
-    // we use collectorManager during sort optimization
-    // for the sort optimization, we have already checked that there are no other collectors, no filters,
-    // no search after, no scroll, no collapse, no track scores
-    // this means we can use TopFieldCollector directly
+
+    /*
+     * We use collectorManager during sort optimization, where
+     * we have already checked that there are no other collectors, no filters,
+     * no search after, no scroll, no collapse, no track scores.
+     * Absence of all other collectors and parameters allows us to use TopFieldCollector directly.
+     */
     private static boolean searchWithCollectorManager(SearchContext searchContext, ContextIndexSearcher searcher, Query query,
             CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter, boolean timeoutSet) throws IOException {
         final IndexReader reader = searchContext.searcher().getIndexReader();
@@ -559,11 +562,10 @@ public class QueryPhase implements SearchPhase {
     /**
      * Returns true if more than 50% of data in the index have the same value
      * The evaluation is approximation based on finding the median value and estimating its count
-     * Returns true if the total count of median values is greater or equal to half of the total count of documents
      */
     static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
-        long globalDocCount = 0;
-        long globalMedianCount = 0;
+        long docsNoDupl = 0; // number of docs in segments with NO duplicate data that would benefit optimization
+        long docsDupl = 0; // number of docs in segments with duplicate data that would NOT benefit optimization
         for (LeafReaderContext lrc : reader.leaves()) {
             PointValues pointValues = lrc.reader().getPointValues(field);
             if (pointValues == null) continue;
@@ -572,31 +574,34 @@ public class QueryPhase implements SearchPhase {
                 continue;
             }
             assert(pointValues.size() == docCount); // TODO: modify the code to handle multiple values
-            globalDocCount += docCount;
-            long medianValue = estimateMedianValue(pointValues);
-            long medianCount = estimatePointCount(pointValues, medianValue, medianValue);
-            globalMedianCount += medianCount;
-        }
-        return (globalMedianCount >= globalDocCount/2);
-    }
 
-    static long estimateMedianValue(PointValues pointValues) throws IOException {
-        long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
-        long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
-        while (minValue < maxValue) {
-            long avgValue = Math.floorDiv(minValue, 2) + Math.floorDiv(maxValue, 2); // to avoid overflow first divide each value by 2
-            long countLeft = estimatePointCount(pointValues, minValue, avgValue);
-            long countRight = estimatePointCount(pointValues, avgValue + 1, maxValue);
-            if (countLeft >= countRight) {
-                maxValue = avgValue;
+            int duplDocCount = docCount/2; // expected doc count of duplicate data
+            long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
+            long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
+            boolean hasDuplicateData = true;
+            while ((minValue < maxValue) && hasDuplicateData) {
+                long midValue = Math.floorDiv(minValue, 2) + Math.floorDiv(maxValue, 2); // to avoid overflow first divide each value by 2
+                long countLeft = estimatePointCount(pointValues, minValue, midValue);
+                long countRight = estimatePointCount(pointValues, midValue + 1, maxValue);
+                if ((countLeft >= countRight) && (countLeft > duplDocCount) ) {
+                    maxValue = midValue;
+                } else if ((countRight > countLeft) && (countRight > duplDocCount)) {
+                    minValue = midValue + 1;
+                } else {
+                    hasDuplicateData = false;
+                }
+            }
+            if (hasDuplicateData) {
+                docsDupl += docCount;
             } else {
-                minValue = avgValue + 1;
+                docsNoDupl += docCount;
             }
         }
-        return maxValue;
+        return (docsDupl > docsNoDupl);
     }
 
-    static long estimatePointCount(PointValues pointValues, long minValue, long maxValue) {
+
+    private static long estimatePointCount(PointValues pointValues, long minValue, long maxValue) {
         final byte[] minValueAsBytes = new byte[Long.BYTES];
         LongPoint.encodeDimension(minValue, minValueAsBytes, 0);
         final byte[] maxValueAsBytes = new byte[Long.BYTES];

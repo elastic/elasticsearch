@@ -207,8 +207,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (scorer != null) {
                 try {
                     intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
-                        checkCancelled == null ? () -> {
-                        } : checkCancelled);
+                        checkCancelled == null ? () -> { } : checkCancelled);
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf

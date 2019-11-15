@@ -67,13 +67,8 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.bkd.BKDReader;
-import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -96,15 +91,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.search.query.QueryPhase.estimateMedianValue;
-import static org.elasticsearch.search.query.QueryPhase.estimatePointCount;
+import static org.elasticsearch.search.query.QueryPhase.indexFieldHasDuplicateData;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
@@ -712,66 +704,29 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     public void testIndexHasDuplicateData() throws IOException {
-        int valuesCount = 5000;
-        int maxPointsInLeafNode = 40;
-        long expectedMedianCount = (long)(valuesCount * 0.6);
-        long expectedMedianValue = randomLongBetween(-10000000L, 10000000L);
-
-        try (Directory dir = newDirectory()) {
-            BKDWriter w = new BKDWriter(valuesCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, valuesCount);
-            byte[] longBytes = new byte[8];
-            for (int docId = 0; docId < valuesCount; docId++) {
-                long value = docId < expectedMedianCount ? expectedMedianValue : randomLongBetween(-10000000L, 10000000L);
-                LongPoint.encodeDimension(value, longBytes, 0);
-                w.add(longBytes, docId);
-            }
-            long indexFP;
-            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
-                indexFP = w.finish(out);
-            }
-            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
-                in.seek(indexFP);
-                BKDReader r = new BKDReader(in);
-                long medianValue = estimateMedianValue(r);
-                long medianCount = estimatePointCount(r, medianValue, medianValue);
-
-                assertEquals(expectedMedianValue, medianValue);
-                assertThat(medianCount, greaterThanOrEqualTo((long) (valuesCount/2))); //assert that Index has duplicate data
-                assertThat(medianCount, greaterThanOrEqualTo((long) (0.75 * expectedMedianCount)));
-                assertThat(medianCount, lessThanOrEqualTo((long) (1.25 * expectedMedianCount)));
-            }
+        int docsCount = 7000;
+        int duplIndex = docsCount * 7 / 10;
+        int duplIndex2 = docsCount * 3 / 10;
+        long duplicateValue = randomLongBetween(-10000000L, 10000000L);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
+        for (int docId = 0; docId < docsCount; docId++) {
+            Document doc = new Document();
+            long rndValue = randomLongBetween(-10000000L, 10000000L);
+            long value = (docId < duplIndex) ? duplicateValue : rndValue;
+            long value2 = (docId < duplIndex2) ? duplicateValue : rndValue;
+            doc.add(new LongPoint("duplicateField", value));
+            doc.add(new LongPoint("notDuplicateField", value2));
+            writer.addDocument(doc);
         }
-    }
-
-    public void testIndexHasNotDuplicateData() throws IOException {
-        int valuesCount = 5000;
-        int maxPointsInLeafNode = 40;
-        long expectedMedianCount = (long)(valuesCount * 0.35);
-        long expectedMedianValue = randomLongBetween(-10000000L, 10000000L);
-
-        try (Directory dir = newDirectory()) {
-            BKDWriter w = new BKDWriter(valuesCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, valuesCount);
-            byte[] longBytes = new byte[8];
-            for (int docId = 0; docId < valuesCount; docId++) {
-                long value = docId < expectedMedianCount ? expectedMedianValue : randomLongBetween(-10000000L, 10000000L);
-                LongPoint.encodeDimension(value, longBytes, 0);
-                w.add(longBytes, docId);
-            }
-            long indexFP;
-            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
-                indexFP = w.finish(out);
-            }
-            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
-                in.seek(indexFP);
-                BKDReader r = new BKDReader(in);
-                long medianValue = estimateMedianValue(r);
-                long medianCount = estimatePointCount(r, medianValue, medianValue);
-
-                // can't make any assertion about the values of medianValue and medianCount
-                // as BKDReader::estimatePointCount can be really off for non-duplicate data
-                assertThat(medianCount, lessThan((long) (valuesCount/2))); //assert that Index does NOT have duplicate data
-            }
-        }
+        writer.close();
+        final IndexReader reader = DirectoryReader.open(dir);
+        boolean hasDuplicateData = indexFieldHasDuplicateData(reader, "duplicateField");
+        boolean hasDuplicateData2 = indexFieldHasDuplicateData(reader, "notDuplicateField");
+        reader.close();
+        dir.close();
+        assertTrue(hasDuplicateData);
+        assertFalse(hasDuplicateData2);
     }
 
     public void testMaxScoreQueryVisitor() {

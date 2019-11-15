@@ -223,7 +223,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         ctx.updateLoggers();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ignored -> {
             LogManager.getLogger(Security.class).warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
-        }, List.of(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName())));
+        }, Collections.singletonList(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName())));
     }
 
     @Override

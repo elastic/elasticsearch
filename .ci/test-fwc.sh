@@ -16,4 +16,4 @@ fi
 
 echo "Running FWC agaisnt $FORWARD_TARGET"
 git checkout $FORWARD_TARGET
-.ci/bild.sh  -Dtests.bwc.remote="" -Dbwc.refspec.$ghprbTargetBranch=$GIT_COMMIT bwcTestSnapshots
+.ci/bild.sh  -Dbwc.remote="" -Dbwc.refspec.$ghprbTargetBranch=$GIT_COMMIT bwcTestSnapshots

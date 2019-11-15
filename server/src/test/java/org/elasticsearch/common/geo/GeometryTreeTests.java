@@ -23,6 +23,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
@@ -52,12 +53,7 @@ public class GeometryTreeTests extends ESTestCase {
             double[] y = new double[]{minY, minY, maxY, maxY, minY};
             Geometry rectangle = randomBoolean() ?
                 new Polygon(new LinearRing(x, y), Collections.emptyList()) : new Rectangle(minX, maxX, maxY, minY);
-            GeometryTreeWriter writer = new GeometryTreeWriter(rectangle, TestCoordinateEncoder.INSTANCE);
-
-            BytesStreamOutput output = new BytesStreamOutput();
-            writer.writeTo(output);
-            output.close();
-            GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
+            GeometryTreeReader reader = geometryTreeReader(rectangle, TestCoordinateEncoder.INSTANCE);
 
             assertThat(Extent.fromPoints(minX, minY, maxX, maxY), equalTo(reader.getExtent()));
             // encoder loses precision when casting to integer, so centroid is calculated using integer division here
@@ -108,12 +104,8 @@ public class GeometryTreeTests extends ESTestCase {
         double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
 
         // test cell crossing poly
-        GeometryTreeWriter writer = new GeometryTreeWriter(new Polygon(new LinearRing(py, px), Collections.emptyList()),
+        GeometryTreeReader reader = geometryTreeReader(new Polygon(new LinearRing(py, px), Collections.emptyList()),
             TestCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(2, -1, 11, 1)));
         assertTrue(reader.intersects(Extent.fromPoints(-12, -12, 12, 12)));
         assertTrue(reader.intersects(Extent.fromPoints(-2, -1, 2, 0)));
@@ -125,11 +117,7 @@ public class GeometryTreeTests extends ESTestCase {
         Polygon polyWithHole = new Polygon(new LinearRing(new double[]{-50, 50, 50, -50, -50}, new double[]{-50, -50, 50, 50, -50}),
             Collections.singletonList(new LinearRing(new double[]{-10, 10, 10, -10, -10}, new double[]{-10, -10, 10, 10, -10})));
 
-        GeometryTreeWriter writer = new GeometryTreeWriter(polyWithHole, TestCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), null);
+        GeometryTreeReader reader = geometryTreeReader(polyWithHole, TestCoordinateEncoder.INSTANCE);
 
         assertFalse(reader.intersects(Extent.fromPoints(6, -6, 6, -6))); // in the hole
         assertTrue(reader.intersects(Extent.fromPoints(25, -25, 25, -25))); // on the mainland
@@ -147,12 +135,8 @@ public class GeometryTreeTests extends ESTestCase {
         double[] hy = {1, 20, 20, 1, 1};
 
         Polygon polyWithHole = new Polygon(new LinearRing(px, py), Collections.singletonList(new LinearRing(hx, hy)));
+        GeometryTreeReader reader = geometryTreeReader(polyWithHole, TestCoordinateEncoder.INSTANCE);
         // test cell crossing poly
-        GeometryTreeWriter writer = new GeometryTreeWriter(polyWithHole, TestCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(5, 10, 5, 10)));
         assertFalse(reader.intersects(Extent.fromPoints(15, 10, 15, 10)));
         assertFalse(reader.intersects(Extent.fromPoints(25, 10, 25, 10)));
@@ -164,11 +148,7 @@ public class GeometryTreeTests extends ESTestCase {
         double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
 
         // test cell crossing poly
-        GeometryTreeWriter writer = new GeometryTreeWriter(new Line(px, py), TestCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
+        GeometryTreeReader reader = geometryTreeReader(new Line(px, py), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(2, -1, 11, 1)));
         assertTrue(reader.intersects(Extent.fromPoints(-12, -12, 12, 12)));
         assertTrue(reader.intersects(Extent.fromPoints(-2, -1, 2, 0)));
@@ -181,11 +161,7 @@ public class GeometryTreeTests extends ESTestCase {
         double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5};
 
         // test cell crossing poly
-        GeometryTreeWriter writer = new GeometryTreeWriter(new Line(px, py), TestCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
+        GeometryTreeReader reader = geometryTreeReader(new Line(px, py), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(2, -1, 11, 1)));
         assertTrue(reader.intersects(Extent.fromPoints(-12, -12, 12, 12)));
         assertTrue(reader.intersects(Extent.fromPoints(-2, -1, 2, 0)));
@@ -215,12 +191,42 @@ public class GeometryTreeTests extends ESTestCase {
         int yMax = 9;
 
         // test cell crossing poly
-        GeometryTreeWriter writer = new GeometryTreeWriter(new MultiPoint(points), TestCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
+        GeometryTreeReader reader = geometryTreeReader(new MultiPoint(points), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(xMin, yMin, xMax, yMax)));
+    }
+
+    public void testRandomMultiLineIntersections() throws IOException {
+        double extentSize = randomDoubleBetween(0.01, 10, true);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
+        MultiLine geometry = GeometryTestUtils.randomMultiLine(false);
+        geometry = (MultiLine) indexer.prepareForIndexing(geometry);
+
+        GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+        Extent readerExtent = reader.getExtent();
+
+        for (Line line : geometry) {
+            // extent that intersects edges
+            assertTrue(reader.intersects(bufferedExtentFromGeoPoint(line.getX(0), line.getY(0), extentSize)));
+
+            // extent that fully encloses a line in the MultiLine
+            Extent lineExtent = geometryTreeReader(line, GeoShapeCoordinateEncoder.INSTANCE).getExtent();
+            assertTrue(reader.intersects(lineExtent));
+
+            if (lineExtent.minX() != Integer.MIN_VALUE && lineExtent.maxX() != Integer.MAX_VALUE
+                && lineExtent.minY() != Integer.MIN_VALUE && lineExtent.maxY() != Integer.MAX_VALUE) {
+                assertTrue(reader.intersects(Extent.fromPoints(lineExtent.minX() - 1, lineExtent.minY() - 1,
+                    lineExtent.maxX() + 1, lineExtent.maxY() + 1)));
+            }
+        }
+
+        // extent that fully encloses the MultiLine
+        assertTrue(reader.intersects(reader.getExtent()));
+        if (readerExtent.minX() != Integer.MIN_VALUE && readerExtent.maxX() != Integer.MAX_VALUE
+            && readerExtent.minY() != Integer.MIN_VALUE && readerExtent.maxY() != Integer.MAX_VALUE) {
+            assertTrue(reader.intersects(Extent.fromPoints(readerExtent.minX() - 1, readerExtent.minY() - 1,
+                readerExtent.maxX() + 1, readerExtent.maxY() + 1)));
+        }
+
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
@@ -247,18 +253,17 @@ public class GeometryTreeTests extends ESTestCase {
         }
     }
 
+    private Extent bufferedExtentFromGeoPoint(double x, double y, double extentSize) {
+        int xMin = GeoShapeCoordinateEncoder.INSTANCE.encodeX(Math.max(x - extentSize, -180.0));
+        int xMax = GeoShapeCoordinateEncoder.INSTANCE.encodeX(Math.min(x + extentSize, 180.0));
+        int yMin = GeoShapeCoordinateEncoder.INSTANCE.encodeY(Math.max(y - extentSize, -90));
+        int yMax = GeoShapeCoordinateEncoder.INSTANCE.encodeY(Math.min(y + extentSize, 90));
+        return Extent.fromPoints(xMin, yMin, xMax, yMax);
+    }
+
     private boolean intersects(Geometry g, Point p, double extentSize) throws IOException {
-        // TODO: Make this independent from GeometryTree
-        GeometryTreeWriter writer = new GeometryTreeWriter(g, GeoShapeCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        int xMin = GeoShapeCoordinateEncoder.INSTANCE.encodeX(Math.max(p.getX() - extentSize, -180.0));
-        int xMax = GeoShapeCoordinateEncoder.INSTANCE.encodeX(Math.min(p.getX() + extentSize, 180.0));
-        int yMin = GeoShapeCoordinateEncoder.INSTANCE.encodeY(Math.max(p.getY() - extentSize, -90));
-        int yMax = GeoShapeCoordinateEncoder.INSTANCE.encodeY(Math.min(p.getY() + extentSize, 90));
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), GeoShapeCoordinateEncoder.INSTANCE);
-        return reader.intersects(Extent.fromPoints(xMin, yMin, xMax, yMax));
+        return geometryTreeReader(g, GeoShapeCoordinateEncoder.INSTANCE)
+            .intersects(bufferedExtentFromGeoPoint(p.getX(), p.getY(), extentSize));
     }
 
     private static Geometry randomGeometryTreeGeometry() {
@@ -270,5 +275,13 @@ public class GeometryTreeTests extends ESTestCase {
             GeometryTestUtils::randomMultiPoint
         );
         return geometry.apply(false);
+    }
+
+    private GeometryTreeReader geometryTreeReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
+        GeometryTreeWriter writer = new GeometryTreeWriter(geometry, encoder);
+        BytesStreamOutput output = new BytesStreamOutput();
+        writer.writeTo(output);
+        output.close();
+        return new GeometryTreeReader(output.bytes().toBytesRef(), encoder);
     }
 }

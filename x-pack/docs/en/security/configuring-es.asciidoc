@@ -74,7 +74,7 @@ your subscription. For more information, see https://www.elastic.co/subscription
 --
 ** <<configuring-ad-realm,Active Directory realms>>
 ** <<configuring-file-realm,File realms>>
-** <<configuring-kerberos-realm,Kerberos realms>>
+** <<kerberos-realm,Kerberos realms>>
 ** <<configuring-ldap-realm,LDAP realms>>
 ** <<configuring-native-realm,Native realms>>
 ** <<configuring-pki-realm,PKI realms>>
@@ -149,8 +149,6 @@ include::authentication/configuring-ldap-realm.asciidoc[]
 include::authentication/configuring-native-realm.asciidoc[]
 include::authentication/configuring-pki-realm.asciidoc[]
 include::authentication/configuring-saml-realm.asciidoc[]
-
-include::authentication/configuring-kerberos-realm.asciidoc[]
 
 include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]

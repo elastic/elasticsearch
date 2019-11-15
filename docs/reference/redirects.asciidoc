@@ -935,3 +935,8 @@ See <<enable-audit-logging>>.
 
 See <<analysis-dict-decomp-tokenfilter>> and
 <<analysis-hyp-decomp-tokenfilter>>.
+
+[role="exclude",id="configuring-kerberos-realm"]
+=== Configuring a Kerberos realm
+
+See <<kerberos-realm-configuration>>.

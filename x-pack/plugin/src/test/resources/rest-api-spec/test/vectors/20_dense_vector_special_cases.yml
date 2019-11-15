@@ -57,6 +57,7 @@ setup:
         Content-Type: application/json
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
@@ -76,6 +77,7 @@ setup:
         Content-Type: application/json
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
@@ -106,6 +108,7 @@ setup:
       catch: bad_request
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
@@ -120,6 +123,7 @@ setup:
       catch: bad_request
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
@@ -156,6 +160,7 @@ setup:
       Content-Type: application/json
     search:
       rest_total_hits_as_int: true
+      index: test-index
       body:
         query:
           script_score:
@@ -172,6 +177,7 @@ setup:
       Content-Type: application/json
     search:
       rest_total_hits_as_int: true
+      index: test-index
       body:
         query:
           script_score:
@@ -203,6 +209,7 @@ setup:
     headers:
       Content-Type: application/json
     search:
+      index: test-index
       body:
         query:
           script_score:

@@ -14,7 +14,7 @@ setup:
 ---
 "Test memory usage estimation for empty data frame":
   - do:
-      catch: /Unable to estimate memory usage as there are no analyzable data in source indices \[index-source\]/
+      catch: /Unable to estimate memory usage as no documents in the source indices \[index-source\] contained all the fields selected for analysis/
       ml.estimate_memory_usage:
         body:
           source: { index: "index-source" }
@@ -30,7 +30,7 @@ setup:
   # Note that value for "y" is missing and outlier detection analysis does not support missing values.
   # Hence, the data frame is still considered empty.
   - do:
-      catch: /Unable to estimate memory usage as there are no analyzable data in source indices \[index-source\]/
+      catch: /Unable to estimate memory usage as no documents in the source indices \[index-source\] contained all the fields selected for analysis/
       ml.estimate_memory_usage:
         body:
           source: { index: "index-source" }

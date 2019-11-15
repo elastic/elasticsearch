@@ -42,8 +42,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     private static final String CONFIG_ID = "dummy";
     private static final int NUM_ROWS = 100;
     private static final int NUM_COLS = 4;
-    private static final MemoryUsageEstimationResult PROCESS_RESULT_ZERO =
-        new MemoryUsageEstimationResult(ByteSizeValue.ZERO, ByteSizeValue.ZERO);
     private static final MemoryUsageEstimationResult PROCESS_RESULT =
         new MemoryUsageEstimationResult(ByteSizeValue.parseBytesSizeValue("20kB", ""), ByteSizeValue.parseBytesSizeValue("10kB", ""));
 
@@ -89,8 +87,7 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         ElasticsearchException exception = (ElasticsearchException) exceptionCaptor.getValue();
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), containsString(TASK_ID));
-        assertThat(
-            exception.getMessage(), containsString("Unable to estimate memory usage as there are no analyzable data in source indices"));
+        assertThat(exception.getMessage(), containsString("Unable to estimate memory usage"));
 
         verifyNoMoreInteractions(process, listener);
     }

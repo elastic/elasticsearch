@@ -60,7 +60,10 @@ public class MemoryUsageEstimationProcessManager {
         DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
         if (dataSummary.rows == 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] Unable to estimate memory usage as there are no analyzable data in source indices [{}].",
+                "[{}] Unable to estimate memory usage as no documents in the source indices [{}] contained all the fields selected for "
+                    + "analysis. If you are relying on automatic field selection then there are currently mapped fields that do not exist "
+                    + "in any indexed documents, and you will have to switch to explicit field selection and include only fields that "
+                    + "exist in indexed documents.",
                 jobId,
                 Strings.arrayToCommaDelimitedString(config.getSource().getIndex()));
         }

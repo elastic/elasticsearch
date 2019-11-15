@@ -100,7 +100,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 final BasicFileAttributes attrs;
                 try {
                     attrs = Files.readAttributes(file, BasicFileAttributes.class);
-                } catch (FileNotFoundException e) {
+                } catch (FileNotFoundException | NoSuchFileException e) {
+                    // The file was concurrently deleted between listing files and trying to get its attributes so we skip it here
                     continue;
                 }
                 if (attrs.isRegularFile()) {

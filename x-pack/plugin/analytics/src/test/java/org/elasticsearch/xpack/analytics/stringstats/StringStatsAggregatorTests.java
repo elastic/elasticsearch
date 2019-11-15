@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -215,10 +216,10 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {
             for (int j = 0; j < 4; j++)
-            indexWriter.addDocument(List.of(
-                new NumericDocValuesField("value", i + 1),
-                new TextField("text", "test" + j, Field.Store.NO))
-            );
+                indexWriter.addDocument(Arrays.asList(
+                    new NumericDocValuesField("value", i + 1),
+                    new TextField("text", "test" + j, Field.Store.NO))
+                );
         }
         indexWriter.close();
 

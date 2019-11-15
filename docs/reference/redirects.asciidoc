@@ -906,3 +906,13 @@ See <<docker-cli-run-dev-mode>>.
 
 See <<analysis-dict-decomp-tokenfilter>> and
 <<analysis-hyp-decomp-tokenfilter>>.
+
+[role="exclude",id="configuring-native-realm"]
+=== Configuring a native realm
+
+See <<native-realm-configuration>>.
+
+[role="exclude",id="native-settings"]
+==== Native realm settings
+
+See <<ref-native-settings>>. 

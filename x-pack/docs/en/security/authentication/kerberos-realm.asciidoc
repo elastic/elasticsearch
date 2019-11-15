@@ -7,9 +7,8 @@ authentication, an industry standard protocol to authenticate users in {es}.
 
 NOTE: You cannot use the Kerberos realm to authenticate on the transport network layer.
 
-To authenticate users with Kerberos, you need to
-configure a Kerberos realm and <<mapping-roles,map users to roles>>.
-For more information on realm settings, see
+To authenticate users with Kerberos, you need to configure a Kerberos realm and
+map users to roles. For more information on realm settings, see
 <<ref-kerberos-settings>>.
 
 [[kerberos-terms]]

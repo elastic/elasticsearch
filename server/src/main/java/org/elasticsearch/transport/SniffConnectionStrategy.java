@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
@@ -62,17 +63,53 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
+    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS_OLD = Setting.affixKeySetting(
+            "cluster.remote.",
+            "seeds",
+            key -> Setting.listSetting(
+                    key,
+                    Collections.emptyList(),
+                    s -> {
+                        // validate seed address
+                        RemoteClusterAware.parsePort(s);
+                        return s;
+                    },
+                    Setting.Property.Dynamic,
+                    Setting.Property.NodeScope));
+
+    /**
+     * A list of initial seed nodes to discover eligible nodes from the remote cluster
+     */
     public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
         "cluster.remote.",
         "sniff.seeds",
         key -> Setting.listSetting(key,
-            "_na_".equals(key) ? RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(key)
-                : RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSetting(key.replaceAll("sniff\\.seeds$", "seeds")),
+            "_na_".equals(key) ? REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(key)
+                : REMOTE_CLUSTER_SEEDS_OLD.getConcreteSetting(key.replaceAll("sniff\\.seeds$", "seeds")),
             s -> {
                 // validate seed address
                 RemoteClusterAware.parsePort(s);
                 return s;
             }, Setting.Property.Dynamic, Setting.Property.NodeScope));
+    /**
+     * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
+     * the remote cluster using their publish addresses. If this setting is set to an IP address or hostname then Elasticsearch will connect
+     * to the nodes in the remote cluster using this address instead. Use of this setting is not recommended and it is deliberately
+     * undocumented as it does not work well with all proxies.
+     */
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
+            "cluster.remote.",
+            "proxy",
+            key -> Setting.simpleString(
+                    key,
+                    s -> {
+                        if (Strings.hasLength(s)) {
+                            RemoteClusterAware.parsePort(s);
+                        }
+                    },
+                    Setting.Property.Dynamic,
+                    Setting.Property.NodeScope),
+        REMOTE_CLUSTER_SEEDS);
 
     /**
      * The maximum number of node connections that will be established to a remote cluster. For instance if there is only a single
@@ -103,7 +140,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             clusterAlias,
             transportService,
             connectionManager,
-            RemoteClusterAware.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings),
+            REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings),
             REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             getNodePredicate(settings),
             REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings));
@@ -135,8 +172,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
-        String proxy = RemoteClusterAware.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        List<String> addresses = RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        List<String> addresses = REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         return seedsChanged(configuredSeedNodes, addresses) || proxyChanged(proxyAddress, proxy);
     }
 

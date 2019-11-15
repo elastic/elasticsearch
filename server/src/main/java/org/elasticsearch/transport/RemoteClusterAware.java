@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -50,45 +49,8 @@ import java.util.stream.Stream;
  */
 public abstract class RemoteClusterAware {
 
-    /**
-     * A list of initial seed nodes to discover eligible nodes from the remote cluster
-     */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTERS_SEEDS = Setting.affixKeySetting(
-            "cluster.remote.",
-            "seeds",
-            key -> Setting.listSetting(
-                    key,
-                    Collections.emptyList(),
-                    s -> {
-                        // validate seed address
-                        parsePort(s);
-                        return s;
-                    },
-                    Setting.Property.Dynamic,
-                    Setting.Property.NodeScope));
-
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
-
-    /**
-     * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
-     * the remote cluster using their publish addresses. If this setting is set to an IP address or hostname then Elasticsearch will connect
-     * to the nodes in the remote cluster using this address instead. Use of this setting is not recommended and it is deliberately
-     * undocumented as it does not work well with all proxies.
-     */
-    public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
-            "cluster.remote.",
-            "proxy",
-            key -> Setting.simpleString(
-                    key,
-                    s -> {
-                        if (Strings.hasLength(s)) {
-                            parsePort(s);
-                        }
-                    },
-                    Setting.Property.Dynamic,
-                    Setting.Property.NodeScope),
-            REMOTE_CLUSTERS_SEEDS);
 
     protected final Settings settings;
     private final ClusterNameExpressionResolver clusterNameResolver;
@@ -106,9 +68,11 @@ public abstract class RemoteClusterAware {
      * Returns remote clusters that are enabled in these settings
      */
     protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
-        final Stream<Setting<List<String>>> allConcreteSettings = REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings);
-        return allConcreteSettings
-            .map(REMOTE_CLUSTERS_SEEDS::getNamespace)
+        final Stream<String> allConcreteSettings = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS
+            .getAllConcreteSettings(settings).map(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS::getNamespace);
+        final Stream<String> oldConcreteSettings = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD
+            .getAllConcreteSettings(settings).map(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD::getNamespace);
+        return Stream.concat(allConcreteSettings, oldConcreteSettings)
             .filter(clusterAlias -> RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings))
             .collect(Collectors.toSet());
     }
@@ -121,7 +85,7 @@ public abstract class RemoteClusterAware {
     protected static Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> buildRemoteClustersDynamicConfig(
             final Settings settings) {
         final Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> remoteSeeds =
-                buildRemoteClustersDynamicConfig(settings, REMOTE_CLUSTERS_SEEDS);
+                buildRemoteClustersDynamicConfig(settings, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
         return remoteSeeds.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -134,13 +98,14 @@ public abstract class RemoteClusterAware {
                 Collectors.toMap(seedsSetting::getNamespace, concreteSetting -> {
                     String clusterName = seedsSetting.getNamespace(concreteSetting);
                     List<String> addresses = concreteSetting.get(settings);
-                    final boolean proxyMode =
-                            REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName).existsOrFallbackExists(settings);
+                    final boolean proxyMode = SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName)
+                                .existsOrFallbackExists(settings);
                     List<Tuple<String, Supplier<DiscoveryNode>>> nodes = new ArrayList<>(addresses.size());
                     for (String address : addresses) {
                         nodes.add(Tuple.tuple(address, () -> buildSeedNode(clusterName, address, proxyMode)));
                     }
-                    return new Tuple<>(REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName).get(settings), nodes);
+                    return new Tuple<>(SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName)
+                        .get(settings), nodes);
                 }));
     }
 
@@ -203,9 +168,9 @@ public abstract class RemoteClusterAware {
      * Registers this instance to listen to updates on the cluster settings.
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
-        List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
-            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS, RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE);
+        List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
+            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD, RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
+            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 

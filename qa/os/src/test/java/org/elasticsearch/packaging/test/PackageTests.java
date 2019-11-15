@@ -366,7 +366,7 @@ public class PackageTests extends PackagingTestCase {
 
         assertPathsExist(installation.envFile);
 
-        stopElasticsearch(sh);
+        stopElasticsearch();
 
         // The custom config directory is not under /tmp or /var/tmp because
         // systemd's private temp directory functionally means different

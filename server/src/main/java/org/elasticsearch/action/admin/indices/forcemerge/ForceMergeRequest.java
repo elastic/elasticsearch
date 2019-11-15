@@ -29,8 +29,6 @@ import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 /**
  * A request to force merging the segments of one or more indices. In order to
  * run a merge on all the indices, pass an empty array or {@code null} for the
@@ -50,7 +48,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
     }
-    
+
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;

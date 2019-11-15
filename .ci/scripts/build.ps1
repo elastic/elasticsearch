@@ -22,7 +22,7 @@ $ErrorActionPreference="Continue"
   -g "C:\Users\$env:username\.gradle" `
   --parallel --max-workers=12 `
   -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ `
-  --build-case `
+  --build-cache `
   --console=plain `
   $args
 exit $LastExitCode

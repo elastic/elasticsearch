@@ -112,5 +112,5 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         assertTrue(result.executionResults.values().iterator().next().isSuccess());
         assertThat(result.resultingState.metaData().index("test").getMappingVersion(), equalTo(previousVersion));
     }
-    
+
 }

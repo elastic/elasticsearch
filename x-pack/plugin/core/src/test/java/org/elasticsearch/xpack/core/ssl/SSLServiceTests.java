@@ -40,7 +40,6 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.cert.X509Certificate;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -64,7 +63,6 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -501,14 +499,6 @@ public class SSLServiceTests extends ESTestCase {
         } else {
             assertThat(verifier.getValue(), sameInstance(NoopHostnameVerifier.INSTANCE));
         }
-    }
-
-    public void testEmptyTrustManager() throws Exception {
-        Settings settings = Settings.EMPTY;
-        final SSLService sslService = new SSLService(settings, env);
-        X509ExtendedTrustManager trustManager = sslService.sslContextHolder(sslService.getSSLConfiguration("xpack.security.transport.ssl"))
-            .getEmptyTrustManager();
-        assertThat(trustManager.getAcceptedIssuers(), emptyArray());
     }
 
     public void testGetConfigurationByContextName() throws Exception {

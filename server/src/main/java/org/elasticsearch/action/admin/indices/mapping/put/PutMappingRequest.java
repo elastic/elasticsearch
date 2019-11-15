@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,7 +50,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Puts mapping definition registered under a specific type into one or more indices. Best created with
+ * Puts mapping definition into one or more indices. Best created with
  * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
  * <p>
  * If the mappings already exists, the new mappings will be merged with the new one. If there are elements
@@ -69,8 +71,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
 
-    private String type;
-
     private String source;
     private String origin = "";
 
@@ -80,7 +80,12 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        type = in.readOptionalString();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readOptionalString();
+            if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                throw new IllegalArgumentException("Expected type [_doc] but received [" + type + "]");
+            }
+        }
         source = in.readString();
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
@@ -100,11 +105,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (type == null) {
-            validationException = addValidationError("mapping type is missing", validationException);
-        }else if (type.isEmpty()) {
-            validationException = addValidationError("mapping type is empty", validationException);
-        }
         if (source == null) {
             validationException = addValidationError("mapping source is missing", validationException);
         } else if (source.isEmpty()) {
@@ -161,21 +161,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * The mapping type.
-     */
-    public String type() {
-        return type;
-    }
-
-    /**
-     * The type of the mappings.
-     */
-    public PutMappingRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    /**
      * The mapping source definition.
      */
     public String source() {
@@ -190,7 +175,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * mapping fields will automatically be put on the top level mapping object.
      */
     public PutMappingRequest source(Object... source) {
-        return source(buildFromSimplifiedDef(type, source));
+        return source(buildFromSimplifiedDef(MapperService.SINGLE_MAPPING_NAME, source));
     }
 
     public String origin() {
@@ -314,7 +299,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        out.writeOptionalString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);

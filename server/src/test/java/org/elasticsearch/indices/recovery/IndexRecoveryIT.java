@@ -1005,7 +1005,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .putList("index.analysis.analyzer.test_analyzer.filter", "test_token_filter")
             .put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build());
         client().admin().indices().preparePutMapping("test")
-            .setType("_doc").setSource("test_field", "type=text,analyzer=test_analyzer").get();
+            .setSource("test_field", "type=text,analyzer=test_analyzer").get();
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test").setId("u" + i)

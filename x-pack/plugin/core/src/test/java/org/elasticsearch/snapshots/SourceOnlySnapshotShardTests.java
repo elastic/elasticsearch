@@ -83,8 +83,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         IndexMetaData metaData = IndexMetaData.builder(shardRouting.getIndexName())
             .settings(settings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("_doc",
-                "{\"_source\":{\"enabled\": false}}").build();
+            .putMapping("{\"_source\":{\"enabled\": false}}").build();
         IndexShard shard = newShard(shardRouting, metaData, null, new InternalEngineFactory());
         recoverShardFromStore(shard);
 
@@ -179,7 +178,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         int numInitialDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numInitialDocs; i++) {
             final String id = Integer.toString(i);
-            indexDoc(shard, "_doc", id, randomDoc());
+            indexDoc(shard, id, randomDoc());
             if (randomBoolean()) {
                 shard.refresh("test");
             }
@@ -190,7 +189,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 if (rarely()) {
                     deleteDoc(shard, id);
                 } else {
-                    indexDoc(shard, "_doc", id, randomDoc());
+                    indexDoc(shard, id, randomDoc());
                 }
             }
             if (frequently()) {
@@ -313,11 +312,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         rootFieldsVisitor.reset();
                         leafReader.document(i, rootFieldsVisitor);
                         rootFieldsVisitor.postProcess(targetShard.mapperService());
-                        Uid uid = rootFieldsVisitor.uid();
+                        String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                            new SourceToParse(index, uid.id(), source, XContentHelper.xContentType(source),
+                            new SourceToParse(index, id, source, XContentHelper.xContentType(source),
                                 rootFieldsVisitor.routing()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {

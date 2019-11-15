@@ -1947,19 +1947,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     @AfterClass
     public static void afterClass() throws Exception {
-        if (!runTestScopeLifecycle()) {
-            try {
+        try {
+            if (runTestScopeLifecycle()) {
+                clearClusters();
+            } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
-            } finally {
-                INSTANCE = null;
             }
-        } else {
-            clearClusters();
+        } finally {
+            SUITE_SEED = null;
+            currentCluster = null;
+            INSTANCE = null;
         }
-        SUITE_SEED = null;
-        currentCluster = null;
     }
 
     private static void initializeSuiteScope() throws Exception {

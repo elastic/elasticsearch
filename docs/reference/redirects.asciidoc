@@ -1004,7 +1004,7 @@ See <<kerberos-realm-configuration>>.
 [role="exclude",id="configuring-pki-realm"]
 === Configuring a PKI realm
 
-See <<pki-realm-configuration>>.
+See <<pki-realm>>.
 
 [role="exclude",id="pki-settings"]
 ==== PKI realm settings

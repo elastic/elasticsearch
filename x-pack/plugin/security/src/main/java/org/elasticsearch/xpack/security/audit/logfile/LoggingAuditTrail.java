@@ -6,6 +6,11 @@
 package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.core.Filter.Result;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -16,6 +21,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -33,6 +39,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -157,6 +164,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             "indices",
             (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(), Property.NodeScope, Property.Dynamic));
 
+    private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.security.audit");
+
     private final Logger logger;
     private final ThreadContext threadContext;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
@@ -172,7 +181,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
-        this(settings, clusterService, LogManager.getLogger(), threadPool.getThreadContext());
+        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext());
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
@@ -214,6 +223,14 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeIndicesFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        // this log filter ensures that audit events are not filtered out because of the log level
+        final LoggerContext ctx = LoggerContext.getContext(false);
+        MarkerFilter auditMarkerFilter = MarkerFilter.createFilter(AUDIT_MARKER.getName(), Result.ACCEPT, Result.NEUTRAL);
+        ctx.addFilter(auditMarkerFilter);
+        ctx.updateLoggers();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ignored -> {
+            LogManager.getLogger(Security.class).warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
+        }, Collections.singletonList(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName())));
     }
 
     @Override
@@ -232,7 +249,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -255,7 +272,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -277,7 +294,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -296,7 +313,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -318,7 +335,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -336,7 +353,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -357,7 +374,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -377,7 +394,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -400,7 +417,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -421,7 +438,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -447,7 +464,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withXForwardedFor(threadContext)
                         .with(authorizationInfo.asMap())
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -487,7 +504,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(remoteAddress.address()));
                 }
-                logger.info(logEntryBuilder.build());
+                logger.info(AUDIT_MARKER, logEntryBuilder.build());
             }
         }
     }
@@ -512,7 +529,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -530,7 +547,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -551,7 +568,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -574,7 +591,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -593,7 +610,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -611,7 +628,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 
@@ -635,7 +652,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -660,7 +677,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
-                logger.info(logEntry);
+                logger.info(AUDIT_MARKER, logEntry);
             }
         }
     }
@@ -682,7 +699,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                     .withOpaqueId(threadContext)
                     .withXForwardedFor(threadContext)
                     .build();
-            logger.info(logEntry);
+            logger.info(AUDIT_MARKER, logEntry);
         }
     }
 

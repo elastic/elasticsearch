@@ -34,24 +34,30 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     enum ConnectionStrategy {
-        SNIFF(6),
-        SIMPLE(1);
+        SNIFF(6, Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD)),
+        SIMPLE(1, Arrays.asList(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES));
 
         private final int numberOfChannels;
+        private final List<Setting.AffixSetting<?>> enabledSettings;
 
-        ConnectionStrategy(int numberOfChannels) {
+        ConnectionStrategy(int numberOfChannels, List<Setting.AffixSetting<?>> enabledSettings) {
             this.numberOfChannels = numberOfChannels;
+            this.enabledSettings = enabledSettings;
         }
     }
 
@@ -162,6 +168,12 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
+    public static Set<String> getRemoteClusters(Settings settings) {
+        final Stream<Setting.AffixSetting<?>> enablementSettings = Arrays.stream(ConnectionStrategy.values())
+            .flatMap(strategy -> strategy.enabledSettings.stream());
+        return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
+    }
+
     public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         if (mode.equals(ConnectionStrategy.SNIFF)) {
@@ -170,6 +182,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         } else {
             return false;
         }
+    }
+
+    private static <T> Stream<String> getClusterAlias(Settings settings, Setting.AffixSetting<T> affixSetting) {
+        Stream<Setting<T>> allConcreteSettings = affixSetting.getAllConcreteSettings(settings);
+        return allConcreteSettings.map(affixSetting::getNamespace);
     }
 
     boolean shouldRebuildConnection(Settings newSettings) {

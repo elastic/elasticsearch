@@ -101,7 +101,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 .getAllConcreteSettings(brokenSettings).forEach(setting -> setting.get(brokenSettings)));
 
         Settings brokenPortSettings = Settings.builder()
-            .put("cluster.remote.foo.seeds", "192.168.0.1:123456789123456789").build();
+            .put("cluster.remote.foo.sniff.seeds", "192.168.0.1:123456789123456789").build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getAllConcreteSettings(brokenSettings)
@@ -171,8 +171,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.sniff.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.sniff.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();

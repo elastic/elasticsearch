@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -68,61 +69,55 @@ public abstract class RemoteClusterAware {
      * Returns remote clusters that are enabled in these settings
      */
     protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
-        final Stream<String> allConcreteSettings = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS
-            .getAllConcreteSettings(settings).map(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS::getNamespace);
-        final Stream<String> oldConcreteSettings = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD
-            .getAllConcreteSettings(settings).map(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD::getNamespace);
-        return Stream.concat(allConcreteSettings, oldConcreteSettings)
-            .filter(clusterAlias -> RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings))
-            .collect(Collectors.toSet());
+        return RemoteConnectionStrategy.getRemoteClusters(settings);
     }
 
-    /**
-     * Builds the dynamic per-cluster config from the given settings. This is a map keyed by the cluster alias that points to a tuple
-     * (ProxyAddresss, [SeedNodeSuppliers]). If a cluster is configured with a proxy address all seed nodes will point to
-     * {@link TransportAddress#META_ADDRESS} and their configured address will be used as the hostname for the generated discovery node.
-     */
-    protected static Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> buildRemoteClustersDynamicConfig(
-            final Settings settings) {
-        final Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> remoteSeeds =
-                buildRemoteClustersDynamicConfig(settings, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
-        return remoteSeeds.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
+//    /**
+//     * Builds the dynamic per-cluster config from the given settings. This is a map keyed by the cluster alias that points to a tuple
+//     * (ProxyAddresss, [SeedNodeSuppliers]). If a cluster is configured with a proxy address all seed nodes will point to
+//     * {@link TransportAddress#META_ADDRESS} and their configured address will be used as the hostname for the generated discovery node.
+//     */
+//    protected static Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> buildRemoteClustersDynamicConfig(
+//            final Settings settings) {
+//        final Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> remoteSeeds =
+//                buildRemoteClustersDynamicConfig(settings, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+//        return remoteSeeds.entrySet()
+//                .stream()
+//                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+//    }
 
-    private static Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> buildRemoteClustersDynamicConfig(
-            final Settings settings, final Setting.AffixSetting<List<String>> seedsSetting) {
-        final Stream<Setting<List<String>>> allConcreteSettings = seedsSetting.getAllConcreteSettings(settings);
-        return allConcreteSettings.collect(
-                Collectors.toMap(seedsSetting::getNamespace, concreteSetting -> {
-                    String clusterName = seedsSetting.getNamespace(concreteSetting);
-                    List<String> addresses = concreteSetting.get(settings);
-                    final boolean proxyMode = SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName)
-                                .existsOrFallbackExists(settings);
-                    List<Tuple<String, Supplier<DiscoveryNode>>> nodes = new ArrayList<>(addresses.size());
-                    for (String address : addresses) {
-                        nodes.add(Tuple.tuple(address, () -> buildSeedNode(clusterName, address, proxyMode)));
-                    }
-                    return new Tuple<>(SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName)
-                        .get(settings), nodes);
-                }));
-    }
+//    private static Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> buildRemoteClustersDynamicConfig(
+//            final Settings settings, final Setting.AffixSetting<List<String>> seedsSetting) {
+//        final Stream<Setting<List<String>>> allConcreteSettings = seedsSetting.getAllConcreteSettings(settings);
+//        return allConcreteSettings.collect(
+//                Collectors.toMap(seedsSetting::getNamespace, concreteSetting -> {
+//                    String clusterName = seedsSetting.getNamespace(concreteSetting);
+//                    List<String> addresses = concreteSetting.get(settings);
+//                    final boolean proxyMode = SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName)
+//                                .existsOrFallbackExists(settings);
+//                    List<Tuple<String, Supplier<DiscoveryNode>>> nodes = new ArrayList<>(addresses.size());
+//                    for (String address : addresses) {
+//                        nodes.add(Tuple.tuple(address, () -> buildSeedNode(clusterName, address, proxyMode)));
+//                    }
+//                    return new Tuple<>(SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName)
+//                        .get(settings), nodes);
+//                }));
+//    }
 
-    static DiscoveryNode buildSeedNode(String clusterName, String address, boolean proxyMode) {
-        if (proxyMode) {
-            TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-            String hostName = address.substring(0, indexOfPortSeparator(address));
-            return new DiscoveryNode("", clusterName + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
-                    transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.BUILT_IN_ROLES,
-                    Version.CURRENT.minimumCompatibilityVersion());
-        } else {
-            TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(address));
-            return new DiscoveryNode(clusterName + "#" + transportAddress.toString(),
-                    transportAddress,
-                    Version.CURRENT.minimumCompatibilityVersion());
-        }
-    }
+//    static DiscoveryNode buildSeedNode(String clusterName, String address, boolean proxyMode) {
+//        if (proxyMode) {
+//            TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 0);
+//            String hostName = address.substring(0, indexOfPortSeparator(address));
+//            return new DiscoveryNode("", clusterName + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
+//                    transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.BUILT_IN_ROLES,
+//                    Version.CURRENT.minimumCompatibilityVersion());
+//        } else {
+//            TransportAddress transportAddress = new TransportAddress(RemoteClusterAware.parseSeedAddress(address));
+//            return new DiscoveryNode(clusterName + "#" + transportAddress.toString(),
+//                    transportAddress,
+//                    Version.CURRENT.minimumCompatibilityVersion());
+//        }
+//    }
 
     /**
      * Groups indices per cluster by splitting remote cluster-alias, index-name pairs on {@link #REMOTE_CLUSTER_INDEX_SEPARATOR}. All

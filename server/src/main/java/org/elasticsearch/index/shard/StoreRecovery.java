@@ -56,7 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -99,8 +99,8 @@ final class StoreRecovery {
         }
     }
 
-    void recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, IndexShard indexShard,
-                                List<LocalShardSnapshot> shards, ActionListener<Boolean> listener) {
+    void recoverFromLocalShards(Consumer<MappingMetaData> mappingUpdateConsumer, final IndexShard indexShard,
+                                   final List<LocalShardSnapshot> shards, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
             assert recoveryType == RecoverySource.Type.LOCAL_SHARDS: "expected local shards recovery type: " + recoveryType;
@@ -113,7 +113,7 @@ final class StoreRecovery {
             }
             IndexMetaData sourceMetaData = shards.get(0).getIndexMetaData();
             if (sourceMetaData.mapping() != null) {
-                mappingUpdateConsumer.accept(sourceMetaData.mapping().type(), sourceMetaData.mapping());
+                mappingUpdateConsumer.accept(sourceMetaData.mapping());
             }
             indexShard.mapperService().merge(sourceMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             // now that the mapping is merged we can validate the index sort configuration.

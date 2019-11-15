@@ -32,8 +32,6 @@ List projects = [
   'distribution:docker:docker-export',
   'distribution:docker:oss-docker-build-context',
   'distribution:docker:oss-docker-export',
-  'distribution:docker:oss-ubi-docker-build-context',
-  'distribution:docker:oss-ubi-docker-export',
   'distribution:docker:ubi-docker-build-context',
   'distribution:docker:ubi-docker-export',
   'distribution:packages:oss-deb',
@@ -59,16 +57,17 @@ List projects = [
   'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:logger-usage'
 ]
 
 /**
-  * Iterates over sub directories, looking for build.gradle, and adds a project if found
-  * for that dir with the given path prefix. Note that this requires each level
-  * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
-  * all files/directories in the source tree to find all projects.
-  */
+ * Iterates over sub directories, looking for build.gradle, and adds a project if found
+ * for that dir with the given path prefix. Note that this requires each level
+ * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
+ * all files/directories in the source tree to find all projects.
+ */
 void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
@@ -78,12 +77,12 @@ void addSubProjects(String path, File dir) {
   final String projectName = "${path}:${dir.name}"
   include projectName
   if (path.isEmpty() || path.startsWith(':example-plugins')) {
-      project(projectName).projectDir = dir
-    }
-    for (File subdir : dir.listFiles()) {
-      addSubProjects(projectName, subdir)
-    }
+    project(projectName).projectDir = dir
   }
+  for (File subdir : dir.listFiles()) {
+    addSubProjects(projectName, subdir)
+  }
+}
 
 
 // include example plugins first, so adding plugin dirs below won't muck with :example-plugins
@@ -110,7 +109,7 @@ project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc'
 project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
 
 project(":libs").children.each { libsProject ->
-    libsProject.name = "elasticsearch-${libsProject.name}"
+  libsProject.name = "elasticsearch-${libsProject.name}"
 }
 
 // look for extra plugins for elasticsearch

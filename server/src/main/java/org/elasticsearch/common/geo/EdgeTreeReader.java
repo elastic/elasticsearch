@@ -189,15 +189,24 @@ public class EdgeTreeReader implements ShapeTreeReader {
         // we just have to cross one edge to answer the question, so we descend the tree and return when we do.
         if (root.maxY >= extent.minY()) {
 
+            double a1x = root.x1;
+            double a1y = root.y1;
+            double b1x = root.x2;
+            double b1y = root.y2;
+            boolean outside = (a1y < extent.minY() && b1y < extent.minY()) ||
+                (a1y > extent.maxY() && b1y > extent.maxY()) ||
+                (a1x < extent.minX() && b1x < extent.minX()) ||
+                (a1x > extent.maxX() && b1x > extent.maxX());
+
             // does rectangle's edges intersect or reside inside polygon's edge
-            if (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,
+            if (outside == false && (lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,
                 extent.minX(), extent.minY(), extent.maxX(), extent.minY()) ||
                 lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,
                     extent.maxX(), extent.minY(), extent.maxX(), extent.maxY()) ||
                 lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,
                     extent.maxX(), extent.maxY(), extent.minX(), extent.maxY()) ||
                 lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2,
-                    extent.minX(), extent.maxY(), extent.minX(), extent.minY())) {
+                    extent.minX(), extent.maxY(), extent.minX(), extent.minY()))) {
                 return true;
             }
 

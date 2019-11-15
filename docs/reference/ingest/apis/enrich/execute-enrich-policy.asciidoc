@@ -6,7 +6,7 @@
 <titleabbrev>Execute enrich policy</titleabbrev>
 ++++
 
-Executes an existing enrich policy.
+Executes an existing <<enrich-policy,enrich policy>>.
 
 ////
 

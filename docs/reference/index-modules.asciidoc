@@ -96,7 +96,7 @@ specific index module:
     Auto-expand the number of replicas based on the number of data nodes in the cluster.
     Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
     for the upper bound (e.g. `0-all`). Defaults to `false` (i.e. disabled).
-    Note that the auto-expanded number of replicas does only take
+    Note that the auto-expanded number of replicas only takes
     <<shard-allocation-filtering,allocation filtering>> rules into account, but ignores
     any other allocation rules such as <<allocation-awareness,shard allocation awareness>>
     and <<allocation-total-shards,total shards per node>>, and this can lead to the

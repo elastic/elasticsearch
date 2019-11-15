@@ -944,4 +944,9 @@ See <<native-realm-configuration>>.
 [role="exclude",id="native-settings"]
 ==== Native realm settings
 
-See <<ref-native-settings>>. 
+See <<ref-native-settings>>.
+
+[role="exclude",id="configuring-file-realm"]
+=== Configuring a file realm
+
+See <<file-realm-configuration>>. 

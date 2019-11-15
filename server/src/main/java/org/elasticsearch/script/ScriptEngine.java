@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,4 +46,9 @@ public interface ScriptEngine extends Closeable {
 
     @Override
     default void close() throws IOException {}
+
+    /**
+     * Script contexts supported by this engine.
+     */
+    List<ScriptContext<?>> getSupportedContexts();
 }

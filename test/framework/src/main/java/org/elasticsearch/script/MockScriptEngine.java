@@ -304,6 +304,35 @@ public class MockScriptEngine implements ScriptEngine {
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
 
+    @Override
+    public List<ScriptContext<?>> getSupportedContexts() {
+        // TODO(stu): make part of `compile()`
+        return List.of(
+            FieldScript.CONTEXT,
+            TermsSetQueryScript.CONTEXT,
+            NumberSortScript.CONTEXT,
+            StringSortScript.CONTEXT,
+            IngestScript.CONTEXT,
+            AggregationScript.CONTEXT,
+            IngestConditionalScript.CONTEXT,
+            UpdateScript.CONTEXT,
+            BucketAggregationScript.CONTEXT,
+            BucketAggregationSelectorScript.CONTEXT,
+            SignificantTermsHeuristicScoreScript.CONTEXT,
+            TemplateScript.CONTEXT,
+            FilterScript.CONTEXT,
+            SimilarityScript.CONTEXT,
+            SimilarityWeightScript.CONTEXT,
+            MovingFunctionScript.CONTEXT,
+            ScoreScript.CONTEXT,
+            ScriptedMetricAggContexts.InitScript.CONTEXT,
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            ScriptedMetricAggContexts.CombineScript.CONTEXT,
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT,
+            IntervalFilterScript.CONTEXT
+        );
+    }
+
     private Map<String, Object> createVars(Map<String, Object> params) {
         Map<String, Object> vars = new HashMap<>();
         vars.put("params", params);

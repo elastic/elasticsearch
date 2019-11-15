@@ -90,6 +90,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                     };
                     return context.factoryClazz.cast(factory);
                 }
+
+                @Override
+                public List<ScriptContext<?>> getSupportedContexts() {
+                    return List.of(ScoreScript.CONTEXT);
+                }
             };
         }
     }

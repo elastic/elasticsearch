@@ -34,6 +34,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -74,6 +75,11 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
         public void close() {
             // optionally close resources
+        }
+
+        @Override
+        public List<ScriptContext<?>> getSupportedContexts() {
+            return List.of(ScoreScript.CONTEXT);
         }
 
         private static class PureDfLeafFactory implements LeafFactory {

@@ -1155,6 +1155,11 @@ public class SuggestSearchIT extends ESIntegTestCase {
             };
             return context.factoryClazz.cast(factory);
         }
+
+        @Override
+        public List<ScriptContext<?>> getSupportedContexts() {
+            return List.of(TemplateScript.CONTEXT);
+        }
     }
 
     public void testPhraseSuggesterCollate() throws InterruptedException, ExecutionException, IOException {

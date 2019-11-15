@@ -40,6 +40,7 @@ import java.io.StringWriter;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -77,6 +78,11 @@ public final class MustacheScriptEngine implements ScriptEngine {
             throw new ScriptException(ex.getMessage(), ex, Collections.emptyList(), templateSource, NAME);
         }
 
+    }
+
+    @Override
+    public List<ScriptContext<?>> getSupportedContexts() {
+        return List.of(TemplateScript.CONTEXT);
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {

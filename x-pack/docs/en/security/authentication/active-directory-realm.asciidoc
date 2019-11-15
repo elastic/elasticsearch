@@ -32,7 +32,7 @@ retrieves the user's group memberships from the `tokenGroups` attribute on the
 user's entry in Active Directory.
 
 [[ad-realm-configuration]]
-=== Configuring an Active Directory realm
+==== Configuring an Active Directory realm
 
 include::configuring-active-directory-realm.asciidoc[]
 

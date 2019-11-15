@@ -234,16 +234,21 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                             TimeValue nextDelay = getNextDelay(delay);
                             logger.info(new ParameterizedMessage("Failed to read from {} index on FINISHED, retrying in {}",
                                 REINDEX_INDEX, nextDelay), e);
-                            threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay,
-                                ThreadPool.Names.SAME);
+                            reschedule(nextDelay, reindexResponse, exception);
                         }
                     });
                 } else {
                     TimeValue nextDelay = getNextDelay(delay);
                     logger.info(new ParameterizedMessage("Failed to write to {} index on FINISHED, retrying in {} [task-id={}]",
                         REINDEX_INDEX, nextDelay, taskId), e);
-                    threadPool.schedule(() -> writeFinishedState(reindexResponse, exception, nextDelay), nextDelay, ThreadPool.Names.SAME);
+                    reschedule(nextDelay, reindexResponse, exception);
                 }
+            }
+
+            private void reschedule(TimeValue nextDelay, @Nullable BulkByScrollResponse reindexResponse,
+                                    @Nullable ElasticsearchException exception) {
+                threadPool.scheduleUnlessShuttingDown(nextDelay, ThreadPool.Names.SAME,
+                    () -> writeFinishedState(reindexResponse, exception, nextDelay));
             }
         });
     }

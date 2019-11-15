@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
@@ -60,8 +59,7 @@ public class DanglingIndicesState implements ClusterStateListener {
     public static final Setting<Boolean> AUTO_IMPORT_DANGLING_INDICES_SETTING = Setting.boolSetting(
         "gateway.auto_import_dangling_indices",
         false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     private final NodeEnvironment nodeEnv;
@@ -70,7 +68,7 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
-    private volatile boolean allocateDanglingIndices;
+    private boolean allocateDanglingIndices;
 
     @Inject
     public DanglingIndicesState(NodeEnvironment nodeEnv, MetaStateService metaStateService,
@@ -80,10 +78,7 @@ public class DanglingIndicesState implements ClusterStateListener {
         this.allocateDangledIndices = allocateDangledIndices;
         clusterService.addListener(this);
 
-        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.allocateDanglingIndices = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
-        clusterSettings
-            .addSettingsUpdateConsumer(AUTO_IMPORT_DANGLING_INDICES_SETTING, this::setAllocateDanglingIndicesSetting);
     }
 
     public void setAllocateDanglingIndicesSetting(boolean allocateDanglingIndices) {

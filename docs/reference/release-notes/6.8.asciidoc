@@ -1,6 +1,8 @@
 [[release-notes-6.8.5]]
 == {es} version 6.8.5
 
+coming[6.8.5]
+
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 [[enhancement-6.8.5]]

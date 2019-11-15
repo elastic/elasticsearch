@@ -28,7 +28,8 @@
           reference-repo: "/var/lib/jenkins/.git-references/elasticsearch.git"
           branches:
             - "%BRANCH%"
-          url: "https://github.com/elastic/elasticsearch.git"
+          # FIXME
+          url: "https://github.com/atorok/elasticsearch.git"
           basedir: ""
           wipe-workspace: "yes"
     wrappers:

@@ -370,7 +370,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         // initialized
         if (threadContext != null) {
             ensureNoWarnings();
-            assert threadContext == null;
+            DeprecationLogger.removeThreadContext(threadContext);
+            threadContext = null;
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
@@ -393,7 +394,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             assertNull("unexpected warning headers", warnings);
         } finally {
-            resetDeprecationLogger(false);
+            resetDeprecationLogger();
         }
     }
 
@@ -434,25 +435,16 @@ public abstract class ESTestCase extends LuceneTestCase {
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
                 expectedWarnings.length, actualWarnings.size());
         } finally {
-            resetDeprecationLogger(true);
+            resetDeprecationLogger();
         }
     }
 
     /**
-     * Reset the deprecation logger by removing the current thread context, and setting a new thread context if {@code setNewThreadContext}
-     * is set to {@code true} and otherwise clearing the current thread context.
-     *
-     * @param setNewThreadContext whether or not to attach a new thread context to the deprecation logger
+     * Reset the deprecation logger by clearing the current thread context.
      */
-    private void resetDeprecationLogger(final boolean setNewThreadContext) {
-        // "clear" current warning headers by setting a new ThreadContext
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        if (setNewThreadContext) {
-            this.threadContext = new ThreadContext(Settings.EMPTY);
-            DeprecationLogger.setThreadContext(this.threadContext);
-        } else {
-            this.threadContext = null;
-        }
+    private void resetDeprecationLogger() {
+        // "clear" context by stashing current values and dropping the returned StoredContext
+        threadContext.stashContext();
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();

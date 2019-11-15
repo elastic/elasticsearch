@@ -506,19 +506,18 @@ public class AutoFollowIT extends CcrIntegTestCase {
                     } else {
                         Thread.sleep(200L);
                     }
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                } finally {
                     latchThree.countDown();
                     latchSix.countDown();
                     latchNine.countDown();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
                 }
             }
         });
         createNewLeaderIndicesThread.start();
 
         // wait for 3 leader indices to be created on the remote cluster
-        latchThree.await();
+        latchThree.await(30L, TimeUnit.SECONDS);
         assertThat(leaderIndices.get(), greaterThanOrEqualTo(3));
         assertBusy(() -> assertThat(getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), greaterThanOrEqualTo(3L)),
             30L, TimeUnit.SECONDS);
@@ -530,7 +529,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             30L, TimeUnit.SECONDS);
 
         // wait for more leader indices to be created on the remote cluster
-        latchSix.await();
+        latchSix.await(30L, TimeUnit.SECONDS);
         assertThat(leaderIndices.get(), greaterThanOrEqualTo(6));
 
         // resume auto follow patterns
@@ -539,7 +538,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             30L, TimeUnit.SECONDS);
 
         // wait for more leader indices to be created on the remote cluster
-        latchNine.await();
+        latchNine.await(30L, TimeUnit.SECONDS);
         assertThat(leaderIndices.get(), greaterThanOrEqualTo(9));
         assertBusy(() -> assertThat(getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), greaterThanOrEqualTo(9L)),
             30L, TimeUnit.SECONDS);

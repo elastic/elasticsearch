@@ -296,7 +296,7 @@ geographic location, using a <<query-dsl-geo-shape-query,`geo_shape` query>>.
 [[geo-match-enrich-policy-type-ex]]
 ==== Example
 
-The following example creates an `geo_match` enrich policy that adds postal
+The following example creates a `geo_match` enrich policy that adds postal
 codes to incoming documents based on a set of coordinates. It then adds the
 `geo_match` enrich policy to a processor in an ingest pipeline.
 
@@ -369,7 +369,7 @@ POST /_enrich/policy/postal_policy/_execute
 Use the <<put-pipeline-api,put pipeline API>> to create an ingest pipeline. In
 the pipeline, add an <<enrich-processor,enrich processor>> that includes:
 
-* Your enrich policy
+* Your enrich policy.
 * The `field` of incoming documents used to match the geo_shape of documents
   from the enrich index.
 * The `target_field` used to store appended enrich data for incoming documents.
@@ -467,7 +467,7 @@ exact value, such as a email address or ID, using a
 [[match-enrich-policy-type-ex]]
 ==== Example
 
-The following example creates an `match` enrich policy that adds user name and
+The following example creates a `match` enrich policy that adds user name and
 contact information to incoming documents based on an email address. It then
 adds the `match` enrich policy to a processor in an ingest pipeline.
 
@@ -527,7 +527,7 @@ POST /_enrich/policy/users-policy/_execute
 Use the <<put-pipeline-api,put pipeline API>> to create an ingest pipeline. In
 the pipeline, add an <<enrich-processor,enrich processor>> that includes:
 
-* Your enrich policy
+* Your enrich policy.
 * The `field` of incoming documents used to match the geo_shape of documents
   from the enrich index.
 * The `target_field` used to store appended enrich data for incoming documents.

@@ -940,7 +940,7 @@ See <<analysis-dict-decomp-tokenfilter>> and
 [role="exclude",id="configuring-saml-realm"]
 === Configuring a SAML realm
 
-See <<saml-realm-configuration>>.
+See <<saml-guide>>.
 
 [role="exclude",id="saml-settings"]
 ==== SAML realm settings

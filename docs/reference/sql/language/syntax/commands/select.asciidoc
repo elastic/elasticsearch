@@ -413,13 +413,13 @@ The pivoting operation will perform an implicit <<sql-syntax-group-by, GROUP BY>
 include-tagged::{sql-specs}/pivot.csv-spec[sumWithoutSubquery]
 ----
 
-The query could logically be broken down in the following steps:
+The query execution could logically be broken down in the following steps:
 
 . a <<sql-syntax-group-by, GROUP BY>> on the column in the `FOR`-clause: `languages`;
 . the resulting values are filtered through the set provided in the `IN`-clause;
 . the now filtered column is pivoted to form the headers of the two additional columns appended to the result: `1` and `2`;
 . a <<sql-syntax-group-by, GROUP BY>> on all columns of the source table `test_emp`, except `salary` (part of the aggregation subclause) and `languages` (part of the `FOR`-clause);
-. the values in these appended columns are the `SUM` aggregations of `salary`, group by the respective language.
+. the values in these appended columns are the `SUM` aggregations of `salary`, grouped by the respective language.
 
 
 The table-value expression to cross-tabulate can also be the result of a subquery:

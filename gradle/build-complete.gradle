@@ -13,18 +13,26 @@ if (buildNumber) {
     try {
       ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
         fileset(dir: projectDir) {
-          fileTree(projectDir)
-            .include("**/*.hprof")
-            .include("**/reaper.log")
-            .include("**/build/testclusters/**")
-            .exclude("**/build/testclusters/**/data/**")
-            .exclude("**/build/testclusters/**/distro/**")
-            .exclude("**/build/testclusters/**/repo/**")
-            .exclude("**/build/testclusters/**/extract/**")
-            .filter { Files.isRegularFile(it.toPath()) }
-            .each {
+          Set<File> fileSet = fileTree(projectDir) {
+            include("**/*.hprof")
+            include("**/reaper.log")
+            include("**/build/testclusters/**")
+            exclude("**/build/testclusters/**/data/**")
+            exclude("**/build/testclusters/**/distro/**")
+            exclude("**/build/testclusters/**/repo/**")
+            exclude("**/build/testclusters/**/extract/**")
+          }
+            .files
+            .findAll { Files.isRegularFile(it.toPath()) }
+
+          if (fileSet.empty) {
+            // In cases where we don't match any workspace files, exclude everything
+            exclude(name: "**/*")
+          } else {
+            fileSet.each {
               include(name: projectDir.toPath().relativize(it.toPath()))
             }
+          }
         }
 
         fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {

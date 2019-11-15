@@ -92,6 +92,7 @@ integTest.runner  {
     'ml/data_frame_analytics_crud/Test put classification given num_top_classes is greater than 1k',
     'ml/data_frame_analytics_crud/Test put classification given training_percent is less than one',
     'ml/data_frame_analytics_crud/Test put classification given training_percent is greater than hundred',
+    'ml/data_frame_analytics_memory_usage_estimation/Test memory usage estimation for empty data frame',
     'ml/evaluate_data_frame/Test given missing index',
     'ml/evaluate_data_frame/Test given index does not exist',
     'ml/evaluate_data_frame/Test given missing evaluation',

@@ -26,8 +26,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings
-            .builder()
+        return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             // Don't keep any indices in the graveyard, so that when we delete an index,
             // it's definitely considered to be dangling.
@@ -111,8 +110,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate(
                 name,
-                Settings
-                    .builder()
+                Settings.builder()
                     .put("number_of_shards", shardCount)
                     .put("number_of_replicas", replicaCount)
                     .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
@@ -125,8 +123,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
 
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client()
-                .prepareIndex(name)
+            docs[i] = client().prepareIndex(name)
                 .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
         }
 
@@ -145,8 +142,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
     private void setRecoveryEnabled(Boolean enabled) {
         assertAcked(
-            client()
-                .admin()
+            client().admin()
                 .cluster()
                 .prepareUpdateSettings()
                 // Map.of doesn't like null ¯\_(ツ)_/¯

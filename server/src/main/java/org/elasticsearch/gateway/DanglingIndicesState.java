@@ -86,7 +86,7 @@ public class DanglingIndicesState implements ClusterStateListener {
             .addSettingsUpdateConsumer(ALLOCATE_DANGLING_INDICES_SETTING, this::setAllocateDanglingIndicesSetting);
     }
 
-    private void setAllocateDanglingIndicesSetting(boolean allocateDanglingIndices) {
+    public void setAllocateDanglingIndicesSetting(boolean allocateDanglingIndices) {
         this.allocateDanglingIndices = allocateDanglingIndices;
     }
 

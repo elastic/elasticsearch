@@ -134,7 +134,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_id", SortOrder.ASC)
+                .addSort("id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
         assertSearchHits(response, "1", "2");
@@ -172,12 +172,12 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testQueryCache() {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                        .addMapping("type1", "id", "type=keyword", "field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("test").setId("1").setSource("field1", "value1")
+        client().prepareIndex("test").setId("1").setSource("id", 1, "field1", "value1")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2")
+        client().prepareIndex("test").setId("2").setSource("id", 2, "field2", "value2")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
@@ -214,7 +214,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             response = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                     .prepareSearch("test")
-                    .addSort("_id", SortOrder.ASC)
+                    .addSort("id", SortOrder.ASC)
                     .get();
             assertHitCount(response, 2);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));

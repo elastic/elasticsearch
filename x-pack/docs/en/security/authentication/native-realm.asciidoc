@@ -50,15 +50,6 @@ hash algorithm. To use different hash algorithms, see <<hashing-settings>>.
 
 . Restart {es}.
 
-. Manage your users in {kib} on the *Management / Security / Users* page. 
-Alternatively, use the <<security-api-users,User Management APIs>>.
-
-
-[[native-settings]]
-==== Native realm settings
-
-See <<ref-native-settings>>. 
-
 [[managing-native-users]]
 ==== Managing native users
 

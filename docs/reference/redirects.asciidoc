@@ -940,3 +940,8 @@ See <<analysis-dict-decomp-tokenfilter>> and
 === Configuring a native realm
 
 See <<native-realm-configuration>>.
+
+[role="exclude",id="native-settings"]
+==== Native realm settings
+
+See <<ref-native-settings>>. 

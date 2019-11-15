@@ -950,3 +950,8 @@ See <<ldap-realm-configuration>>.
 === LDAP realm settings
 
 See <<ref-ldap-settings>>.
+
+[role="exclude",id="ldap-ssl"]
+=== Setting up SSL between Elasticsearch and LDAP
+
+See <<tls-ldap>>. 

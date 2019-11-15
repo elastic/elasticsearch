@@ -209,3 +209,5 @@ xpack:
             metadata: cn
 --------------------------------------------------
 --
+
+. Set up SSL to encrypt communications between {es} and LDAP. See <<tls-ldap>>. 

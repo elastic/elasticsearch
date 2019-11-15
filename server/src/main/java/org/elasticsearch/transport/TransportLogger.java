@@ -93,6 +93,7 @@ public final class TransportLogger {
                         streamInput = compressor.streamInput(streamInput);
                     }
 
+                    // read and discard headers
                     ThreadContext.readHeadersFromStream(streamInput);
                     if (streamInput.getVersion().before(Version.V_8_0_0)) {
                         // discard the features

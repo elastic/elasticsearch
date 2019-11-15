@@ -12,7 +12,7 @@ import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLIN
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(numDataNodes = 3, scope = ESIntegTestCase.Scope.TEST)
+@ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class DanglingIndicesIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test-idx-1";
 
@@ -36,8 +36,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesAreRecoveredWhenSettingIsEnabled() throws Exception {
         logger.info("--> starting cluster");
         final Settings settings = buildSettings(true);
-        logger.warn("FOO: " + settings.keySet());
-        internalCluster().startNodes(settings);
+        internalCluster().startNodes(3, settings);
 
         // Create an index and distribute it across the 3 nodes
         createAndPopulateIndex(INDEX_NAME, SHARD_COUNT, REPLICA_COUNT);
@@ -65,7 +64,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      */
     public void testDanglingIndicesAreNotRecoveredWhenSettingIsDisabled() throws Exception {
         logger.info("--> starting cluster");
-        internalCluster().startNodes(buildSettings(false));
+        internalCluster().startNodes(3, buildSettings(false));
 
         // Create an index and distribute it across the 3 nodes
         createAndPopulateIndex(INDEX_NAME, SHARD_COUNT, REPLICA_COUNT);

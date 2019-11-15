@@ -244,9 +244,8 @@ public class GeometryTreeTests extends ESTestCase {
         Geometry preparedGeometry = indexer.prepareForIndexing(geometry);
 
         // TODO: support multi-polygons
-        if (ShapeType.POLYGON == geometry.type() && ShapeType.MULTIPOLYGON == preparedGeometry.type()) {
-            return;
-        }
+        assumeFalse("polygon crosses dateline",
+            ShapeType.POLYGON == geometry.type() && ShapeType.MULTIPOLYGON == preparedGeometry.type());
 
         for (int i = 0; i < testPointCount; i++) {
             int cur = i;

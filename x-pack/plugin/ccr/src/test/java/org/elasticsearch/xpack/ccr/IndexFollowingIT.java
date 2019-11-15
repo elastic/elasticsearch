@@ -418,7 +418,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("index-1").setSource(leaderIndexSettings, XContentType.JSON));
         followerClient().execute(PutFollowAction.INSTANCE, putFollow("index-1", "index-2")).get();
-        PutMappingRequest putMappingRequest = new PutMappingRequest("index-2").type("doc").source("new_field", "type=keyword");
+        PutMappingRequest putMappingRequest = new PutMappingRequest("index-2").source("new_field", "type=keyword");
         ElasticsearchStatusException forbiddenException = expectThrows(ElasticsearchStatusException.class,
             () -> followerClient().admin().indices().putMapping(putMappingRequest).actionGet());
         assertThat(forbiddenException.getMessage(),
@@ -1050,7 +1050,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         ensureLeaderGreen("leader");
 
         PutMappingRequest putMappingRequest = new PutMappingRequest("leader");
-        putMappingRequest.type("doc");
         putMappingRequest.source("new_field", "type=text,analyzer=my_analyzer");
         assertAcked(leaderClient().admin().indices().putMapping(putMappingRequest).actionGet());
 

@@ -935,3 +935,18 @@ See <<enable-audit-logging>>.
 
 See <<analysis-dict-decomp-tokenfilter>> and
 <<analysis-hyp-decomp-tokenfilter>>.
+
+[role="exclude",id="ldap-user-search"]
+=== User search mode and user DN templates mode
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="configuring-ldap-realm"]
+=== Configuring an LDAP realm
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="ldap-settings"]
+=== LDAP realm settings
+
+See <<ref-ldap-settings>>.

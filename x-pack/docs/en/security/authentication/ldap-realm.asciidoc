@@ -20,25 +20,6 @@ for example  `"cn=admin,dc=example,dc=com"` (white spaces are ignored).
 The `ldap` realm supports two modes of operation, a user search mode
 and a mode with specific templates for user DNs. 
 
-[[ldap-user-search]]
-==== User search mode and user DN templates mode
-
-See <<configuring-ldap-realm>>.
-
-[[ldap-load-balancing]]
-==== Load balancing and failover
-The `load_balance.type` setting can be used at the realm level to configure how
-the {security-features} should interact with multiple LDAP servers. The
-{security-features} support both failover and load balancing modes of operation.
-
-See
-<<load-balancing>>.
-
-[[ldap-settings]]
-==== LDAP realm settings
-
-See <<ref-ldap-settings>>.
-
 [[mapping-roles-ldap]]
 ==== Mapping LDAP groups to roles
 
@@ -58,6 +39,11 @@ file stored on each node. When a user authenticates with LDAP, the privileges
 for that user are the union of all privileges defined by the roles to which
 the user is mapped. For more information, see 
 <<configuring-ldap-realm>>.
+
+[[ldap-realm-configuration]]
+==== Configuring an LDAP realm
+
+include::configuring-ldap-realm.asciidoc[]
 
 [[ldap-user-metadata]]
 ==== User metadata in LDAP realms
@@ -80,6 +66,15 @@ Additional fields can be included in the user's metadata by  configuring
 the `metadata` setting on the LDAP realm. This metadata is available for use
 with the <<mapping-roles-api, role mapping API>> or in
 <<templating-role-query, templated role queries>>.
+
+[[ldap-load-balancing]]
+==== Load balancing and failover
+The `load_balance.type` setting can be used at the realm level to configure how
+the {security-features} should interact with multiple LDAP servers. The
+{security-features} support both failover and load balancing modes of operation.
+
+See
+<<load-balancing>>.
 
 [[ldap-ssl]]
 ==== Setting up SSL between Elasticsearch and LDAP

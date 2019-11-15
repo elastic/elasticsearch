@@ -27,10 +27,10 @@ if (buildNumber) {
 
           if (fileSet.empty) {
             // In cases where we don't match any workspace files, exclude everything
-            exclude(name: "**/*")
+            ant.exclude(name: "**/*")
           } else {
             fileSet.each {
-              include(name: projectDir.toPath().relativize(it.toPath()))
+              ant.include(name: projectDir.toPath().relativize(it.toPath()))
             }
           }
         }

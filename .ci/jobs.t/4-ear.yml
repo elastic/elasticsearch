@@ -1,7 +1,6 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+EAR-next
     display-name: "elastic / elasticsearch # %BRANCH% - encryption at rest (experimental)"
-    description: "Test running on storage encrypted at rest on the %BRANCH% branch.\n"
     # We need to use a packaging image for sudo
     node: packaging-large
     triggers:
@@ -10,7 +9,7 @@
       # Don't run this with runbld, it doesn't like how we switch the workspace
       - shell: |
           #!/bin/bash
-          .ci/setup-EAR.sh
+          .ci/scripts/setup-EAR.sh
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
-          .ci/build.sh -Dbwc.checkout.align=true check
+          .ci/scripts/build.sh -Dbwc.checkout.align=true check

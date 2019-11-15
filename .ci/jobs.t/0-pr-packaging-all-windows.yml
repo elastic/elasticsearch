@@ -1,12 +1,13 @@
 - job:
-    name: elastic+elasticsearch+%BRANCH%+multijob+packaging-windows
-    workspace: /var/lib/jenkins/elastic+elasticsearch+%BRANCH%+multijob+packaging-windows
-    display-name: "elastic / elasticsearch # %BRANCH% - packaging - Windows (experimental)"
+    name: elastic+elasticsearch+pr+multijob+packaging-windows
+    workspace: /var/lib/jenkins/elastic+elasticsearch+pr+multijob+packaging-windows
+    display-name: "elastic / elasticsearch # PR - packaging - Windows (experimental)"
     project-type: matrix
     axes:
       - axis:
           type: label-expression
           name: os
+          # Keep this in sync with 2-packaging-windows.yml
           values:
             - "windows-2012-r2"
             - "windows-2016"
@@ -16,7 +17,6 @@
           java -jar "C:\Program Files\infra\bin\runbld" `
             --program powershell.exe `
             --redirect-stderr `
-            --last-good-commit elastic+elasticsearch+%BRANCH%+intake `
             --args "-NonInteractive -ExecutionPolicy ByPass -File .\.ci\os.ps1"`
     publishers:
       - postbuildscript:

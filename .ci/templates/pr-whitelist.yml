@@ -1,0 +1,19 @@
+- job-template:
+    name: elastic+elasticsearch+pr+{name}
+    display-name: "elastic / elasticsearch # PR {name} (experimental)"
+    node: "{node-label}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+{name}.*'
+          github-hooks: true
+          status-context: "{name}"
+          cancel-builds-on-update: true
+          whitelist-list-labels:
+            - '{when-label-present}'
+    builders:
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          {command}

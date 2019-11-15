@@ -6,6 +6,6 @@
     builders:
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
-          .ci/build.sh -Dbwc.checkout.align=true -Dtests.distribution=default :docs:check :x-pack:docs:check
-          .ci/build.sh -Dbwc.checkout.align=true -Dtests.distribution=oss :docs:check
+          .ci/scripts/build.sh -Dbwc.checkout.align=true -Dtests.distribution=default :docs:check :x-pack:docs:check
+          .ci/scripts/build.sh -Dbwc.checkout.align=true -Dtests.distribution=oss :docs:check
 

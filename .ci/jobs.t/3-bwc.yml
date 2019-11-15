@@ -1,5 +1,5 @@
 - job:
-    name: elastic+elasticsearch+%BRANCH%+BWC-next
+    name: elastic+elasticsearch+%BRANCH%+bwc-next
     display-name: "elastic / elasticsearch # %BRANCH% - Backwards Compatibility (experimental)"
     triggers:
       - timed: "H H/8 * * *"
@@ -19,6 +19,6 @@
     builders:
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
-          .ci/build.sh -Dbwc.checkout.align=true -Dtests.distribution=oss v$BWC_VERSION#bwcTest
-          .ci/build.sh -Dbwc.checkout.align=true -Dtests.distribution=default v$BWC_VERSION#bwcTest
+          .ci/scripts/build.sh -Dbwc.checkout.align=true -Dtests.distribution=default v$BWC_VERSION#bwcTest
+          .ci/scripts/build.sh -Dbwc.checkout.align=true -Dtests.distribution=oss -p qa v$BWC_VERSION#bwcTest
 

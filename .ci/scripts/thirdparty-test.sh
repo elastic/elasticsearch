@@ -42,7 +42,7 @@ set -x
 
 unset VAULT_TOKEN
 
-./.ci/build.sh :plugins:repository-gcs:check :plugins:repository-s3:check :plugins:repository-azure:check
+./.ci/scripts/build.sh :plugins:repository-gcs:check :plugins:repository-s3:check :plugins:repository-azure:check
 
 #  Azure SAS
 set +x
@@ -54,7 +54,7 @@ export azure_storage_sas_token=$(echo $data | jq -r .data.account_sas_token)
 unset VAULT_TOKEN data
 set -x
 export azure_storage_container=elasticsearch-ci-thirdparty-sas
-./.ci/build.sh :plugins:repository-azure:check
+./.ci/scripts/build.sh :plugins:repository-azure:check
 
 
 

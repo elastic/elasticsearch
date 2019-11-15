@@ -27,5 +27,5 @@
     builders:
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
-          .ci/build.sh -Dbwc.checkout.align=true check
+          .ci/scripts/build.sh -Dbwc.checkout.align=true check
 

@@ -1,7 +1,6 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+intake
     display-name: "elastic / elasticsearch # %BRANCH% - intake (experimental)"
-    description: "Tests every push to the %BRANCH% branch and sets last good commit.\n"
     triggers:
       - github
     project-type: multijob

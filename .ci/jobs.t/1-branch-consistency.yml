@@ -6,4 +6,4 @@
     builders:
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          .ci/build.sh branchConsistency
+          .ci/scripts/build.sh branchConsistency

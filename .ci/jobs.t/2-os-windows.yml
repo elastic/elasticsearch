@@ -1,6 +1,6 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+multijob-windows-compatibility-next
-    workspace: /var/lib/jenkins/elastic+elasticsearch+%BRANCH%+multijob-windows-compatibility-next
+    workspace: "/os-windows"
     display-name: "elastic / elasticsearch # %BRANCH% - OS compatibility - Windows (experimental)"
     project-type: matrix
     axes:
@@ -17,7 +17,7 @@
             --program powershell.exe `
             --redirect-stderr `
             --last-good-commit elastic+elasticsearch+%BRANCH%+intake `
-            --args "-NonInteractive -ExecutionPolicy ByPass -File .\.ci\build.ps1 check"`
+            --args "-NonInteractive -ExecutionPolicy ByPass -File .\.ci\scripts\build.ps1 check"`
     publishers:
       - postbuildscript:
           builders:

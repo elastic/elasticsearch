@@ -17,6 +17,7 @@
       - axis:
           type: label-expression
           name: os
+          # This has to be kept in sync with 2-packaging-unix.yml
           values:
             - "centos-6-packaging"
             - "centos-7-packaging"
@@ -33,5 +34,5 @@
             - "ubuntu-18.04-packaging"
     builders:
       - shell: |
-          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
+          #!/usr/local/bin/runbld --redirect-stderr
           ./.ci/os.sh

@@ -47,8 +47,6 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 
 <<dense-vector>>::   Record dense vectors of float values.
 
-<<sparse-vector>>::   Record sparse vectors of float values.
-
 <<search-as-you-type>>:: A text-like field optimized for queries to implement as-you-type completion
 
 <<alias>>::         Defines an alias to an existing field.
@@ -123,8 +121,6 @@ include::types/rank-feature.asciidoc[]
 include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
-
-include::types/sparse-vector.asciidoc[]
 
 include::types/text.asciidoc[]
 

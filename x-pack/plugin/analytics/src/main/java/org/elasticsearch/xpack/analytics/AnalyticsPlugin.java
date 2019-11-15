@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregator;
+import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
+import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,11 +45,23 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
-        return singletonList(new PipelineAggregationSpec(
-            CumulativeCardinalityPipelineAggregationBuilder.NAME,
-            CumulativeCardinalityPipelineAggregationBuilder::new,
-            CumulativeCardinalityPipelineAggregator::new,
-            CumulativeCardinalityPipelineAggregationBuilder::parse));
+        return singletonList(
+            new PipelineAggregationSpec(
+                CumulativeCardinalityPipelineAggregationBuilder.NAME,
+                CumulativeCardinalityPipelineAggregationBuilder::new,
+                CumulativeCardinalityPipelineAggregator::new,
+                CumulativeCardinalityPipelineAggregationBuilder::parse)
+        );
+    }
+
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        return singletonList(
+            new AggregationSpec(
+                StringStatsAggregationBuilder.NAME,
+                StringStatsAggregationBuilder::new,
+                StringStatsAggregationBuilder::parse).addResultReader(InternalStringStats::new)
+        );
     }
 
     @Override

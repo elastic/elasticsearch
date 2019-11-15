@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
@@ -30,16 +29,13 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
-import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,6 +55,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
+
 /**
  * Provides access to {@link SSLEngine} and {@link SSLSocketFactory} objects based on a provided configuration. All
  * configurations loaded by this service must be configured on construction.
@@ -75,7 +73,9 @@ public class SSLService {
     private static final Map<String, String> ORDERED_PROTOCOL_ALGORITHM_MAP;
     static {
         LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
-        protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
+        if (DEFAULT_SUPPORTED_PROTOCOLS.contains("TLSv1.3")) {
+            protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
+        }
         protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
         protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
         protocolAlgorithmMap.put("TLSv1", "TLSv1");
@@ -428,6 +428,10 @@ public class SSLService {
         Map<String, Settings> profileSettings = getTransportProfileSSLSettings(settings);
         profileSettings.forEach((key, profileSetting) -> loadConfiguration(key, profileSetting, sslContextHolders));
 
+        for (String context : List.of("xpack.security.transport.ssl", "xpack.security.http.ssl")) {
+            validateServerConfiguration(context);
+        }
+
         return Collections.unmodifiableMap(sslContextHolders);
     }
 
@@ -443,6 +447,33 @@ public class SSLService {
             return configuration;
         } catch (Exception e) {
             throw new ElasticsearchSecurityException("failed to load SSL configuration [{}]", e, key);
+        }
+    }
+
+    private void validateServerConfiguration(String prefix) {
+        assert prefix.endsWith(".ssl");
+        SSLConfiguration configuration = getSSLConfiguration(prefix);
+        final String enabledSetting = prefix + ".enabled";
+        if (settings.getAsBoolean(enabledSetting, false) == true) {
+            // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
+            final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".");
+            if (isConfigurationValidForServerUsage(configuration) == false) {
+                throw new ElasticsearchSecurityException("invalid SSL configuration for " + prefix +
+                    " - server ssl configuration requires a key and certificate, but these have not been configured; you must set either " +
+                    "[" + configurationSettings.x509KeyPair.keystorePath.getKey() + "], or both [" +
+                    configurationSettings.x509KeyPair.keyPath.getKey() + "] and [" +
+                    configurationSettings.x509KeyPair.certificatePath.getKey() + "]");
+            }
+        } else if (settings.hasValue(enabledSetting) == false) {
+            final List<String> sslSettingNames = settings.keySet().stream()
+                .filter(s -> s.startsWith(prefix))
+                .sorted()
+                .collect(Collectors.toUnmodifiableList());
+            if (sslSettingNames.isEmpty() == false) {
+                throw new ElasticsearchSecurityException("invalid configuration for " + prefix + " - [" + enabledSetting +
+                    "] is not set, but the following settings have been configured in elasticsearch.yml : [" +
+                    Strings.collectionToCommaDelimitedString(sslSettingNames) + "]");
+            }
         }
     }
 
@@ -589,34 +620,16 @@ public class SSLService {
 
         private void reloadSslContext() {
             try {
-                X509ExtendedKeyManager loadedKeyManager = Optional.ofNullable(keyConfig.createKeyManager(env)).
-                    orElse(getEmptyKeyManager());
-                X509ExtendedTrustManager loadedTrustManager = Optional.ofNullable(trustConfig.createTrustManager(env)).
-                    orElse(getEmptyTrustManager());
+                X509ExtendedKeyManager loadedKeyManager = keyConfig.createKeyManager(env);
+                X509ExtendedTrustManager loadedTrustManager = trustConfig.createTrustManager(env);
                 SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
                 loadedSslContext.init(new X509ExtendedKeyManager[]{loadedKeyManager},
                     new X509ExtendedTrustManager[]{loadedTrustManager}, null);
                 supportedCiphers(loadedSslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.cipherSuites(), false);
                 this.context = loadedSslContext;
-            } catch (GeneralSecurityException | IOException e) {
+            } catch (GeneralSecurityException e) {
                 throw new ElasticsearchException("failed to initialize the SSLContext", e);
             }
-        }
-
-        X509ExtendedKeyManager getEmptyKeyManager() throws GeneralSecurityException, IOException {
-            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            keyStore.load(null, null);
-            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            keyManagerFactory.init(keyStore, null);
-            return (X509ExtendedKeyManager) keyManagerFactory.getKeyManagers()[0];
-        }
-
-        X509ExtendedTrustManager getEmptyTrustManager() throws GeneralSecurityException, IOException {
-            KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            keyStore.load(null, null);
-            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("X509");
-            trustManagerFactory.init(keyStore);
-            return (X509ExtendedTrustManager) trustManagerFactory.getTrustManagers()[0];
         }
 
         public void addReloadListener(Runnable listener) {

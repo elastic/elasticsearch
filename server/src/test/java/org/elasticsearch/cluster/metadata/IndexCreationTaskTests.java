@@ -138,7 +138,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
     }
 
     public void testApplyDataFromRequest() throws Exception {
@@ -177,7 +177,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("fromReq"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("reqValue"));
-        assertThat(getMappingsFromResponse().get("type").toString(), equalTo("{type={properties={field={type=keyword}}}}"));
+        assertThat(getMappingsFromResponse().toString(), equalTo("{type={properties={field={type=keyword}}}}"));
     }
 
     public void testDefaultSettings() throws Exception {
@@ -245,8 +245,9 @@ public class IndexCreationTaskTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testIndexRemovalOnFailure() throws Exception {
-        doThrow(new RuntimeException("oops")).when(mapper).merge(anyMap(), anyObject());
+        doThrow(new RuntimeException("oops")).when(mapper).merge(anyString(), anyMap(), anyObject());
 
+        setupRequestMapping("type", createMapping("keyword"));
         expectThrows(RuntimeException.class, this::executeTask);
 
         verify(indicesService, times(1)).removeIndex(anyObject(), anyObject(), anyObject());
@@ -275,7 +276,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         assertThat(result.metaData().index("test").getAliases(), not(hasKey("alias1")));
         assertThat(result.metaData().index("test").getCustomData(), not(hasKey("custom1")));
         assertThat(result.metaData().index("test").getSettings().keySet(), not(Matchers.contains("key1")));
-        assertThat(getMappingsFromResponse(), not(Matchers.hasKey("mapping1")));
     }
 
     public void testValidateWaitForActiveShardsFailure() throws Exception {
@@ -360,10 +360,6 @@ public class IndexCreationTaskTests extends ESTestCase {
             .numberOfReplicas(numReplicas);
     }
 
-    private Map<String, String> createCustom() {
-        return Collections.singletonMap("a", "b");
-    }
-
     private interface MetaDataBuilderConfigurator {
         void configure(IndexTemplateMetaData.Builder builder) throws IOException;
     }
@@ -376,9 +372,9 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Map<String, Object>> getMappingsFromResponse() {
+    private Map<String, Map<String, Object>> getMappingsFromResponse() throws IOException {
         final ArgumentCaptor<Map> argument = ArgumentCaptor.forClass(Map.class);
-        verify(mapper).merge(argument.capture(), anyObject());
+        verify(mapper).merge(anyString(), argument.capture(), anyObject());
         return argument.getValue();
     }
 

@@ -87,12 +87,12 @@ public abstract class DataTypeConversion {
 
         // interval and dates
         if (left == DATE) {
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 return left;
             }
         }
         if (right == DATE) {
-            if (DataTypes.isInterval(left)) {
+            if (left.isInterval()) {
                 return right;
             }
         }
@@ -100,7 +100,7 @@ public abstract class DataTypeConversion {
             if (right == DATE) {
                 return DATETIME;
             }
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 return left;
             }
         }
@@ -108,7 +108,7 @@ public abstract class DataTypeConversion {
             if (left == DATE) {
                 return DATETIME;
             }
-            if (DataTypes.isInterval(left)) {
+            if (left.isInterval()) {
                 return right;
             }
         }
@@ -116,7 +116,7 @@ public abstract class DataTypeConversion {
             if (right == DATE || right == TIME) {
                 return left;
             }
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 return left;
             }
         }
@@ -124,24 +124,24 @@ public abstract class DataTypeConversion {
             if (left == DATE || left == TIME) {
                 return right;
             }
-            if (DataTypes.isInterval(left)) {
+            if (left.isInterval()) {
                 return right;
             }
         }
         // Interval * integer is a valid operation
-        if (DataTypes.isInterval(left)) {
+        if (left.isInterval()) {
             if (right.isInteger()) {
                 return left;
             }
         }
-        if (DataTypes.isInterval(right)) {
+        if (right.isInterval()) {
             if (left.isInteger()) {
                 return right;
             }
         }
-        if (DataTypes.isInterval(left)) {
+        if (left.isInterval()) {
             // intervals widening
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 // null returned for incompatible intervals
                 return DataTypes.compatibleInterval(left, right);
             }

@@ -12,38 +12,38 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.transform.GetDataFrameTransformRequest;
-import org.elasticsearch.client.transform.GetDataFrameTransformResponse;
-import org.elasticsearch.client.transform.UpdateDataFrameTransformRequest;
-import org.elasticsearch.client.transform.UpdateDataFrameTransformResponse;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate;
+import org.elasticsearch.client.transform.GetTransformRequest;
+import org.elasticsearch.client.transform.GetTransformResponse;
+import org.elasticsearch.client.transform.UpdateTransformRequest;
+import org.elasticsearch.client.transform.UpdateTransformResponse;
+import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.is;
 import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.addTransformsConfigMappings;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 
 public class TransformInternalIndexIT extends ESRestTestCase {
 
 
-    private static final String CURRENT_INDEX = TransformInternalIndex.LATEST_INDEX_NAME;
-    private static final String OLD_INDEX = TransformInternalIndex.INDEX_PATTERN + "1";
+    private static final String CURRENT_INDEX = TransformInternalIndexConstants.LATEST_INDEX_NAME;
+    private static final String OLD_INDEX = TransformInternalIndexConstants.INDEX_PATTERN + "001";
 
 
     public void testUpdateDeletesOldTransformConfig() throws Exception {
@@ -88,12 +88,12 @@ public class TransformInternalIndexIT extends ESRestTestCase {
             RequestOptions.DEFAULT);
         assertThat(getResponse.isExists(), is(true));
 
-        GetDataFrameTransformResponse response = client.dataFrame()
-            .getDataFrameTransform(new GetDataFrameTransformRequest(transformId), RequestOptions.DEFAULT);
+        GetTransformResponse response = client.transform()
+            .getTransform(new GetTransformRequest(transformId), RequestOptions.DEFAULT);
         assertThat(response.getTransformConfigurations().get(0).getId(), equalTo(transformId));
 
-        UpdateDataFrameTransformResponse updated = client.dataFrame().updateDataFrameTransform(
-            new UpdateDataFrameTransformRequest(DataFrameTransformConfigUpdate.builder().setDescription("updated").build(), transformId),
+        UpdateTransformResponse updated = client.transform().updateTransform(
+            new UpdateTransformRequest(TransformConfigUpdate.builder().setDescription("updated").build(), transformId),
             RequestOptions.DEFAULT);
 
         assertThat(updated.getTransformConfiguration().getId(), equalTo(transformId));

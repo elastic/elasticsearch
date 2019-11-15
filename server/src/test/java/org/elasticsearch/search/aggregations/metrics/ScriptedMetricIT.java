@@ -263,7 +263,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
 
         numDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx", "type", "" + i).setSource(
+            builders.add(client().prepareIndex("idx").setId("" + i).setSource(
                     jsonBuilder().startObject().field("value", randomAlphaOfLengthBetween(5, 15))
                             .field("l_value", i).endObject()));
         }
@@ -280,7 +280,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").get();
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(
                     jsonBuilder().startObject().field("value", i * 2).endObject()));
         }
 
@@ -1029,8 +1029,8 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()

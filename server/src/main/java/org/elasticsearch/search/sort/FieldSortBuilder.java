@@ -332,10 +332,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         Nested nested = null;
         if (isUnmapped == false) {
             if (nestedSort != null) {
-                if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
-                    throw new QueryShardException(context,
-                        "max_children is only supported on last level of nested sort");
-                }
+                validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
                 nested = resolveNested(context, nestedSort);
             } else {
                 validateMissingNestedPath(context, fieldName);
@@ -360,6 +357,18 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             field = fieldData.sortField(missing, localSortMode, nested, reverse);
         }
         return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
+    }
+
+    /**
+     * Throws an exception if max children is not located at top level nested sort.
+     */
+    static void validateMaxChildrenExistOnlyInTopLevelNestedSort(QueryShardContext context, NestedSortBuilder nestedSort) {
+        for (NestedSortBuilder child = nestedSort.getNestedSort(); child != null; child = child.getNestedSort()) {
+            if (child.getMaxChildren() != Integer.MAX_VALUE) {
+                throw new QueryShardException(context,
+                    "max_children is only supported on top level of nested sort");
+            }
+        }
     }
 
     /**

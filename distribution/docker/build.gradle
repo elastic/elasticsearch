@@ -1,10 +1,13 @@
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin 
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
+
+testFixtures.useFixture()
 
 configurations {
   dockerPlugins
@@ -19,29 +22,31 @@ dependencies {
   restSpec project(':rest-api-spec')
 }
 
-ext.expansions = { oss, local ->
-  final String classifier = 'linux-x86_64'            
+ext.expansions = { oss, ubi, local ->
+  final String classifier = 'linux-x86_64'
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
-    'build_date'          : project.ext.buildDate,
+    'base_image'          : ubi ? 'registry.access.redhat.com/ubi7/ubi-minimal:7.7' : 'centos:7',
+    'build_date'          : BuildParams.buildDate,
     'elasticsearch'       : elasticsearch,
-    'git_revision'        : project.ext.gitRevision,
+    'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
+    'package_manager'     : ubi ? 'microdnf' : 'yum',
     'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch
   ]
 }
 
-private static String files(final boolean oss) {
-  return "build/${ oss ? 'oss-' : ''}docker"
+private static String buildPath(final boolean oss, final boolean ubi) {
+  return "build/${oss ? 'oss-' : ''}${ubi ? 'ubi-' : ''}docker"
 }
 
-private static String taskName(final String prefix, final boolean oss, final String suffix) {
-  return "${prefix}${oss ? 'Oss' : ''}${suffix}"
+private static String taskName(final String prefix, final boolean oss, final boolean ubi, final String suffix) {
+  return "${prefix}${oss ? 'Oss' : ''}${ubi ? 'Ubi' : ''}${suffix}"
 }
 
 project.ext {
-  dockerBuildContext = { boolean oss, boolean local ->
+  dockerBuildContext = { boolean oss, boolean ubi, boolean local ->
     copySpec {
       into('bin') {
         from project.projectDir.toPath().resolve("src/docker/bin")
@@ -50,27 +55,29 @@ project.ext {
       into('config') {
         /*
          * Oss and default distribution can have different configuration, therefore we want to allow overriding the default configuration
-         * by creating config files in oss or default build-context sub-modules. 
+         * by creating config files in oss or default build-context sub-modules.
          */
         from project.projectDir.toPath().resolve("src/docker/config")
-        from project.projectDir.toPath().resolve(oss ? "oss-docker-build-context" : "docker-build-context").resolve("src/docker/config")
+        if (oss) {
+          from project.projectDir.toPath().resolve("src/docker/config/oss")
+        }
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
-        expand(expansions(oss, local))
+        expand(expansions(oss, ubi, local))
       }
     }
   }
 }
 
-void addCopyDockerContextTask(final boolean oss) {
-  task(taskName("copy", oss, "DockerContext"), type: Sync) {
-    expansions(oss, true).each { k, v ->
+void addCopyDockerContextTask(final boolean oss, final boolean ubi) {
+  task(taskName("copy", oss, ubi, "DockerContext"), type: Sync) {
+    expansions(oss, ubi, true).each { k, v ->
       inputs.property(k, { v.toString() })
     }
-    into files(oss)
+    into buildPath(oss, ubi)
 
-    with dockerBuildContext(oss, true)
+    with dockerBuildContext(oss, ubi, true)
 
     if (oss) {
       from configurations.ossDockerSource
@@ -82,7 +89,7 @@ void addCopyDockerContextTask(final boolean oss) {
   }
 }
 
-def createAndSetWritable (Object... locations) {
+def createAndSetWritable(Object... locations) {
   locations.each { location ->
     File file = file(location)
     file.mkdirs()
@@ -92,7 +99,7 @@ def createAndSetWritable (Object... locations) {
 
 task copyKeystore(type: Sync) {
   from project(':x-pack:plugin:core')
-          .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
   into "${buildDir}/certs"
   doLast {
     file("${buildDir}/certs").setReadable(true, false)
@@ -108,26 +115,26 @@ preProcessFixture {
   doLast {
     // tests expect to have an empty repo
     project.delete(
-            "${buildDir}/repo",
-            "${buildDir}/oss-repo"
+      "${buildDir}/repo",
+      "${buildDir}/oss-repo"
     )
     createAndSetWritable(
-            "${buildDir}/repo",
-            "${buildDir}/oss-repo",
-            "${buildDir}/logs/default-1",
-            "${buildDir}/logs/default-2",
-            "${buildDir}/logs/oss-1",
-            "${buildDir}/logs/oss-2"
+      "${buildDir}/repo",
+      "${buildDir}/oss-repo",
+      "${buildDir}/logs/default-1",
+      "${buildDir}/logs/default-2",
+      "${buildDir}/logs/oss-1",
+      "${buildDir}/logs/oss-2"
     )
   }
 }
 
 processTestResources {
-  from ({ zipTree(configurations.restSpec.singleFile) }) {
+  from({ zipTree(configurations.restSpec.singleFile) }) {
     include 'rest-api-spec/api/**'
   }
   from project(':x-pack:plugin:core')
-          .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
   dependsOn configurations.restSpec
 }
 
@@ -142,45 +149,80 @@ task integTest(type: Test) {
 
 check.dependsOn integTest
 
-void addBuildDockerImage(final boolean oss) {
-  final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
-    dependsOn taskName("copy", oss, "DockerContext")
+void addBuildDockerImage(final boolean oss, final boolean ubi) {
+  final Task buildDockerImageTask = task(taskName("build", oss, ubi, "DockerImage"), type: LoggedExec) {
+    dependsOn taskName("copy", oss, ubi, "DockerContext")
     List<String> tags
     if (oss) {
-      tags = [ 
-        "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
-        "elasticsearch-oss:test" 
+      tags = [
+        "docker.elastic.co/elasticsearch/elasticsearch-oss${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "elasticsearch-oss${ubi ? '-ubi7' : ''}:test"
       ]
     } else {
       tags = [
-        "elasticsearch:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}",
-        "elasticsearch:test",
+        "elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch${ubi ? '-ubi7' : ''}-full:${VersionProperties.elasticsearch}",
+        "elasticsearch${ubi ? '-ubi7' : ''}:test",
       ]
     }
     executable 'docker'
-    final List<String> dockerArgs = ['build', files(oss), '--pull', '--no-cache']
+    final List<String> dockerArgs = ['build', buildPath(oss, ubi), '--pull', '--no-cache']
     for (final String tag : tags) {
       dockerArgs.add('--tag')
       dockerArgs.add(tag)
     }
     args dockerArgs.toArray()
   }
+  assemble.dependsOn(buildDockerImageTask)
   BuildPlugin.requireDocker(buildDockerImageTask)
 }
 
 for (final boolean oss : [false, true]) {
-  addCopyDockerContextTask(oss)
-  addBuildDockerImage(oss)
+  for (final boolean ubi : [false, true]) {
+    addCopyDockerContextTask(oss, ubi)
+    addBuildDockerImage(oss, ubi)
+  }
 }
 
-assemble.dependsOn "buildOssDockerImage"
-assemble.dependsOn "buildDockerImage"
-
 // We build the images used in compose locally, but the pull command insists on using a repository
-// thus we must disable it to prevent it from doing so. 
+// thus we must disable it to prevent it from doing so.
 // Everything will still be pulled since we will build the local images on a pull
 if (tasks.findByName("composePull")) {
-    tasks.composePull.enabled = false 
+  tasks.composePull.enabled = false
+}
+
+/*
+ * The export subprojects write out the generated Docker images to disk, so
+ * that they can be easily reloaded, for example into a VM.
+ */
+subprojects { Project subProject ->
+  if (subProject.name.contains('docker-export')) {
+    apply plugin: 'distribution'
+
+    final boolean oss = subProject.name.contains('oss-')
+    final boolean ubi = subProject.name.contains('ubi-')
+
+    def exportTaskName = taskName("export", oss, ubi, "DockerImage")
+    def buildTaskName = taskName("build", oss, ubi, "DockerImage")
+    def tarFile = "${parent.projectDir}/build/elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
+
+    final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
+      executable 'docker'
+      args "save",
+        "-o",
+        tarFile,
+        "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}:test"
+    }
+
+    exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
+
+    artifacts.add('default', file(tarFile)) {
+      type 'tar'
+      name "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}"
+      builtBy exportTaskName
+    }
+
+    assemble.dependsOn exportTaskName
+  }
 }

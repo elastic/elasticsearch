@@ -38,6 +38,7 @@ import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -78,8 +79,8 @@ public class JsonLoggerTests extends ESTestCase {
         super.tearDown();
     }
     public void testDeprecatedMessage() throws IOException {
-        final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
+        final Logger testLogger = LogManager.getLogger("deprecation.test");
+        testLogger.info(DeprecatedMessage.of("someId","deprecated message1"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -91,7 +92,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
@@ -101,12 +102,126 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
+    public void testMessageOverrideWithNoValue() throws IOException {
+        //message field is meant to be overriden (see custom.test config), but is not provided.
+        //Expected is that it will be emptied
+        final Logger testLogger = LogManager.getLogger("custom.test");
+
+        testLogger.info(new ESLogMessage("some message"));
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_custom.json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "custom"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "c.test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"))
+                )
+            );
+        }
+    }
+    public void testBuildingMessage() throws IOException {
+
+        final Logger testLogger = LogManager.getLogger("test");
+
+        testLogger.info(new ESLogMessage("some message {} {}", "value0")
+                                    .argAndField("key1","value1")
+                                    .field("key2","value2"));
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + ".json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "file"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "some message value0 value1"),
+                    hasEntry("key1", "value1"),
+                    hasEntry("key2", "value2"))
+                )
+            );
+        }
+    }
+
+    public void testMessageOverride() throws IOException {
+
+        final Logger testLogger = LogManager.getLogger("custom.test");
+        testLogger.info(new ESLogMessage("some message")
+                                    .with("message","overriden"));
+
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_custom.json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "custom"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "c.test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "overriden"))
+                )
+            );
+        }
+
+        final Path plaintextPath = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_plaintext.json");
+        List<String> lines = Files.readAllLines(plaintextPath);
+        assertThat(lines, contains("some message"));
+
+
+    }
+
+    public void testCustomMessageWithMultipleFields() throws IOException {
+        // if a field is defined to be overriden, it has to always be overriden in that appender.
+        final Logger testLogger = LogManager.getLogger("test");
+        testLogger.info(new ESLogMessage("some message")
+                                    .with("field1","value1")
+                                    .with("field2","value2"));
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + ".json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "file"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("field1", "value1"),
+                    hasEntry("field2", "value2"),
+                    hasEntry("message", "some message"))
+                )
+            );
+        }
+    }
+
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
-        final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
-        testLogger.info(new DeprecatedMessage("deprecated message2", ""));
-        testLogger.info(new DeprecatedMessage("deprecated message3", null));
+        final Logger testLogger = LogManager.getLogger("deprecation.test");
+        testLogger.info( DeprecatedMessage.of("someId","deprecated message1"));
+        testLogger.info( DeprecatedMessage.of("","deprecated message2"));
+        testLogger.info( DeprecatedMessage.of(null,"deprecated message3"));
         testLogger.info("deprecated message4");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -119,7 +234,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
@@ -127,7 +242,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message2"),
@@ -136,7 +251,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message3"),
@@ -145,7 +260,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message4"),
@@ -179,19 +294,19 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     public void testPrefixLoggerInJson() throws IOException {
-        Logger shardIdLogger = Loggers.getLogger("shardIdLogger", ShardId.fromString("[indexName][123]"));
+        Logger shardIdLogger = Loggers.getLogger("prefix.shardIdLogger", ShardId.fromString("[indexName][123]"));
         shardIdLogger.info("This is an info message with a shardId");
 
-        Logger prefixLogger = new PrefixLogger(LogManager.getLogger("prefixLogger"), "PREFIX");
+        Logger prefixLogger = new PrefixLogger(LogManager.getLogger("prefix.prefixLogger"), "PREFIX");
         prefixLogger.info("This is an info message with a prefix");
 
         final Path path = clusterLogsPath();
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
-                logLine("file", Level.INFO, "sample-name", "shardIdLogger",
+                logLine("file", Level.INFO, "sample-name", "p.shardIdLogger",
                     "[indexName][123] This is an info message with a shardId"),
-                logLine("file", Level.INFO, "sample-name", "prefixLogger", "PREFIX This is an info message with a prefix")
+                logLine("file", Level.INFO, "sample-name", "p.prefixLogger", "PREFIX This is an info message with a prefix")
             ));
         }
     }
@@ -348,12 +463,11 @@ public class JsonLoggerTests extends ESTestCase {
 
     private List<JsonLogLine> collectLines(Stream<JsonLogLine> stream) {
         return stream
-            .skip(1)//skip the first line from super class
             .collect(Collectors.toList());
     }
 
     private Path clusterLogsPath() {
-        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".log");
+        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".json");
     }
 
     private void setupLogging(final String config) throws IOException, UserException {

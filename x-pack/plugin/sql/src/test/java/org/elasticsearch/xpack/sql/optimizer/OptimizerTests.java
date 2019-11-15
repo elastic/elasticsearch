@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
+import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
@@ -20,12 +21,23 @@ import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
@@ -55,7 +67,12 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
+import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
@@ -85,16 +102,21 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.ConstantFolding;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithExtendedStats;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithStats;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceMinMaxWithTopHits;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.RewritePivot;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyCase;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyConditional;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.SortAggregateOnOrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
@@ -214,7 +236,7 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(result instanceof Project);
         List<? extends NamedExpression> projections = ((Project) result).projections();
         assertEquals(2, projections.size());
-        assertSame(projections.get(0), projections.get(1));
+        assertEquals(projections.get(0), projections.get(1));
     }
 
     public void testCombineProjections() {
@@ -595,12 +617,37 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(TWO, e.children().get(1));
         assertEquals(DataType.INTEGER, e.dataType());
     }
-    
+
     public void testConcatFoldingIsNotNull() {
         FoldNull foldNull = new FoldNull();
         assertEquals(1, foldNull.rule(new Concat(EMPTY, NULL, ONE)).fold());
         assertEquals(1, foldNull.rule(new Concat(EMPTY, ONE, NULL)).fold());
         assertEquals(StringUtils.EMPTY, foldNull.rule(new Concat(EMPTY, NULL, NULL)).fold());
+    }
+
+    public void testFoldNullDateAdd() {
+        FoldNull foldNull = new FoldNull();
+        assertNullLiteral(foldNull.rule(new DateAdd(EMPTY, NULL, TWO, THREE, UTC)));
+        assertNullLiteral(foldNull.rule(new DateAdd(EMPTY, ONE, NULL, THREE, UTC)));
+        assertNullLiteral(foldNull.rule(new DateAdd(EMPTY, ONE, TWO, NULL, UTC)));
+        assertNullLiteral(foldNull.rule(new DateAdd(EMPTY, NULL, NULL, NULL, UTC)));
+        assertTrue(foldNull.rule(new DateAdd(EMPTY, ONE, TWO, THREE, UTC)) instanceof DateAdd);
+    }
+
+    public void testFoldNullDatePart() {
+        FoldNull foldNull = new FoldNull();
+        assertNullLiteral(foldNull.rule(new DatePart(EMPTY, NULL, TWO, UTC)));
+        assertNullLiteral(foldNull.rule(new DatePart(EMPTY, ONE, NULL, UTC)));
+        assertNullLiteral(foldNull.rule(new DatePart(EMPTY, NULL, NULL, UTC)));
+        assertTrue(foldNull.rule(new DatePart(EMPTY, ONE, TWO, UTC)) instanceof DatePart);
+    }
+
+    public void testFoldNullDateTrunc() {
+        FoldNull foldNull = new FoldNull();
+        assertNullLiteral(foldNull.rule(new DateTrunc(EMPTY, NULL, TWO, UTC)));
+        assertNullLiteral(foldNull.rule(new DateTrunc(EMPTY, ONE, NULL, UTC)));
+        assertNullLiteral(foldNull.rule(new DateTrunc(EMPTY, NULL, NULL, UTC)));
+        assertTrue(foldNull.rule(new DateTrunc(EMPTY, ONE, TWO, UTC)) instanceof DateTrunc);
     }
 
     public void testSimplifyCaseConditionsFoldWhenFalse() {
@@ -1434,7 +1481,7 @@ public class OptimizerTests extends ESTestCase {
         assertSame(last, aggregates.get(0));
         assertEquals(max2, aggregates.get(1));
     }
-    
+
     public void testSortAggregateOnOrderByWithTwoFields() {
         FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", DataType.BYTE, emptyMap(), true));
         FieldAttribute secondField = new FieldAttribute(EMPTY, "second_field",
@@ -1443,12 +1490,12 @@ public class OptimizerTests extends ESTestCase {
         Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
         Order firstOrderBy = new Order(EMPTY, firstField, OrderDirection.ASC, Order.NullsPosition.LAST);
         Order secondOrderBy = new Order(EMPTY, secondField, OrderDirection.ASC, Order.NullsPosition.LAST);
-        
+
         OrderBy orderByPlan = new OrderBy(EMPTY,
                 new Aggregate(EMPTY, FROM(), Arrays.asList(secondField, firstField), Arrays.asList(secondAlias, firstAlias)),
                 Arrays.asList(firstOrderBy, secondOrderBy));
         LogicalPlan result = new SortAggregateOnOrderBy().apply(orderByPlan);
-        
+
         assertTrue(result instanceof OrderBy);
         List<Order> order = ((OrderBy) result).order();
         assertEquals(2, order.size());
@@ -1456,7 +1503,7 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(order.get(1).child() instanceof FieldAttribute);
         assertEquals("first_field", ((FieldAttribute) order.get(0).child()).name());
         assertEquals("second_field", ((FieldAttribute) order.get(1).child()).name());
-        
+
         assertTrue(((OrderBy) result).child() instanceof Aggregate);
         Aggregate agg = (Aggregate) ((OrderBy) result).child();
         List<?> groupings = agg.groupings();
@@ -1466,7 +1513,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(firstField, groupings.get(0));
         assertEquals(secondField, groupings.get(1));
     }
-    
+
     public void testSortAggregateOnOrderByOnlyAliases() {
         FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", DataType.BYTE, emptyMap(), true));
         FieldAttribute secondField = new FieldAttribute(EMPTY, "second_field",
@@ -1475,12 +1522,12 @@ public class OptimizerTests extends ESTestCase {
         Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
         Order firstOrderBy = new Order(EMPTY, firstAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
         Order secondOrderBy = new Order(EMPTY, secondAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
-        
+
         OrderBy orderByPlan = new OrderBy(EMPTY,
                 new Aggregate(EMPTY, FROM(), Arrays.asList(secondAlias, firstAlias), Arrays.asList(secondAlias, firstAlias)),
                 Arrays.asList(firstOrderBy, secondOrderBy));
         LogicalPlan result = new SortAggregateOnOrderBy().apply(orderByPlan);
-        
+
         assertTrue(result instanceof OrderBy);
         List<Order> order = ((OrderBy) result).order();
         assertEquals(2, order.size());
@@ -1488,7 +1535,7 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(order.get(1).child() instanceof Alias);
         assertEquals("first_alias", ((Alias) order.get(0).child()).name());
         assertEquals("second_alias", ((Alias) order.get(1).child()).name());
-        
+
         assertTrue(((OrderBy) result).child() instanceof Aggregate);
         Aggregate agg = (Aggregate) ((OrderBy) result).child();
         List<?> groupings = agg.groupings();
@@ -1497,5 +1544,90 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(groupings.get(1) instanceof Alias);
         assertEquals(firstAlias, groupings.get(0));
         assertEquals(secondAlias, groupings.get(1));
+    }
+
+    public void testPivotRewrite() {
+        FieldAttribute column = getFieldAttribute("pivot");
+        FieldAttribute number = getFieldAttribute("number");
+        List<NamedExpression> values = Arrays.asList(new Alias(EMPTY, "ONE", L(1)), new Alias(EMPTY, "TWO", L(2)));
+        List<NamedExpression> aggs = Arrays.asList(new Avg(EMPTY, number));
+        Pivot pivot = new Pivot(EMPTY, new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false), column, values, aggs);
+
+        LogicalPlan result = new RewritePivot().apply(pivot);
+        assertEquals(Pivot.class, result.getClass());
+        Pivot pv = (Pivot) result;
+        assertEquals(pv.aggregates(), aggs);
+        assertEquals(Filter.class, pv.child().getClass());
+        Filter f = (Filter) pv.child();
+        assertEquals(In.class, f.condition().getClass());
+        In in = (In) f.condition();
+        assertEquals(column, in.value());
+        assertEquals(Arrays.asList(L(1), L(2)), in.list());
+    }
+
+    /**
+     * Test queries like SELECT MIN(agg_field), MAX(agg_field) FROM table WHERE MATCH(match_field,'A') AND/OR QUERY('match_field:A')
+     * or SELECT STDDEV_POP(agg_field), VAR_POP(agg_field) FROM table WHERE MATCH(match_field,'A') AND/OR QUERY('match_field:A')
+     */
+    public void testAggregatesPromoteToStats_WithFullTextPredicatesConditions() {
+        FieldAttribute matchField = new FieldAttribute(EMPTY, "match_field", new EsField("match_field", DataType.TEXT, emptyMap(), true));
+        FieldAttribute aggField = new FieldAttribute(EMPTY, "agg_field", new EsField("agg_field", DataType.INTEGER, emptyMap(), true));
+
+        FullTextPredicate matchPredicate = new MatchQueryPredicate(EMPTY, matchField, "A", StringUtils.EMPTY);
+        FullTextPredicate multiMatchPredicate = new MultiMatchQueryPredicate(EMPTY, "match_field", "A", StringUtils.EMPTY);
+        FullTextPredicate stringQueryPredicate = new StringQueryPredicate(EMPTY, "match_field:A", StringUtils.EMPTY);
+        List<FullTextPredicate> predicates = Arrays.asList(matchPredicate, multiMatchPredicate, stringQueryPredicate);
+
+        FullTextPredicate left = randomFrom(predicates);
+        FullTextPredicate right = randomFrom(predicates);
+
+        BinaryLogic or = new Or(EMPTY, left, right);
+        BinaryLogic and = new And(EMPTY, left, right);
+        BinaryLogic condition = randomFrom(or, and);
+        Filter filter = new Filter(EMPTY, FROM(), condition);
+
+        List<AggregateFunction> aggregates;
+        boolean isSimpleStats = randomBoolean();
+        if (isSimpleStats) {
+            aggregates = Arrays.asList(new Avg(EMPTY, aggField), new Sum(EMPTY, aggField), new Min(EMPTY, aggField),
+                    new Max(EMPTY, aggField));
+        } else {
+            aggregates = Arrays.asList(new StddevPop(EMPTY, aggField), new SumOfSquares(EMPTY, aggField), new VarPop(EMPTY, aggField));
+        }
+        AggregateFunction firstAggregate = randomFrom(aggregates);
+        AggregateFunction secondAggregate = randomValueOtherThan(firstAggregate, () -> randomFrom(aggregates));
+        Aggregate aggregatePlan = new Aggregate(EMPTY, filter, Collections.singletonList(matchField),
+                Arrays.asList(firstAggregate, secondAggregate));
+        LogicalPlan result;
+        if (isSimpleStats) {
+            result = new ReplaceAggsWithStats().apply(aggregatePlan);
+        } else {
+            result = new ReplaceAggsWithExtendedStats().apply(aggregatePlan);
+        }
+
+        assertTrue(result instanceof Aggregate);
+        Aggregate resultAgg = (Aggregate) result;
+        assertEquals(2, resultAgg.aggregates().size());
+        assertTrue(resultAgg.aggregates().get(0) instanceof InnerAggregate);
+        assertTrue(resultAgg.aggregates().get(1) instanceof InnerAggregate);
+
+        InnerAggregate resultFirstAgg = (InnerAggregate) resultAgg.aggregates().get(0);
+        InnerAggregate resultSecondAgg = (InnerAggregate) resultAgg.aggregates().get(1);
+        assertEquals(resultFirstAgg.inner(), firstAggregate);
+        assertEquals(resultSecondAgg.inner(), secondAggregate);
+        if (isSimpleStats) {
+            assertTrue(resultFirstAgg.outer() instanceof Stats);
+            assertTrue(resultSecondAgg.outer() instanceof Stats);
+            assertEquals(((Stats) resultFirstAgg.outer()).field(), aggField);
+            assertEquals(((Stats) resultSecondAgg.outer()).field(), aggField);
+        } else {
+            assertTrue(resultFirstAgg.outer() instanceof ExtendedStats);
+            assertTrue(resultSecondAgg.outer() instanceof ExtendedStats);
+            assertEquals(((ExtendedStats) resultFirstAgg.outer()).field(), aggField);
+            assertEquals(((ExtendedStats) resultSecondAgg.outer()).field(), aggField);
+        }
+
+        assertTrue(resultAgg.child() instanceof Filter);
+        assertEquals(resultAgg.child(), filter);
     }
 }

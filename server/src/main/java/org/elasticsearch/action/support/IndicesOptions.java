@@ -155,47 +155,6 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     /**
-     * See: {@link #fromByte(byte)}
-     */
-    private static byte toByte(IndicesOptions options) {
-        byte id = 0;
-        if (options.ignoreUnavailable()) {
-            id |= 1;
-        }
-        if (options.allowNoIndices()) {
-            id |= 2;
-        }
-        if (options.expandWildcardsOpen()) {
-            id |= 4;
-        }
-        if (options.expandWildcardsClosed()) {
-            id |= 8;
-        }
-        // true is default here, for bw comp we keep the first 16 values
-        // in the array same as before + the default value for the new flag
-        if (options.allowAliasesToMultipleIndices() == false) {
-            id |= 16;
-        }
-        if (options.forbidClosedIndices()) {
-            id |= 32;
-        }
-        if (options.ignoreAliases()) {
-            id |= 64;
-        }
-        return id;
-    }
-
-    private static final IndicesOptions[] OLD_VALUES;
-
-    static {
-        short max = 1 << 7;
-        OLD_VALUES = new IndicesOptions[max];
-        for (short id = 0; id < max; id++) {
-            OLD_VALUES[id] = IndicesOptions.fromByte((byte)id);
-        }
-    }
-
-    /**
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */
     public boolean ignoreUnavailable() {

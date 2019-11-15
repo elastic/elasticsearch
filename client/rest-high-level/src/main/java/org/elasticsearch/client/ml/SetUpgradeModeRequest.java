@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -28,7 +27,7 @@ import java.util.Objects;
 /**
  * Sets ML into upgrade_mode
  */
-public class SetUpgradeModeRequest extends ActionRequest {
+public class SetUpgradeModeRequest implements Validatable {
 
 
     public static final ParseField ENABLED = new ParseField("enabled");
@@ -65,11 +64,6 @@ public class SetUpgradeModeRequest extends ActionRequest {
      */
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

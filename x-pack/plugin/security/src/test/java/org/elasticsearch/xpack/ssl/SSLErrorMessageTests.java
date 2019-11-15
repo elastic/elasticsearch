@@ -9,6 +9,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -107,28 +108,68 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     public void testMessageForKeyStoreOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("keystore", "keystore.path", null);
     }
 
     public void testMessageForPemCertificateOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("certificate", "certificate", withKey("cert1a.key"));
     }
 
     public void testMessageForPemKeyOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("key", "key", withCertificate("cert1a.crt"));
     }
 
     public void testMessageForTrustStoreOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedTrustManagerResource("truststore", "truststore.path");
     }
 
     public void testMessageForCertificateAuthoritiesOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedTrustManagerResource("certificate_authorities", "certificate_authorities");
+    }
+
+    public void testMessageForTransportSslEnabledWithoutKeys() throws Exception {
+        final String prefix = "xpack.security.transport.ssl";
+        final Settings.Builder settings = Settings.builder();
+        settings.put(prefix + ".enabled", true);
+        configureWorkingTruststore(prefix, settings);
+
+        Throwable exception = expectFailure(settings);
+        assertThat(exception, throwableWithMessage("invalid SSL configuration for " + prefix +
+            " - server ssl configuration requires a key and certificate, but these have not been configured;" +
+            " you must set either [" + prefix + ".keystore.path], or both [" + prefix + ".key] and [" + prefix + ".certificate]"));
+        assertThat(exception, instanceOf(ElasticsearchException.class));
+    }
+
+    public void testNoErrorIfTransportSslDisabledWithoutKeys() throws Exception {
+        final String prefix = "xpack.security.transport.ssl";
+        final Settings.Builder settings = Settings.builder();
+        settings.put(prefix + ".enabled", false);
+        configureWorkingTruststore(prefix, settings);
+        expectSuccess(settings);
+    }
+
+    public void testMessageForTransportNotEnabledButKeystoreConfigured() throws Exception {
+        final String prefix = "xpack.security.transport.ssl";
+        checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password",
+            this::configureWorkingKeystore);
+    }
+
+    public void testMessageForTransportNotEnabledButTruststoreConfigured() throws Exception {
+        final String prefix = "xpack.security.transport.ssl";
+        checkUnusedConfiguration(prefix, prefix + ".truststore.path," + prefix + ".truststore.secure_password",
+            this::configureWorkingTruststore);
+    }
+
+    public void testMessageForHttpsNotEnabledButKeystoreConfigured() throws Exception {
+        final String prefix = "xpack.security.http.ssl";
+        checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password",
+            this::configureWorkingKeystore);
+    }
+
+    public void testMessageForHttpsNotEnabledButTruststoreConfigured() throws Exception {
+        final String prefix = "xpack.security.http.ssl";
+        checkUnusedConfiguration(prefix, prefix + ".truststore.path," + prefix + ".truststore.secure_password",
+            this::configureWorkingTruststore);
     }
 
     private void checkMissingKeyManagerResource(String fileType, String configKey, @Nullable Settings.Builder additionalSettings) {
@@ -229,14 +270,24 @@ public class SSLErrorMessageTests extends ESTestCase {
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception, throwableWithMessage(
-            "failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file [" + fileName +
-                "] is blocked; SSL resources should be placed in the [" + env.configFile() + "] directory"));
+        assertThat(exception.getMessage(),
+            containsString("failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file"));
+        assertThat(exception.getMessage(),containsString("file.error"));
         assertThat(exception, instanceOf(ElasticsearchException.class));
 
         exception = exception.getCause();
         assertThat(exception, instanceOf(AccessControlException.class));
         assertThat(exception, throwableWithMessage(containsString(fileName)));
+    }
+
+    private void checkUnusedConfiguration(String prefix, String settingsConfigured, BiConsumer<String, Settings.Builder> configure) {
+        final Settings.Builder settings = Settings.builder();
+        configure.accept(prefix, settings);
+
+        Throwable exception = expectFailure(settings);
+        assertThat(exception, throwableWithMessage("invalid configuration for " + prefix + " - [" + prefix + ".enabled] is not set," +
+            " but the following settings have been configured in elasticsearch.yml : [" + settingsConfigured + "]"));
+        assertThat(exception, instanceOf(ElasticsearchException.class));
     }
 
     private String missingFile() {
@@ -253,7 +304,7 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     private String blockedFile() throws IOException {
-        return "/this/path/is/outside/the/config/directory/file.error";
+        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toString();
     }
 
     /**
@@ -295,6 +346,9 @@ public class SSLErrorMessageTests extends ESTestCase {
 
     private ElasticsearchException expectFailure(Settings.Builder settings) {
         return expectThrows(ElasticsearchException.class, () -> new SSLService(settings.build(), env));
+    }
+    private SSLService expectSuccess(Settings.Builder settings) {
+        return new SSLService(settings.build(), env);
     }
 
     private String resource(String fileName) {

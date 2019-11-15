@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -47,8 +48,7 @@ import java.util.Objects;
  */
 public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(FieldNamesFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FieldNamesFieldMapper.class));
 
     public static final String NAME = "_field_names";
 
@@ -111,8 +111,13 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     String indexName = parserContext.mapperService().index().getName();
-                    deprecationLogger.deprecatedAndMaybeLog("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE, indexName);
-                    builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
+                    if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                        throw new MapperParsingException("The `enabled` setting for the `_field_names` field has been deprecated and "
+                                + "removed but is still used in index [{}]. Please remove it from your mappings and templates.");
+                    } else {
+                        deprecationLogger.deprecatedAndMaybeLog("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE, indexName);
+                        builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
+                    }
                     iterator.remove();
                 }
             }

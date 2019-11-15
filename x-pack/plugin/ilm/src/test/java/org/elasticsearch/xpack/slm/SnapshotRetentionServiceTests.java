@@ -27,6 +27,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,6 +66,41 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
 
             service.setUpdateSchedule("");
             assertThat(service.getScheduler().jobCount(), equalTo(0));
+
+            // Service should not scheduled any jobs once closed
+            service.close();
+            service.onMaster();
+            assertThat(service.getScheduler().jobCount(), equalTo(0));
+
+            threadPool.shutdownNow();
+        }
+    }
+
+    public void testManualTriggering() throws InterruptedException {
+        final DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+        ClockMock clock = new ClockMock();
+        AtomicInteger invoked = new AtomicInteger(0);
+    
+        ThreadPool threadPool = new TestThreadPool("test");
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, discoveryNode, clusterSettings);
+             SnapshotRetentionService service = new SnapshotRetentionService(Settings.EMPTY,
+                 () -> new FakeRetentionTask(event -> {
+                     assertThat(event.getJobName(), equalTo(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID));
+                     invoked.incrementAndGet();
+                 }), clusterService, clock)) {
+    
+            service.onMaster();
+            service.triggerRetention();
+            assertThat(invoked.get(), equalTo(1));
+    
+            service.offMaster();
+            service.triggerRetention();
+            assertThat(invoked.get(), equalTo(1));
+    
+            service.onMaster();
+            service.triggerRetention();
+            assertThat(invoked.get(), equalTo(2));
         } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
@@ -71,13 +108,20 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
     }
 
     private static class FakeRetentionTask extends SnapshotRetentionTask {
+        private final Consumer<SchedulerEngine.Event> onTrigger;
+
         FakeRetentionTask() {
+            this(evt -> {});
+        }
+
+        FakeRetentionTask(Consumer<SchedulerEngine.Event> onTrigger) {
             super(mock(Client.class), null, System::nanoTime, mock(SnapshotHistoryStore.class), mock(ThreadPool.class));
+            this.onTrigger = onTrigger;
         }
 
         @Override
         public void triggered(SchedulerEngine.Event event) {
-            super.triggered(event);
+            onTrigger.accept(event);
         }
     }
 }

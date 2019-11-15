@@ -94,7 +94,6 @@ both index and query time.
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.47000363,
         "_source": {
@@ -103,7 +102,6 @@ both index and query time.
       },
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "2",
         "_score": 0.47000363,
         "_source": {

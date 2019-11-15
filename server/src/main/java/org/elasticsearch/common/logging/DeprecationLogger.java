@@ -253,7 +253,7 @@ public class DeprecationLogger {
                      */
                     String opaqueId = getXOpaqueId(threadContexts);
 
-                    logger.warn(new DeprecatedMessage(message, opaqueId, params));
+                    logger.warn(DeprecatedMessage.of(opaqueId, message, params));
                     return null;
                 }
             });

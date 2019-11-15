@@ -19,8 +19,7 @@
         }
       },
       "index" : {
-        "index" : "bwc_watch_index",
-        "doc_type" : "bwc_watch_type"
+        "index" : "bwc_watch_index"
       }
     }
   }

@@ -31,7 +31,7 @@ import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.vali
 public class UpdateTransformAction extends ActionType<UpdateTransformAction.Response> {
 
     public static final UpdateTransformAction INSTANCE = new UpdateTransformAction();
-    public static final String NAME = "cluster:admin/data_frame/update";
+    public static final String NAME = "cluster:admin/transform/update";
 
     private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);

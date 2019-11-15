@@ -75,7 +75,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -484,12 +483,17 @@ public class MetaDataCreateIndexService {
                 final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
                 createdIndex = indexService.index();
                 // now add the mappings
+
                 MapperService mapperService = indexService.mapperService();
-                try {
-                    mapperService.merge(mappings, MergeReason.MAPPING_UPDATE);
-                } catch (Exception e) {
-                    removalExtraInfo = "failed on parsing default mapping/mappings on index creation";
-                    throw e;
+                if (mappings.isEmpty() == false) {
+                    assert mappings.size() == 1;
+                    String type = mappings.keySet().iterator().next();
+                    try {
+                        mapperService.merge(type, mappings.get(type), MergeReason.MAPPING_UPDATE);
+                    } catch (Exception e) {
+                        removalExtraInfo = "failed on parsing default mapping/mappings on index creation";
+                        throw e;
+                    }
                 }
 
                 if (request.recoverFrom() == null) {
@@ -519,12 +523,10 @@ public class MetaDataCreateIndexService {
 
                 // now, update the mappings with the actual source
                 Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
-                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
-                    if (mapper != null) {
-                        MappingMetaData mappingMd = new MappingMetaData(mapper);
-                        mappingsMetaData.put(mapper.type(), mappingMd);
-                    }
+                DocumentMapper mapper = mapperService.documentMapper();
+                if (mapper != null) {
+                    MappingMetaData mappingMd = new MappingMetaData(mapper);
+                    mappingsMetaData.put(mapper.type(), mappingMd);
                 }
 
                 final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index())
@@ -737,8 +739,7 @@ public class MetaDataCreateIndexService {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
         }
 
-        if ((targetIndexMappingsTypes.size() > 1 ||
-            (targetIndexMappingsTypes.isEmpty() || targetIndexMappingsTypes.contains(MapperService.DEFAULT_MAPPING)) == false)) {
+        if (targetIndexMappingsTypes.size() > 0) {
             throw new IllegalArgumentException("mappings are not allowed when resizing indices" +
                 ", all mappings are copied from the source index");
         }
@@ -770,10 +771,7 @@ public class MetaDataCreateIndexService {
         if (type == ResizeType.SHRINK) {
             final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, resizeSourceIndex.getName(),
                 mappingKeys, resizeIntoName, indexSettingsBuilder.build());
-            indexSettingsBuilder
-                .put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
-                // we only try once and then give up with a shrink index
-                .put("index.allocation.max_retries", 1);
+            indexSettingsBuilder.put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()));
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.putNull(initialRecoveryIdFilter);

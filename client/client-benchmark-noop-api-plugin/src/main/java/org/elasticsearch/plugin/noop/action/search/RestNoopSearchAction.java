@@ -35,8 +35,6 @@ public class RestNoopSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_noop_search", this);
         controller.registerHandler(GET, "/{index}/_noop_search", this);
         controller.registerHandler(POST, "/{index}/_noop_search", this);
-        controller.registerHandler(GET, "/{index}/{type}/_noop_search", this);
-        controller.registerHandler(POST, "/{index}/{type}/_noop_search", this);
     }
 
     @Override

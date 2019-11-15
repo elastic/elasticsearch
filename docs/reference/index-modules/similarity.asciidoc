@@ -260,7 +260,6 @@ Which yields:
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {
@@ -433,7 +432,6 @@ GET /index/_search?explain=true
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {

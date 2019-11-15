@@ -95,27 +95,20 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
+    protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
         // TODO how to assert this?
         if (queryBuilder.innerHit() != null) {
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
             // doCreateTestQueryBuilder)
-            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
+            queryBuilder = (NestedQueryBuilder) queryBuilder.rewrite(context);
 
-            assertNotNull(searchContext);
+            assertNotNull(context);
             Map<String, InnerHitContextBuilder> innerHitInternals = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(queryBuilder, innerHitInternals);
-            InnerHitsContext innerHitsContext = new InnerHitsContext();
-            for (InnerHitContextBuilder builder : innerHitInternals.values()) {
-                builder.build(searchContext, innerHitsContext);
-            }
-            assertEquals(1, innerHitsContext.getInnerHits().size());
-            assertTrue(innerHitsContext.getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-            InnerHitsContext.InnerHitSubContext innerHits = innerHitsContext.getInnerHits().get(queryBuilder.innerHit().getName());
-            assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-            assertEquals(innerHits.sort().sort.getSort().length, 1);
-            assertEquals(innerHits.sort().sort.getSort()[0].getField(), INT_FIELD_NAME);
+            assertTrue(innerHitInternals.containsKey(queryBuilder.innerHit().getName()));
+            InnerHitContextBuilder innerHits = innerHitInternals.get(queryBuilder.innerHit().getName());
+            assertEquals(innerHits.innerHitBuilder(), queryBuilder.innerHit());
         }
     }
 
@@ -328,7 +321,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
         MapperService mapperService = mock(MapperService.class);
         IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
-        when(queryShardContext.getIndexSettings()).thenReturn(settings);
+        when(mapperService.getIndexSettings()).thenReturn(settings);
         when(searchContext.mapperService()).thenReturn(mapperService);
 
         InnerHitBuilder leafInnerHits = randomNestedInnerHits();
@@ -340,7 +333,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             query1.extractInnerHitBuilders(innerHitBuilders);
             assertThat(innerHitBuilders.size(), Matchers.equalTo(1));
             assertTrue(innerHitBuilders.containsKey(leafInnerHits.getName()));
-            innerHitBuilders.get(leafInnerHits.getName()).validate(searchContext.getQueryShardContext());
+            innerHitBuilders.get(leafInnerHits.getName()).build(searchContext, innerHitsContext);
         });
         innerHitBuilders.clear();
         NestedQueryBuilder query2 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);

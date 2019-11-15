@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[stop-data-frame-transform]]
+[[stop-transform]]
 === Stop {transforms} API
 
 [subs="attributes"]
@@ -13,45 +13,44 @@ Stops one or more {transforms}.
 beta[]
 
 
-[[stop-data-frame-transform-request]]
+[[stop-transform-request]]
 ==== {api-request-title}
 
-`POST _data_frame/transforms/<data_frame_transform_id>/_stop` +
+`POST _transform/<transform_id>/_stop` +
 
-`POST _data_frame/transforms/<data_frame_transform_id1>,<data_frame_transform_id2>/_stop` +
+`POST _transform/<transform_id1>,<transform_id2>/_stop` +
 
-`POST _data_frame/transforms/_all/_stop`
+`POST _transform/_all/_stop`
 
 
-[[stop-data-frame-transform-prereq]]
+[[stop-transform-prereq]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`manage_data_frame_transforms` cluster privileges to use this API. The built-in
-`data_frame_transforms_admin` role has these privileges. For more information,
-see {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+* If the {es} {security-features} are enabled, you must have `manage_transform` 
+cluster privileges to use this API. The built-in `transform_admin` role has 
+these privileges. For more information, see <<security-privileges>> and 
+<<built-in-roles>>.
 
 
-[[stop-data-frame-transform-desc]]
+[[stop-transform-desc]]
 ==== {api-description-title}
 
 You can stop multiple {transforms} in a single API request by using a
 comma-separated list of {transforms} or a wildcard expression.
 All {transforms} can be stopped by using `_all` or `*` as the
-`<data_frame_transform_id>`.
+`<transform_id>`.
 
 
-[[stop-data-frame-transform-path-parms]]
+[[stop-transform-path-parms]]
 ==== {api-path-parms-title}
 
-`<data_frame_transform_id>`::
+`<transform_id>`::
   (Required, string) Identifier for the {transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
 
-[[stop-data-frame-transform-query-parms]]
+[[stop-transform-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
@@ -91,8 +90,12 @@ are no matches or only partial matches.
   state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
+`wait_for_checkpoint`::
+  (Optional, boolean) If set to `true`, the transform will not completely stop
+  until the current checkpoint is completed. If set to `false`, the transform
+  stops as soon as possible. Defaults to `false`.
 
-[[stop-data-frame-transform-response-codes]]
+[[stop-transform-response-codes]]
 ==== {api-response-codes-title}
 
 `404` (Missing resources)::
@@ -100,12 +103,12 @@ are no matches or only partial matches.
   resources that match the request or only partial matches for the request. 
 
 
-[[stop-data-frame-transform-example]]
+[[stop-transform-example]]
 ==== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/ecommerce_transform/_stop
+POST _transform/ecommerce_transform/_stop
 --------------------------------------------------
 // TEST[skip:set up kibana samples]
 

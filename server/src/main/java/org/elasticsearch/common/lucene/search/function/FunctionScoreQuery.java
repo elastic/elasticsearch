@@ -269,6 +269,7 @@ public class FunctionScoreQuery extends Query {
             if (subQueryScorer == null) {
                 return null;
             }
+            final long leadCost = subQueryScorer.iterator().cost();
             final LeafScoreFunction[] leafFunctions = new LeafScoreFunction[functions.length];
             final Bits[] docSets = new Bits[functions.length];
             for (int i = 0; i < functions.length; i++) {
@@ -276,7 +277,7 @@ public class FunctionScoreQuery extends Query {
                 leafFunctions[i] = function.getLeafScoreFunction(context);
                 if (filterWeights[i] != null) {
                     ScorerSupplier filterScorerSupplier = filterWeights[i].scorerSupplier(context);
-                    docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);
+                    docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier, leadCost);
                 } else {
                     docSets[i] = new Bits.MatchAllBits(context.reader().maxDoc());
                 }

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryCon
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
+import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
@@ -96,6 +99,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
@@ -120,6 +124,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
+        Batch pivot = new Batch("Pivot Rewrite", Limiter.ONCE,
+                new RewritePivot());
+
         Batch operators = new Batch("Operator Optimization",
                 new PruneDuplicatesInGroupBy(),
                 // combining
@@ -170,9 +177,40 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 CleanAliases.INSTANCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(operators, aggregate, local, label);
+        return Arrays.asList(pivot, operators, aggregate, local, label);
     }
 
+    static class RewritePivot extends OptimizerRule<Pivot> {
+
+        @Override
+        protected LogicalPlan rule(Pivot plan) {
+            // 1. add the IN filter
+            List<Expression> rawValues = new ArrayList<>(plan.values().size());
+            for (NamedExpression namedExpression : plan.values()) {
+                // everything should have resolved to an alias
+                if (namedExpression instanceof Alias) {
+                    rawValues.add(((Alias) namedExpression).child());
+                }
+                // TODO: this should be removed when refactoring NamedExpression
+                else if (namedExpression instanceof Literal) {
+                    rawValues.add(namedExpression);
+                }
+                // TODO: NamedExpression refactoring should remove this
+                else if (namedExpression.foldable()) {
+                    rawValues.add(Literal.of(namedExpression.name(), namedExpression));
+                }
+                // TODO: same as above
+                else {
+                    UnresolvedAttribute attr = new UnresolvedAttribute(namedExpression.source(), namedExpression.name(), null,
+                            "Unexpected alias");
+                    return new Pivot(plan.source(), plan.child(), plan.column(), singletonList(attr), plan.aggregates());
+                }
+            }
+            Filter filter = new Filter(plan.source(), plan.child(), new In(plan.source(), plan.column(), rawValues));
+            // 2. preserve the PIVOT
+            return new Pivot(plan.source(), filter, plan.column(), plan.values(), plan.aggregates());
+        }
+    }
 
     static class PruneDuplicatesInGroupBy extends OptimizerRule<Aggregate> {
 
@@ -451,11 +489,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
-                else if (e instanceof ScalarFunction) {
+                else if (e instanceof ScalarFunction && false == Expressions.anyMatch(e.children(), c -> c instanceof FullTextPredicate)) {
                     ScalarFunction sf = (ScalarFunction) e;
 
                     // if it's a unseen function check if the function children/arguments refers to any of the promoted aggs
-                    if (!updatedScalarAttrs.containsKey(sf.functionId()) && e.anyMatch(c -> {
+                    if (newAggIds.isEmpty() == false && !updatedScalarAttrs.containsKey(sf.functionId()) && e.anyMatch(c -> {
                         Attribute a = Expressions.attribute(c);
                         if (a instanceof FunctionAttribute) {
                             return newAggIds.contains(((FunctionAttribute) a).functionId());
@@ -1038,7 +1076,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 Aggregate a = (Aggregate) child;
                 return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
             }
-
+            // if the pivot custom columns are not used, convert the project + pivot into a GROUP BY/Aggregate
+            if (child instanceof Pivot) {
+                Pivot p = (Pivot) child;
+                if (project.outputSet().subsetOf(p.groupingSet())) {
+                    return new Aggregate(p.source(), p.child(), new ArrayList<>(project.projections()), project.projections());
+                }
+            }
+            // TODO: add rule for combining Agg/Pivot with underlying project
             return project;
         }
 
@@ -1172,7 +1217,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
-            } else if (e instanceof Alias == false 
+            } else if (e instanceof Alias == false
                     && e.nullable() == Nullability.TRUE
                     && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
@@ -1976,7 +2021,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 } else if (n.foldable()) {
                     values.add(n.fold());
-                } else {
+                }
+                else {
                     // not everything is foldable, bail-out early
                     return values;
                 }

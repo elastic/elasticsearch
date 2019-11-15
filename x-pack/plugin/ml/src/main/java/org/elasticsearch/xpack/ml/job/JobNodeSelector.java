@@ -110,7 +110,7 @@ public class JobNodeSelector {
                 continue;
             }
 
-            // Assuming the node is elligible at all, check loading
+            // Assuming the node is eligible at all, check loading
             CurrentLoad currentLoad = calculateCurrentLoadForNode(node, persistentTasks, allocateByMemory);
             allocateByMemory = currentLoad.allocateByMemory;
 
@@ -170,6 +170,11 @@ public class JobNodeSelector {
                     long maxMlMemory = machineMemory * maxMachineMemoryPercent / 100;
                     Long estimatedMemoryFootprint = memoryTracker.getJobMemoryRequirement(taskName, jobId);
                     if (estimatedMemoryFootprint != null) {
+                        // If this will be the first job assigned to the node then it will need to
+                        // load the native code shared libraries, so add the overhead for this
+                        if (currentLoad.numberOfAssignedJobs == 0) {
+                            estimatedMemoryFootprint += MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+                        }
                         long availableMemory = maxMlMemory - currentLoad.assignedJobMemory;
                         if (estimatedMemoryFootprint > availableMemory) {
                             reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
@@ -282,6 +287,11 @@ public class JobNodeSelector {
                         result.assignedJobMemory += jobMemoryRequirement;
                     }
                 }
+            }
+            // if any jobs are running then the native code will be loaded, but shared between all jobs,
+            // so increase the total memory usage of the assigned jobs to account for this
+            if (result.numberOfAssignedJobs > 0) {
+                result.assignedJobMemory += MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
             }
         }
 

@@ -60,14 +60,14 @@ public class CombiIT extends ESIntegTestCase {
             String name = "name_" + randomIntBetween(1, 10);
             if (rarely()) {
                 missingValues++;
-                builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                         .startObject()
                         .field("name", name)
                         .endObject());
             } else {
                 int value = randomIntBetween(1, 10);
                 values.put(value, values.getOrDefault(value, 0) + 1);
-                builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                         .startObject()
                         .field("name", name)
                         .field("value", value)

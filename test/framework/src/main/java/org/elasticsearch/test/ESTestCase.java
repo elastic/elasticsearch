@@ -118,7 +118,6 @@ import org.junit.rules.RuleChain;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.security.Security;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -133,6 +132,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -190,6 +190,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
+
+    public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -510,15 +512,21 @@ public abstract class ESTestCase extends LuceneTestCase {
     // TODO: can we do this cleaner???
 
     /** MockFSDirectoryService sets this: */
-    public static boolean checkIndexFailed;
+    public static final List<Exception> checkIndexFailures = new CopyOnWriteArrayList<>();
 
     @Before
     public final void resetCheckIndexStatus() throws Exception {
-        checkIndexFailed = false;
+        checkIndexFailures.clear();
     }
 
     public final void ensureCheckIndexPassed() {
-        assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
+        if (checkIndexFailures.isEmpty() == false) {
+            final AssertionError e = new AssertionError("at least one shard failed CheckIndex");
+            for (Exception failure : checkIndexFailures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
     }
 
     // -----------------------------------------------------------------
@@ -844,6 +852,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        // In case you've forgotten your high-school studies, log10(x) / log10(y) == log y(x)
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
         long sum = 0;
@@ -871,14 +880,34 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    public static boolean awaitBusy(BooleanSupplier breakSupplier) throws InterruptedException {
-        return awaitBusy(breakSupplier, 10, TimeUnit.SECONDS);
+    /**
+     * Periodically execute the supplied function until it returns true, or a timeout
+     * is reached. This version uses a timeout of 10 seconds. If at all possible,
+     * use {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
+     *
+     * @param breakSupplier determines whether to return immediately or continue waiting.
+     * @return the last value returned by <code>breakSupplier</code>
+     * @throws InterruptedException if any sleep calls were interrupted.
+     */
+    public static boolean waitUntil(BooleanSupplier breakSupplier) throws InterruptedException {
+        return waitUntil(breakSupplier, 10, TimeUnit.SECONDS);
     }
 
     // After 1s, we stop growing the sleep interval exponentially and just sleep 1s until maxWaitTime
     private static final long AWAIT_BUSY_THRESHOLD = 1000L;
 
-    public static boolean awaitBusy(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) throws InterruptedException {
+    /**
+     * Periodically execute the supplied function until it returns true, or until the
+     * specified maximum wait time has elapsed. If at all possible, use
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
+     *
+     * @param breakSupplier determines whether to return immediately or continue waiting.
+     * @param maxWaitTime the maximum amount of time to wait
+     * @param unit the unit of tie for <code>maxWaitTime</code>
+     * @return the last value returned by <code>breakSupplier</code>
+     * @throws InterruptedException if any sleep calls were interrupted.
+     */
+    public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) throws InterruptedException {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long timeInMillis = 1;
         long sum = 0;
@@ -1312,7 +1341,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
+        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 
     /**

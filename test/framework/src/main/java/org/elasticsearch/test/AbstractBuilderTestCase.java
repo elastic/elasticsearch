@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +50,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -74,7 +74,6 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -94,6 +93,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -230,22 +230,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
         serviceHolder.clientInvocationHandler.delegate = this;
         serviceHolderWithNoType.clientInvocationHandler.delegate = this;
-    }
-
-    protected static SearchContext getSearchContext(QueryShardContext context) {
-        TestSearchContext testSearchContext = new TestSearchContext(context) {
-            @Override
-            public MapperService mapperService() {
-                return serviceHolder.mapperService; // need to build / parse inner hits sort fields
-            }
-
-            @Override
-            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                return serviceHolder.indexFieldDataService.getForField(fieldType); // need to build / parse inner hits sort fields
-            }
-
-        };
-        return testSearchContext;
     }
 
     @After
@@ -416,6 +400,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }
+                
+        public static Predicate<String> indexNameMatcher() {
+            // Simplistic index name matcher used for testing
+            return pattern -> Regex.simpleMatch(pattern, index.getName());
+        }                 
 
         @Override
         public void close() throws IOException {
@@ -424,7 +413,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
                 indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
-                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null);
+                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher());
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

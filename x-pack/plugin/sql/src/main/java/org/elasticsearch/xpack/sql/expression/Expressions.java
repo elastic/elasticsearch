@@ -8,11 +8,15 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -99,6 +103,31 @@ public final class Expressions {
         return set;
     }
 
+    public static AttributeSet filterReferences(Set<? extends Expression> exps, AttributeSet excluded) {
+        AttributeSet ret = new AttributeSet();
+        while (exps.size() > 0) {
+
+            Set<Expression> filteredExps = new LinkedHashSet<>();
+            for (Expression exp : exps) {
+                Expression attr = Expressions.attribute(exp);
+                if (attr == null || (excluded.contains(attr) == false)) {
+                    filteredExps.add(exp);
+                }
+            }
+
+            ret.addAll(new AttributeSet(
+                filteredExps.stream().filter(c->c.children().isEmpty())
+                .flatMap(exp->exp.references().stream())
+                .collect(Collectors.toSet())
+            ));
+
+            exps = filteredExps.stream()
+                .flatMap((Expression exp)->exp.children().stream())
+                .collect(Collectors.toSet());
+        }
+        return ret;
+    }
+
     public static String name(Expression e) {
         return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.nodeName();
     }
@@ -132,6 +161,30 @@ public final class Expressions {
             return (l != null && l.semanticEquals(attribute(right)));
         }
         return true;
+    }
+
+    public static List<Attribute> onlyPrimitiveFieldAttributes(Collection<Attribute> attributes) {
+        List<Attribute> filtered = new ArrayList<>();
+        // add only primitives
+        // but filter out multi fields (allow only the top-level value)
+        Set<Attribute> seenMultiFields = new LinkedHashSet<>();
+
+        for (Attribute a : attributes) {
+            if (!DataTypes.isUnsupported(a.dataType()) && a.dataType().isPrimitive()) {
+                if (a instanceof FieldAttribute) {
+                    FieldAttribute fa = (FieldAttribute) a;
+                    // skip nested fields and seen multi-fields
+                    if (!fa.isNested() && !seenMultiFields.contains(fa.parent())) {
+                        filtered.add(a);
+                        seenMultiFields.add(a);
+                    }
+                } else {
+                    filtered.add(a);
+                }
+            }
+        }
+
+        return filtered;
     }
 
     public static Pipe pipe(Expression e) {

@@ -229,7 +229,6 @@ operation was that version 1 of the document was created:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -263,7 +262,6 @@ and shows the original source fields that were indexed.
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "_seq_no" : 26,
@@ -387,14 +385,12 @@ that match the search criteria:
     "max_score" : null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score" : null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score" : null,

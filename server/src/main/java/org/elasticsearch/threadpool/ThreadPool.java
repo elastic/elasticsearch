@@ -140,10 +140,12 @@ public class ThreadPool implements Scheduler {
 
     private final ThreadContext threadContext;
 
+    @SuppressWarnings("rawtypes")
     private final Map<String, ExecutorBuilder> builders;
 
     private final ScheduledThreadPoolExecutor scheduler;
 
+    @SuppressWarnings("rawtypes")
     public Collection<ExecutorBuilder> builders() {
         return Collections.unmodifiableCollection(builders.values());
     }
@@ -152,6 +154,7 @@ public class ThreadPool implements Scheduler {
         Setting.timeSetting("thread_pool.estimated_time_interval",
             TimeValue.timeValueMillis(200), TimeValue.ZERO, Setting.Property.NodeScope);
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 

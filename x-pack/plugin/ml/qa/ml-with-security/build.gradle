@@ -5,9 +5,6 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  if (isEclipse) {
-    testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-  }
   testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
@@ -21,7 +18,7 @@ task copyMlRestTests(type: Copy) {
 integTest.runner {
   dependsOn copyMlRestTests
 }
-integTest.runner  {
+integTest.runner {
   systemProperty 'tests.rest.blacklist', [
     // Remove this test because it doesn't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
@@ -65,6 +62,12 @@ integTest.runner  {
     'ml/data_frame_analytics_crud/Test put config given missing analysis',
     'ml/data_frame_analytics_crud/Test put config given empty analysis',
     'ml/data_frame_analytics_crud/Test max model memory limit',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given n_neighbors is negative',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given n_neighbors is zero',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given feature_influence_threshold is negative',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given feature_influence_threshold is greater than one',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given outlier_fraction is negative',
+    'ml/data_frame_analytics_crud/Test put outlier_detection given outlier_fraction is greater than one',
     'ml/data_frame_analytics_crud/Test put regression given dependent_variable is not defined',
     'ml/data_frame_analytics_crud/Test put regression given negative lambda',
     'ml/data_frame_analytics_crud/Test put regression given negative gamma',
@@ -76,6 +79,20 @@ integTest.runner  {
     'ml/data_frame_analytics_crud/Test put regression given feature_bag_fraction is greater than one',
     'ml/data_frame_analytics_crud/Test put regression given training_percent is less than one',
     'ml/data_frame_analytics_crud/Test put regression given training_percent is greater than hundred',
+    'ml/data_frame_analytics_crud/Test put classification given dependent_variable is not defined',
+    'ml/data_frame_analytics_crud/Test put classification given negative lambda',
+    'ml/data_frame_analytics_crud/Test put classification given negative gamma',
+    'ml/data_frame_analytics_crud/Test put classification given eta less than 1e-3',
+    'ml/data_frame_analytics_crud/Test put classification given eta greater than one',
+    'ml/data_frame_analytics_crud/Test put classification given maximum_number_trees is zero',
+    'ml/data_frame_analytics_crud/Test put classification given maximum_number_trees is greater than 2k',
+    'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is negative',
+    'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is greater than one',
+    'ml/data_frame_analytics_crud/Test put classification given num_top_classes is less than zero',
+    'ml/data_frame_analytics_crud/Test put classification given num_top_classes is greater than 1k',
+    'ml/data_frame_analytics_crud/Test put classification given training_percent is less than one',
+    'ml/data_frame_analytics_crud/Test put classification given training_percent is greater than hundred',
+    'ml/data_frame_analytics_memory_usage_estimation/Test memory usage estimation for empty data frame',
     'ml/evaluate_data_frame/Test given missing index',
     'ml/evaluate_data_frame/Test given index does not exist',
     'ml/evaluate_data_frame/Test given missing evaluation',
@@ -90,6 +107,9 @@ integTest.runner  {
     'ml/evaluate_data_frame/Test binary_soft_classification given precision with empty thresholds',
     'ml/evaluate_data_frame/Test binary_soft_classification given recall with empty thresholds',
     'ml/evaluate_data_frame/Test binary_soft_classification given confusion_matrix with empty thresholds',
+    'ml/evaluate_data_frame/Test classification given evaluation with empty metrics',
+    'ml/evaluate_data_frame/Test classification given missing actual_field',
+    'ml/evaluate_data_frame/Test classification given missing predicted_field',
     'ml/evaluate_data_frame/Test regression given evaluation with empty metrics',
     'ml/evaluate_data_frame/Test regression given missing actual_field',
     'ml/evaluate_data_frame/Test regression given missing predicted_field',
@@ -168,7 +188,7 @@ integTest.runner  {
 }
 
 
-testClusters.integTest  {
+testClusters.integTest {
   testDistribution = 'DEFAULT'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"

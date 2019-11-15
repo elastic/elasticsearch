@@ -74,7 +74,7 @@ public class SnapshotLifecycleStats implements ToXContentObject {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), RETENTION_FAILED);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), RETENTION_TIMED_OUT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), RETENTION_TIME_MILLIS);
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> SnapshotPolicyStats.parse(p, n), POLICY_STATS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), SnapshotPolicyStats.PARSER, POLICY_STATS);
     }
 
     // Package visible for testing
@@ -178,22 +178,25 @@ public class SnapshotLifecycleStats implements ToXContentObject {
         private final long snapshotsDeleted;
         private final long snapshotDeleteFailures;
 
+        public static final ParseField POLICY_ID = new ParseField("policy");
         static final ParseField SNAPSHOTS_TAKEN = new ParseField("snapshots_taken");
         static final ParseField SNAPSHOTS_FAILED = new ParseField("snapshots_failed");
         static final ParseField SNAPSHOTS_DELETED = new ParseField("snapshots_deleted");
         static final ParseField SNAPSHOT_DELETION_FAILURES = new ParseField("snapshot_deletion_failures");
 
-        private static final ConstructingObjectParser<SnapshotPolicyStats, String> PARSER =
+        private static final ConstructingObjectParser<SnapshotPolicyStats, Void> PARSER =
             new ConstructingObjectParser<>("snapshot_policy_stats", true,
-                (a, id) -> {
-                    long taken = (long) a[0];
-                    long failed = (long) a[1];
-                    long deleted = (long) a[2];
-                    long deleteFailed = (long) a[3];
+                a -> {
+                    String id = (String) a[0];
+                    long taken = (long) a[1];
+                    long failed = (long) a[2];
+                    long deleted = (long) a[3];
+                    long deleteFailed = (long) a[4];
                     return new SnapshotPolicyStats(id, taken, failed, deleted, deleteFailed);
                 });
 
         static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_ID);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SNAPSHOTS_TAKEN);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SNAPSHOTS_FAILED);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SNAPSHOTS_DELETED);
@@ -209,7 +212,11 @@ public class SnapshotLifecycleStats implements ToXContentObject {
         }
 
         public static SnapshotPolicyStats parse(XContentParser parser, String policyId) {
-            return PARSER.apply(parser, policyId);
+            return PARSER.apply(parser, null);
+        }
+
+        public String getPolicyId() {
+            return policyId;
         }
 
         public long getSnapshotsTaken() {

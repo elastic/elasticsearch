@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[get-data-frame-transform-stats]]
+[[get-transform-stats]]
 === Get {transform} statistics API
 
 [subs="attributes"]
@@ -13,31 +13,30 @@ Retrieves usage information for {transforms}.
 beta[]
 
 
-[[get-data-frame-transform-stats-request]]
+[[get-transform-stats-request]]
 ==== {api-request-title}
 
-`GET _data_frame/transforms/<transform_id>/_stats`
+`GET _transform/<transform_id>/_stats`
 
-`GET _data_frame/transforms/<transform_id>,<transform_id>/_stats` +
+`GET _transform/<transform_id>,<transform_id>/_stats` +
 
-`GET _data_frame/transforms/_stats` +
+`GET _transform/_stats` +
 
-`GET _data_frame/transforms/_all/_stats` +
+`GET _transform/_all/_stats` +
 
-`GET _data_frame/transforms/*/_stats` +
+`GET _transform/*/_stats` +
 
 
-[[get-data-frame-transform-stats-prereqs]]
+[[get-transform-stats-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`monitor_data_frame_transforms` cluster privileges to use this API. The built-in
-`data_frame_transforms_user` role has these privileges. For more information,
-see {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+* If the {es} {security-features} are enabled, you must have `monitor_transform` 
+cluster privileges to use this API. The built-in `transform_user` role has these 
+privileges. For more information, see <<security-privileges>> and 
+<<built-in-roles>>.
 
 
-[[get-data-frame-transform-stats-desc]]
+[[get-transform-stats-desc]]
 ==== {api-description-title}
 
 You can get statistics for multiple {transforms} in a single API
@@ -47,7 +46,7 @@ specifying `*` as the `<transform_id>`, or by omitting the
 `<transform_id>`.
 
 
-[[get-data-frame-transform-stats-path-parms]]
+[[get-transform-stats-path-parms]]
 ==== {api-path-parms-title}
 
 `<transform_id>`::
@@ -57,7 +56,7 @@ specifying `*` as the `<transform_id>`, or by omitting the
   {transforms}.
   
 
-[[get-data-frame-transform-stats-query-parms]]
+[[get-transform-stats-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
@@ -81,21 +80,21 @@ are no matches or only partial matches.
 `size`::
   (Optional, integer) Specifies the maximum number of {transforms} to obtain. The default value is `100`.
 
-[[get-data-frame-transform-stats-response]]
+[[get-transform-stats-response]]
 ==== {api-response-body-title}
 
 `transforms`::
   (array) An array of statistics objects for {transforms}, which are
   sorted by the `id` value in ascending order.
   
-[[get-data-frame-transform-stats-response-codes]]
+[[get-transform-stats-response-codes]]
 ==== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request. 
 
-[[get-data-frame-transform-stats-example]]
+[[get-transform-stats-example]]
 ==== Examples
 
 The following example skips for the first five {transforms} and
@@ -103,7 +102,7 @@ gets usage information for a maximum of ten results:
 
 [source,console]
 --------------------------------------------------
-GET _data_frame/transforms/_stats?from=5&size=10
+GET _transform/_stats?from=5&size=10
 --------------------------------------------------
 // TEST[skip:todo]
 
@@ -112,7 +111,7 @@ The following example gets usage information for the `ecommerce_transform`
 
 [source,console]
 --------------------------------------------------
-GET _data_frame/transforms/ecommerce_transform/_stats
+GET _transform/ecommerce_transform/_stats
 --------------------------------------------------
 // TEST[skip:todo]
 

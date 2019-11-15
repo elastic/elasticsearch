@@ -44,7 +44,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -190,6 +189,7 @@ public class QueryShardContext extends QueryRewriteContext {
         return bitsetFilterCache.getBitSetProducer(filter);
     }
 
+    @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
         return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
     }
@@ -222,14 +222,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public ObjectMapper getObjectMapper(String name) {
         return mapperService.getObjectMapper(name);
-    }
-
-    /**
-     * Returns s {@link DocumentMapper} instance for the given type.
-     * Delegates to {@link MapperService#documentMapper(String)}
-     */
-    public DocumentMapper documentMapper(String type) {
-        return mapperService.documentMapper(type);
     }
 
     /**
@@ -366,6 +358,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public void executeAsyncActions(ActionListener listener) {
         failIfFrozen();
         super.executeAsyncActions(listener);

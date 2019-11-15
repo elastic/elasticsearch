@@ -243,7 +243,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                             break;
 
                         default:
-                            throw new AssertionError("Unknown number type []" + parser.numberType());
+                            throw new IllegalArgumentException("[search_after] does not accept numbers of type ["
+                                + parser.numberType() + "], got " + parser.text());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     values.add(parser.text());

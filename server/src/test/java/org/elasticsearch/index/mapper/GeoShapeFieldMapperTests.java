@@ -60,7 +60,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(),
             equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
-        assertThat(geoShapeFieldMapper.fieldType.hasDocValues(), equalTo(false));
+        assertTrue(geoShapeFieldMapper.fieldType.hasDocValues());
     }
 
     /**

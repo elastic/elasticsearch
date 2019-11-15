@@ -20,6 +20,7 @@
 package org.elasticsearch.geo;
 
 import org.apache.lucene.geo.GeoTestUtil;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -258,4 +259,66 @@ public class GeometryTestUtils {
             }
         });
     }
+
+    /**
+     * Preforms left fold operation on all primitive geometries (points, lines polygons, circles and rectangles).
+     * All collection geometries are iterated depth first.
+     */
+    public static <R, E extends Exception> R fold(Geometry geometry, R state, CheckedBiFunction<Geometry, R, R, E> operation) throws E {
+        return geometry.visit(new GeometryVisitor<R, E>() {
+            @Override
+            public R visit(Circle circle) throws E {
+                return operation.apply(geometry, state);
+            }
+
+            @Override
+            public R visit(GeometryCollection<?> collection) throws E {
+                R ret = state;
+                for (Geometry g : collection) {
+                    ret = fold(g, ret, operation);
+                }
+                return ret;
+            }
+
+            @Override
+            public R visit(Line line) throws E {
+                return operation.apply(line, state);
+            }
+
+            @Override
+            public R visit(LinearRing ring) throws E {
+                return operation.apply(ring, state);
+            }
+
+            @Override
+            public R visit(MultiLine multiLine) throws E {
+                return visit((GeometryCollection<?>) multiLine);
+            }
+
+            @Override
+            public R visit(MultiPoint multiPoint) throws E {
+                return visit((GeometryCollection<?>) multiPoint);            }
+
+            @Override
+            public R visit(MultiPolygon multiPolygon) throws E {
+                return visit((GeometryCollection<?>) multiPolygon);
+            }
+
+            @Override
+            public R visit(Point point) throws E {
+                return operation.apply(point, state);
+            }
+
+            @Override
+            public R visit(Polygon polygon) throws E {
+                return operation.apply(polygon, state);
+            }
+
+            @Override
+            public R visit(Rectangle rectangle) throws E {
+                return operation.apply(rectangle, state);
+            }
+        });
+    }
+
 }

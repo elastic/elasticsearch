@@ -144,7 +144,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
                 res ^= containsBottomLeft(readLeft(root), extent);
             }
 
-            if (root.rightOffset > 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
+            if (root.rightOffset >= 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
                 res ^= containsBottomLeft(readRight(root), extent);
             }
         }
@@ -175,7 +175,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
                 res ^= containsBottomLeft(readLeft(root), extent);
             }
 
-            if (root.rightOffset > 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
+            if (root.rightOffset >= 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
                 res ^= containsBottomLeft(readRight(root), extent);
             }
         }
@@ -206,7 +206,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
             }
 
             /* no right node if rightOffset == -1 */
-            if (root.rightOffset > 0 && extent.maxY() >= root.minY && crosses(readRight(root), extent)) {
+            if (root.rightOffset >= 0 && extent.maxY() >= root.minY && crosses(readRight(root), extent)) {
                 return true;
             }
         }

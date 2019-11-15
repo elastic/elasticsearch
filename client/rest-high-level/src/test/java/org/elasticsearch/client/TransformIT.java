@@ -147,7 +147,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
     public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
             highLevelClient().transform().stopTransform(
-                    new StopTransformRequest(transformId, Boolean.TRUE, null), RequestOptions.DEFAULT);
+                    new StopTransformRequest(transformId, Boolean.TRUE, null, false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
@@ -310,7 +310,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         assertThat(taskState, oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING,
             TransformStats.State.STOPPING, TransformStats.State.STOPPED));
 
-        StopTransformRequest stopRequest = new StopTransformRequest(id, Boolean.TRUE, null);
+        StopTransformRequest stopRequest = new StopTransformRequest(id, Boolean.TRUE, null, false);
         StopTransformResponse stopResponse =
                 execute(stopRequest, client::stopTransform, client::stopTransformAsync);
         assertTrue(stopResponse.isAcknowledged());

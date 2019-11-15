@@ -47,18 +47,19 @@
           properties-content: |
             HOME=$JENKINS_HOME
     publishers:
-      - email:
-          recipients: infra-root+build@elastic.co
+        # FIXME
+#      - email:
+#          recipients: infra-root+build@elastic.co
       # Upload additional logs
-      - google-cloud-storage:
-          credentials-id: 'elasticsearch-ci-gcs-plugin'
-          uploads:
-            - classic:
-                file-pattern: 'build/*.tar.bz2'
-                storage-location: 'gs://elasticsearch-ci-artifacts/jobs/$JOB_NAME'
-                share-publicly: false
-                upload-for-failed-jobs: true
-                show-inline: true
+      #      - google-cloud-storage:
+#         credentials-id: 'elasticsearch-ci-gcs-plugin'
+#         uploads:
+#           - classic:
+#               file-pattern: 'build/*.tar.bz2'
+#               storage-location: 'gs://elasticsearch-ci-artifacts/jobs/$JOB_NAME'
+#               share-publicly: false
+#               upload-for-failed-jobs: true
+      #          show-inline: true
       # Notify homer
       - postbuildscript:
           builders:

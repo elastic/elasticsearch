@@ -19,8 +19,10 @@
 
 package org.elasticsearch.http.nio;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
@@ -157,26 +159,31 @@ public class HttpReadWriteHandler implements NioChannelHandler {
         final HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = (HttpPipelinedRequest<FullHttpRequest>) msg;
         FullHttpRequest request = pipelinedRequest.getRequest();
 
-        boolean success = false;
+        final FullHttpRequest copiedRequest;
         try {
-            NioHttpRequest httpRequest = new NioHttpRequest(request, pipelinedRequest.getSequence());
-
-            if (request.decoderResult().isFailure()) {
-                Throwable cause = request.decoderResult().cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    transport.incomingRequestError(httpRequest, nioHttpChannel, new Exception(cause));
-                } else {
-                    transport.incomingRequestError(httpRequest, nioHttpChannel, (Exception) cause);
-                }
-            } else {
-                transport.incomingRequest(httpRequest, nioHttpChannel);
-            }
-            success = true;
+            copiedRequest = new DefaultFullHttpRequest(
+                request.protocolVersion(),
+                request.method(),
+                request.uri(),
+                Unpooled.copiedBuffer(request.content()),
+                request.headers(),
+                request.trailingHeaders());
         } finally {
-            if (success == false) {
-                request.release();
+            // As we have copied the buffer, we can release the request
+            request.release();
+        }
+        NioHttpRequest httpRequest = new NioHttpRequest(copiedRequest, pipelinedRequest.getSequence());
+
+        if (request.decoderResult().isFailure()) {
+            Throwable cause = request.decoderResult().cause();
+            if (cause instanceof Error) {
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                transport.incomingRequestError(httpRequest, nioHttpChannel, new Exception(cause));
+            } else {
+                transport.incomingRequestError(httpRequest, nioHttpChannel, (Exception) cause);
             }
+        } else {
+            transport.incomingRequest(httpRequest, nioHttpChannel);
         }
     }
 

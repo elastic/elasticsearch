@@ -13,7 +13,7 @@ See: https://github.com/elastic/docs
 
 * Routine doc fixes and enhancements generally should not be backported to minor versions 
   that are out of maintenance or across major versions. 
-  The time required to resolve complex merge conflicts and test failures or figure out where
+  The time required to resolve complex merge conflicts, fix test failures, and figure out where
   to apply the change when the content structure has changed is better spent making additional
   improvements.  
 

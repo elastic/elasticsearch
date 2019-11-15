@@ -474,7 +474,7 @@ adds the `match` enrich policy to a processor in an ingest pipeline.
 Use the <<indices-create-index, create index API>> or <<docs-index_,index
 API>> to create a source index.
 
-The following index API request creates a source index containing and indexes a
+The following index API request creates a source index and indexes a
 new document to that index.
 
 [source,console]
@@ -528,7 +528,7 @@ Use the <<put-pipeline-api,put pipeline API>> to create an ingest pipeline. In
 the pipeline, add an <<enrich-processor,enrich processor>> that includes:
 
 * Your enrich policy.
-* The `field` of incoming documents used to match the geo_shape of documents
+* The `field` of incoming documents used to match documents
   from the enrich index.
 * The `target_field` used to store appended enrich data for incoming documents.
 

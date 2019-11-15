@@ -11,7 +11,7 @@ See: https://github.com/elastic/docs
 * Important technical corrections that need to be applied to the maintenance version of the
   previous major version also need to be applied to all intervening minor versions. 
 
-* Routine doc fixes and enhancements should generally not be backported to minor versions 
+* Routine doc fixes and enhancements generally should not be backported to minor versions 
   that are out of maintenance or across major versions. 
   The time required to resolve complex merge conflicts and test failures or figure out where
   to apply the change when the content structure has changed is better spent making additional

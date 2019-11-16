@@ -23,6 +23,8 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -32,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -39,6 +42,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -69,7 +73,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -86,6 +92,7 @@ import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileVisitResult;
@@ -993,6 +1000,52 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(SnapshotState.FAILED, snapshotInfo.state());
     }
 
+    public void testMasterFailoverDuringCleanup() throws Exception {
+        logger.info("-->  starting two master nodes and one data node");
+        internalCluster().startMasterOnlyNodes(2);
+        internalCluster().startDataOnlyNodes(1);
+
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        logger.info("-->  snapshot");
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).get();
+
+        final RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        final BlobStoreRepository repository = (BlobStoreRepository) service.repository("test-repo");
+
+        logger.info("--> creating a garbage data blob");
+        final PlainActionFuture<Void> garbageFuture = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(ActionRunnable.run(garbageFuture, () -> repository.blobStore()
+            .blobContainer(repository.basePath()).writeBlob("snap-foo.dat", new ByteArrayInputStream(new byte[1]), 1, true)));
+        garbageFuture.get();
+
+        final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile("test-repo");
+
+        logger.info("--> starting repository cleanup");
+        final ActionFuture<CleanupRepositoryResponse> cleanupFuture =
+            client().admin().cluster().prepareCleanupRepository("test-repo").execute();
+
+        logger.info("--> waiting for block to kick in on " + masterNode);
+        waitForBlock(masterNode, "test-repo", TimeValue.timeValueSeconds(60));
+
+        logger.info("-->  stopping master node");
+        internalCluster().stopCurrentMasterNode();
+
+        logger.info("-->  wait for cleanup to finish and disappear from cluster state");
+        assertBusy(() -> {
+            assertTrue(cleanupFuture.isDone());
+            RepositoryCleanupInProgress cleanupInProgress =
+                client().admin().cluster().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
+            assertFalse(cleanupInProgress.cleanupInProgress());
+        }, 30, TimeUnit.SECONDS);
+    }
+
     /**
      * Tests that a shrunken index (created via the shrink APIs) and subsequently snapshotted
      * can be restored when the node the shrunken index was created on is no longer part of
@@ -1555,5 +1608,4 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
         }
     }
-
 }

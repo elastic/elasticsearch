@@ -275,7 +275,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "cannot snapshot while a snapshot deletion is in-progress");
                 }
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
+                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress()) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
                         "cannot snapshot while a repository cleanup is in-progress");
                 }
@@ -1185,7 +1185,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "cannot delete - another snapshot is currently being deleted");
                 }
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
+                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress()) {
                     throw new ConcurrentSnapshotExecutionException(snapshot.getRepository(), snapshot.getSnapshotId().getName(),
                         "cannot delete snapshot while a repository cleanup is in-progress");
                 }
@@ -1339,6 +1339,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (deletionsInProgress != null) {
             for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
                 if (entry.getSnapshot().getRepository().equals(repository)) {
+                    return true;
+                }
+            }
+        }
+        final RepositoryCleanupInProgress repositoryCleanupInProgress = clusterState.custom(RepositoryCleanupInProgress.TYPE);
+        if (repositoryCleanupInProgress != null) {
+            for (RepositoryCleanupInProgress.Entry entry : repositoryCleanupInProgress.entries()) {
+                if (entry.repository().equals(repository)) {
                     return true;
                 }
             }

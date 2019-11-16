@@ -206,8 +206,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             return new DeprecationInfoAction.Response(mergedClusterIssues, mergedNodeIssues, indexSettingsIssues, mlSettingsIssues);
         }
 
-        private static List<DeprecationIssue> mergeNodeIssues(Map<DiscoveryNode,
-                                                              List<DeprecationIssue>> nodeIssues,
+        private static List<DeprecationIssue> mergeNodeIssues(Map<DiscoveryNode, List<DeprecationIssue>> nodeIssues,
                                                               Map<DiscoveryNode, List<DeprecationIssue>> rolesIssuesByNode) {
             Map<DeprecationIssue, List<String>> issuesToNodeMap = new HashMap<>();
             Stream.concat(nodeIssues.entrySet().stream(), rolesIssuesByNode.entrySet().stream())

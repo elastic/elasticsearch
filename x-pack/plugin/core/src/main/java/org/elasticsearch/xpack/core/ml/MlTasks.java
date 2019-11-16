@@ -143,14 +143,31 @@ public final class MlTasks {
 
     public static DataFrameAnalyticsState getDataFrameAnalyticsState(String analyticsId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = getDataFrameAnalyticsTask(analyticsId, tasks);
-        if (task != null) {
-            DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) task.getState();
-            if (taskState == null) {
+        return getDataFrameAnalyticsState(task);
+    }
+
+    public static DataFrameAnalyticsState getDataFrameAnalyticsState(@Nullable PersistentTasksCustomMetaData.PersistentTask<?> task) {
+        if (task == null) {
+            return DataFrameAnalyticsState.STOPPED;
+        }
+        DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) task.getState();
+        if (taskState == null) {
+            return DataFrameAnalyticsState.STARTING;
+        }
+
+        DataFrameAnalyticsState state = taskState.getState();
+        if (taskState.isStatusStale(task)) {
+            if (state == DataFrameAnalyticsState.STOPPING) {
+                // previous executor node failed while the job was stopping - it won't
+                // be restarted on another node, so consider it STOPPED for reassignment purposes
+                return DataFrameAnalyticsState.STOPPED;
+            }
+            if (state != DataFrameAnalyticsState.FAILED) {
+                // we are relocating at the moment
                 return DataFrameAnalyticsState.STARTING;
             }
-            return taskState.getState();
         }
-        return DataFrameAnalyticsState.STOPPED;
+        return state;
     }
 
     /**

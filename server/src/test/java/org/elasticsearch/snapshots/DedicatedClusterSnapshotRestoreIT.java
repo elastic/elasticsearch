@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.IntSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -1028,8 +1027,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile("test-repo");
 
         logger.info("--> starting repository cleanup");
-        final ActionFuture<CleanupRepositoryResponse> cleanupFuture =
-            client().admin().cluster().prepareCleanupRepository("test-repo").execute();
+        client().admin().cluster().prepareCleanupRepository("test-repo").execute();
 
         logger.info("--> waiting for block to kick in on " + masterNode);
         waitForBlock(masterNode, "test-repo", TimeValue.timeValueSeconds(60));
@@ -1039,7 +1037,58 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("-->  wait for cleanup to finish and disappear from cluster state");
         assertBusy(() -> {
-            assertTrue(cleanupFuture.isDone());
+            RepositoryCleanupInProgress cleanupInProgress =
+                client().admin().cluster().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
+            assertFalse(cleanupInProgress.cleanupInProgress());
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testRepeatCleanupsDontRemove() throws Exception {
+        logger.info("-->  starting two master nodes and one data node");
+        internalCluster().startMasterOnlyNodes(2);
+        internalCluster().startDataOnlyNodes(1);
+
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        logger.info("-->  snapshot");
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true).get();
+
+        final RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        final BlobStoreRepository repository = (BlobStoreRepository) service.repository("test-repo");
+
+        logger.info("--> creating a garbage data blob");
+        final PlainActionFuture<Void> garbageFuture = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(ActionRunnable.run(garbageFuture, () -> repository.blobStore()
+            .blobContainer(repository.basePath()).writeBlob("snap-foo.dat", new ByteArrayInputStream(new byte[1]), 1, true)));
+        garbageFuture.get();
+
+        final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile("test-repo");
+
+        logger.info("--> starting repository cleanup");
+        client().admin().cluster().prepareCleanupRepository("test-repo").execute();
+
+        logger.info("--> waiting for block to kick in on " + masterNode);
+        waitForBlock(masterNode, "test-repo", TimeValue.timeValueSeconds(60));
+        try {
+            logger.info("-->  sending another cleanup");
+            assertThrows(client().admin().cluster().prepareCleanupRepository("test-repo").execute(), IllegalStateException.class);
+            logger.info("-->  ensure cleanup is still in progress");
+            final RepositoryCleanupInProgress cleanup =
+                client().admin().cluster().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
+            assertTrue(cleanup.cleanupInProgress());
+        } finally {
+            logger.info("-->  unblocking master node");
+            unblockNode("test-repo", masterNode);
+        }
+
+        logger.info("-->  wait for cleanup to finish and disappear from cluster state");
+        assertBusy(() -> {
             RepositoryCleanupInProgress cleanupInProgress =
                 client().admin().cluster().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
             assertFalse(cleanupInProgress.cleanupInProgress());

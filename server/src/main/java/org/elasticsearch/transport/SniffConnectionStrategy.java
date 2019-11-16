@@ -55,6 +55,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
 
@@ -165,6 +166,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.seedNodes = seedNodes;
     }
 
+    static Stream<Setting.AffixSetting<?>> enablementSettings() {
+        return Stream.of(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD);
+    }
+
     @Override
     protected boolean shouldOpenMoreConnections() {
         return connectionManager.size() < maxNumRemoteConnections;
@@ -173,7 +178,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     @Override
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
         String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        List<String> addresses = REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        List<String> addresses = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         return seedsChanged(configuredSeedNodes, addresses) || proxyChanged(proxyAddress, proxy);
     }
 

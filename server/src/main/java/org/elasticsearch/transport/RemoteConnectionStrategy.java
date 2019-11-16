@@ -47,19 +47,20 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     enum ConnectionStrategy {
-        SNIFF(6, Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD)),
-        SIMPLE(1, Arrays.asList(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES));
+        SNIFF(6, SniffConnectionStrategy::enablementSettings),
+        SIMPLE(1, SimpleConnectionStrategy::enablementSettings);
 
         private final int numberOfChannels;
-        private final List<Setting.AffixSetting<?>> enabledSettings;
+        private final Supplier<Stream<Setting.AffixSetting<?>>> enabledSettings;
 
-        ConnectionStrategy(int numberOfChannels, List<Setting.AffixSetting<?>> enabledSettings) {
+        ConnectionStrategy(int numberOfChannels, Supplier<Stream<Setting.AffixSetting<?>>> enabledSettings) {
             this.numberOfChannels = numberOfChannels;
             this.enabledSettings = enabledSettings;
         }
@@ -118,9 +119,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
-    public static Set<String> getRemoteClusters(Settings settings) {
+    static Set<String> getRemoteClusters(Settings settings) {
         final Stream<Setting.AffixSetting<?>> enablementSettings = Arrays.stream(ConnectionStrategy.values())
-            .flatMap(strategy -> strategy.enabledSettings.stream());
+            .flatMap(strategy -> strategy.enabledSettings.get());
         return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
     }
 

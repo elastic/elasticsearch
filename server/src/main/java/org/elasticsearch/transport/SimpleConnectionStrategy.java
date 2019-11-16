@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
 
@@ -116,6 +117,10 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                         return null;
                     }
                 }));
+    }
+
+    static Stream<Setting.AffixSetting<?>> enablementSettings() {
+        return Stream.of(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES);
     }
 
     @Override

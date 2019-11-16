@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.Collections;
 import java.util.List;
@@ -40,6 +41,9 @@ public class DeprecationChecks {
 
     static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =
             List.of(MlDeprecationChecks::checkDataFeedAggregations, MlDeprecationChecks::checkDataFeedQuery);
+
+    static List<Function<List<RoleDescriptor>, DeprecationIssue>> ROLE_CHECKS =
+        List.of(RoleDeprecationChecks::createPrivilegeCheck);
 
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.

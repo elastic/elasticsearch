@@ -7,16 +7,18 @@ package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +26,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.security.action.role.GetFileRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +41,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -58,23 +64,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
      */
     public static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
         return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
-    }
-
-    private static List<DeprecationIssue> mergeNodeIssues(NodesDeprecationCheckResponse response) {
-        Map<DeprecationIssue, List<String>> issueListMap = new HashMap<>();
-        for (NodesDeprecationCheckAction.NodeResponse resp : response.getNodes()) {
-            for (DeprecationIssue issue : resp.getDeprecationIssues()) {
-                issueListMap.computeIfAbsent(issue, (key) -> new ArrayList<>()).add(resp.getNode().getName());
-            }
-        }
-
-        return issueListMap.entrySet().stream()
-            .map(entry -> {
-                DeprecationIssue issue = entry.getKey();
-                String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
-                return new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(),
-                    details + "(nodes impacted: " + entry.getValue() + ")");
-            }).collect(Collectors.toList());
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -162,12 +151,15 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
          * @param indices The list of index expressions to evaluate using `indexNameExpressionResolver`
          * @param indicesOptions The options to use when resolving and filtering which indices to check
-         * @param datafeeds The ml datafeed configurations
-         * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
+         * @param datafeeds The ml datafeed configurations, if ML is enabled
+         * @param rolesResponse The configured roles, if security is enabled
+         * @param fileRolesResponse The configured file-based roles, for each node, if security is enabled
          * @param indexSettingsChecks The list of index-level checks that will be run across all specified
          *                            concrete indices
          * @param clusterSettingsChecks The list of cluster-level checks
          * @param mlSettingsCheck The list of ml checks
+         * @param rolesChecks The list of security checks
+         * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
          * @return The list of deprecation issues found in the cluster
          */
         public static DeprecationInfoAction.Response from(ClusterState state,
@@ -175,14 +167,16 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                                                           IndexNameExpressionResolver indexNameExpressionResolver,
                                                           String[] indices, IndicesOptions indicesOptions,
                                                           List<DatafeedConfig> datafeeds,
-                                                          NodesDeprecationCheckResponse nodeDeprecationResponse,
+                                                          GetRolesResponse rolesResponse,
+                                                          GetFileRolesResponse fileRolesResponse,
                                                           List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
                                                           List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
                                                           List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>>
-                                                              mlSettingsCheck) {
+                                                              mlSettingsCheck,
+                                                          List<Function<List<RoleDescriptor>, DeprecationIssue>> rolesChecks,
+                                                          NodesDeprecationCheckResponse nodeDeprecationResponse) {
             List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
                 (c) -> c.apply(state));
-            List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
             List<DeprecationIssue> mlSettingsIssues = new ArrayList<>();
             for (DatafeedConfig config : datafeeds) {
                 mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config, xContentRegistry)));
@@ -200,7 +194,51 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 }
             }
 
-            return new DeprecationInfoAction.Response(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, mlSettingsIssues);
+            // Security stuff
+            final List<DeprecationIssue> rolesIssues = filterChecks(rolesChecks, c -> c.apply(Arrays.asList(rolesResponse.roles())));
+            final List<DeprecationIssue> mergedClusterIssues = Stream.concat(clusterSettingsIssues.stream(), rolesIssues.stream())
+                .collect(Collectors.toList());
+
+            final Map<DiscoveryNode, List<DeprecationIssue>> rolesIssuesByNode = runNodeRoleChecks(fileRolesResponse, rolesChecks);
+            final Map<DiscoveryNode, List<DeprecationIssue>> nodeIssues = nodeResponseToMap(nodeDeprecationResponse);
+            final List<DeprecationIssue> mergedNodeIssues = mergeNodeIssues(nodeIssues, rolesIssuesByNode);
+
+            return new DeprecationInfoAction.Response(mergedClusterIssues, mergedNodeIssues, indexSettingsIssues, mlSettingsIssues);
+        }
+
+        private static List<DeprecationIssue> mergeNodeIssues(Map<DiscoveryNode,
+                                                              List<DeprecationIssue>> nodeIssues,
+                                                              Map<DiscoveryNode, List<DeprecationIssue>> rolesIssuesByNode) {
+            Map<DeprecationIssue, List<String>> issuesToNodeMap = new HashMap<>();
+            Stream.concat(nodeIssues.entrySet().stream(), rolesIssuesByNode.entrySet().stream())
+                .forEach(entry -> {
+                    String nodeName = entry.getKey().getName();
+                    entry.getValue().stream()
+                        .forEach(issue -> issuesToNodeMap.computeIfAbsent(issue, i -> new ArrayList<>()).add(nodeName));
+                });
+            return issuesToNodeMap.entrySet().stream()
+                .map(entry -> {
+                    DeprecationIssue issue = entry.getKey();
+                    String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
+                    return new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(),
+                        details + "(nodes impacted: " + entry.getValue() + ")");
+                }).collect(Collectors.toList());
+        }
+
+        private static Map<DiscoveryNode, List<DeprecationIssue>> runNodeRoleChecks(GetFileRolesResponse fileRolesResponse,
+                                                                                    List<Function<List<RoleDescriptor>,
+                                                                                        DeprecationIssue>> rolesChecks) {
+            return fileRolesResponse.getNodes().stream()
+                .collect(Collectors.groupingBy(BaseNodeResponse::getNode,
+                    Collectors.flatMapping(nodeResp -> filterChecks(rolesChecks, (c) -> c.apply(nodeResp.getRoles())).stream(),
+                        Collectors.toList())));
+        }
+
+        private static Map<DiscoveryNode, List<DeprecationIssue>> nodeResponseToMap(NodesDeprecationCheckResponse nodeDeprecationResponse) {
+            return nodeDeprecationResponse.getNodes().stream()
+                .collect(Collectors.groupingBy(BaseNodeResponse::getNode,
+                    Collectors.flatMapping(nodeResp -> nodeResp.getDeprecationIssues().stream(),
+                        Collectors.toList())));
         }
     }
 

@@ -107,6 +107,10 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         return descriptors;
     }
 
+    public List<RoleDescriptor> getAllRoleDescriptors() {
+        return new ArrayList<>(permissions.values());
+    }
+
     public Map<String, Object> usageStats() {
         final Map<String, RoleDescriptor> localPermissions = permissions;
         Map<String, Object> usageStats = new HashMap<>(3);

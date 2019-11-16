@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesActio
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
+import org.elasticsearch.xpack.core.security.action.role.GetFileRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
@@ -152,6 +153,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesA
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
+import org.elasticsearch.xpack.security.action.role.TransportGetFileRolesAction;
 import org.elasticsearch.xpack.security.action.role.TransportGetRolesAction;
 import org.elasticsearch.xpack.security.action.role.TransportPutRoleAction;
 import org.elasticsearch.xpack.security.action.rolemapping.TransportDeleteRoleMappingAction;
@@ -410,6 +412,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState(),
             xContentRegistry);
+        components.add(fileRolesStore);
+
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders = new ArrayList<>();
@@ -703,6 +707,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
                 new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
                 new ActionHandler<>(GetRolesAction.INSTANCE, TransportGetRolesAction.class),
+                new ActionHandler<>(GetFileRolesAction.INSTANCE, TransportGetFileRolesAction.class),
                 new ActionHandler<>(PutRoleAction.INSTANCE, TransportPutRoleAction.class),
                 new ActionHandler<>(DeleteRoleAction.INSTANCE, TransportDeleteRoleAction.class),
                 new ActionHandler<>(ChangePasswordAction.INSTANCE, TransportChangePasswordAction.class),

@@ -32,8 +32,15 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
+import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckResponse;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.security.action.role.GetFileRolesAction;
+import org.elasticsearch.xpack.core.security.action.role.GetFileRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.GetFileRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,6 +50,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.ML_SETTINGS_CHECKS;
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.ROLE_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
         DeprecationInfoAction.Response> {
@@ -88,11 +96,40 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     protected final void masterOperation(Task task, final DeprecationInfoAction.Request request, ClusterState state,
                                          final ActionListener<DeprecationInfoAction.Response> listener) {
         if (licenseState.isDeprecationAllowed()) {
+            getNodeLocalDeprecations(ActionListener.wrap(nodeLocalDeprecations -> {
+                getDatafeedConfigs(ActionListener.wrap(datafeeds -> {
+                    getRoles(ActionListener.wrap(roles -> {
+                        getFileRoles(ActionListener.wrap(fileRoles -> {
+                            listener.onResponse(
+                                DeprecationInfoAction.Response.from(
+                                    state,
+                                    xContentRegistry,
+                                    indexNameExpressionResolver,
+                                    request.indices(),
+                                    request.indicesOptions(),
+                                    datafeeds,
+                                    roles,
+                                    fileRoles,
+                                    INDEX_SETTINGS_CHECKS,
+                                    CLUSTER_SETTINGS_CHECKS,
+                                    ML_SETTINGS_CHECKS,
+                                    ROLE_CHECKS,
+                                    nodeLocalDeprecations
+                                ));
 
-            NodesDeprecationCheckRequest nodeDepReq = new NodesDeprecationCheckRequest("_all");
-            ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN,
-                NodesDeprecationCheckAction.INSTANCE, nodeDepReq,
-                ActionListener.wrap(response -> {
+                        }, listener::onFailure));
+                    }, listener::onFailure));
+                }, listener::onFailure));
+            }, listener::onFailure));
+        } else {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.DEPRECATION));
+        }
+    }
+
+    private void getNodeLocalDeprecations(ActionListener<NodesDeprecationCheckResponse> listener) {
+        NodesDeprecationCheckRequest nodeDepReq = new NodesDeprecationCheckRequest("_all");
+        ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN,
+            NodesDeprecationCheckAction.INSTANCE, nodeDepReq, ActionListener.wrap(response -> {
                 if (response.hasFailures()) {
                     List<String> failedNodeIds = response.failures().stream()
                         .map(failure -> failure.nodeId() + ": " + failure.getMessage())
@@ -102,21 +139,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                         logger.debug("node {} failed to run deprecation checks: {}", failure.nodeId(), failure);
                     }
                 }
-                getDatafeedConfigs(ActionListener.wrap(
-                    datafeeds -> {
-                        listener.onResponse(
-                            DeprecationInfoAction.Response.from(state, xContentRegistry, indexNameExpressionResolver,
-                                request.indices(), request.indicesOptions(), datafeeds,
-                                response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS,
-                                ML_SETTINGS_CHECKS));
-                    },
-                    listener::onFailure
-                ));
-
+                listener.onResponse(response);
             }, listener::onFailure));
-        } else {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.DEPRECATION));
-        }
     }
 
     private void getDatafeedConfigs(ActionListener<List<DatafeedConfig>> listener) {
@@ -128,6 +152,34 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                             datafeedsResponse -> listener.onResponse(datafeedsResponse.getResponse().results()),
                             listener::onFailure
                     ));
+        }
+    }
+
+    private void getRoles(ActionListener<GetRolesResponse> listener) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+            listener.onResponse(null);
+        } else {
+            ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN, GetRolesAction.INSTANCE,
+                new GetRolesRequest(), ActionListener.wrap(listener::onResponse, listener::onFailure));
+        }
+    }
+
+    private void getFileRoles(ActionListener<GetFileRolesResponse> listener) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+            listener.onResponse(null);
+        } else {
+            ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN, GetFileRolesAction.INSTANCE,
+                new GetFileRolesRequest(), ActionListener.wrap(response -> {
+                    if (response.hasFailures()) {
+                        List<String> failedNodeIds = response.failures().stream()
+                            .map(failure -> failure.nodeId() + ": " + failure.getMessage())
+                            .collect(Collectors.toList());
+                        logger.warn("failed to retrieve file-based roles from nodes: {}", failedNodeIds);
+                        for (FailedNodeException failure : response.failures()) {
+                            logger.debug("node {} failed to return file-based roles: {}", failure.nodeId(), failure);
+                        }
+                    }
+                }, listener::onFailure));
         }
     }
 }

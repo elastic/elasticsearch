@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 // not thread-safe
 public class GCMPacketsEncryptorInputStream extends FilterInputStream {
 
@@ -64,20 +63,8 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
     }
 
     @Override
-    public int read() throws IOException {
-        byte[] b = new byte[1];
-        int bytesRead = read(b, 0, 1);
-        if (bytesRead == -1) {
-            return -1;
-        }
-        if (bytesRead != 1) {
-            throw new IllegalStateException();
-        }
-        return (int) b[0];
-    }
-
-    @Override
     public int read(byte b[], int off, int len) throws IOException {
+        ensureOpen();
         int maxReadSize = getReadSize(len);
         int readSize = in.readNBytes(b, off, maxReadSize);
         assert readSize >= 0 : "readNBytes does not return -1 on end-of-stream";
@@ -137,12 +124,17 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         }
     }
 
-    private void finishPacket(byte[] authenticationTag) throws IOException {
-        packetInfoList.add(new EncryptedBlobMetadata.PacketInfo(packetIv, authenticationTag,
-                maxPacketSizeInBytes - bytesRemainingInPacket));
-        bytesRemainingInPacket = maxPacketSizeInBytes;
-        packetIv = ivGenerator.newUniqueIv();
-        packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
+    @Override
+    public int read() throws IOException {
+        byte[] b = new byte[1];
+        int bytesRead = read(b, 0, 1);
+        if (bytesRead == -1) {
+            return -1;
+        }
+        if (bytesRead != 1) {
+            throw new IllegalStateException();
+        }
+        return (int) b[0];
     }
 
     @Override
@@ -182,10 +174,32 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
 
     @Override
     public void reset() throws IOException {
+        ensureOpen();
         in.reset();
         // discard packets after mark point
         packetInfoList.subList(markPacketIndex, packetInfoList.size()).clear();
         // reinstantiate packetCipher
+        bytesRemainingInPacket = maxPacketSizeInBytes;
+        packetIv = ivGenerator.newUniqueIv();
+        packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
+    }
+
+    public List<EncryptedBlobMetadata.PacketInfo> getEncryptionPacketMetadata() {
+        if (false == closed) {
+            throw new IllegalStateException();
+        }
+        return List.copyOf(packetInfoList);
+    }
+
+    void ensureOpen() throws IOException {
+        if (closed) {
+            throw new IOException("Stream closed");
+        }
+    }
+
+    private void finishPacket(byte[] authenticationTag) throws IOException {
+        packetInfoList.add(new EncryptedBlobMetadata.PacketInfo(packetIv, authenticationTag,
+                maxPacketSizeInBytes - bytesRemainingInPacket));
         bytesRemainingInPacket = maxPacketSizeInBytes;
         packetIv = ivGenerator.newUniqueIv();
         packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
@@ -202,6 +216,13 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         }
     }
 
+    /**
+     * Tries to return a read size value such that it is smaller or equal to the requested {@code len}, does not exceed the remaining
+     * space in the current packet and, very important, is a multiple of {@link #AES_BLOCK_SIZE_IN_BYTES}. If the requested {@code len}
+     * or the remaining space in the current packet are smaller than {@link #AES_BLOCK_SIZE_IN_BYTES}, then their minimum is returned.
+     *
+     * @param len the requested read size
+     */
     private int getReadSize(int len) {
         if (bytesRemainingInPacket <= 0) {
             throw new IllegalStateException();
@@ -235,16 +256,12 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         }
 
         byte[] newUniqueIv() {
-            byte[] uniqueIv = newUniqueIv(3);
-            if (uniqueIv == null) {
-                throw new IllegalStateException("Secure random returns many similar values");
-            }
-            return uniqueIv;
+            return newUniqueIv(5);
         }
 
         private byte[] newUniqueIv(int retryCount) {
             if (retryCount <= 0) {
-                return null;
+                throw new IllegalStateException("Secure random returns many similar values");
             }
             long part1 = secureRandom.nextLong();
             Set<Integer> part2Set = generatedIvs.computeIfAbsent(part1, k -> new HashSet<>());

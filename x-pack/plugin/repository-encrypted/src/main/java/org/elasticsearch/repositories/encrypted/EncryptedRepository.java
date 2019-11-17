@@ -57,6 +57,7 @@ public class EncryptedRepository extends BlobStoreRepository {
      }
     // TODO change this and make it (secure) randomly generated for each blob
     private static final int NONCE = 5318008;
+    private static final int ENCRYPTION_PROTOCOL_VERSION_NUMBER = 1;
 
     static final Setting.AffixSetting<SecureString> ENCRYPTION_PASSWORD_SETTING = Setting.affixKeySetting("repository.encrypted.",
             "password", key -> SecureSetting.secureString(key, null));

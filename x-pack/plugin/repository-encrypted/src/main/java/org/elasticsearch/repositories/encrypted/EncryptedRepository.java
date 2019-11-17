@@ -48,6 +48,11 @@ import java.util.function.Function;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
+    static final int GCM_TAG_SIZE_IN_BYTES = 16;
+    static final int GCM_IV_SIZE_IN_BYTES = 12;
+    static final String GCM_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
+    static final int AES_BLOCK_SIZE_IN_BYTES = 128;
+
     private static BouncyCastleFipsProvider BC_FIPS_PROVIDER;
      static {
          AccessController.doPrivileged((PrivilegedAction<Void>) () -> {

@@ -30,16 +30,11 @@ import java.util.Set;
 // not thread-safe
 public class GCMPacketsEncryptorInputStream extends FilterInputStream {
 
-    private static final int GCM_TAG_SIZE_IN_BYTES = 16;
-    private static final int GCM_IV_SIZE_IN_BYTES = 12;
-    private static final String GCM_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
-    private static final int AES_BLOCK_SIZE_IN_BYTES = 128;
-
     private final Logger logger =  LogManager.getLogger(getClass());
     private final int maxPacketSizeInBytes;
     private final byte[] packetTrailByteBuffer;
     private final SecretKey secretKey;
-    private final IvRandomGenerator ivGenerator;
+    private final IvRandomUniqueGenerator ivGenerator;
     private final List<EncryptedBlobMetadata.PacketInfo> packetInfoList;
 
     private int bytesRemainingInPacket;
@@ -51,13 +46,13 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
     protected GCMPacketsEncryptorInputStream(InputStream in, SecretKey secretKey, int maxPacketSizeInBytes) throws IOException {
         super(in);
         this.maxPacketSizeInBytes = maxPacketSizeInBytes;
-        this.packetTrailByteBuffer = new byte[AES_BLOCK_SIZE_IN_BYTES + GCM_TAG_SIZE_IN_BYTES];
+        this.packetTrailByteBuffer = new byte[EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES];
         this.secretKey = secretKey;
-        this.ivGenerator = new IvRandomGenerator();
+        this.ivGenerator = new IvRandomUniqueGenerator();
         this.packetInfoList = new ArrayList<>();
         this.bytesRemainingInPacket = maxPacketSizeInBytes;
         this.packetIv = ivGenerator.newUniqueIv();
-        this.packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
+        this.packetCipher = getPacketEncryptionCipher(packetIv);
         this.closed = false;
         this.markPacketIndex = -1;
     }
@@ -86,7 +81,8 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         } catch (ShortBufferException e) {
             throw new IllegalStateException(e);
         }
-        if (bytesRemainingInPacket == 0 || readSize % AES_BLOCK_SIZE_IN_BYTES != 0) {
+        if (bytesRemainingInPacket == 0 || readSize % EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES != 0) {
+            // finalize packet
             final byte[] authenticationTag;
             if (encryptedSize == readSize) {
                 try {
@@ -95,7 +91,7 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
                     throw new IOException(e);
                 }
             } else {
-                if (readSize - encryptedSize >= AES_BLOCK_SIZE_IN_BYTES) {
+                if (readSize - encryptedSize >= EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES) {
                     throw new IllegalStateException();
                 }
                 int trailAndTagSize = 0;
@@ -104,14 +100,14 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
                 } catch (IllegalBlockSizeException | ShortBufferException | BadPaddingException e) {
                     throw new IOException(e);
                 }
-                if (encryptedSize + trailAndTagSize != readSize + GCM_TAG_SIZE_IN_BYTES) {
+                if (encryptedSize + trailAndTagSize != readSize + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES) {
                     throw new IllegalStateException();
                 }
                 // copy the remaining packet trail bytes
-                System.arraycopy(packetTrailByteBuffer, 0, b, off + encryptedSize, trailAndTagSize - GCM_TAG_SIZE_IN_BYTES);
-                authenticationTag = Arrays.copyOfRange(packetTrailByteBuffer, trailAndTagSize - GCM_TAG_SIZE_IN_BYTES, trailAndTagSize);
+                System.arraycopy(packetTrailByteBuffer, 0, b, off + encryptedSize, trailAndTagSize - EncryptedRepository.GCM_TAG_SIZE_IN_BYTES);
+                authenticationTag = Arrays.copyOfRange(packetTrailByteBuffer, trailAndTagSize - EncryptedRepository.GCM_TAG_SIZE_IN_BYTES, trailAndTagSize);
             }
-            if (authenticationTag.length != GCM_TAG_SIZE_IN_BYTES) {
+            if (authenticationTag.length != EncryptedRepository.GCM_TAG_SIZE_IN_BYTES) {
                 throw new IllegalStateException();
             }
             finishPacket(authenticationTag);
@@ -145,6 +141,7 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         closed = true;
         in.close();
         if (bytesRemainingInPacket < maxPacketSizeInBytes) {
+            // finish last packet
             final byte[] authenticationTag;
             try {
                 authenticationTag = packetCipher.doFinal();
@@ -158,8 +155,8 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
     @Override
     public void mark(int readLimit) {
         in.mark(readLimit);
-        // finish in-progress packet
         if (bytesRemainingInPacket < maxPacketSizeInBytes) {
+            // finish in-progress packet
             try {
                 byte[] authenticationTag = packetCipher.doFinal();
                 finishPacket(authenticationTag);
@@ -181,7 +178,7 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         // reinstantiate packetCipher
         bytesRemainingInPacket = maxPacketSizeInBytes;
         packetIv = ivGenerator.newUniqueIv();
-        packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
+        packetCipher = getPacketEncryptionCipher(packetIv);
     }
 
     public List<EncryptedBlobMetadata.PacketInfo> getEncryptionPacketMetadata() {
@@ -202,13 +199,13 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
                 maxPacketSizeInBytes - bytesRemainingInPacket));
         bytesRemainingInPacket = maxPacketSizeInBytes;
         packetIv = ivGenerator.newUniqueIv();
-        packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
+        packetCipher = getPacketEncryptionCipher(packetIv);
     }
 
-    private static Cipher getPacketEncryptionCipher(SecretKey secretKey, byte[] packetIv) throws IOException {
-        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_SIZE_IN_BYTES * Byte.SIZE, packetIv);
+    private Cipher getPacketEncryptionCipher(byte[] packetIv) throws IOException {
+        GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_SIZE_IN_BYTES * Byte.SIZE, packetIv);
         try {
-            Cipher packetCipher = Cipher.getInstance(GCM_ENCRYPTION_SCHEME);
+            Cipher packetCipher = Cipher.getInstance(EncryptedRepository.GCM_ENCRYPTION_SCHEME);
             packetCipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmParameterSpec);
             return packetCipher;
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException e) {
@@ -218,8 +215,9 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
 
     /**
      * Tries to return a read size value such that it is smaller or equal to the requested {@code len}, does not exceed the remaining
-     * space in the current packet and, very important, is a multiple of {@link #AES_BLOCK_SIZE_IN_BYTES}. If the requested {@code len}
-     * or the remaining space in the current packet are smaller than {@link #AES_BLOCK_SIZE_IN_BYTES}, then their minimum is returned.
+     * space in the current packet and, very important, is a multiple of {@link EncryptedRepository#AES_BLOCK_SIZE_IN_BYTES}. If the
+     * requested {@code len} or the remaining space in the current packet are smaller than
+     * {@link EncryptedRepository#AES_BLOCK_SIZE_IN_BYTES}, then their minimum is returned.
      *
      * @param len the requested read size
      */
@@ -234,23 +232,23 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
             return 0;
         }
         int maxReadSize = Math.min(len, bytesRemainingInPacket);
-        int readSize = (maxReadSize / AES_BLOCK_SIZE_IN_BYTES) * AES_BLOCK_SIZE_IN_BYTES;
+        int readSize = (maxReadSize / EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES) * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES;
         if (readSize != 0) {
             return readSize;
         }
-        assert maxReadSize < AES_BLOCK_SIZE_IN_BYTES;
+        assert maxReadSize < EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES;
         if (maxReadSize == len) {
-            logger.warn("Reading [" + len + "] bytes, which is less than [" + AES_BLOCK_SIZE_IN_BYTES + "], is terribly inefficient.");
+            logger.warn("Reading [" + len + "] bytes, which is less than [" + EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES + "], is terribly inefficient.");
         }
         return maxReadSize;
     }
 
-    static class IvRandomGenerator {
+    static class IvRandomUniqueGenerator {
 
         private final Map<Long, Set<Integer>> generatedIvs;
         private final SecureRandom secureRandom;
 
-        IvRandomGenerator() {
+        IvRandomUniqueGenerator() {
             generatedIvs = new HashMap<>();
             secureRandom = new SecureRandom();
         }
@@ -269,7 +267,7 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
             if (false == part2Set.add(part2)) {
                 return newUniqueIv(retryCount - 1);
             }
-            ByteBuffer uniqueIv = ByteBuffer.allocate(GCM_IV_SIZE_IN_BYTES);
+            ByteBuffer uniqueIv = ByteBuffer.allocate(EncryptedRepository.GCM_IV_SIZE_IN_BYTES);
             uniqueIv.putLong(part1);
             uniqueIv.putInt(part2);
             return uniqueIv.array();

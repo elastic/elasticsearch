@@ -13,6 +13,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -26,6 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+
+// not thread-safe
 public class GCMPacketsEncryptorInputStream extends FilterInputStream {
 
     private static final int GCM_TAG_SIZE_IN_BYTES = 16;
@@ -44,6 +47,7 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
     private byte[] packetIv;
     private Cipher packetCipher;
     private boolean closed;
+    private int markPacketIndex;
 
     protected GCMPacketsEncryptorInputStream(InputStream in, SecretKey secretKey, int maxPacketSizeInBytes) throws IOException {
         super(in);
@@ -56,6 +60,7 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         this.packetIv = ivGenerator.newUniqueIv();
         this.packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
         this.closed = false;
+        this.markPacketIndex = -1;
     }
 
     @Override
@@ -122,10 +127,7 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
             if (authenticationTag.length != GCM_TAG_SIZE_IN_BYTES) {
                 throw new IllegalStateException();
             }
-            packetInfoList.add(new EncryptedBlobMetadata.PacketInfo(packetIv, authenticationTag, maxPacketSizeInBytes - bytesRemainingInPacket));
-            bytesRemainingInPacket = maxPacketSizeInBytes;
-            packetIv = ivGenerator.newUniqueIv();
-            packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
+            finishPacket(authenticationTag);
             return readSize;
         } else {
             if (encryptedSize != readSize) {
@@ -135,6 +137,14 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         }
     }
 
+    private void finishPacket(byte[] authenticationTag) throws IOException {
+        packetInfoList.add(new EncryptedBlobMetadata.PacketInfo(packetIv, authenticationTag,
+                maxPacketSizeInBytes - bytesRemainingInPacket));
+        bytesRemainingInPacket = maxPacketSizeInBytes;
+        packetIv = ivGenerator.newUniqueIv();
+        packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
+    }
+
     @Override
     public void close() throws IOException {
         if (closed) {
@@ -142,25 +152,43 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         }
         closed = true;
         in.close();
-        // Throw away the unprocessed data and throw no crypto exceptions.
-        // Normally the GCM cipher is fully readed before closing, so any authentication
-        // exceptions would occur while reading.
-        if (false == done) {
-            done = true;
+        if (bytesRemainingInPacket < maxPacketSizeInBytes) {
+            final byte[] authenticationTag;
             try {
-                packetCipher.doFinal();
-            } catch (BadPaddingException | IllegalBlockSizeException ex) {
-                // Catch exceptions as the rest of the stream is unused.
+                authenticationTag = packetCipher.doFinal();
+            } catch (IllegalBlockSizeException | BadPaddingException e) {
+                throw new IOException(e);
             }
+            finishPacket(authenticationTag);
         }
     }
 
     @Override
     public void mark(int readLimit) {
+        in.mark(readLimit);
+        // finish in-progress packet
+        if (bytesRemainingInPacket < maxPacketSizeInBytes) {
+            try {
+                byte[] authenticationTag = packetCipher.doFinal();
+                finishPacket(authenticationTag);
+            } catch (IllegalBlockSizeException | BadPaddingException e) {
+                throw new UncheckedIOException(new IOException(e));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        markPacketIndex = packetInfoList.size();
     }
 
     @Override
     public void reset() throws IOException {
+        in.reset();
+        // discard packets after mark point
+        packetInfoList.subList(markPacketIndex, packetInfoList.size()).clear();
+        // reinstantiate packetCipher
+        bytesRemainingInPacket = maxPacketSizeInBytes;
+        packetIv = ivGenerator.newUniqueIv();
+        packetCipher = getPacketEncryptionCipher(secretKey, packetIv);
     }
 
     private static Cipher getPacketEncryptionCipher(SecretKey secretKey, byte[] packetIv) throws IOException {

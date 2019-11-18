@@ -63,7 +63,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
 
     public void testUnknownPlatform() {
         assertJdkError(createProject(), "testjdk", "openjdk", "11.0.2+33", "unknown",
-            "unknown platform [unknown] for jdk [testjdk], must be one of [darwin, linux, windows]");
+            "unknown platform [unknown] for jdk [testjdk], must be one of [mac, darwin, linux, windows]");
     }
 
     private void assertJdkError(Project project, String name, String vendor, String version, String platform, String message) {

@@ -132,6 +132,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -1092,29 +1093,36 @@ public final class InternalTestCluster extends TestCluster {
 
     /** ensure a cluster is formed with all published nodes. */
     public synchronized void validateClusterFormed() {
-        String name = randomFrom(random, getNodeNames());
-        validateClusterFormed(name);
-    }
-
-    /** ensure a cluster is formed with all published nodes, but do so by using the client of the specified node */
-    private synchronized void validateClusterFormed(String viaNode) {
-        Set<DiscoveryNode> expectedNodes = new HashSet<>();
+        final Set<DiscoveryNode> expectedNodes = new HashSet<>();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             expectedNodes.add(getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode());
         }
-        logger.trace("validating cluster formed via [{}], expecting {}", viaNode, expectedNodes);
-        final Client client = client(viaNode);
+        logger.trace("validating cluster formed, expecting {}", expectedNodes);
+
+        final Supplier<List<ClusterState>> stateSupplier = () -> nodes.values().stream()
+            .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
+            .map(ClusterService::state)
+            .collect(Collectors.toList());
+
         try {
             assertBusy(() -> {
-                DiscoveryNodes discoveryNodes = client.admin().cluster().prepareState().get().getState().nodes();
-                assertEquals(expectedNodes.size(), discoveryNodes.getSize());
-                for (DiscoveryNode expectedNode : expectedNodes) {
-                    assertTrue("Expected node to exist: " + expectedNode, discoveryNodes.nodeExists(expectedNode));
-                }
+                final List<ClusterState> states = stateSupplier.get();
+                // all nodes have a master
+                assertTrue(states.toString(), states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
+                // all nodes have the same master (in same term)
+                assertEquals(states.toString(), 1, states.stream().mapToLong(ClusterState::term).distinct().count());
+                // all nodes know about all other nodes
+                states.forEach(cs -> {
+                    DiscoveryNodes discoveryNodes = cs.nodes();
+                    assertEquals(expectedNodes.size(), discoveryNodes.getSize());
+                    for (DiscoveryNode expectedNode : expectedNodes) {
+                        assertTrue("Expected node to exist: " + expectedNode, discoveryNodes.nodeExists(expectedNode));
+                    }
+                });
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
-            throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual nodes " +
-                client.admin().cluster().prepareState().get().getState().nodes());
+            throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual cluster states " +
+                stateSupplier.get(), ae);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
@@ -1663,8 +1671,7 @@ public final class InternalTestCluster extends TestCluster {
 
         if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
-            // we have to do this via the node that was just restarted as it may be that the master didn't yet process the fact that it left
-            validateClusterFormed(nodeAndClient.name);
+            validateClusterFormed();
         }
     }
 

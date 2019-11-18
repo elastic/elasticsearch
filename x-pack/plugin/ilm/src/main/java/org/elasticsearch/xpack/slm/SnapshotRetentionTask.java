@@ -458,7 +458,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
         // Cannot delete while a repository is being cleaned
         final RepositoryCleanupInProgress repositoryCleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
-        if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
+        if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
             return false;
         }
 

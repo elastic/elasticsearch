@@ -288,14 +288,11 @@ value is <<query-dsl-match-all-query,`match_all`>> (default).
 [role="xpack"]
 [testenv="basic"]
 [[geo-match-enrich-policy-type]]
-=== Geo match enrich policy type
+=== Example: Enrich your data based on geolocation
 
-`geo_match` enrich policies match enrich data to incoming documents based on a
-geographic location, using a <<query-dsl-geo-shape-query,`geo_shape` query>>.
-
-
-[[geo-match-enrich-policy-type-ex]]
-==== Example
+`geo_match` <<enrich-policy,enrich policies>> match enrich data to incoming
+documents based on a geographic location, using a
+<<query-dsl-geo-shape-query,`geo_shape` query>>.
 
 The following example creates a `geo_match` enrich policy that adds postal
 codes to incoming documents based on a set of coordinates. It then adds the
@@ -459,14 +456,11 @@ DELETE /_enrich/policy/postal_policy
 [role="xpack"]
 [testenv="basic"]
 [[match-enrich-policy-type]]
-=== Match enrich policy type
+=== Example: Enrich your data based on exact values
 
-`match` enrich policies match enrich data to incoming documents based on an
-exact value, such as a email address or ID, using a
+`match` <<enrich-policy,enrich policies>> match enrich data to incoming
+documents based on an exact value, such as a email address or ID, using a
 <<query-dsl-term-query,`term` query>>.
-
-[[match-enrich-policy-type-ex]]
-==== Example
 
 The following example creates a `match` enrich policy that adds user name and
 contact information to incoming documents based on an email address. It then

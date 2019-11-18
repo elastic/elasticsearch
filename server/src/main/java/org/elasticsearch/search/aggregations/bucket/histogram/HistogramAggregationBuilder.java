@@ -34,7 +34,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -100,12 +100,12 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     protected ValuesSourceType resolveScriptAny(Script script) {
         // TODO: No idea how we'd support Range scripts here.
-        return BuiltinValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.NUMERIC;
     }
 
     /** Create a new builder with the given name. */
     public HistogramAggregationBuilder(String name) {
-        super(name, BuiltinValuesSourceType.ANY, ValueType.NUMERIC);
+        super(name, CoreValuesSourceType.ANY, ValueType.NUMERIC);
     }
 
     protected HistogramAggregationBuilder(HistogramAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -126,7 +126,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Read from a stream, for internal use only. */
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, BuiltinValuesSourceType.ANY, ValueType.NUMERIC);
+        super(in, CoreValuesSourceType.ANY, ValueType.NUMERIC);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();

@@ -29,7 +29,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.BuiltinValuesSourceType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -54,7 +54,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     public MissingAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, BuiltinValuesSourceType.ANY, targetValueType);
+        super(name, CoreValuesSourceType.ANY, targetValueType);
     }
 
     protected MissingAggregationBuilder(MissingAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -70,7 +70,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
      * Read from a stream.
      */
     public MissingAggregationBuilder(StreamInput in) throws IOException {
-        super(in, BuiltinValuesSourceType.ANY);
+        super(in, CoreValuesSourceType.ANY);
     }
 
     @Override

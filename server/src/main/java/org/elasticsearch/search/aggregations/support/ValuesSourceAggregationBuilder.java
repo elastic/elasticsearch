@@ -315,14 +315,14 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     /**
-     * Provide a hook for aggregations to have finer grained control of the BuiltinValuesSourceType for script values.  This will only be
+     * Provide a hook for aggregations to have finer grained control of the CoreValuesSourceType for script values.  This will only be
      * called if the user did not supply a type hint for the script.  The script object is provided for reference.
      *
      * @param script - The user supplied script
-     * @return The BuiltinValuesSourceType we expect this script to yield.
+     * @return The CoreValuesSourceType we expect this script to yield.
      */
     protected ValuesSourceType resolveScriptAny(Script script) {
-        return BuiltinValuesSourceType.BYTES;
+        return CoreValuesSourceType.BYTES;
     }
 
     /**

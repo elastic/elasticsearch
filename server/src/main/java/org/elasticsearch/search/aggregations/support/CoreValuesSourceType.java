@@ -39,27 +39,27 @@ import java.util.Locale;
 import java.util.function.LongSupplier;
 
 /**
- * {@link BuiltinValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
+ * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
  */
-public enum BuiltinValuesSourceType implements Writeable, ValuesSourceType {
+public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
     ANY {
         // ANY still has a lot of special handling in ValuesSourceConfig, and as such doesn't adhere to this interface yet
         @Override
         public ValuesSource getEmpty() {
             // TODO: Implement this or get rid of ANY
-            throw new UnsupportedOperationException("BuiltinValuesSourceType.ANY is still a special case");
+            throw new UnsupportedOperationException("CoreValuesSourceType.ANY is still a special case");
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
             // TODO: Implement this or get rid of ANY
-            throw new UnsupportedOperationException("BuiltinValuesSourceType.ANY is still a special case");
+            throw new UnsupportedOperationException("CoreValuesSourceType.ANY is still a special case");
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             // TODO: Implement this or get rid of ANY
-            throw new UnsupportedOperationException("BuiltinValuesSourceType.ANY is still a special case");
+            throw new UnsupportedOperationException("CoreValuesSourceType.ANY is still a special case");
         }
 
         @Override
@@ -202,12 +202,12 @@ public enum BuiltinValuesSourceType implements Writeable, ValuesSourceType {
     }
 
     public static ValuesSourceType fromStream(StreamInput in) throws IOException {
-        return in.readEnum(BuiltinValuesSourceType.class);
+        return in.readEnum(CoreValuesSourceType.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        BuiltinValuesSourceType state = this;
+        CoreValuesSourceType state = this;
         out.writeEnum(state);
     }
 

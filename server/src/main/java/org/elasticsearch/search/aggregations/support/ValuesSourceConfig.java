@@ -51,7 +51,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         Object missing,
         ZoneId timeZone,
         String format) {
-        return resolve(context, valueType, field, script, missing, timeZone, format, s -> BuiltinValuesSourceType.BYTES);
+        return resolve(context, valueType, field, script, missing, timeZone, format, s -> CoreValuesSourceType.BYTES);
     }
 
     /**
@@ -69,12 +69,12 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         if (field == null) {
             if (script == null) {
-                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(BuiltinValuesSourceType.ANY);
+                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(CoreValuesSourceType.ANY);
                 config.format(resolveFormat(null, valueType, timeZone));
                 return config;
             }
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : BuiltinValuesSourceType.ANY;
-            if (valuesSourceType == BuiltinValuesSourceType.ANY) {
+            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
+            if (valuesSourceType == CoreValuesSourceType.ANY) {
                 // the specific value source type is undefined, but for scripts,
                 // we need to have a specific value source
                 // type to know how to handle the script values, so we fallback
@@ -92,7 +92,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : BuiltinValuesSourceType.ANY;
+            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
@@ -109,14 +109,14 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         ValuesSourceConfig<VS> config;
         if (indexFieldData instanceof IndexNumericFieldData) {
-            config = new ValuesSourceConfig<>(BuiltinValuesSourceType.NUMERIC);
+            config = new ValuesSourceConfig<>(CoreValuesSourceType.NUMERIC);
         } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-            config = new ValuesSourceConfig<>(BuiltinValuesSourceType.GEOPOINT);
+            config = new ValuesSourceConfig<>(CoreValuesSourceType.GEOPOINT);
         } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
-            config = new ValuesSourceConfig<>(BuiltinValuesSourceType.RANGE);
+            config = new ValuesSourceConfig<>(CoreValuesSourceType.RANGE);
         } else {
             if (valueType == null) {
-                config = new ValuesSourceConfig<>(BuiltinValuesSourceType.BYTES);
+                config = new ValuesSourceConfig<>(CoreValuesSourceType.BYTES);
             } else {
                 config = new ValuesSourceConfig<>(valueType.getValuesSourceType());
             }
@@ -258,8 +258,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             if (missing() == null) {
                 // otherwise we will have values because of the missing value
                 vs = null;
-            } else if (valueSourceType() == BuiltinValuesSourceType.ANY) {
-                // TODO: Clean up special cases around BuiltinValuesSourceType.ANY
+            } else if (valueSourceType() == CoreValuesSourceType.ANY) {
+                // TODO: Clean up special cases around CoreValuesSourceType.ANY
                 vs = (VS) resolveMissingAny.apply(missing());
             } else {
                 vs = (VS) valueSourceType().getEmpty();
@@ -268,10 +268,10 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             if (fieldContext() == null) {
                 vs = (VS) valueSourceType().getScript(script(), scriptValueType());
             } else {
-                if (valueSourceType() == BuiltinValuesSourceType.ANY) {
-                    // TODO: Clean up special cases around BuiltinValuesSourceType.ANY
+                if (valueSourceType() == CoreValuesSourceType.ANY) {
+                    // TODO: Clean up special cases around CoreValuesSourceType.ANY
                     // falling back to bytes values
-                    vs = (VS) BuiltinValuesSourceType.BYTES.getField(fieldContext(), script());
+                    vs = (VS) CoreValuesSourceType.BYTES.getField(fieldContext(), script());
                 } else {
                     // TODO: Better docs for Scripts vs Scripted Fields
                     vs = (VS) valueSourceType().getField(fieldContext(), script());

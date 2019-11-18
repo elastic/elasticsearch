@@ -64,6 +64,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return SelfGeneratedLicense.validateSelfGeneratedType(type);
     }, Setting.Property.NodeScope);
 
+    public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES = Setting.listSetting("xpack.license.upload.types",
+        License.LicenseType.ALL_TYPE_NAMES, License.LicenseType::parse, Setting.Property.NodeScope);
+
     // pkg private for tests
     static final TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
 
@@ -105,6 +108,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     private List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
 
     /**
+     * Which license types are permitted to be uploaded to the cluster
+     * @see #ALLOWED_LICENSE_TYPES
+     */
+    private final List<License.LicenseType> allowedLicenseTypes;
+
+    /**
      * Max number of nodes licensed by generated trial license
      */
     static final int SELF_GENERATED_LICENSE_MAX_NODES = 1000;
@@ -123,6 +132,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
+        this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES.get(settings);
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
             XPackPlugin.resolveConfigFile(env, "license_mode"), logger,
             () -> updateLicenseState(getLicensesMetaData()));
@@ -193,11 +203,21 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     public void registerLicense(final PutLicenseRequest request, final ActionListener<PutLicenseResponse> listener) {
         final License newLicense = request.license();
+        final License.LicenseType licenseType;
+        try {
+            licenseType = License.LicenseType.resolve(newLicense.type());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         final long now = clock.millis();
         if (!LicenseVerifier.verifyLicense(newLicense) || newLicense.issueDate() > now || newLicense.startDate() > now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.INVALID));
-        } else if (newLicense.type().equals(License.LicenseType.BASIC.getTypeName())) {
+        } else if (licenseType == License.LicenseType.BASIC) {
             listener.onFailure(new IllegalArgumentException("Registering basic licenses is not allowed."));
+        } else if (isAllowedLicenseType(licenseType) == false) {
+            listener.onFailure(new IllegalArgumentException(
+                "Registering [" + licenseType.getTypeName() + "] licenses is not allowed on this cluster"));
         } else if (newLicense.expiryDate() < now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));
         } else {
@@ -270,6 +290,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         } else {
             return true;
         }
+    }
+
+    private boolean isAllowedLicenseType(License.LicenseType type) {
+        logger.debug("Checking license [{}] against allowed license types: {}", type, allowedLicenseTypes);
+        return allowedLicenseTypes.contains(type);
     }
 
     public static Map<String, String[]> getAckMessages(License newLicense, License currentLicense) {

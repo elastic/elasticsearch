@@ -241,7 +241,9 @@ public class TestUtils {
     }
 
     public static License generateSignedLicense(String type, long issueDate, TimeValue expiryDuration) throws Exception {
-        return generateSignedLicense(type, randomIntBetween(License.VERSION_START, License.VERSION_CURRENT), issueDate, expiryDuration);
+            // If there's an explicit "type", don't generate v1 style license because they don't have the same types.
+        int version = randomIntBetween(type == null ? License.VERSION_START : License.VERSION_NO_FEATURE_TYPE, License.VERSION_CURRENT);
+        return generateSignedLicense(type, version, issueDate, expiryDuration);
     }
 
     public static License generateSignedLicenseOldSignature() {

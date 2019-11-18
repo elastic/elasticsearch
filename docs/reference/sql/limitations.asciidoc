@@ -184,7 +184,7 @@ setting needs to be adjusted or fewer columns retrievable from `docvalue_fields`
 [[aggs-in-pivot]]
 === Aggregations in the <<sql-syntax-pivot, `PIVOT`>> clause
 
-The aggregation expression in <<sql-syntax-pivot, `PIVOT`>> will currently accept only one aggregation. It is thus not possible to obtain multiple aggregations for any one pivoted columns.
+The aggregation expression in <<sql-syntax-pivot, `PIVOT`>> will currently accept only one aggregation. It is thus not possible to obtain multiple aggregations for any one pivoted column.
 
 [float]
 [[subquery-in-pivot]]
@@ -197,4 +197,9 @@ The values that the <<sql-syntax-pivot, `PIVOT`>> query could pivot must be prov
 SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (1, 2))
 -------------------------------------------------------------
 
-the `languages` of interest must be listed explicitly: `IN (1, 2)`.
+the `languages` of interest must be listed explicitly: `IN (1, 2)`. On the other hand, this example would **not work**:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (SELECT languages FROM test_emp WHERE languages <=2 GROUP BY languages))
+-------------------------------------------------------------

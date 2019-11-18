@@ -68,6 +68,8 @@ Use the put enrich policy API
 to create a new <<enrich-policy,enrich policy>>.
 
 // tag::update-enrich-policy[]
+[WARNING]
+====
 Once created, you can't update or change an enrich policy.
 Instead, you can:
 
@@ -79,6 +81,7 @@ Instead, you can:
 
 .   Use the <<delete-enrich-policy-api, delete enrich policy>> API
     to delete the previous enrich policy.
+====
 // end::update-enrich-policy[]
 
 

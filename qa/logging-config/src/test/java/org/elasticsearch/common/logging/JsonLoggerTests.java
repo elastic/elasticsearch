@@ -272,80 +272,77 @@ public class JsonLoggerTests extends ESTestCase {
     public void testDuplicateLogMessages() throws IOException {
         final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("test"));
 
-
         // For the same key and X-Opaque-ID deprecation should be once
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            try{
-                threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
-                DeprecationLogger.setThreadContext(threadContext);
-                deprecationLogger.deprecatedAndMaybeLog("key", "message1");
-                deprecationLogger.deprecatedAndMaybeLog("key", "message2");
-                assertWarnings("message1", "message2");
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
+            DeprecationLogger.setThreadContext(threadContext);
+            deprecationLogger.deprecatedAndMaybeLog("key", "message1");
+            deprecationLogger.deprecatedAndMaybeLog("key", "message2");
+            assertWarnings("message1", "message2");
 
-                final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-                    System.getProperty("es.logs.cluster_name") + "_deprecated.json");
-                try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
-                    List<Map<String, String>> jsonLogs = stream
-                        .collect(Collectors.toList());
+            final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+                System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+            try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+                List<Map<String, String>> jsonLogs = stream
+                    .collect(Collectors.toList());
 
-                    assertThat(jsonLogs, contains(
-                        allOf(
-                            hasEntry("type", "deprecation"),
-                            hasEntry("level", "WARN"),
-                            hasEntry("component", "d.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
-                            hasEntry("message", "message1"),
-                            hasEntry("x-opaque-id", "ID1"))
-                        )
-                    );
-                }
-            }finally{
-                DeprecationLogger.removeThreadContext(threadContext);
+                assertThat(jsonLogs, contains(
+                    allOf(
+                        hasEntry("type", "deprecation"),
+                        hasEntry("level", "WARN"),
+                        hasEntry("component", "d.test"),
+                        hasEntry("cluster.name", "elasticsearch"),
+                        hasEntry("node.name", "sample-name"),
+                        hasEntry("message", "message1"),
+                        hasEntry("x-opaque-id", "ID1"))
+                    )
+                );
             }
+        } finally {
+            DeprecationLogger.removeThreadContext(threadContext);
         }
+
 
         // For the same key and different X-Opaque-ID should be multiple times per key/x-opaque-id
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            try{
-                threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
-                DeprecationLogger.setThreadContext(threadContext);
-                deprecationLogger.deprecatedAndMaybeLog("key", "message1");
-                deprecationLogger.deprecatedAndMaybeLog("key", "message2");
-                assertWarnings("message1", "message2");
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
+            DeprecationLogger.setThreadContext(threadContext);
+            deprecationLogger.deprecatedAndMaybeLog("key", "message1");
+            deprecationLogger.deprecatedAndMaybeLog("key", "message2");
+            assertWarnings("message1", "message2");
 
-                final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-                    System.getProperty("es.logs.cluster_name") + "_deprecated.json");
-                try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
-                    List<Map<String, String>> jsonLogs = stream
-                        .collect(Collectors.toList());
+            final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+                System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+            try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+                List<Map<String, String>> jsonLogs = stream
+                    .collect(Collectors.toList());
 
-                    assertThat(jsonLogs, contains(
-                        allOf(
-                            hasEntry("type", "deprecation"),
-                            hasEntry("level", "WARN"),
-                            hasEntry("component", "d.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
-                            hasEntry("message", "message1"),
-                            hasEntry("x-opaque-id", "ID1")
-                        ),
-                        allOf(
-                            hasEntry("type", "deprecation"),
-                            hasEntry("level", "WARN"),
-                            hasEntry("component", "d.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
-                            hasEntry("message", "message1"),
-                            hasEntry("x-opaque-id", "ID2")
-                        )
-                        )
-                    );
-                }
-            }finally{
-                DeprecationLogger.removeThreadContext(threadContext);
+                assertThat(jsonLogs, contains(
+                    allOf(
+                        hasEntry("type", "deprecation"),
+                        hasEntry("level", "WARN"),
+                        hasEntry("component", "d.test"),
+                        hasEntry("cluster.name", "elasticsearch"),
+                        hasEntry("node.name", "sample-name"),
+                        hasEntry("message", "message1"),
+                        hasEntry("x-opaque-id", "ID1")
+                    ),
+                    allOf(
+                        hasEntry("type", "deprecation"),
+                        hasEntry("level", "WARN"),
+                        hasEntry("component", "d.test"),
+                        hasEntry("cluster.name", "elasticsearch"),
+                        hasEntry("node.name", "sample-name"),
+                        hasEntry("message", "message1"),
+                        hasEntry("x-opaque-id", "ID2")
+                    )
+                    )
+                );
             }
+        } finally {
+            DeprecationLogger.removeThreadContext(threadContext);
         }
     }
 

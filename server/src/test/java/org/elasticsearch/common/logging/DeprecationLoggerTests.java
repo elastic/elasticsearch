@@ -42,7 +42,6 @@ import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -78,136 +77,118 @@ public class DeprecationLoggerTests extends ESTestCase {
     }
 
     public void testAddsHeaderWithThreadContext() throws IOException {
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-            final String param = randomAlphaOfLengthBetween(1, 5);
-            logger.deprecated(threadContexts, "A simple message [{}]", param);
+        final String param = randomAlphaOfLengthBetween(1, 5);
+        logger.deprecated(threadContexts, "A simple message [{}]", param);
 
-            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
-            assertThat(responseHeaders.size(), equalTo(1));
-            final List<String> responses = responseHeaders.get("Warning");
-            assertThat(responses, hasSize(1));
-            assertThat(responses.get(0), warningValueMatcher);
-            assertThat(responses.get(0), containsString("\"A simple message [" + param + "]\""));
-        }
+        assertThat(responseHeaders.size(), equalTo(1));
+        final List<String> responses = responseHeaders.get("Warning");
+        assertThat(responses, hasSize(1));
+        assertThat(responses.get(0), warningValueMatcher);
+        assertThat(responses.get(0), containsString("\"A simple message [" + param + "]\""));
     }
 
     public void testContainingNewline() throws IOException {
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-            logger.deprecated(threadContexts, "this message contains a newline\n");
+        logger.deprecated(threadContexts, "this message contains a newline\n");
 
-            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
-            assertThat(responseHeaders.size(), equalTo(1));
-            final List<String> responses = responseHeaders.get("Warning");
-            assertThat(responses, hasSize(1));
-            assertThat(responses.get(0), warningValueMatcher);
-            assertThat(responses.get(0), containsString("\"this message contains a newline%0A\""));
-        }
+        assertThat(responseHeaders.size(), equalTo(1));
+        final List<String> responses = responseHeaders.get("Warning");
+        assertThat(responses, hasSize(1));
+        assertThat(responses.get(0), warningValueMatcher);
+        assertThat(responses.get(0), containsString("\"this message contains a newline%0A\""));
     }
 
     public void testSurrogatePair() throws IOException {
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-            logger.deprecated(threadContexts, "this message contains a surrogate pair 😱");
+        logger.deprecated(threadContexts, "this message contains a surrogate pair 😱");
 
-            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
-            assertThat(responseHeaders.size(), equalTo(1));
-            final List<String> responses = responseHeaders.get("Warning");
-            assertThat(responses, hasSize(1));
-            assertThat(responses.get(0), warningValueMatcher);
+        assertThat(responseHeaders.size(), equalTo(1));
+        final List<String> responses = responseHeaders.get("Warning");
+        assertThat(responses, hasSize(1));
+        assertThat(responses.get(0), warningValueMatcher);
 
-            // convert UTF-16 to UTF-8 by hand to show the hard-coded constant below is correct
-            assertThat("😱", equalTo("\uD83D\uDE31"));
-            final int code = 0x10000 + ((0xD83D & 0x3FF) << 10) + (0xDE31 & 0x3FF);
-            @SuppressWarnings("PointlessBitwiseExpression")
-            final int[] points = new int[] {
-                    (code >> 18) & 0x07 | 0xF0,
-                    (code >> 12) & 0x3F | 0x80,
-                    (code >> 6) & 0x3F | 0x80,
-                    (code >> 0) & 0x3F | 0x80};
-            final StringBuilder sb = new StringBuilder();
-            // noinspection ForLoopReplaceableByForEach
-            for (int i = 0; i < points.length; i++) {
-                sb.append("%").append(Integer.toString(points[i], 16).toUpperCase(Locale.ROOT));
-            }
-            assertThat(sb.toString(), equalTo("%F0%9F%98%B1"));
-            assertThat(responses.get(0), containsString("\"this message contains a surrogate pair %F0%9F%98%B1\""));
+        // convert UTF-16 to UTF-8 by hand to show the hard-coded constant below is correct
+        assertThat("😱", equalTo("\uD83D\uDE31"));
+        final int code = 0x10000 + ((0xD83D & 0x3FF) << 10) + (0xDE31 & 0x3FF);
+        @SuppressWarnings("PointlessBitwiseExpression")
+        final int[] points = new int[] {
+                (code >> 18) & 0x07 | 0xF0,
+                (code >> 12) & 0x3F | 0x80,
+                (code >> 6) & 0x3F | 0x80,
+                (code >> 0) & 0x3F | 0x80};
+        final StringBuilder sb = new StringBuilder();
+        // noinspection ForLoopReplaceableByForEach
+        for (int i = 0; i < points.length; i++) {
+            sb.append("%").append(Integer.toString(points[i], 16).toUpperCase(Locale.ROOT));
         }
+        assertThat(sb.toString(), equalTo("%F0%9F%98%B1"));
+        assertThat(responses.get(0), containsString("\"this message contains a surrogate pair %F0%9F%98%B1\""));
     }
 
     public void testAddsCombinedHeaderWithThreadContext() throws IOException {
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-            final String param = randomAlphaOfLengthBetween(1, 5);
-            logger.deprecated(threadContexts, "A simple message [{}]", param);
-            final String second = randomAlphaOfLengthBetween(1, 10);
-            logger.deprecated(threadContexts, second);
+        final String param = randomAlphaOfLengthBetween(1, 5);
+        logger.deprecated(threadContexts, "A simple message [{}]", param);
+        final String second = randomAlphaOfLengthBetween(1, 10);
+        logger.deprecated(threadContexts, second);
 
-            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
-            assertEquals(1, responseHeaders.size());
+        assertEquals(1, responseHeaders.size());
 
-            final List<String> responses = responseHeaders.get("Warning");
+        final List<String> responses = responseHeaders.get("Warning");
 
-            assertEquals(2, responses.size());
-            assertThat(responses.get(0), warningValueMatcher);
-            assertThat(responses.get(0), containsString("\"A simple message [" + param + "]\""));
-            assertThat(responses.get(1), warningValueMatcher);
-            assertThat(responses.get(1), containsString("\"" + second + "\""));
-        }
+        assertEquals(2, responses.size());
+        assertThat(responses.get(0), warningValueMatcher);
+        assertThat(responses.get(0), containsString("\"A simple message [" + param + "]\""));
+        assertThat(responses.get(1), warningValueMatcher);
+        assertThat(responses.get(1), containsString("\"" + second + "\""));
     }
 
     public void testCanRemoveThreadContext() throws IOException {
         final String expected = "testCanRemoveThreadContext";
         final String unexpected = "testCannotRemoveThreadContext";
 
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            DeprecationLogger.setThreadContext(threadContext);
-            logger.deprecated(expected);
-
-            {
-                final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-                final List<String> responses = responseHeaders.get("Warning");
-
-                assertThat(responses, hasSize(1));
-                assertThat(responses.get(0), warningValueMatcher);
-                assertThat(responses.get(0), containsString(expected));
-            }
-
-            DeprecationLogger.removeThreadContext(threadContext);
-            logger.deprecated(unexpected);
-
-            {
-                final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-                final List<String> responses = responseHeaders.get("Warning");
-
-                assertThat(responses, hasSize(1));
-                assertThat(responses.get(0), warningValueMatcher);
-                assertThat(responses.get(0), containsString(expected));
-                assertThat(responses.get(0), not(containsString(unexpected)));
-            }
-        }
-    }
-
-    public void testIgnoresClosedThreadContext() throws IOException {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        Set<ThreadContext> threadContexts = new HashSet<>(1);
+        DeprecationLogger.setThreadContext(threadContext);
+        logger.deprecated(expected);
 
-        threadContexts.add(threadContext);
+        {
+            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+            final List<String> responses = responseHeaders.get("Warning");
 
-        threadContext.close();
+            assertThat(responses, hasSize(1));
+            assertThat(responses.get(0), warningValueMatcher);
+            assertThat(responses.get(0), containsString(expected));
+        }
 
-        logger.deprecated(threadContexts, "Ignored logger message");
+        DeprecationLogger.removeThreadContext(threadContext);
+        logger.deprecated(unexpected);
 
-        assertTrue(threadContexts.contains(threadContext));
+        {
+            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+            final List<String> responses = responseHeaders.get("Warning");
+
+            assertThat(responses, hasSize(1));
+            assertThat(responses.get(0), warningValueMatcher);
+            assertThat(responses.get(0), containsString(expected));
+            assertThat(responses.get(0), not(containsString(unexpected)));
+        }
     }
 
     public void testSafeWithoutThreadContext() {
@@ -219,22 +200,20 @@ public class DeprecationLoggerTests extends ESTestCase {
     }
 
     public void testFailsWhenDoubleSettingSameThreadContext() throws IOException {
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            DeprecationLogger.setThreadContext(threadContext);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(threadContext);
 
-            try {
-                expectThrows(IllegalStateException.class, () -> DeprecationLogger.setThreadContext(threadContext));
-            } finally {
-                // cleanup after ourselves
-                DeprecationLogger.removeThreadContext(threadContext);
-            }
+        try {
+            expectThrows(IllegalStateException.class, () -> DeprecationLogger.setThreadContext(threadContext));
+        } finally {
+            // cleanup after ourselves
+            DeprecationLogger.removeThreadContext(threadContext);
         }
     }
 
     public void testFailsWhenRemovingUnknownThreadContext() throws IOException {
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            expectThrows(IllegalStateException.class, () -> DeprecationLogger.removeThreadContext(threadContext));
-        }
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        expectThrows(IllegalStateException.class, () -> DeprecationLogger.removeThreadContext(threadContext));
     }
 
     public void testWarningValueFromWarningHeader() throws InterruptedException {
@@ -274,21 +253,20 @@ public class DeprecationLoggerTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("http.max_warning_header_count", maxWarningHeaderCount)
             .build();
-        try (ThreadContext threadContext = new ThreadContext(settings)) {
-            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
-            // try to log three warning messages
-            logger.deprecated(threadContexts, "A simple message 1");
-            logger.deprecated(threadContexts, "A simple message 2");
-            logger.deprecated(threadContexts, "A simple message 3");
-            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-            final List<String> responses = responseHeaders.get("Warning");
+        ThreadContext threadContext = new ThreadContext(settings);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+        // try to log three warning messages
+        logger.deprecated(threadContexts, "A simple message 1");
+        logger.deprecated(threadContexts, "A simple message 2");
+        logger.deprecated(threadContexts, "A simple message 3");
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        final List<String> responses = responseHeaders.get("Warning");
 
-            assertEquals(maxWarningHeaderCount, responses.size());
-            assertThat(responses.get(0), warningValueMatcher);
-            assertThat(responses.get(0), containsString("\"A simple message 1"));
-            assertThat(responses.get(1), warningValueMatcher);
-            assertThat(responses.get(1), containsString("\"A simple message 2"));
-        }
+        assertEquals(maxWarningHeaderCount, responses.size());
+        assertThat(responses.get(0), warningValueMatcher);
+        assertThat(responses.get(0), containsString("\"A simple message 1"));
+        assertThat(responses.get(1), warningValueMatcher);
+        assertThat(responses.get(1), containsString("\"A simple message 2"));
     }
 
     public void testWarningHeaderSizeSetting() throws IOException{
@@ -302,23 +280,22 @@ public class DeprecationLoggerTests extends ESTestCase {
         String message2 = new String(arr, StandardCharsets.UTF_8) + "2";
         String message3 = new String(arr, StandardCharsets.UTF_8) + "3";
 
-        try (ThreadContext threadContext = new ThreadContext(settings)) {
-            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
-            // try to log three warning messages
-            logger.deprecated(threadContexts, message1);
-            logger.deprecated(threadContexts, message2);
-            logger.deprecated(threadContexts, message3);
-            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-            final List<String> responses = responseHeaders.get("Warning");
+        ThreadContext threadContext = new ThreadContext(settings);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+        // try to log three warning messages
+        logger.deprecated(threadContexts, message1);
+        logger.deprecated(threadContexts, message2);
+        logger.deprecated(threadContexts, message3);
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        final List<String> responses = responseHeaders.get("Warning");
 
-            long warningHeadersSize = 0L;
-            for (String response : responses){
-                warningHeadersSize += "Warning".getBytes(StandardCharsets.UTF_8).length +
-                    response.getBytes(StandardCharsets.UTF_8).length;
-            }
-            // assert that the size of all warning headers is less or equal to 1Kb
-            assertTrue(warningHeadersSize <= 1024);
+        long warningHeadersSize = 0L;
+        for (String response : responses){
+            warningHeadersSize += "Warning".getBytes(StandardCharsets.UTF_8).length +
+                response.getBytes(StandardCharsets.UTF_8).length;
         }
+        // assert that the size of all warning headers is less or equal to 1Kb
+        assertTrue(warningHeadersSize <= 1024);
     }
     @SuppressLoggerChecks(reason = "Safe as this is using mockito")
     public void testLogPermissions() {

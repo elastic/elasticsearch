@@ -262,7 +262,6 @@ public class DeprecationLogger {
 
     public String getXOpaqueId(Set<ThreadContext> threadContexts) {
         return threadContexts.stream()
-                             .filter(t -> t.isClosed() == false)
                              .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
                              .findFirst()
                              .map(t -> t.getHeader(Task.X_OPAQUE_ID))

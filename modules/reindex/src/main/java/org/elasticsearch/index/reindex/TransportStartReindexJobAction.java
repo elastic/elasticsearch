@@ -75,7 +75,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
         boolean storeTaskResult = request.getWaitForCompletion() == false;
         ReindexJob job = new ReindexJob(storeTaskResult, threadPool.getThreadContext().getHeaders());
 
-        ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest());
+        ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest(), threadPool.getThreadContext().getHeaders());
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {

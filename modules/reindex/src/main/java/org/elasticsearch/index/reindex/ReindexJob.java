@@ -51,12 +51,12 @@ public class ReindexJob implements PersistentTaskParams {
     private final boolean storeResult;
     private final Map<String, String> headers;
 
-    public ReindexJob(boolean storeResult, Map<String, String> headers) {
+    ReindexJob(boolean storeResult, Map<String, String> headers) {
         this.storeResult = storeResult;
         this.headers = headers;
     }
 
-    public ReindexJob(StreamInput in) throws IOException {
+    ReindexJob(StreamInput in) throws IOException {
         storeResult = in.readBoolean();
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
     }
@@ -88,10 +88,6 @@ public class ReindexJob implements PersistentTaskParams {
 
     public boolean shouldStoreResult() {
         return storeResult;
-    }
-
-    public Map<String, String> getHeaders() {
-        return headers;
     }
 
     public static ReindexJob fromXContent(XContentParser parser) {

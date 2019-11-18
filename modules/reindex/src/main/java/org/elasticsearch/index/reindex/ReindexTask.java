@@ -89,7 +89,6 @@ public class ReindexTask extends AllocatedPersistentTask {
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                      PersistentTasksCustomMetaData.PersistentTask<ReindexJob> taskInProgress,
                                                      Map<String, String> headers) {
-            headers.putAll(taskInProgress.getParams().getHeaders());
             Reindexer reindexer = new Reindexer(clusterService, client, threadPool, scriptService, reindexSslConfig);
             return new ReindexTask(id, type, action, parentTaskId, headers, clusterService, xContentRegistry, client, reindexer);
         }
@@ -246,7 +245,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
         Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
         // TODO: Eventually we only want to retain security context
-        try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, reindexJob.getHeaders())) {
+        try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, stateDoc.getHeaders())) {
             reindexer.execute(childTask, reindexRequest, new ContextPreservingActionListener<>(context, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkByScrollResponse response) {

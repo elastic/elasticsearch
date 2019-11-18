@@ -600,7 +600,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         if (randomBoolean()) {
             return buildSimpleSettings(clusterAlias, addresses);
         } else {
-            return buildSimpleSettings(clusterAlias, addresses);
+            return buildSniffSettings(clusterAlias, addresses);
         }
     }
 

@@ -398,7 +398,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[limitBasic]
 
 The `PIVOT` clause performs a cross tabulation on the results of the query: it aggregates the results and rotates rows into columns. The rotation is done by turning unique values from one column in the expression - the pivoting column - into multiple columns in the output. The column values are aggregations on the remaining columns specified in the expression.
 
-The clause can be broken down in three parts, the aggregation, the `FOR`- and the `IN`-subclause.
+The clause can be broken down in three parts: the aggregation, the `FOR`- and the `IN`-subclause.
 
 The `aggregation_expr` subclause specifies an expression containing an <<sql-functions-aggs, aggregation function>> to be applied on one of the source columns. Only one aggregation can be provided, currently.
 

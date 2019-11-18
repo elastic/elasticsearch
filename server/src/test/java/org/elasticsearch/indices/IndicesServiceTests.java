@@ -223,13 +223,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexMetaData firstMetaData = clusterService.state().metaData().index("test");
         assertTrue(test.hasShard(0));
+        ShardPath firstPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
 
-        try {
-            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
-            fail();
-        } catch (IllegalStateException ex) {
-            // all good
-        }
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetaData));
+        assertTrue(firstPath.exists());
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
         MetaData meta = gwMetaState.getMetaData();
@@ -237,10 +234,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
 
+        assertFalse(firstPath.exists());
+
         meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNull(meta.index("test"));
-
 
         test = createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -248,25 +246,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch("test").get(), 1);
         IndexMetaData secondMetaData = clusterService.state().metaData().index("test");
         assertAcked(client().admin().indices().prepareClose("test"));
-        ShardPath path = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
-        assertTrue(path.exists());
+        ShardPath secondPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
+        assertTrue(secondPath.exists());
 
-        try {
-            indicesService.deleteIndexStore("boom", secondMetaData, clusterService.state());
-            fail();
-        } catch (IllegalStateException ex) {
-            // all good
-        }
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetaData));
+        assertTrue(secondPath.exists());
 
-        assertTrue(path.exists());
-
-        // now delete the old one and make sure we resolve against the name
-        try {
-            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
-            fail();
-        } catch (IllegalStateException ex) {
-            // all good
-        }
         assertAcked(client().admin().indices().prepareOpen("test"));
         ensureGreen("test");
     }

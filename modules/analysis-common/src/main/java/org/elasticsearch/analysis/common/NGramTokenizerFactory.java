@@ -32,6 +32,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -67,7 +69,8 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         MATCHERS = unmodifiableMap(matchers);
     }
 
-    static CharMatcher parseTokenChars(List<String> characterClasses) {
+    static CharMatcher parseTokenChars(Settings settings) {
+        List<String> characterClasses = settings.getAsList("token_chars");
         if (characterClasses == null || characterClasses.isEmpty()) {
             return null;
         }
@@ -76,7 +79,22 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
             characterClass = characterClass.toLowerCase(Locale.ROOT).trim();
             CharMatcher matcher = MATCHERS.get(characterClass);
             if (matcher == null) {
-                throw new IllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + MATCHERS.keySet());
+                if (characterClass.equals("custom") == false) {
+                    throw new IllegalArgumentException("Unknown token type: '" + characterClass + "', must be one of " + MATCHERS.keySet());
+                }
+                String customCharacters = settings.get("custom_token_chars");
+                if (customCharacters == null) {
+                    throw new IllegalArgumentException("Token type: 'custom' requires setting `custom_token_chars`");
+                }
+                final Set<Integer> customCharSet = customCharacters.chars().boxed().collect(Collectors.toSet());
+                matcher = new CharMatcher() {
+
+                    @Override
+                    public boolean isTokenChar(int c) {
+                        return customCharSet.contains(c);
+                    }
+
+                };
             }
             builder.or(matcher);
         }
@@ -95,7 +113,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
                     + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
                     + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
         }
-        this.matcher = parseTokenChars(settings.getAsList("token_chars"));
+        this.matcher = parseTokenChars(settings);
     }
 
     @Override

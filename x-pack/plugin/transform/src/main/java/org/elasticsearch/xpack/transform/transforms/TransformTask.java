@@ -16,8 +16,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -296,24 +298,14 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     public synchronized void stop(boolean force, boolean shouldStopAtCheckpoint) {
-        logger
-            .debug(
-                "[{}] stop called with force [{}], shouldStopAtCheckpoint [{}], state [{}]",
-                getTransformId(),
-                force,
-                shouldStopAtCheckpoint,
-                getState()
-            );
-        if (getIndexer() == null) {
-            // If there is no indexer the task has not been triggered
-            // but it still needs to be stopped and removed
-            shutdown();
-            return;
-        }
-
-        if (getIndexer().getState() == IndexerState.STOPPED || getIndexer().getState() == IndexerState.STOPPING) {
-            return;
-        }
+        logger.debug(
+            "[{}] stop called with force [{}], shouldStopAtCheckpoint [{}], state [{}], indexerstate[{}]",
+            getTransformId(),
+            force,
+            shouldStopAtCheckpoint,
+            getState(),
+            getIndexer() != null ? getIndexer().getState() : null
+        );
 
         if (context.getTaskState() == TransformTaskState.FAILED && force == false) {
             throw new ElasticsearchStatusException(
@@ -322,18 +314,34 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             );
         }
 
+        // cleanup potentially failed state.
+        boolean wasFailed = context.setTaskState(TransformTaskState.FAILED, TransformTaskState.STARTED);
         context.resetReasonAndFailureCounter();
 
-        // No reason to keep it in the potentially failed state.
-        boolean wasFailed = context.setTaskState(TransformTaskState.FAILED, TransformTaskState.STARTED);
+        // If state was in a failed state, we should stop immediately
+        if (wasFailed) {
+            getIndexer().onStop();
+            getIndexer().doSaveState(IndexerState.STOPPED, getIndexer().getPosition(), () -> {});
+            return;
+        }
+
+        if (getIndexer().getState() == IndexerState.STOPPED || getIndexer().getState() == IndexerState.STOPPING) {
+            return;
+        }
+
+        if (getIndexer() == null) {
+            // If there is no indexer the task has not been triggered
+            // but it still needs to be stopped and removed
+            shutdown();
+            return;
+        }
+
         // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after).
         // if it is false, stop immediately
         if (shouldStopAtCheckpoint == false ||
-        // If state was in a failed state, we should stop immediately as we will never reach the next checkpoint
-            wasFailed ||
-            // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
-            // or has yet to even start one.
-            // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
+        // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
+        // or has yet to even start one.
+        // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
             (getIndexer().getState() == IndexerState.STARTED && getIndexer().initialRun())) {
             IndexerState state = getIndexer().stop();
             if (state == IndexerState.STOPPED) {
@@ -341,6 +349,16 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
             }
         }
+    }
+
+    @Override
+    protected void init(
+        PersistentTasksService persistentTasksService,
+        TaskManager taskManager,
+        String persistentTaskId,
+        long allocationId
+    ) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
     }
 
     @Override
@@ -390,6 +408,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      */
     @Override
     public synchronized void shutdown() {
+        logger.trace("shutdown requested");
         deregisterSchedulerJob();
         markAsCompleted();
     }

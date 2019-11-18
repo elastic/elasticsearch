@@ -13,16 +13,16 @@ export azure_storage_base_path=$BRANCH
 
 #Azure
 
-set +x
 if [ -z "$VAULT_TOKEN" ] ; then 
+    set +x
     VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id="$VAULT_ROLE_ID" secret_id="$VAULT_SECRET_ID")
     export VAULT_TOKEN
+    set -x
 fi
 export data=$(vault read -format=json secret/elasticsearch-ci/azure_thirdparty_test_creds)
 export azure_storage_account=$(echo $data | jq -r .data.account_id)
 export azure_storage_key=$(echo $data | jq -r .data.account_key)
 unset data
-set -x
 
 # GCS
 

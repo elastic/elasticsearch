@@ -22,7 +22,7 @@ public class ClassificationConfig implements InferenceConfig {
     public static final String NAME = "classification";
 
     public static final ParseField  NUM_TOP_CLASSES = new ParseField("num_top_classes");
-    private static final Version MIN_SUPPORTED_VERSION = Version.V_8_0_0;
+    private static final Version MIN_SUPPORTED_VERSION = Version.V_7_6_0;
 
     public static ClassificationConfig EMPTY_PARAMS = new ClassificationConfig(0);
 

@@ -176,7 +176,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             fail("Should not have successfully created");
         } catch (ElasticsearchException ex) {
             assertThat(ex.getMessage(),
-                equalTo("Configuration [regression] requires minimum node version [8.0.0] (current minimum node version [7.5.0]"));
+                equalTo("Configuration [regression] requires minimum node version [7.6.0] (current minimum node version [7.5.0]"));
         } catch (Exception ex) {
             fail(ex.getMessage());
         }
@@ -194,7 +194,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             fail("Should not have successfully created");
         } catch (ElasticsearchException ex) {
             assertThat(ex.getMessage(),
-                equalTo("Configuration [classification] requires minimum node version [8.0.0] (current minimum node version [7.5.0]"));
+                equalTo("Configuration [classification] requires minimum node version [7.6.0] (current minimum node version [7.5.0]"));
         } catch (Exception ex) {
             fail(ex.getMessage());
         }

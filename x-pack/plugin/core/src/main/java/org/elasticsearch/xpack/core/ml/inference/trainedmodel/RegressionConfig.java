@@ -18,7 +18,7 @@ import java.util.Objects;
 public class RegressionConfig implements InferenceConfig {
 
     public static final String NAME = "regression";
-    private static final Version MIN_SUPPORTED_VERSION = Version.V_8_0_0;
+    private static final Version MIN_SUPPORTED_VERSION = Version.V_7_6_0;
 
     public static RegressionConfig fromMap(Map<String, Object> map) {
         if (map.isEmpty() == false) {

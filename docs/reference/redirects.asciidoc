@@ -996,6 +996,11 @@ See <<ref-ldap-settings>>.
 
 See <<tls-ldap>>. 
 
+[role="exclude",id="configuring-kerberos-realm"]
+=== Configuring a Kerberos realm
+
+See <<kerberos-realm-configuration>>.
+
 [role="exclude",id="configuring-ad-realm"]
 === Configuring an Active Directory realm
 
@@ -1010,3 +1015,4 @@ See <<ref-ad-settings>>.
 === Mapping Active Directory users and groups to roles
 
 See <<ad-realm-configuration>>. 
+

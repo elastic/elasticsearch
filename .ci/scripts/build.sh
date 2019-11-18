@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export JAVA_HOME=${BUILD_JAVA_HOME:-$HOME/.java/openjdk12}
+export JAVA_HOME=$HOME/.java/openjdk12
 export RUNTIME_JAVA_HOME=${RUNTIME_JAVA_HOME:-$HOME/.java/openjdk11}
 
 export JAVA7_HOME=$HOME/.java/java7

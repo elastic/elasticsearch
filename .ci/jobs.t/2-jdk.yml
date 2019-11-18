@@ -9,26 +9,22 @@
           type: label-expression
           name: nodes
           values:
-              - "general-purpose"
+            - "general-purpose"
       - axis:
           type: user-defined
-          name: BUILD_JAVA_HOME
+          name: RUNTIME_JAVA_NAME
           values:
-            - "$HOME/.java/openjdk12"
-      - axis:
-          type: user-defined
-          name: RUNTIME_JAVA_HOME
-          values:
-            - "$HOME/.java/java11"
-            - "$HOME/.java/java12"
-            - "$HOME/.java/openjdk12"
-            - "$HOME/.java/openjdk13"
-            - "$HOME/.java/openjdk14"
-            - "$HOME/.java/zulu11"
-            - "$HOME/.java/zulu12"
-            - "$HOME/.java/corretto11"
-            - "$HOME/.java/adoptopenjdk11"
+            - "java11"
+            - "java12"
+            - "openjdk12"
+            - "openjdk13"
+            - "openjdk14"
+            - "zulu11"
+            - "zulu12"
+            - "corretto11"
+            - "adoptopenjdk11"
     builders:
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+intake
+          export RUNTIME_JAVA_HOME=$HOME/.java/$RUNTIME_JAVA_NAME
           .ci/scripts/build.sh -Dbwc.checkout.align=true check

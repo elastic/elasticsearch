@@ -42,8 +42,8 @@ public class EstimateMemoryUsageActionResponseTests extends AbstractSerializingT
 
     public void testConstructor_SmallValues() {
         Response response = new Response(new ByteSizeValue(120, ByteSizeUnit.KB), new ByteSizeValue(30, ByteSizeUnit.KB));
-        assertThat(response.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(1, ByteSizeUnit.MB)));
-        assertThat(response.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(1, ByteSizeUnit.MB)));
+        assertThat(response.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(120, ByteSizeUnit.KB)));
+        assertThat(response.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(30, ByteSizeUnit.KB)));
     }
 
     public void testConstructor() {

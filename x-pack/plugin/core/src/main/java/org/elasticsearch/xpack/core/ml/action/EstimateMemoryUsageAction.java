@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig.MIN_MODEL_MEMORY_LIMIT;
 
 public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAction.Response> {
 
@@ -61,9 +60,8 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         private final ByteSizeValue expectedMemoryWithDisk;
 
         public Response(@Nullable ByteSizeValue expectedMemoryWithoutDisk, @Nullable ByteSizeValue expectedMemoryWithDisk) {
-            this.expectedMemoryWithoutDisk =
-                expectedMemoryWithoutDisk != null ? max(expectedMemoryWithoutDisk, MIN_MODEL_MEMORY_LIMIT) : null;
-            this.expectedMemoryWithDisk = expectedMemoryWithDisk != null ? max(expectedMemoryWithDisk, MIN_MODEL_MEMORY_LIMIT) : null;
+            this.expectedMemoryWithoutDisk = expectedMemoryWithoutDisk;
+            this.expectedMemoryWithDisk = expectedMemoryWithDisk;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -116,10 +114,6 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         @Override
         public int hashCode() {
             return Objects.hash(expectedMemoryWithoutDisk, expectedMemoryWithDisk);
-        }
-
-        private static <T extends Comparable<T>> T max(T value1, T value2) {
-            return value1.compareTo(value2) >= 0 ? value1 : value2;
         }
     }
 }

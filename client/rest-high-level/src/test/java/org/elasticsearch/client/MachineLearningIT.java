@@ -1951,10 +1951,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                     .build());
 
         // We are pretty liberal here as this test does not aim at verifying concrete numbers but rather end-to-end user workflow.
-        ByteSizeValue lowerBound = new ByteSizeValue(1, ByteSizeUnit.MB);
+        ByteSizeValue lowerBound = new ByteSizeValue(1, ByteSizeUnit.KB);
         ByteSizeValue upperBound = new ByteSizeValue(1, ByteSizeUnit.GB);
 
-        // Data Frame has 10 rows, expect that the returned estimates fall within (1MB, 1GB) range.
+        // Data Frame has 10 rows, expect that the returned estimates fall within (1kB, 1GB) range.
         EstimateMemoryUsageResponse response1 =
             execute(
                 estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);

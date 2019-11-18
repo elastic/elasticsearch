@@ -49,9 +49,8 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.hamcrest.Matchers;
-import org.junit.Before;
+import org.junit.After;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -143,11 +142,9 @@ public class SecurityTests extends ESTestCase {
         return null;
     }
 
-    @Before
-    public void cleanup() throws IOException {
-        if (threadContext != null) {
-            threadContext = null;
-        }
+    @After
+    public void cleanup() {
+        threadContext = null;
     }
 
     public void testCustomRealmExtension() throws Exception {

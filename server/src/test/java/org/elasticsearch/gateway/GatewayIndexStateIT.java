@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -55,6 +56,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -67,6 +69,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -506,6 +509,44 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertNull(state.metaData().persistentSettings().get("archived."
             + MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()));
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701")
+    // This test relates to loading a broken state that was written by a 6.x node, but for now we do not load state from old nodes.
+    public void testHalfDeletedIndexImport() throws Exception {
+        // It's possible for a 6.x node to add a tombstone for an index but not actually delete the index metadata from disk since that
+        // deletion is slightly deferred and may race against the node being shut down; if you upgrade to 7.x when in this state then the
+        // node won't start.
+
+        internalCluster().startNode();
+        createIndex("test", Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+        ensureGreen("test");
+
+        final MetaData metaData = internalCluster().getInstance(ClusterService.class).state().metaData();
+        final Path[] paths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
+//        writeBrokenMeta(metaStateService -> {
+//            metaStateService.writeGlobalState("test", MetaData.builder(metaData)
+//                // we remove the manifest file, resetting the term and making this look like an upgrade from 6.x, so must also reset the
+//                // term in the coordination metadata
+//                .coordinationMetaData(CoordinationMetaData.builder(metaData.coordinationMetaData()).term(0L).build())
+//                // add a tombstone but do not delete the index metadata from disk
+//                .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metaData.index("test").getIndex()).build()).build());
+//            for (final Path path : paths) {
+//                try (Stream<Path> stateFiles = Files.list(path.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
+//                    for (final Path manifestPath : stateFiles
+//                        .filter(p -> p.getFileName().toString().startsWith(Manifest.FORMAT.getPrefix())).collect(Collectors.toList())) {
+//                        IOUtils.rm(manifestPath);
+//                    }
+//                }
+//            }
+//        });
+
+        ensureGreen();
+
+        assertBusy(() -> assertThat(internalCluster().getInstance(NodeEnvironment.class).availableIndexFolders(), empty()));
     }
 
     private void restartNodesOnBrokenClusterState(ClusterState.Builder clusterStateBuilder) throws Exception {

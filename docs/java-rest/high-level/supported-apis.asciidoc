@@ -120,6 +120,7 @@ Alias Management::
 * <<{upid}-update-aliases>>
 * <<{upid}-exists-alias>>
 * <<{upid}-get-alias>>
+* <<{upid}-delete-alias>>
 
 Template Management::
 * <<{upid}-get-templates>>
@@ -145,6 +146,7 @@ include::indices/put_mapping.asciidoc[]
 include::indices/get_mappings.asciidoc[]
 include::indices/get_field_mappings.asciidoc[]
 include::indices/update_aliases.asciidoc[]
+include::indices/delete_alias.asciidoc[]
 include::indices/exists_alias.asciidoc[]
 include::indices/get_alias.asciidoc[]
 include::indices/put_settings.asciidoc[]

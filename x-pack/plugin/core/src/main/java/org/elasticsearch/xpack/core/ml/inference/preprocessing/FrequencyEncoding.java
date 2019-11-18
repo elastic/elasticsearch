@@ -103,7 +103,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
 
     @Override
     public void process(Map<String, Object> fields) {
-        String value = (String)fields.get(field);
+        String value = fields.get(field).toString();
         if (value == null) {
             return;
         }
@@ -152,7 +152,8 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
         long size = SHALLOW_SIZE;
         size += RamUsageEstimator.sizeOf(field);
         size += RamUsageEstimator.sizeOf(featureName);
-        size += RamUsageEstimator.sizeOfMap(frequencyMap);
+        // defSize:0 indicates that there is not a defined size. Finding the shallowSize of Double gives the best estimate
+        size += RamUsageEstimator.sizeOfMap(frequencyMap, 0);
         return size;
     }
 

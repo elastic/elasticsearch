@@ -114,7 +114,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
 
     @Override
     public void process(Map<String, Object> fields) {
-        String value = (String)fields.get(field);
+        String value = fields.get(field).toString();
         if (value == null) {
             return;
         }
@@ -166,7 +166,8 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
         long size = SHALLOW_SIZE;
         size += RamUsageEstimator.sizeOf(field);
         size += RamUsageEstimator.sizeOf(featureName);
-        size += RamUsageEstimator.sizeOfMap(meanMap);
+        // defSize:0 indicates that there is not a defined size. Finding the shallowSize of Double gives the best estimate
+        size += RamUsageEstimator.sizeOfMap(meanMap, 0);
         return size;
     }
 

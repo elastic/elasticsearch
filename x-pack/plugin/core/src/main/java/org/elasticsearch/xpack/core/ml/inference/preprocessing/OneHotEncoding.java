@@ -86,7 +86,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
 
     @Override
     public void process(Map<String, Object> fields) {
-        String value = (String)fields.get(field);
+        String value = fields.get(field).toString();
         if (value == null) {
             return;
         }
@@ -134,7 +134,8 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
         size += RamUsageEstimator.sizeOf(field);
-        size += RamUsageEstimator.sizeOfMap(hotMap);
+        // defSize:0 does not do much in this case as sizeOf(String) is a known quantity
+        size += RamUsageEstimator.sizeOfMap(hotMap, 0);
         return size;
     }
 

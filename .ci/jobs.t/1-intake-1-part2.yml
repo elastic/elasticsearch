@@ -1,6 +1,6 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+multijob+intake+part2
-    display-name: "elastic / elasticsearch # %BRANCH% - intake - part 1 (experimental)"
+    display-name: "elastic / elasticsearch # %BRANCH% - intake - part 2 (experimental)"
     builders:
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr

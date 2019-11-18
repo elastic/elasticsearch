@@ -945,3 +945,7 @@ See <<ref-saml-encryption-settings>>.
 
 See <<ref-saml-ssl-settings>>. 
 
+[role="exclude",id="configuring-file-realm"]
+=== Configuring a file realm
+
+See <<file-realm-configuration>>. 

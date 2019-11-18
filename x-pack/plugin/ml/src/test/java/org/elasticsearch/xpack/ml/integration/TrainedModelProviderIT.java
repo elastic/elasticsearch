@@ -144,6 +144,8 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setVersion(Version.CURRENT)
+            .setEstimatedHeapMemory(0)
+            .setEstimatedOperations(0)
             .setInput(TrainedModelInputTests.createRandomInput());
     }
 

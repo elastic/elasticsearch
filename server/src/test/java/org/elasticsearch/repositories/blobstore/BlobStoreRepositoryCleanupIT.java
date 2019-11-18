@@ -47,7 +47,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         assertBusy(() -> {
             RepositoryCleanupInProgress cleanupInProgress =
                 client().admin().cluster().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
-            assertFalse(cleanupInProgress.cleanupInProgress());
+            assertFalse(cleanupInProgress.hasCleanupInProgress());
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -60,7 +60,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         logger.info("-->  ensure cleanup is still in progress");
         final RepositoryCleanupInProgress cleanup =
             client().admin().cluster().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
-        assertTrue(cleanup.cleanupInProgress());
+        assertTrue(cleanup.hasCleanupInProgress());
 
         logger.info("-->  unblocking master node");
         unblockNode("test-repo", masterNode);
@@ -69,7 +69,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         assertBusy(() -> {
             RepositoryCleanupInProgress cleanupInProgress =
                 client().admin().cluster().prepareState().get().getState().custom(RepositoryCleanupInProgress.TYPE);
-            assertFalse(cleanupInProgress.cleanupInProgress());
+            assertFalse(cleanupInProgress.hasCleanupInProgress());
         }, 30, TimeUnit.SECONDS);
     }
 

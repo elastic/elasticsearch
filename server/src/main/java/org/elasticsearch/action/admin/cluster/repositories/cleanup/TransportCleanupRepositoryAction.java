@@ -93,7 +93,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         clusterService.addStateApplier(event -> {
             if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false) {
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = event.state().custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress == null || repositoryCleanupInProgress.cleanupInProgress() == false) {
+                if (repositoryCleanupInProgress == null || repositoryCleanupInProgress.hasCleanupInProgress() == false) {
                     return;
                 }
                 clusterService.submitStateUpdateTask("clean up repository cleanup task after master failover",
@@ -122,7 +122,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         RepositoryCleanupInProgress cleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
         if (cleanupInProgress != null) {
             boolean changed = false;
-            if (cleanupInProgress.cleanupInProgress()) {
+            if (cleanupInProgress.hasCleanupInProgress()) {
                 cleanupInProgress = new RepositoryCleanupInProgress();
                 changed = true;
             }
@@ -178,7 +178,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                    if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress()) {
+                    if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
                         throw new IllegalStateException(
                             "Cannot cleanup [" + repositoryName + "] - a repository cleanup is already in-progress");
                     }

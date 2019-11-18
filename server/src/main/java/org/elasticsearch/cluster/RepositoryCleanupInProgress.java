@@ -51,7 +51,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         return new Entry(repository, repositoryStateId);
     }
 
-    public boolean cleanupInProgress() {
+    public boolean hasCleanupInProgress() {
         // TODO: Should we allow parallelism across repositories here maybe?
         return entries.isEmpty() == false;
     }

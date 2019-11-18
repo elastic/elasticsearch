@@ -239,6 +239,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Finished analysis");
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/49095")
     public void testStopAndRestart() throws Exception {
         initialize("regression_stop_and_restart");
 

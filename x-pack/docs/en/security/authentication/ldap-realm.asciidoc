@@ -3,9 +3,8 @@
 === LDAP user authentication
 
 You can configure the {stack} {security-features} to communicate with a
-Lightweight Directory Access Protocol (LDAP) server to authenticate users. To
-integrate with LDAP, you configure an `ldap` realm and map LDAP groups to user
-roles.
+Lightweight Directory Access Protocol (LDAP) server to authenticate users. See
+<<ldap-realm-configuration>>.
 
 LDAP stores users and groups hierarchically, similar to the way folders are
 grouped in a file system. An LDAP directory's hierarchy is built from containers

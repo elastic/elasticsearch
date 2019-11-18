@@ -53,7 +53,7 @@ public class GeoCentroidAggregationBuilder
     }
 
     public GeoCentroidAggregationBuilder(String name) {
-        super(name, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name, ValueType.GEOPOINT);
     }
 
     protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

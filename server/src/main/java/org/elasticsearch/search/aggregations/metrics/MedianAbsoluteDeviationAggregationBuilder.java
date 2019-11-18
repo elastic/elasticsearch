@@ -62,7 +62,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     private double compression = 1000d;
 
     public MedianAbsoluteDeviationAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValueType.NUMERIC);
     }
 
     public MedianAbsoluteDeviationAggregationBuilder(StreamInput in) throws IOException {

@@ -53,7 +53,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     public MaxAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValueType.NUMERIC);
     }
 
     protected MaxAggregationBuilder(MaxAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

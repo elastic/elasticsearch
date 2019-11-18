@@ -58,7 +58,7 @@ public class ExtendedStatsAggregationBuilder
     private double sigma = 2.0;
 
     public ExtendedStatsAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValueType.NUMERIC);
     }
 
     protected ExtendedStatsAggregationBuilder(ExtendedStatsAggregationBuilder clone,

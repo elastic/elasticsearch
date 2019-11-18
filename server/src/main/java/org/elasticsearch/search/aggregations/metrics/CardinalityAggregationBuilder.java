@@ -64,7 +64,7 @@ public final class CardinalityAggregationBuilder
     private Long precisionThreshold = null;
 
     public CardinalityAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, ValuesSourceType.ANY, targetValueType);
+        super(name, targetValueType);
     }
 
     public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

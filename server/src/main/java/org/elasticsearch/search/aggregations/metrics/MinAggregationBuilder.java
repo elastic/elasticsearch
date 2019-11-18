@@ -53,7 +53,7 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     public MinAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValueType.NUMERIC);
     }
 
     protected MinAggregationBuilder(MinAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

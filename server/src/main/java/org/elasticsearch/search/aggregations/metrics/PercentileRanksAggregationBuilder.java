@@ -115,7 +115,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     public PercentileRanksAggregationBuilder(String name, double[] values) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValueType.NUMERIC);
         if (values == null) {
             throw new IllegalArgumentException("[values] must not be null: [" + name + "]");
         }

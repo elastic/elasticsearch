@@ -53,7 +53,7 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     public AvgAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValueType.NUMERIC);
     }
 
     public AvgAggregationBuilder(AvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

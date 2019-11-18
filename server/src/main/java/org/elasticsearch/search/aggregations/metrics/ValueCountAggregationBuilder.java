@@ -53,7 +53,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     public ValueCountAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, ValuesSourceType.ANY, targetValueType);
+        super(name, targetValueType);
     }
 
     protected ValueCountAggregationBuilder(ValueCountAggregationBuilder clone,

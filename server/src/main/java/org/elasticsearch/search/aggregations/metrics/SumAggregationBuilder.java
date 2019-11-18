@@ -53,7 +53,7 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     public SumAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValueType.NUMERIC);
     }
 
     protected SumAggregationBuilder(SumAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

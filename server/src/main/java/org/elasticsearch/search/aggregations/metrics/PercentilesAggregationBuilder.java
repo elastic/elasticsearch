@@ -132,7 +132,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     private boolean keyed = true;
 
     public PercentilesAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValueType.NUMERIC);
     }
 
     protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,

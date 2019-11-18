@@ -40,7 +40,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
             extends ValuesSourceAggregationBuilder<VS, AB> {
 
-        protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+        protected LeafOnly(String name, ValueType targetValueType) {
             super(name, targetValueType);
         }
 

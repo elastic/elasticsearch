@@ -29,36 +29,29 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class ReindexJob implements PersistentTaskParams {
 
     // TODO: Name
     public static final String NAME = ReindexTask.NAME;
 
-    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ReindexJob, Void> PARSER
-        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((Boolean) a[0], (Map<String, String>) a[1]));
+        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((Boolean) a[0]));
 
     private static String STORE_RESULT = "store_result";
-    private static String HEADERS = "headers";
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(STORE_RESULT));
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), new ParseField(HEADERS));
     }
 
     private final boolean storeResult;
-    private final Map<String, String> headers;
 
-    ReindexJob(boolean storeResult, Map<String, String> headers) {
+    ReindexJob(boolean storeResult) {
         this.storeResult = storeResult;
-        this.headers = headers;
     }
 
     ReindexJob(StreamInput in) throws IOException {
         storeResult = in.readBoolean();
-        headers = in.readMap(StreamInput::readString, StreamInput::readString);
     }
 
     @Override
@@ -75,14 +68,12 @@ public class ReindexJob implements PersistentTaskParams {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(storeResult);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(STORE_RESULT, storeResult);
-        builder.field(HEADERS, headers);
         return builder.endObject();
     }
 

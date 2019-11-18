@@ -73,7 +73,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
 
         // In the current implementation, we only need to store task results if we do not wait for completion
         boolean storeTaskResult = request.getWaitForCompletion() == false;
-        ReindexJob job = new ReindexJob(storeTaskResult, threadPool.getThreadContext().getHeaders());
+        ReindexJob job = new ReindexJob(storeTaskResult);
 
         ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest(), threadPool.getThreadContext().getHeaders());
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {

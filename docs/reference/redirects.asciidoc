@@ -971,6 +971,11 @@ See <<ref-saml-encryption-settings>>.
 
 See <<ref-saml-ssl-settings>>. 
 
+[role="exclude",id="configuring-file-realm"]
+=== Configuring a file realm
+
+See <<file-realm-configuration>>. 
+
 [role="exclude",id="ldap-user-search"]
 === User search mode and user DN templates mode
 

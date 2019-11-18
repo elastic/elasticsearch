@@ -33,6 +33,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -73,7 +74,9 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             null, // is not parsed so should not be provided
             tags,
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            TrainedModelInputTests.createRandomInput());
+            TrainedModelInputTests.createRandomInput(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong());
     }
 
     @Override
@@ -96,6 +99,16 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         return new NamedWriteableRegistry(entries);
     }
 
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return lenient ? ToXContent.EMPTY_PARAMS : new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true"));
+    }
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
+
     public void testToXContentWithParams() throws IOException {
         TrainedModelConfig config = new TrainedModelConfig(
             randomAlphaOfLength(10),
@@ -106,7 +119,9 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelDefinitionTests.createRandomBuilder(randomAlphaOfLength(10)).build(),
             Collections.emptyList(),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            TrainedModelInputTests.createRandomInput());
+            TrainedModelInputTests.createRandomInput(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong());
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("definition"));

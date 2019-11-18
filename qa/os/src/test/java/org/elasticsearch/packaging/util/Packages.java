@@ -279,7 +279,7 @@ public class Packages {
 
     /**
      * Starts Elasticsearch, without checking that startup is successful. To also check
-     * that Elasticsearch has started, call {@link #startElasticsearch(Shell, Installation)}.
+     * that Elasticsearch has started, call {@link #startElasticsearch(Shell)}.
      */
     public static void startElasticsearchIgnoringFailure(Shell sh) {
         if (isSystemd()) {
@@ -303,7 +303,7 @@ public class Packages {
         }
     }
 
-    private static void assertElasticsearchStarted(Shell sh, Installation installation) throws IOException {
+    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws IOException {
         waitForElasticsearch(installation);
 
         if (isSystemd()) {

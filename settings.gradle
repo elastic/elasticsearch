@@ -54,6 +54,7 @@ List projects = [
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
+  'test:fixtures:s3-fixture',
   'test:logger-usage'
 ]
 

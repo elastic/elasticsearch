@@ -33,6 +33,7 @@ import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.el.GreekAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.es.SpanishAnalyzer;
+import org.apache.lucene.analysis.et.EstonianAnalyzer;
 import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
 import org.apache.lucene.analysis.fi.FinnishAnalyzer;
@@ -127,6 +128,7 @@ public class Analysis {
         namedStopWords.put("_danish_", DanishAnalyzer.getDefaultStopSet());
         namedStopWords.put("_dutch_", DutchAnalyzer.getDefaultStopSet());
         namedStopWords.put("_english_", EnglishAnalyzer.getDefaultStopSet());
+        namedStopWords.put("_estonian_", EstonianAnalyzer.getDefaultStopSet());
         namedStopWords.put("_finnish_", FinnishAnalyzer.getDefaultStopSet());
         namedStopWords.put("_french_", FrenchAnalyzer.getDefaultStopSet());
         namedStopWords.put("_galician_", GalicianAnalyzer.getDefaultStopSet());

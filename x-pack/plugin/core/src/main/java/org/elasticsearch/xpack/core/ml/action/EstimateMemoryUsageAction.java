@@ -61,8 +61,9 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         private final ByteSizeValue expectedMemoryWithDisk;
 
         public Response(@Nullable ByteSizeValue expectedMemoryWithoutDisk, @Nullable ByteSizeValue expectedMemoryWithDisk) {
-            this.expectedMemoryWithoutDisk = expectedMemoryWithoutDisk;
-            this.expectedMemoryWithDisk = expectedMemoryWithDisk;
+            this.expectedMemoryWithoutDisk =
+                expectedMemoryWithoutDisk != null ? max(expectedMemoryWithoutDisk, MIN_MODEL_MEMORY_LIMIT) : null;
+            this.expectedMemoryWithDisk = expectedMemoryWithDisk != null ? max(expectedMemoryWithDisk, MIN_MODEL_MEMORY_LIMIT) : null;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -72,11 +73,11 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         }
 
         public ByteSizeValue getExpectedMemoryWithoutDisk() {
-            return expectedMemoryWithoutDisk != null ? max(expectedMemoryWithoutDisk, MIN_MODEL_MEMORY_LIMIT) : null;
+            return expectedMemoryWithoutDisk;
         }
 
         public ByteSizeValue getExpectedMemoryWithDisk() {
-            return expectedMemoryWithDisk != null ? max(expectedMemoryWithDisk, MIN_MODEL_MEMORY_LIMIT) : null;
+            return expectedMemoryWithDisk;
         }
 
         @Override
@@ -89,10 +90,10 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (expectedMemoryWithoutDisk != null) {
-                builder.field(EXPECTED_MEMORY_WITHOUT_DISK.getPreferredName(), getExpectedMemoryWithoutDisk().getStringRep());
+                builder.field(EXPECTED_MEMORY_WITHOUT_DISK.getPreferredName(), expectedMemoryWithoutDisk.getStringRep());
             }
             if (expectedMemoryWithDisk != null) {
-                builder.field(EXPECTED_MEMORY_WITH_DISK.getPreferredName(), getExpectedMemoryWithDisk().getStringRep());
+                builder.field(EXPECTED_MEMORY_WITH_DISK.getPreferredName(), expectedMemoryWithDisk.getStringRep());
             }
             builder.endObject();
             return builder;

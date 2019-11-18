@@ -12,7 +12,7 @@
               - "general-purpose"
       - axis:
           type: user-defined
-          name: JAVA_HOME
+          name: BUILD_JAVA_HOME
           values:
             - "$HOME/.java/openjdk12"
       - axis:

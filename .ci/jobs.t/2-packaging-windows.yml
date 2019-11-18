@@ -3,17 +3,6 @@
     workspace: "/packaging-windows"
     display-name: "elastic / elasticsearch # %BRANCH% - packaging - Windows (experimental)"
     project-type: matrix
-    triggers:
-      - github-pull-request:
-          org-list:
-            - elastic
-          allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elaticsearch-ci/packaging-windows.*'
-          github-hooks: true
-          status-context: elaticsearch-ci/packaging-windows
-          cancel-builds-on-update: true
-          whitelist-list-labels:
-            - ':Core/Infra/Packaging'
     axes:
       - axis:
           type: label-expression
@@ -30,17 +19,3 @@
             --redirect-stderr `
             --last-good-commit elastic+elasticsearch+%BRANCH%+intake `
             --args "-NonInteractive -ExecutionPolicy ByPass -File .\.ci\os.ps1"`
-    publishers:
-      - postbuildscript:
-          builders:
-            - role: SLAVE
-              build-steps:
-                # We need this to override the default that uses curl
-                - shell: "echo Notify H.O.M.E.R."
-                - powershell: |-
-                    Invoke-WebRequest `
-                    -Method Post `
-                    -ContentType "text/plain" `
-                    -Body "$env:BUILD_URL" `
-                    -Uri "https://homer.app.elstc.co/webhook/jenkins/build-finished" `
-                    -ErrorAction Ignore

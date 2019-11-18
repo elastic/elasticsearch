@@ -31,7 +31,7 @@ To change a user's password, use the
 <<security-api-change-password, change password API>>.
 
 For more information about the native realm, see 
-<<realms>> and <<configuring-native-realm>>. 
+<<realms>> and <<native-realm>>. 
 
 [[security-api-put-user-path-params]]
 ==== {api-path-parms-title}

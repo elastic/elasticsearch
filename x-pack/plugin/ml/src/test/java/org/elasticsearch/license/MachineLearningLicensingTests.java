@@ -701,7 +701,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             "  \"model_id\": \"" + modelId + "\",\n" +
             "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
             "  \"description\": \"test model for classification\",\n" +
-            "  \"version\": \"8.0.0\",\n" +
+            "  \"version\": \"7.6.0\",\n" +
             "  \"created_by\": \"benwtrent\",\n" +
             "  \"estimated_heap_memory_usage_bytes\": 0,\n" +
             "  \"estimated_operations\": 0,\n" +

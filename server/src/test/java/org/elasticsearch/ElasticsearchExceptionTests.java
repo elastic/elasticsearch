@@ -564,6 +564,63 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
     }
 
+    public void testFromXContentRetainXContentInfo() throws IOException {
+        RoutingMissingException routing = new RoutingMissingException("_test", "_id");
+        ElasticsearchException baz = new ElasticsearchException("baz", routing);
+        ElasticsearchException bar = new ElasticsearchException("bar", baz);
+        ElasticsearchException foo = new ElasticsearchException("foo", bar);
+
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+        XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(foo).endObject();
+        builder = shuffleXContent(builder);
+
+        ElasticsearchException parsed;
+        try (XContentParser parser = createParser(builder)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsed = ElasticsearchException.fromXContent(parser, false);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertNotNull(parsed);
+        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+
+        ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
+
+        cause = (ElasticsearchException) cause.getCause();
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
+
+        cause = (ElasticsearchException) cause.getCause();
+        assertEquals(cause.getMessage(),
+            "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]");
+
+        final XContent xContent2 = randomFrom(XContentType.values()).xContent();
+        XContentBuilder builder2 = XContentBuilder.builder(xContent2).startObject().value(parsed).endObject();
+        builder2 = shuffleXContent(builder2);
+
+        ElasticsearchException parsed2;
+        try (XContentParser parser = createParser(builder2)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsed2 = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertNotNull(parsed2);
+        assertEquals(parsed2.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+
+        cause = (ElasticsearchException) parsed.getCause();
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
+
+        cause = (ElasticsearchException) cause.getCause();
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
+
+        cause = (ElasticsearchException) cause.getCause();
+        assertEquals(cause.getMessage(),
+            "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]");
+    }
+
     /**
      * Test that some values like arrays of numbers are ignored when parsing back
      * an exception.

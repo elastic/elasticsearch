@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -97,6 +98,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
     private final Map<String, List<String>> metadata = new HashMap<>();
     private final Map<String, List<String>> headers = new HashMap<>();
+    private ElasticsearchException e;
 
     /**
      * Construct a <code>ElasticsearchException</code> with the specified cause exception.
@@ -320,6 +322,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
             generateThrowableXContent(builder, params, this);
+        } else if (this instanceof XContentRetainingException) {
+            XContentRetainingException xContentRetainingException = (XContentRetainingException) this;
+            String exceptionName = xContentRetainingException.fromXContentExceptionType;
+            String exceptionMessage = xContentRetainingException.fromXContentExceptionMessage;
+            String exceptionStacktrace = xContentRetainingException.fromXContentStacktrace;
+            innerToXContent(builder, params, this, exceptionName, exceptionMessage, headers, metadata, getCause(),
+                () -> exceptionStacktrace);
         } else {
             innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause());
         }
@@ -329,6 +338,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     protected static void innerToXContent(XContentBuilder builder, Params params,
                                           Throwable throwable, String type, String message, Map<String, List<String>> headers,
                                           Map<String, List<String>> metadata, Throwable cause) throws IOException {
+        innerToXContent(builder, params, throwable, type, message, headers, metadata, cause, () -> ExceptionsHelper.stackTrace(throwable));
+    }
+
+    protected static void innerToXContent(XContentBuilder builder, Params params,
+                                          Throwable throwable, String type, String message, Map<String, List<String>> headers,
+                                          Map<String, List<String>> metadata, Throwable cause, Supplier<String> stacktrace)
+        throws IOException {
         builder.field(TYPE, type);
         builder.field(REASON, message);
 
@@ -359,7 +375,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
 
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
-            builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
+            builder.field(STACK_TRACE, stacktrace.get());
         }
 
         Throwable[] allSuppressed = throwable.getSuppressed();
@@ -407,7 +423,29 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return innerFromXContent(parser, false);
     }
 
+    /**
+     * Generate a {@link ElasticsearchException} from a {@link XContentParser}. This does not
+     * return the original exception type (ie NodeClosedException for example) but just wraps
+     * the type, the reason and the cause of the exception. It also recursively parses the
+     * tree structure of the cause, returning it as a tree structure of {@link ElasticsearchException}
+     * instances.
+     *
+     * @param parser the parser
+     * @param retainXContentFields if true, then the exception reason and type will be retained for
+     *                             re-serialization to XContent.
+     */
+    public static ElasticsearchException fromXContent(XContentParser parser, boolean retainXContentFields) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        return innerFromXContent(parser, false, retainXContentFields);
+    }
+
     public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
+        return innerFromXContent(parser, parseRootCauses, false);
+    }
+
+    public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses, boolean retainXContentFields)
+        throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
@@ -493,7 +531,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
         }
 
-        ElasticsearchException e = new ElasticsearchException(buildMessage(type, reason, stack), cause);
+        final ElasticsearchException e;
+        if (retainXContentFields) {
+            e = new XContentRetainingException(buildMessage(type, reason, stack), type, reason, stack, cause);
+        } else {
+            e = new ElasticsearchException(buildMessage(type, reason, stack), cause);
+        }
+
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             //subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
             //parsed back and become part of this metadata set, while objects and arrays are not supported when parsing back.
@@ -1182,4 +1226,18 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return sb.toString();
     }
 
+    private static class XContentRetainingException extends ElasticsearchException {
+
+        private final String fromXContentExceptionType;
+        private final String fromXContentExceptionMessage;
+        private final String fromXContentStacktrace;
+
+        private XContentRetainingException(String msg, String fromXContentExceptionType, String fromXContentExceptionMessage,
+                                           String fromXContentStacktrace, Throwable cause, Object... args) {
+            super(msg, cause, args);
+            this.fromXContentExceptionType = fromXContentExceptionType;
+            this.fromXContentExceptionMessage = fromXContentExceptionMessage;
+            this.fromXContentStacktrace = fromXContentStacktrace;
+        }
+    }
 }

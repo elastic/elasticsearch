@@ -78,7 +78,7 @@ your subscription. For more information, see https://www.elastic.co/subscription
 ** <<configuring-ldap-realm,LDAP realms>>
 ** <<native-realm,Native realms>>
 ** <<configuring-pki-realm,PKI realms>>
-** <<configuring-saml-realm,SAML realms>>
+** <<saml-realm,SAML realms>>
 
 . Set up roles and users to control access to {es}.
 +
@@ -147,8 +147,6 @@ include::authentication/configuring-active-directory-realm.asciidoc[]
 include::authentication/configuring-file-realm.asciidoc[]
 include::authentication/configuring-ldap-realm.asciidoc[]
 include::authentication/configuring-pki-realm.asciidoc[]
-include::authentication/configuring-saml-realm.asciidoc[]
-
 include::authentication/configuring-kerberos-realm.asciidoc[]
 
 include::reference/files.asciidoc[]

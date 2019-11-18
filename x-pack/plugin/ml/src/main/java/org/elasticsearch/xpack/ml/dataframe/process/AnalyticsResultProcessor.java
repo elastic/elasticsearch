@@ -150,6 +150,8 @@ public class AnalyticsResultProcessor {
             .setMetadata(Collections.singletonMap("analytics_config",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
             .setDefinition(definition)
+            .setEstimatedHeapMemory(definition.ramBytesUsed())
+            .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
             .setInput(new TrainedModelInput(fieldNames))
             .build();
     }

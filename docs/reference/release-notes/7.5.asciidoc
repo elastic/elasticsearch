@@ -76,7 +76,6 @@ Allocation::
 Authorization::
 * Add support to retrieve all API keys if user has privilege {pull}47274[#47274] (issue: {issue}46887[#46887])
 * Add 'create_doc' index privilege {pull}45806[#45806]
-* Reducing privileges needed by built-in beats_admin role {pull}41586[#41586]
 
 CCR::
 * Add Pause/Resume Auto-Follower APIs to High Level REST Client {pull}47989[#47989] (issue: {issue}47510[#47510])
@@ -117,9 +116,6 @@ Features/Java High Level REST Client::
 Features/Java Low Level REST Client::
 * Add cloudId builder to the HLRC {pull}47868[#47868]
 * Add support for cancelling async requests in low-level REST client {pull}45379[#45379] (issues: {issue}43332[#43332], {issue}44802[#44802])
-
-Features/Monitoring::
-* Remove hard coded version_created in default monitoring alerts {pull}47744[#47744]
 
 Infra/Circuit Breakers::
 * Emit log message when parent circuit breaker trips {pull}47000[#47000]
@@ -230,10 +226,8 @@ Analysis::
 Authentication::
 * Add owner flag parameter to the rest spec {pull}48500[#48500] (issue: {issue}48499[#48499])
 * Add populate_user_metadata in OIDC realm {pull}48357[#48357] (issue: {issue}48217[#48217])
-* Remove unnecessary details logged for OIDC {pull}48271[#48271]
 * Fix AD realm additional metadata {pull}47179[#47179] (issue: {issue}45848[#45848])
 * Fallback to realm authc if ApiKey fails {pull}46538[#46538]
-* PKI realm accept only verified certificates {pull}45590[#45590]
 
 Authorization::
 * Fix security origin for TokenService#findActiveTokensFor... {pull}47418[#47418] (issue: {issue}47151[#47151])
@@ -330,7 +324,6 @@ Infra/Scripting::
 MULTIPLE AREA LABELS::
 * Prevent deadlock by using separate schedulers {pull}48697[#48697] (issues: {issue}41451[#41451], {issue}47599[#47599])
 * Don't apply the plugin's reader wrapper in can_match phase {pull}47816[#47816] (issue: {issue}46817[#46817])
-* [telemetry] _xpack/usage endpoint missing `dataframe` [ISSUE] {pull}46819[#46819]
 * Fix cluster alert for watcher/monitoring IndexOutOfBoundsExcep… {pull}45308[#45308] (issue: {issue}43184[#43184])
 
 Machine Learning::
@@ -342,9 +335,6 @@ Machine Learning::
 * Fix two datafeed flush lockup bugs {pull}46982[#46982]
 * Restore from checkpoint could damage seasonality modeling. For example, it could
 cause seasonal components to be overwritten in error. {ml-pull}821[#821]
-
-NOT CLASSIFIED::
-* Remove uniqueness constraint for API key name and make it optional {pull}47549[#47549] (issue: {issue}46646[#46646])
 
 Network::
 * Fix es.http.cname_in_publish_address Deprecation Logging {pull}47451[#47451] (issue: {issue}47436[#47436])
@@ -380,6 +370,7 @@ Search::
 
 Security::
 * Initialize document subset bit set cache used for DLS {pull}46211[#46211] (issue: {issue}45147[#45147])
+* Remove uniqueness constraint for API key name and make it optional {pull}47549[#47549] (issue: {issue}46646[#46646])
 
 Snapshot/Restore::
 * Fix SnapshotShardStatus Reporting for Failed Shard {pull}48556[#48556] (issue: {issue}48526[#48526])

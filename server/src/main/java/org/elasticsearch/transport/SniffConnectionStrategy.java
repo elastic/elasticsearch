@@ -122,6 +122,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         key -> intSetting(key, RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER, 1,
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
+    static final int CHANNELS_PER_CONNECTION = 6;
+
     private static final Logger logger = LogManager.getLogger(SniffConnectionStrategy.class);
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())

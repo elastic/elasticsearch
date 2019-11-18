@@ -54,8 +54,8 @@ import java.util.stream.Stream;
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     enum ConnectionStrategy {
-        SNIFF(6, SniffConnectionStrategy::enablementSettings),
-        SIMPLE(1, SimpleConnectionStrategy::enablementSettings);
+        SNIFF(SniffConnectionStrategy.CHANNELS_PER_CONNECTION, SniffConnectionStrategy::enablementSettings),
+        SIMPLE(SimpleConnectionStrategy.CHANNELS_PER_CONNECTION, SimpleConnectionStrategy::enablementSettings);
 
         private final int numberOfChannels;
         private final Supplier<Stream<Setting.AffixSetting<?>>> enabledSettings;
@@ -131,7 +131,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return seeds.isEmpty() == false;
         } else {
-            return false;
+            List<String> addresses = SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias)
+                .get(settings);
+            return addresses.isEmpty() == false;
         }
     }
 

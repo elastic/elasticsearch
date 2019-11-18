@@ -65,6 +65,8 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
         "simple.socket_connections",
         key -> intSetting(key, 18, 1, Setting.Property.Dynamic, Setting.Property.NodeScope));
 
+    static final int CHANNELS_PER_CONNECTION = 1;
+
     private static final int MAX_CONNECT_ATTEMPTS_PER_RUN = 3;
     private static final Logger logger = LogManager.getLogger(SimpleConnectionStrategy.class);
 

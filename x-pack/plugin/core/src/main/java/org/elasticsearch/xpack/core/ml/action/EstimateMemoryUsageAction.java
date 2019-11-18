@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig.MIN_MODEL_MEMORY_LIMIT;
 
 public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAction.Response> {
 
@@ -88,10 +89,12 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (expectedMemoryWithoutDisk != null) {
-                builder.field(EXPECTED_MEMORY_WITHOUT_DISK.getPreferredName(), expectedMemoryWithoutDisk.getStringRep());
+                builder.field(
+                    EXPECTED_MEMORY_WITHOUT_DISK.getPreferredName(), max(expectedMemoryWithoutDisk, MIN_MODEL_MEMORY_LIMIT).getStringRep());
             }
             if (expectedMemoryWithDisk != null) {
-                builder.field(EXPECTED_MEMORY_WITH_DISK.getPreferredName(), expectedMemoryWithDisk.getStringRep());
+                builder.field(
+                    EXPECTED_MEMORY_WITH_DISK.getPreferredName(), max(expectedMemoryWithDisk, MIN_MODEL_MEMORY_LIMIT).getStringRep());
             }
             builder.endObject();
             return builder;
@@ -114,6 +117,10 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         @Override
         public int hashCode() {
             return Objects.hash(expectedMemoryWithoutDisk, expectedMemoryWithDisk);
+        }
+
+        private static <T extends Comparable<T>> T max(T value1, T value2) {
+            return value1.compareTo(value2) >= 0 ? value1 : value2;
         }
     }
 }

@@ -50,8 +50,8 @@ setup:
         body:
           source: { index: "index-source" }
           analysis: { outlier_detection: {} }
-  - match: { expected_memory_without_disk: "3kb" }
-  - match: { expected_memory_with_disk: "3kb" }
+  - match: { expected_memory_without_disk: "1mb" }
+  - match: { expected_memory_with_disk: "1mb" }
 
   - do:
       index:
@@ -65,8 +65,8 @@ setup:
         body:
           source: { index: "index-source" }
           analysis: { outlier_detection: {} }
-  - match: { expected_memory_without_disk: "4kb" }
-  - match: { expected_memory_with_disk: "4kb" }
+  - match: { expected_memory_without_disk: "1mb" }
+  - match: { expected_memory_with_disk: "1mb" }
 
   - do:
       index:
@@ -80,5 +80,5 @@ setup:
         body:
           source: { index: "index-source" }
           analysis: { outlier_detection: {} }
-  - match: { expected_memory_without_disk: "6kb" }
-  - match: { expected_memory_with_disk: "5kb" }
+  - match: { expected_memory_without_disk: "1mb" }
+  - match: { expected_memory_with_disk: "1mb" }

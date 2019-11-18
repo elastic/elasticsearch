@@ -147,9 +147,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                     runtimeJavaVersionDetails = findJavaVersionDetails(runtimeJavaHome);
                     runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(runtimeJavaHome));
 
-                    // We don't expect Gradle to be running in a FIPS JVM
-                    String inFipsJvmScript = "print(java.security.Security.getProviders()[0].name.toLowerCase().contains(\"fips\"));";
-                    inFipsJvm = Boolean.parseBoolean(runJavaAsScript(runtimeJavaHome, inFipsJvmScript));
+                    inFipsJvm = Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
                 } else {
                     throw new RuntimeException("Runtime Java home path of '" + compilerJavaHome + "' does not exist");
                 }

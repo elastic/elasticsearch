@@ -211,7 +211,6 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         IndexMetaData.Builder builder = IndexMetaData.builder(EnrichPolicy.getBaseName(name) + "-1");
         builder.settings(settings);
         builder.putMapping(
-            "_doc",
             "{\"_meta\": {\"enrich_match_field\": \""
                 + policy.getMatchField()
                 + "\", \"enrich_policy_type\": \""

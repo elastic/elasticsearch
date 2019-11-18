@@ -1,15 +1,15 @@
 #!/bin/bash
 
-JAVA_HOME=${BUILD_JAVA_HOME:-$HOME/.java/openjdk12}
-RUNTIME_JAVA_HOME=${RUNTIME_JAVA_HOME:-$HOME/.java/openjdk11}
+export JAVA_HOME=${BUILD_JAVA_HOME:-$HOME/.java/openjdk12}
+export RUNTIME_JAVA_HOME=${RUNTIME_JAVA_HOME:-$HOME/.java/openjdk11}
 
-JAVA7_HOME=$HOME/.java/java7
-JAVA8_HOME=$HOME/.java/java8
-JAVA9_HOME=$HOME/.java/java9
-JAVA10_HOME=$HOME/.java/java10
-JAVA11_HOME=$HOME/.java/java11
-JAVA12_HOME=$HOME/.java/openjdk12
-JAVA13_HOME=$HOME/.java/openjdk13
+export JAVA7_HOME=$HOME/.java/java7
+export JAVA8_HOME=$HOME/.java/java8
+export JAVA9_HOME=$HOME/.java/java9
+export JAVA10_HOME=$HOME/.java/java10
+export JAVA11_HOME=$HOME/.java/java11
+export JAVA12_HOME=$HOME/.java/openjdk12
+export JAVA13_HOME=$HOME/.java/openjdk13
 
 # drop page cache and kernel slab objects on linux
 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches

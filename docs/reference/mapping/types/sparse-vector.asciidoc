@@ -7,7 +7,6 @@
 ++++
 
 deprecated[7.6, The `sparse_vector` type is deprecated and will be removed in 8.0.]
-experimental[]
 
 A `sparse_vector` field stores sparse vectors of float values.
 The maximum number of dimensions that can be in a vector should

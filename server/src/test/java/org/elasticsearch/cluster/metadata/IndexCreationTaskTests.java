@@ -114,6 +114,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         super.setUp();
         setupIndicesService();
         setupClusterState();
+        when(request.mappings()).thenReturn("{}");
     }
 
     public void testMatchTemplates() throws Exception {
@@ -130,7 +131,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testApplyDataFromTemplate() throws Exception {
         addMatchingTemplate(builder -> builder
                 .putAlias(AliasMetaData.builder("alias1"))
-                .putMapping("mapping1", createMapping())
+                .putMapping("_doc", createMapping())
                 .settings(Settings.builder().put("key1", "value1"))
         );
 
@@ -138,7 +139,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("_doc"));
     }
 
     public void testApplyDataFromRequest() throws Exception {
@@ -150,7 +151,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("_doc"));
     }
 
     public void testInvalidAliasName() throws Exception {
@@ -165,7 +166,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         addMatchingTemplate(builder -> builder
                     .putAlias(AliasMetaData.builder("alias1").searchRouting("fromTpl").build())
-                    .putMapping("type", tplMapping)
+                    .putMapping("_doc", tplMapping)
                     .settings(Settings.builder().put("key1", "tplValue"))
         );
 
@@ -177,7 +178,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("fromReq"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("reqValue"));
-        assertThat(getMappingsFromResponse().toString(), equalTo("{type={properties={field={type=keyword}}}}"));
+        assertThat(getMappingsFromResponse().toString(), equalTo("{_doc={properties={field={type=keyword}}}}"));
     }
 
     public void testDefaultSettings() throws Exception {
@@ -310,24 +311,18 @@ public class IndexCreationTaskTests extends ESTestCase {
         assertThat(exception.getMessage(), startsWith("alias [alias1] has more than one write index ["));
     }
 
-    public void testTypelessTemplateWithTypedIndexCreation() throws Exception {
+    public void testTypedTemplateWithTypelessIndexCreation() throws Exception {
         addMatchingTemplate(builder -> builder.putMapping("type", "{\"type\": {}}"));
         setupRequestMapping(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent("{\"_doc\":{}}"));
         executeTask();
         assertThat(getMappingsFromResponse(), Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
-    public void testTypedTemplateWithTypelessIndexCreation() throws Exception {
-        addMatchingTemplate(builder -> builder.putMapping(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\": {}}"));
-        setupRequestMapping("type", new CompressedXContent("{\"type\":{}}"));
-        executeTask();
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
-    }
-
     public void testTypedTemplate() throws Exception {
-        addMatchingTemplate(builder -> builder.putMapping("type", "{\"type\": {}}"));
+        addMatchingTemplate(builder -> builder.putMapping("type",
+            "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}"));
         executeTask();
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("_doc"));
     }
 
     public void testTypelessTemplate() throws Exception {
@@ -383,7 +378,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     private void setupRequestMapping(String mappingKey, CompressedXContent mapping) throws IOException {
-        when(request.mappings()).thenReturn(Collections.singletonMap(mappingKey, mapping.string()));
+        when(request.mappings()).thenReturn(mapping.string());
     }
 
     private CompressedXContent createMapping() throws IOException {
@@ -393,7 +388,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     private CompressedXContent createMapping(String fieldType) throws IOException {
         final String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", fieldType)

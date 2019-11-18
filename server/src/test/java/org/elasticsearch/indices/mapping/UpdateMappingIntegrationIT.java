@@ -164,7 +164,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         try {
             client().admin().indices().preparePutMapping("test")
-                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}", XContentType.JSON).execute().actionGet();
+                    .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}", XContentType.JSON).execute().actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [body] of different type, current_type [text], merged_type [integer]"));
@@ -177,7 +177,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 .execute().actionGet();
         try {
             client().admin().indices().preparePutMapping("test")
-                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}", XContentType.JSON).execute()
+                    .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}", XContentType.JSON).execute()
                     .actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
@@ -199,7 +199,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+                .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
                 .execute().actionGet();
 
         //no changes, we return

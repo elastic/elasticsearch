@@ -177,7 +177,6 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -1959,8 +1958,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         EstimateMemoryUsageResponse response1 =
             execute(
                 estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
-        assertThat(response1.getExpectedMemoryWithoutDisk(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
-        assertThat(response1.getExpectedMemoryWithDisk(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
+        assertThat(response1.getExpectedMemoryWithoutDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
+        assertThat(response1.getExpectedMemoryWithDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
 
         BulkRequest bulk2 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1969,13 +1968,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
         highLevelClient().bulk(bulk2, RequestOptions.DEFAULT);
 
-        // Data Frame now has 100 rows, expect that the returned estimates will be greater than the previous ones.
+        // Data Frame now has 100 rows, expect that the returned estimates will be greater than or equal to the previous ones.
         EstimateMemoryUsageResponse response2 =
             execute(
                 estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
         assertThat(
-            response2.getExpectedMemoryWithoutDisk(), allOf(greaterThan(response1.getExpectedMemoryWithoutDisk()), lessThan(upperBound)));
-        assertThat(response2.getExpectedMemoryWithDisk(), allOf(greaterThan(response1.getExpectedMemoryWithDisk()), lessThan(upperBound)));
+            response2.getExpectedMemoryWithoutDisk(),
+            allOf(greaterThanOrEqualTo(response1.getExpectedMemoryWithoutDisk()), lessThan(upperBound)));
+        assertThat(
+            response2.getExpectedMemoryWithDisk(),
+            allOf(greaterThanOrEqualTo(response1.getExpectedMemoryWithDisk()), lessThan(upperBound)));
     }
 
     public void testPutFilter() throws Exception {

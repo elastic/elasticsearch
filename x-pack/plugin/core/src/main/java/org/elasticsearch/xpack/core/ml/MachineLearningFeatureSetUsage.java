@@ -29,10 +29,12 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     public static final String CREATED_BY = "created_by";
     public static final String NODE_COUNT = "node_count";
     public static final String DATA_FRAME_ANALYTICS_JOBS_FIELD = "data_frame_analytics_jobs";
+    public static final String INFERENCE_FIELD = "inference";
 
     private final Map<String, Object> jobsUsage;
     private final Map<String, Object> datafeedsUsage;
     private final Map<String, Object> analyticsUsage;
+    private final Map<String, Object> inferenceUsage;
     private final int nodeCount;
 
     public MachineLearningFeatureSetUsage(boolean available,
@@ -40,11 +42,13 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
                                           Map<String, Object> jobsUsage,
                                           Map<String, Object> datafeedsUsage,
                                           Map<String, Object> analyticsUsage,
+                                          Map<String, Object> inferenceUsage,
                                           int nodeCount) {
         super(XPackField.MACHINE_LEARNING, available, enabled);
         this.jobsUsage = Objects.requireNonNull(jobsUsage);
         this.datafeedsUsage = Objects.requireNonNull(datafeedsUsage);
         this.analyticsUsage = Objects.requireNonNull(analyticsUsage);
+        this.inferenceUsage = Objects.requireNonNull(inferenceUsage);
         this.nodeCount = nodeCount;
     }
 
@@ -57,6 +61,11 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         } else {
             this.analyticsUsage = Collections.emptyMap();
         }
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            this.inferenceUsage = in.readMap();
+        } else {
+            this.inferenceUsage = Collections.emptyMap();
+        }
         this.nodeCount = in.readInt();
     }
 
@@ -68,6 +77,9 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeMap(analyticsUsage);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeMap(inferenceUsage);
+        }
         out.writeInt(nodeCount);
     }
 
@@ -77,6 +89,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         builder.field(JOBS_FIELD, jobsUsage);
         builder.field(DATAFEEDS_FIELD, datafeedsUsage);
         builder.field(DATA_FRAME_ANALYTICS_JOBS_FIELD, analyticsUsage);
+        builder.field(INFERENCE_FIELD, inferenceUsage);
         if (nodeCount >= 0) {
             builder.field(NODE_COUNT, nodeCount);
         }

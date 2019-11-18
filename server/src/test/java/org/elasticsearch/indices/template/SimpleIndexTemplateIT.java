@@ -347,7 +347,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setPatterns(Collections.singletonList("te*"))
                 .addMapping("type1", "{\"foo\": \"abcde\"}", XContentType.JSON)
                 .get());
-        assertThat(e.getMessage(), containsString("Failed to parse mapping "));
+        assertThat(e.getMessage(), containsString("Failed to parse mapping"));
 
         response = client().admin().indices().prepareGetTemplates().get();
         assertThat(response.getIndexTemplates(), hasSize(0));

@@ -3,9 +3,7 @@
 === Active Directory user authentication
 
 You can configure {stack} {security-features} to communicate with Active
-Directory to authenticate users. To integrate with Active Directory, you
-configure an `active_directory` realm and map Active Directory users and groups
-to roles in the <<mapping-roles, role mapping file>>.
+Directory to authenticate users. See <<ad-realm-configuration>>.
 
 The {security-features} use LDAP to communicate with Active Directory, so
 `active_directory` realms are similar to <<ldap-realm, `ldap` realms>>. Like

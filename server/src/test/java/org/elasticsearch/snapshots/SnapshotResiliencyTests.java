@@ -71,6 +71,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -396,7 +397,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
 
         continueOrDie(deleteSnapshotStepListener, acknowledgedResponse -> masterNode.client.admin().cluster()
-            .prepareCreateSnapshot(repoName, snapshotName).execute(createAnotherSnapshotResponseStepListener));
+            .prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).execute(createAnotherSnapshotResponseStepListener));
         continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
             assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS));
 
@@ -713,7 +714,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         private final Map<String, TestClusterNode> nodes = new LinkedHashMap<>();
 
         /**
-         * Node ids that are disconnected from all other nodes.
+         * Node names that are disconnected from all other nodes.
          */
         private final Set<String> disconnectedNodes = new HashSet<>();
 
@@ -793,11 +794,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         public void disconnectNode(TestClusterNode node) {
-            if (disconnectedNodes.contains(node.node.getId())) {
+            if (disconnectedNodes.contains(node.node.getName())) {
                 return;
             }
             testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().disconnectFromNode(node.node));
-            disconnectedNodes.add(node.node.getId());
+            disconnectedNodes.add(node.node.getName());
         }
 
         public void clearNetworkDisruptions() {
@@ -806,7 +807,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             disconnectedNodes.forEach(nodeName -> {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
-                    testClusterNodes.nodes.values().forEach(n -> n.transportService.openConnection(node, null));
+                    testClusterNodes.nodes.values().forEach(
+                        n -> n.transportService.openConnection(node, null,
+                            ActionTestUtils.assertNoFailureListener(c -> logger.debug("--> Connected [{}] to [{}]", n.node, node))));
                 }
             });
         }
@@ -899,7 +902,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         if (nodes.containsKey(node.getName()) == false || nodes.containsKey(destination.getName()) == false) {
                             return ConnectionStatus.DISCONNECTED;
                         }
-                        return disconnectedNodes.contains(node.getId()) || disconnectedNodes.contains(destination.getId())
+                        return disconnectedNodes.contains(node.getName()) || disconnectedNodes.contains(destination.getName())
                             ? ConnectionStatus.DISCONNECTED : ConnectionStatus.CONNECTED;
                     }
 
@@ -1132,7 +1135,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 } else {
                     return metaData -> {
                         final Repository repository = new MockEventuallyConsistentRepository(
-                            metaData, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext);
+                            metaData, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext, random());
                         repository.start();
                         return repository;
                     };

@@ -839,7 +839,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = clusterState.metaData().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
-            nextStepKey, () -> now, stepRegistry, false);
+            nextStepKey, () -> now, stepRegistry);
         assertClusterStateOnNextStep(clusterState, index, currentStepKey, nextStepKey, newClusterState, now);
     }
 
@@ -861,7 +861,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
-                nextStepKey, () -> now, stepRegistry, false));
+                nextStepKey, () -> now, stepRegistry));
         assertThat(exception.getMessage(), equalTo("index [my_index] is not associated with an Index Lifecycle Policy"));
     }
 
@@ -884,7 +884,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, notCurrentStepKey,
-                nextStepKey, () -> now, stepRegistry, false));
+                nextStepKey, () -> now, stepRegistry));
         assertThat(exception.getMessage(), equalTo("index [my_index] is not on current step " +
             "[{\"phase\":\"not_current_phase\",\"action\":\"not_current_action\",\"name\":\"not_current_step\"}]"));
     }
@@ -907,7 +907,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> IndexLifecycleRunner.moveClusterStateToStep(indexName, clusterState, currentStepKey,
-                nextStepKey, () -> now, stepRegistry, false));
+                nextStepKey, () -> now, stepRegistry));
         assertThat(exception.getMessage(),
             equalTo("step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] " +
                 "for index [my_index] with policy [my_policy] does not exist"));
@@ -1527,7 +1527,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals(newLifecycleState.getStepTime(), newLifecycleState.getStepTime());
     }
 
-    private static class MockAsyncActionStep extends AsyncActionStep {
+    static class MockAsyncActionStep extends AsyncActionStep {
 
         private Exception exception;
         private boolean willComplete;
@@ -1576,7 +1576,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
-    private static class MockAsyncWaitStep extends AsyncWaitStep {
+    static class MockAsyncWaitStep extends AsyncWaitStep {
 
         private Exception exception;
         private boolean willComplete;

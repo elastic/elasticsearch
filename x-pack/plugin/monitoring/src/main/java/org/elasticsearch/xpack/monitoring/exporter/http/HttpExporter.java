@@ -223,7 +223,45 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","auth.password",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key,
+                        new Setting.Validator<String>() {
+                            @Override
+                            public void validate(String password) {
+                                // no password validation that is independent of other settings
+                            }
+
+                            @Override
+                            public void validate(String password, Map<Setting<?>, Object> settings) {
+                                final String namespace =
+                                    HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
+                                        HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
+                                final String username =
+                                    (String) settings.get(AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
+
+                                // username is required for any auth
+                                if (Strings.isNullOrEmpty(username)) {
+                                    if (Strings.isNullOrEmpty(password) == false) {
+                                        throw new IllegalArgumentException(
+                                            "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] without [" +
+                                                AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "]");
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public Iterator<Setting<?>> settings() {
+                                final String namespace =
+                                    HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
+                                        HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
+                                final List<Setting<?>> settings = List.of(
+                                    HttpExporter.AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
+                                return settings.iterator();
+                            }
+
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope,
+                        Property.Filtered));
     /**
      * The SSL settings.
      *
@@ -262,7 +300,23 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<Settings> HEADERS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","headers",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.groupSetting(
+                        key + ".",
+                        settings -> {
+                            final Set<String> names = settings.names();
+                            for (String name : names) {
+                                final String fullSetting = key + "." + name;
+                                if (HttpExporter.BLACKLISTED_HEADERS.contains(name)) {
+                                    throw new SettingsException("header cannot be overwritten via [" + fullSetting + "]");
+                                }
+                                final List<String> values = settings.getAsList(name);
+                                if (values.isEmpty()) {
+                                    throw new SettingsException("headers must have values, missing for setting [" + fullSetting + "]");
+                                }
+                            }
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope));
     /**
      * Blacklist of headers that the user is not allowed to set.
      * <p>
@@ -539,16 +593,7 @@ public class HttpExporter extends Exporter {
 
         // record and validate each header as best we can
         for (final String name : names) {
-            if (BLACKLISTED_HEADERS.contains(name)) {
-                throw new SettingsException("header cannot be overwritten via [" + concreteSetting.getKey() + name + "]");
-            }
-
             final List<String> values = headerSettings.getAsList(name);
-
-            if (values.isEmpty()) {
-                throw new SettingsException("headers must have values, missing for setting [" + concreteSetting.getKey() + name + "]");
-            }
-
             // add each value as a separate header; they literally appear like:
             //
             //  Warning: abc
@@ -626,17 +671,6 @@ public class HttpExporter extends Exporter {
     private static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         final String password = AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-
-        // username is required for any auth
-        if (Strings.isNullOrEmpty(username)) {
-            if (Strings.isNullOrEmpty(password) == false) {
-                throw new SettingsException(
-                        "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "] without [" +
-                                AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "]");
-            }
-            // nothing to configure; default situation for most users
-            return null;
-        }
 
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));

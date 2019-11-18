@@ -28,7 +28,7 @@ group = 'org.elasticsearch.gradle'
 
 String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
 if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
-    throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
+  throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
 
 if (project == rootProject) {
@@ -72,21 +72,21 @@ allprojects {
 }
 
 sourceSets {
-    // We have a few classes that need to be compiled for older java versions
-    minimumRuntime { }
+  // We have a few classes that need to be compiled for older java versions
+  minimumRuntime {}
 }
 
 compileMinimumRuntimeJava {
-    targetCompatibility = 8
-    sourceCompatibility = 8
+  targetCompatibility = 8
+  sourceCompatibility = 8
 }
 
 jar {
-    from sourceSets.minimumRuntime.output
+  from sourceSets.minimumRuntime.output
 }
 
 javadoc {
-    source sourceSets.minimumRuntime.allSource
+  source sourceSets.minimumRuntime.allSource
 }
 
 /*****************************************************************************
@@ -104,7 +104,7 @@ dependencies {
   }
 
   compile localGroovy()
-  
+
   compile 'commons-codec:commons-codec:1.12'
   compile 'org.apache.commons:commons-compress:1.19'
 
@@ -183,13 +183,13 @@ if (project != rootProject) {
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
   }
-    
+
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
   processResources {
-      exclude 'buildSrc.marker'
-      into('META-INF') {
-          from configurations.reaper
-      }
+    exclude 'buildSrc.marker'
+    into('META-INF') {
+      from configurations.reaper
+    }
   }
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
@@ -200,6 +200,7 @@ if (project != rootProject) {
     exclude '**/*.p12'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.java'
+    exclude '**/*.bcfks'
   }
 
   testingConventions {
@@ -217,8 +218,8 @@ if (project != rootProject) {
   task integTest(type: Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
-    onlyIf { project.inFipsJvm == false }
-    maxParallelForks = System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
+    maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
   check.dependsOn(integTest)
 
@@ -252,11 +253,11 @@ class VersionPropertiesLoader {
     }
     if (elasticsearch.matches("[0-9]+\\.[0-9]+\\.[0-9]+") == false) {
       throw new IllegalStateException(
-              "Expected elasticsearch version to be numbers only of the form  X.Y.Z but it was: " +
-                      elasticsearch
+        "Expected elasticsearch version to be numbers only of the form  X.Y.Z but it was: " +
+          elasticsearch
       )
     }
-    String qualifier = systemProperties.getProperty("build.version_qualifier", "");
+    String qualifier = systemProperties.getProperty("build.version_qualifier", "")
     if (qualifier.isEmpty() == false) {
       if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
         throw new IllegalStateException("Invalid qualifier: " + qualifier)

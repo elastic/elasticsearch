@@ -83,7 +83,8 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
-    public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond, BulkByScrollTask.Status checkpointStatus) {
+    public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond,
+                                       BulkByScrollTask.Status checkpointStatus) {
         this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);

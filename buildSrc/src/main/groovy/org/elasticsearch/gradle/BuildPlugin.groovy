@@ -661,7 +661,6 @@ class BuildPlugin implements Plugin<Project> {
                 test.jvmArgumentProviders.add(nonInputProperties)
                 test.extensions.add('nonInputProperties', nonInputProperties)
 
-                test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
                 test.maxParallelForks = System.getProperty('tests.jvms', BuildParams.defaultParallel.toString()) as Integer
 

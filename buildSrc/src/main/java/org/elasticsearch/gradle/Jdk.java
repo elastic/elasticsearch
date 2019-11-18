@@ -111,6 +111,15 @@ public class Jdk implements Buildable, Iterable<File> {
         return configuration.getBuildDependencies();
     }
 
+    public Object getBinJavaPath() {
+        return new Object() {
+            @Override
+            public String toString() {
+                return getPath() + "/bin/java";
+            }
+        };
+    }
+
     // internal, make this jdks configuration unmodifiable
     void finalizeValues() {
         if (version.isPresent() == false) {

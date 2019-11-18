@@ -610,7 +610,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected IndexShard getIndexShard(final ShardId shardId) {
+    private IndexShard getIndexShard(final ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
     }

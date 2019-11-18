@@ -340,7 +340,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 UNASSIGNED_SEQ_NO,
                 globalCheckpointListeners::globalCheckpointUpdated,
                 threadPool::absoluteTimeInMillis,
-                (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener),
+                (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
                 this::getSafeCommitInfo);
 
         // the query cache is a node-level thing, however we want the most popular filters
@@ -2182,6 +2182,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
             retentionLeaseSyncer.sync(
                     shardId,
+                    shardRouting.allocationId().getId(),
+                    getPendingPrimaryTerm(),
                     retentionLeases.v2(),
                     ActionListener.wrap(
                             r -> {},
@@ -2191,7 +2193,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     e)));
         } else {
             logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
-            retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2());
+            retentionLeaseSyncer.backgroundSync(
+                shardId, shardRouting.allocationId().getId(), getPendingPrimaryTerm(), retentionLeases.v2());
         }
     }
 

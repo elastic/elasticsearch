@@ -21,12 +21,16 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -35,14 +39,22 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -91,6 +103,55 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     @Override
+    protected void doExecute(Task task, Request request, ActionListener<ReplicationResponse> listener) {
+        assert false : "use RetentionLeaseBackgroundSyncAction#backgroundSync";
+    }
+
+    final void backgroundSync(ShardId shardId, String primaryAllocationId, long primaryTerm, RetentionLeases retentionLeases) {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            final Request request = new Request(shardId, retentionLeases);
+            final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_background_sync", request);
+            transportService.sendChildRequest(clusterService.localNode(), transportPrimaryAction,
+                new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
+                task,
+                transportOptions,
+                new TransportResponseHandler<ReplicationResponse>() {
+                    @Override
+                    public ReplicationResponse read(StreamInput in) throws IOException {
+                        return newResponseInstance(in);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public void handleResponse(ReplicationResponse response) {
+                        task.setPhase("finished");
+                        taskManager.unregister(task);
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        task.setPhase("finished");
+                        taskManager.unregister(task);
+                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
+                            // node shutting down
+                            return;
+                        }
+                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
+                            // the shard is closed
+                            return;
+                        }
+                        getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
+                    }
+                });
+        }
+    }
+
+    @Override
     protected void shardOperationOnPrimary(
             final Request request,
             final IndexShard primary, ActionListener<PrimaryResult<Request, ReplicationResponse>> listener) {
@@ -135,6 +196,11 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(Objects.requireNonNull(out));
             retentionLeases.writeTo(out);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new ReplicationTask(id, type, action, "retention_lease_background_sync", parentTaskId, headers);
         }
 
         @Override

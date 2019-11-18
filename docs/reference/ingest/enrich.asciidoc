@@ -51,9 +51,10 @@ An enrich policy contains:
 // end::enrich-policy-fields[]
 
 Before it can be used with an enrich processor, an enrich policy must be
-executed. When executed, an enrich policy uses enrich data from the policy's
-source indices to create a streamlined system index called the _enrich index_.
-The processor uses this index to match and enrich incoming documents.
+<<execute-enrich-policy-api,executed>>. When executed, an enrich policy uses
+enrich data from the policy's source indices to create a streamlined system
+index called the _enrich index_. The processor uses this index to match and
+enrich incoming documents.
 
 See <<enrich-policy-definition>> for a full list of enrich policy types and
 configuration options.

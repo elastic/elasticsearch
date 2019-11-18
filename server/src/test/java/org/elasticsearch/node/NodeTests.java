@@ -164,7 +164,6 @@ public class NodeTests extends ESTestCase {
         assertTrue(node.awaitClose(10L, TimeUnit.SECONDS));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42577")
     public void testCloseRaceWithTaskExecution() throws Exception {
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();

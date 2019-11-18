@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -39,9 +40,15 @@ public class EstimateMemoryUsageActionResponseTests extends AbstractSerializingT
         assertThat(response.getExpectedMemoryWithDisk(), nullValue());
     }
 
+    public void testConstructor_SmallValues() {
+        Response response = new Response(new ByteSizeValue(120, ByteSizeUnit.KB), new ByteSizeValue(30, ByteSizeUnit.KB));
+        assertThat(response.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(120, ByteSizeUnit.KB)));
+        assertThat(response.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(30, ByteSizeUnit.KB)));
+    }
+
     public void testConstructor() {
-        Response response = new Response(new ByteSizeValue(2048), new ByteSizeValue(1024));
-        assertThat(response.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(2048)));
-        assertThat(response.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(1024)));
+        Response response = new Response(new ByteSizeValue(20, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB));
+        assertThat(response.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(20, ByteSizeUnit.MB)));
+        assertThat(response.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(10, ByteSizeUnit.MB)));
     }
 }

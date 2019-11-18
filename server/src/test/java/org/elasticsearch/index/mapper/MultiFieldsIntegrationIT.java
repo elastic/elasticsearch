@@ -213,7 +213,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
     }
 
     private XContentBuilder createPutMappingSource() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+        return XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                 .startObject("title")
                 .field("type", "text")
@@ -225,7 +225,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().endObject();
+                .endObject();
     }
 
 }

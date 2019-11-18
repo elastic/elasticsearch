@@ -21,7 +21,7 @@ public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public FlattenedFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
-        this.fieldCount = input.getVersion().onOrAfter(Version.V_8_0_0) ? input.readInt() : 0;
+        this.fieldCount = input.getVersion().onOrAfter(Version.V_7_6_0) ? input.readInt() : 0;
     }
 
     public FlattenedFeatureSetUsage(boolean available, boolean enabled, int fieldCount) {
@@ -36,7 +36,7 @@ public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeInt(fieldCount);
         }
     }

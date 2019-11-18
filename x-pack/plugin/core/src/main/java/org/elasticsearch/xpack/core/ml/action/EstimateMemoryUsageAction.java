@@ -72,11 +72,11 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         }
 
         public ByteSizeValue getExpectedMemoryWithoutDisk() {
-            return expectedMemoryWithoutDisk;
+            return expectedMemoryWithoutDisk != null ? max(expectedMemoryWithoutDisk, MIN_MODEL_MEMORY_LIMIT) : null;
         }
 
         public ByteSizeValue getExpectedMemoryWithDisk() {
-            return expectedMemoryWithDisk;
+            return expectedMemoryWithDisk != null ? max(expectedMemoryWithDisk, MIN_MODEL_MEMORY_LIMIT) : null;
         }
 
         @Override
@@ -89,12 +89,10 @@ public class EstimateMemoryUsageAction extends ActionType<EstimateMemoryUsageAct
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (expectedMemoryWithoutDisk != null) {
-                builder.field(
-                    EXPECTED_MEMORY_WITHOUT_DISK.getPreferredName(), max(expectedMemoryWithoutDisk, MIN_MODEL_MEMORY_LIMIT).getStringRep());
+                builder.field(EXPECTED_MEMORY_WITHOUT_DISK.getPreferredName(), getExpectedMemoryWithoutDisk().getStringRep());
             }
             if (expectedMemoryWithDisk != null) {
-                builder.field(
-                    EXPECTED_MEMORY_WITH_DISK.getPreferredName(), max(expectedMemoryWithDisk, MIN_MODEL_MEMORY_LIMIT).getStringRep());
+                builder.field(EXPECTED_MEMORY_WITH_DISK.getPreferredName(), getExpectedMemoryWithDisk().getStringRep());
             }
             builder.endObject();
             return builder;

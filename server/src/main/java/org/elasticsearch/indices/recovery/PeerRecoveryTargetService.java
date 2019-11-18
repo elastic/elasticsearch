@@ -181,7 +181,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             cancellableThreads = recoveryTarget.cancellableThreads();
             try {
                 assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
-                request = getStartRecoveryRequest(recoveryTarget);
+                request = getStartRecoveryRequest(recoveryTarget, clusterService.localNode(), logger);
                 logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                 recoveryTarget.indexShard().prepareForIndexRecovery();
             } catch (final Exception e) {
@@ -322,7 +322,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      * @param recoveryTarget the target of the recovery
      * @return a snapshot of the store metadata
      */
-    private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
+    private static Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget, final Logger logger) {
         try {
             return recoveryTarget.indexShard().snapshotStoreMetadata();
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
@@ -341,20 +341,23 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      * @param recoveryTarget the target of the recovery
      * @return a start recovery request
      */
-    private StartRecoveryRequest getStartRecoveryRequest(final RecoveryTarget recoveryTarget) {
+    public static StartRecoveryRequest getStartRecoveryRequest(RecoveryTarget recoveryTarget, DiscoveryNode localNode, Logger logger) {
         final StartRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
-        final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(recoveryTarget);
+        Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(recoveryTarget, logger);
         logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
 
-        final long startingSeqNo;
+        long startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         if (metadataSnapshot.size() > 0) {
-            startingSeqNo = getStartingSeqNo(logger, recoveryTarget);
-        } else {
-            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            try {
+                startingSeqNo = getStartingSeqNo(logger, recoveryTarget);
+            } catch (IOException | TranslogCorruptedException e) {
+                logger.warn(new ParameterizedMessage("error while reading global checkpoint from translog, " +
+                    "resetting the starting sequence number from {} to unassigned and recovering as if there are none", startingSeqNo), e);
+                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+            }
         }
-
         if (startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
         } else {
@@ -369,7 +372,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             recoveryTarget.shardId(),
             recoveryTarget.indexShard().routingEntry().allocationId().getId(),
             recoveryTarget.sourceNode(),
-            clusterService.localNode(),
+            localNode,
             metadataSnapshot,
             recoveryTarget.state().getPrimary(),
             recoveryTarget.recoveryId(),
@@ -384,39 +387,30 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      * @return the starting sequence number or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
      * failed
      */
-    public static long getStartingSeqNo(final Logger logger, final RecoveryTarget recoveryTarget) {
-        try {
-            final Store store = recoveryTarget.store();
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), translogUUID);
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-            final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
-            final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(safeCommit);
-            if (logger.isTraceEnabled()) {
-                final StringJoiner descriptionOfExistingCommits = new StringJoiner(",");
-                for (IndexCommit commit : existingCommits) {
-                    descriptionOfExistingCommits.add(CombinedDeletionPolicy.commitDescription(commit));
-                }
-                logger.trace("Calculate starting seqno based on global checkpoint [{}], safe commit [{}], existing commits [{}]",
-                    globalCheckpoint, CombinedDeletionPolicy.commitDescription(safeCommit), descriptionOfExistingCommits);
+    private static long getStartingSeqNo(final Logger logger, final RecoveryTarget recoveryTarget) throws IOException {
+        final Store store = recoveryTarget.store();
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), translogUUID);
+        final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
+        final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
+        final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(safeCommit);
+        if (logger.isTraceEnabled()) {
+            final StringJoiner descriptionOfExistingCommits = new StringJoiner(",");
+            for (IndexCommit commit : existingCommits) {
+                descriptionOfExistingCommits.add(CombinedDeletionPolicy.commitDescription(commit));
             }
-            if (seqNoStats.maxSeqNo <= globalCheckpoint) {
-                assert seqNoStats.localCheckpoint <= globalCheckpoint;
-                /*
-                 * Commit point is good for sequence-number based recovery as the maximum sequence number included in it is below the global
-                 * checkpoint (i.e., it excludes any operations that may not be on the primary). Recovery will start at the first operation
-                 * after the local checkpoint stored in the commit.
-                 */
-                return seqNoStats.localCheckpoint + 1;
-            } else {
-                return SequenceNumbers.UNASSIGNED_SEQ_NO;
-            }
-        } catch (final TranslogCorruptedException | IOException e) {
+            logger.trace("Calculate starting seqno based on global checkpoint [{}], safe commit [{}], existing commits [{}]",
+                globalCheckpoint, CombinedDeletionPolicy.commitDescription(safeCommit), descriptionOfExistingCommits);
+        }
+        if (seqNoStats.maxSeqNo <= globalCheckpoint) {
+            assert seqNoStats.localCheckpoint <= globalCheckpoint;
             /*
-             * This can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
-             * translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
-             * proceeds to attempt a sequence-number-based recovery.
+             * Commit point is good for sequence-number based recovery as the maximum sequence number included in it is below the global
+             * checkpoint (i.e., it excludes any operations that may not be on the primary). Recovery will start at the first operation
+             * after the local checkpoint stored in the commit.
              */
+            return seqNoStats.localCheckpoint + 1;
+        } else {
             return SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }

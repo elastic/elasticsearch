@@ -52,17 +52,22 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     public void testGetStartingSeqNo() throws Exception {
         final IndexShard replica = newShard(false);
+        final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
         try {
             // Empty store
             {
                 recoveryEmptyReplica(replica, true);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(0L));
+                final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(recoveryTarget, rNode, logger);
+                assertThat(request.startingSeqNo(), equalTo(0L));
+                assertThat(request.metadataSnapshot().size(), greaterThan(0));
                 recoveryTarget.decRef();
             }
             // Last commit is good - use it.
@@ -78,7 +83,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 replica.updateGlobalCheckpointOnReplica(initDocs - 1, "test");
                 replica.sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
+                final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(recoveryTarget, rNode, logger);
+                assertThat(request.startingSeqNo(), equalTo(initDocs));
+                assertThat(request.metadataSnapshot().size(), greaterThan(0));
                 recoveryTarget.decRef();
             }
             // Global checkpoint does not advance, last commit is not good - use the previous commit
@@ -92,7 +99,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 }
                 flushShard(replica);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
+                final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(recoveryTarget, rNode, logger);
+                assertThat(request.startingSeqNo(), equalTo(initDocs));
+                assertThat(request.metadataSnapshot().size(), greaterThan(0));
                 recoveryTarget.decRef();
             }
             // Advances the global checkpoint, a safe commit also advances
@@ -100,7 +109,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 replica.updateGlobalCheckpointOnReplica(initDocs + moreDocs - 1, "test");
                 replica.sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs + moreDocs));
+                final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(recoveryTarget, rNode, logger);
+                assertThat(request.startingSeqNo(), equalTo(initDocs + moreDocs));
+                assertThat(request.metadataSnapshot().size(), greaterThan(0));
                 recoveryTarget.decRef();
             }
             // Different translogUUID, fallback to file-based
@@ -119,7 +130,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     writer.commit();
                 }
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+                final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(recoveryTarget, rNode, logger);
+                assertThat(request.metadataSnapshot(), sameInstance(Store.MetadataSnapshot.EMPTY));
+                assertThat(request.startingSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
                 recoveryTarget.decRef();
             }
         } finally {

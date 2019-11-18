@@ -609,18 +609,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         replica.prepareForIndexRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        final String targetAllocationId = recoveryTarget.indexShard().routingEntry().allocationId().getId();
-
-        final Store.MetadataSnapshot snapshot = getMetadataSnapshotOrEmpty(replica);
-        final long startingSeqNo;
-        if (snapshot.size() > 0) {
-            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget);
-        } else {
-            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
-
-        final StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId,
-            pNode, rNode, snapshot, replica.routingEntry().primary(), 0, startingSeqNo);
+        final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(recoveryTarget, rNode, logger);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
             primary, recoveryTarget, request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,

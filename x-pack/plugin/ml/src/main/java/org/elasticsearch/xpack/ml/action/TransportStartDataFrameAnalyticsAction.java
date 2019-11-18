@@ -239,11 +239,13 @@ public class TransportStartDataFrameAnalyticsAction
                             .collectDataSummaryAsync(ActionListener.wrap(
                                 dataSummary -> {
                                     if (dataSummary.rows == 0) {
-                                        finalListener.onFailure(new ElasticsearchStatusException(
-                                            "Unable to start {} as there are no analyzable data in source indices [{}].",
-                                            RestStatus.BAD_REQUEST,
-                                            id,
-                                            Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
+                                        finalListener.onFailure(ExceptionsHelper.badRequestException(
+                                            "Unable to start {} as no documents in the source indices [{}] contained all the fields "
+                                                + "selected for analysis. If you are relying on automatic field selection then there are "
+                                                + "currently mapped fields that do not exist in any indexed documents, and you will have "
+                                                + "to switch to explicit field selection and include only fields that exist in indexed "
+                                                + "documents.",
+                                            id, Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
                                         ));
                                     } else {
                                         finalListener.onResponse(startContext);

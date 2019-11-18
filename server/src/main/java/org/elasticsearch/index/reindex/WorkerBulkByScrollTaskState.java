@@ -83,10 +83,13 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
-    public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
+    public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond, BulkByScrollTask.Status checkpointStatus) {
         this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);
+        if (checkpointStatus != null) {
+            resetStatus(checkpointStatus);
+        }
     }
 
     public BulkByScrollTask.Status getStatus() {
@@ -242,6 +245,25 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
             this.delayedPrepareBulkRequestReference.set(delayedPrepareBulkRequest.rethrottle(newRequestsPerSecond));
         }
+    }
+
+    public void resetStatus(BulkByScrollTask.Status checkpointStatus) {
+        assert sliceId == null;
+        // todo: need two totals, one for the original and one for the readjusted total.
+        assert total.get() == 0;
+        assert created.get() == 0;
+        assert updated.get() == 0;
+        assert deleted.get() == 0;
+        total.set(checkpointStatus.getTotal());
+        created.set(checkpointStatus.getCreated());
+        updated.set(checkpointStatus.getUpdated());
+        deleted.set(checkpointStatus.getDeleted());
+        noops.set(checkpointStatus.getNoops());
+        batch.set(checkpointStatus.getBatches());
+        versionConflicts.set(checkpointStatus.getVersionConflicts());
+        bulkRetries.set(checkpointStatus.getBulkRetries());
+        searchRetries.set(checkpointStatus.getSearchRetries());
+        throttledNanos.set(checkpointStatus.getThrottled().nanos());
     }
 
     class DelayedPrepareBulkRequest {

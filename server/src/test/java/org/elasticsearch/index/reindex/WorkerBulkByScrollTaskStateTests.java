@@ -35,12 +35,14 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -51,7 +53,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
     @Before
     public void createTask() {
         task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
-        task.setWorker(Float.POSITIVE_INFINITY, null);
+        task.setWorker(Float.POSITIVE_INFINITY, null, null);
         workerState = task.getWorkerState();
     }
 
@@ -249,5 +251,30 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         workerState.rethrottle(1);
         assertThat((double) workerState.perfectlyThrottledBatchTime(total),
                 closeTo(TimeUnit.SECONDS.toNanos(total), TimeUnit.SECONDS.toNanos(1)));
+    }
+
+    public void testResumeFromCheckpointStatus() {
+        workerState.setTotal(randomNonNegativeLong());
+        randomCall(() -> workerState.countBatch());
+        randomCall(() -> workerState.countCreated());
+        randomCall(() -> workerState.countUpdated());
+        randomCall(() -> workerState.countDeleted());
+        randomCall(() -> workerState.countNoop());
+        randomCall(() -> workerState.countBulkRetry());
+        randomCall(() -> workerState.countSearchRetry());
+        randomCall(() -> workerState.countVersionConflict());
+
+        BulkByScrollTask.Status checkPointStatus = workerState.getStatus();
+
+        WorkerBulkByScrollTaskState resumed =
+            new WorkerBulkByScrollTaskState(task, null, workerState.getRequestsPerSecond(), checkPointStatus);
+
+        BulkByScrollTask.Status afterStatus = resumed.getStatus();
+
+        assertThat(afterStatus, equalTo(checkPointStatus));
+    }
+
+    private void randomCall(Runnable runnable) {
+        IntStream.range(0, randomIntBetween(0, 100)).forEach(i -> runnable.run());
     }
 }

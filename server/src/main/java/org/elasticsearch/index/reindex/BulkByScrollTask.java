@@ -63,11 +63,11 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  *
  * When the request is sliced, this task can either represent a coordinating task (using
  * {@link BulkByScrollTask#setWorkerCount(int)}) or a worker task that performs search queries (using
- * {@link BulkByScrollTask#setWorker(float, Integer)}).
+ * {@link BulkByScrollTask#setWorker(float, Integer, Status)}).
  *
  * We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
- * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
+ * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer, Status)}.
  */
 public class BulkByScrollTask extends CancellableTask {
 
@@ -157,8 +157,9 @@ public class BulkByScrollTask extends CancellableTask {
      * Sets this task to be a worker task that performs search requests
      * @param requestsPerSecond How many search requests per second this task should make
      * @param sliceId If this is is a sliced task, which slice number this task corresponds to. Null if not sliced.
+     * @param checkpointStatus the status to resume the worker from or null if this task does not resume from previous state
      */
-    public void setWorker(float requestsPerSecond, @Nullable Integer sliceId) {
+    public void setWorker(float requestsPerSecond, @Nullable Integer sliceId, Status checkpointStatus) {
         if (isWorker()) {
             throw new IllegalStateException("This task is already a worker");
         }
@@ -166,7 +167,7 @@ public class BulkByScrollTask extends CancellableTask {
             throw new IllegalStateException("This task is already a leader for other slice subtasks");
         }
 
-        workerState = new WorkerBulkByScrollTaskState(this, sliceId, requestsPerSecond);
+        workerState = new WorkerBulkByScrollTaskState(this, sliceId, requestsPerSecond, checkpointStatus);
         if (isCancelled()) {
             workerState.handleCancel();
         }
@@ -632,7 +633,7 @@ public class BulkByScrollTask extends CancellableTask {
         public static Status fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
             if (parser.currentToken() == Token.START_OBJECT) {
-                 token = parser.nextToken();
+                token = parser.currentToken();
             } else {
                 token = parser.nextToken();
             }

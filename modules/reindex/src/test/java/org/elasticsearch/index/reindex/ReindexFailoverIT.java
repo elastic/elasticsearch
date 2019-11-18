@@ -181,6 +181,12 @@ public class ReindexFailoverIT extends ReindexTestCase {
 
         assertBusy(MockSearchService::assertNoInFlightContext, 10 + scrollTimeout, TimeUnit.SECONDS);
 
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dotReindexResponse =
+            (Map<String, Object>) client().prepareGet(".reindex", response.getPersistentTaskId()).get().getSource().get("response");
+        assertThat((int) dotReindexResponse.get("created") + (int) dotReindexResponse.get("updated"),
+            greaterThanOrEqualTo(docCount));
+
         // TODO: Add mechanism to wait for reindex task to complete
     }
 

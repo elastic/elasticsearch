@@ -161,10 +161,9 @@ public class ReindexTask extends AllocatedPersistentTask {
             public void onResponse(ReindexTaskStateDoc stateDoc) {
                 ReindexRequest reindexRequest = stateDoc.getReindexRequest();
                 description = reindexRequest.getDescription();
-                reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
+                reindexer.initTask(childTask, reindexRequest, stateDoc.getCheckpointStatus(), new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {
-                        // TODO: need to store status in state so we can continue from it.
                         transientStatus = childTask.getStatus();
                         performReindex(reindexJob, stateDoc, taskUpdater);
                     }

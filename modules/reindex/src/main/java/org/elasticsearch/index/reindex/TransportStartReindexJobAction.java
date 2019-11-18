@@ -121,7 +121,8 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                             public void onResponse(ReindexTaskState taskState) {
                                 ReindexTaskStateDoc reindexState = taskState.getStateDoc();
                                 if (reindexState.getException() == null) {
-                                    listener.onResponse(new StartReindexJobAction.Response(taskId, reindexState.getReindexResponse()));
+                                    listener.onResponse(new StartReindexJobAction.Response(null, taskId,
+                                        reindexState.getReindexResponse()));
                                 } else {
                                     Exception exception = reindexState.getException();
                                     RestStatus statusCode = reindexState.getFailureStatusCode();
@@ -153,7 +154,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
                     ReindexJobState state = (ReindexJobState) task.getState();
-                    listener.onResponse(new StartReindexJobAction.Response(state.getEphemeralTaskId().toString()));
+                    listener.onResponse(new StartReindexJobAction.Response(state.getEphemeralTaskId().toString(), taskId));
                 }
 
                 @Override

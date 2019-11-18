@@ -143,8 +143,6 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
 
         Map<String, Object> reindexResponse = client().admin().cluster().prepareGetTask(taskId).setWaitForCompletion(true)
             .get(TimeValue.timeValueSeconds(30)).getTask().getResponseAsMap();
-        // todo: this assert fails sometimes due to missing retry on transport closed
-//        assertThat(bulkByScrollResponse.getBulkFailures(), Matchers.empty());
         assertEquals(Collections.emptyList(), reindexResponse.get("failures"));
 
         assertSameDocs(numberOfDocuments, "test", "dest");

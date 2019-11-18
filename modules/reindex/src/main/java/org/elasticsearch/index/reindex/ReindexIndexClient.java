@@ -51,7 +51,6 @@ import java.io.IOException;
 
 public class ReindexIndexClient {
 
-    // TODO: Eventually this should be an alias for index versioning
     public static final String REINDEX_ALIAS = ".reindex";
     static final String REINDEX_INDEX_7 = ".reindex-7";
     public static final String REINDEX_ORIGIN = "reindex";

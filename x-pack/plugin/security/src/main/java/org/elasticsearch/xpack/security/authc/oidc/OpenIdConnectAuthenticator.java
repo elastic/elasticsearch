@@ -93,7 +93,6 @@ import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
@@ -434,7 +433,7 @@ public class OpenIdConnectAuthenticator {
                             httpResponse.getStatusLine().getReasonPhrase()));
                 }
             }
-        } catch (IOException | com.nimbusds.oauth2.sdk.ParseException | ParseException e) {
+        } catch (Exception e) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to get user information from the UserInfo endpoint.",
                 e));
         }
@@ -544,7 +543,7 @@ public class OpenIdConnectAuthenticator {
                 }
                 tokensListener.onResponse(new Tuple<>(accessToken, idToken));
             }
-        } catch (IOException | com.nimbusds.oauth2.sdk.ParseException e) {
+        } catch (Exception e) {
             tokensListener.onFailure(
                 new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint. " +
                     "Unable to parse Token Response", e));
@@ -748,7 +747,7 @@ public class OpenIdConnectAuthenticator {
     /**
      * Remote JSON Web Key source specified by a JWKSet URL. The retrieved JWK set is cached to
      * avoid unnecessary http requests. A single attempt to update the cached set is made
-     * (with {@ling ReloadableJWKSource#triggerReload}) when the {@link IDTokenValidator} fails
+     * (with {@link ReloadableJWKSource#triggerReload}) when the {@link IDTokenValidator} fails
      * to validate an ID Token (because of an unknown key) as this might mean that the OpenID
      * Connect Provider has rotated the signing keys.
      */
@@ -795,7 +794,7 @@ public class OpenIdConnectAuthenticator {
                                 reloadFutureRef.set(null);
                                 LOGGER.trace("Successfully refreshed and cached remote JWKSet");
                                 future.onResponse(null);
-                            } catch (IOException | ParseException e) {
+                            } catch (Exception e) {
                                 failed(e);
                             }
                         }
@@ -815,7 +814,7 @@ public class OpenIdConnectAuthenticator {
                     });
                     return null;
                 });
-            } catch (URISyntaxException e) {
+            } catch (Exception e) {
                 future.onFailure(e);
                 reloadFutureRef.set(null);
             }

@@ -200,6 +200,7 @@ if (project != rootProject) {
     exclude '**/*.p12'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.java'
+    exclude '**/*.bcfks'
   }
 
   testingConventions {

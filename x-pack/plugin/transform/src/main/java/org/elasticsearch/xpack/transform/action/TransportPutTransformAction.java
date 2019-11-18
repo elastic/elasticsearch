@@ -67,39 +67,76 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private final TransformAuditor auditor;
 
     @Inject
-    public TransportPutTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService, XPackLicenseState licenseState,
-                                       TransformConfigManager transformConfigManager, Client client,
-                                       TransformAuditor auditor) {
-        this(PutTransformAction.NAME, settings, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-             clusterService, licenseState, transformConfigManager, client, auditor);
+    public TransportPutTransformAction(
+        Settings settings,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        TransformConfigManager transformConfigManager,
+        Client client,
+        TransformAuditor auditor
+    ) {
+        this(
+            PutTransformAction.NAME,
+            settings,
+            transportService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            clusterService,
+            licenseState,
+            transformConfigManager,
+            client,
+            auditor
+        );
     }
 
-    protected TransportPutTransformAction(String name, Settings settings, TransportService transportService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          ClusterService clusterService, XPackLicenseState licenseState,
-                                          TransformConfigManager transformConfigManager, Client client,
-                                          TransformAuditor auditor) {
-        super(name, transportService, clusterService, threadPool, actionFilters,
-              PutTransformAction.Request::new, indexNameExpressionResolver);
+    protected TransportPutTransformAction(
+        String name,
+        Settings settings,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        TransformConfigManager transformConfigManager,
+        Client client,
+        TransformAuditor auditor
+    ) {
+        super(
+            name,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutTransformAction.Request::new,
+            indexNameExpressionResolver
+        );
         this.licenseState = licenseState;
         this.client = client;
         this.transformConfigManager = transformConfigManager;
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-            new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
         this.auditor = auditor;
     }
 
-
-    static HasPrivilegesRequest buildPrivilegeCheck(TransformConfig config,
-                                                    IndexNameExpressionResolver indexNameExpressionResolver,
-                                                    ClusterState clusterState,
-                                                    String username) {
+    static HasPrivilegesRequest buildPrivilegeCheck(
+        TransformConfig config,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterState clusterState,
+        String username
+    ) {
         final String destIndex = config.getDestination().getIndex();
-        final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(clusterState,
+        final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(
+            clusterState,
             IndicesOptions.lenientExpandOpen(),
-            config.getDestination().getIndex());
+            config.getDestination().getIndex()
+        );
         List<String> srcPrivileges = new ArrayList<>(2);
         srcPrivileges.add("read");
 
@@ -152,20 +189,21 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
         // set headers to run transform as calling user
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = threadPool.getThreadContext()
+            .getHeaders()
+            .entrySet()
+            .stream()
+            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        TransformConfig config = request.getConfig()
-            .setHeaders(filteredHeaders)
-            .setCreateTime(Instant.now())
-            .setVersion(Version.CURRENT);
+        TransformConfig config = request.getConfig().setHeaders(filteredHeaders).setCreateTime(Instant.now()).setVersion(Version.CURRENT);
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name
         if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, transformId) != null) {
-            listener.onFailure(new ResourceAlreadyExistsException(
-                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformId)));
+            listener.onFailure(
+                new ResourceAlreadyExistsException(TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformId))
+            );
             return;
         }
         try {
@@ -181,7 +219,8 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                 r -> handlePrivsResponse(username, request, r, listener),
-                listener::onFailure);
+                listener::onFailure
+            );
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else { // No security enabled, just create the transform
@@ -194,10 +233,12 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private void handlePrivsResponse(String username,
-                                     Request request,
-                                     HasPrivilegesResponse privilegesResponse,
-                                     ActionListener<AcknowledgedResponse> listener) {
+    private void handlePrivsResponse(
+        String username,
+        Request request,
+        HasPrivilegesResponse privilegesResponse,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         if (privilegesResponse.isCompleteMatch()) {
             putTransform(request, listener);
         } else {
@@ -206,11 +247,14 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
                 .map(ResourcePrivileges::getResource)
                 .collect(Collectors.toList());
 
-            listener.onFailure(Exceptions.authorizationError(
-                "Cannot create transform [{}] because user {} lacks all the required permissions for indices: {}",
-                request.getConfig().getId(),
-                username,
-                indices));
+            listener.onFailure(
+                Exceptions.authorizationError(
+                    "Cannot create transform [{}] because user {} lacks all the required permissions for indices: {}",
+                    request.getConfig().getId(),
+                    username,
+                    indices
+                )
+            );
         }
     }
 
@@ -220,28 +264,31 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
         // <3> Return to the listener
-        ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
-            putTransformConfigurationResult -> {
-                auditor.info(config.getId(), "Created transform.");
-                listener.onResponse(new AcknowledgedResponse(true));
-            },
-            listener::onFailure
-        );
+        ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
+            auditor.info(config.getId(), "Created transform.");
+            listener.onResponse(new AcknowledgedResponse(true));
+        }, listener::onFailure);
 
         // <2> Put our transform
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
             validationResult -> transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             validationException -> {
                 if (validationException instanceof ElasticsearchStatusException) {
-                    listener.onFailure(new ElasticsearchStatusException(
-                        TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                        ((ElasticsearchStatusException)validationException).status(),
-                        validationException));
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
+                            ((ElasticsearchStatusException) validationException).status(),
+                            validationException
+                        )
+                    );
                 } else {
-                    listener.onFailure(new ElasticsearchStatusException(
-                        TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        validationException));
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            validationException
+                        )
+                    );
                 }
             }
         );
@@ -249,14 +296,18 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         try {
             pivot.validateConfig();
         } catch (ElasticsearchStatusException e) {
-            listener.onFailure(new ElasticsearchStatusException(
-                TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
-                e.status(),
-                e));
+            listener.onFailure(
+                new ElasticsearchStatusException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, e.status(), e)
+            );
             return;
         } catch (Exception e) {
-            listener.onFailure(new ElasticsearchStatusException(
-                TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    e
+                )
+            );
             return;
         }
 

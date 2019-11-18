@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
 
 import java.util.ArrayList;
@@ -53,8 +53,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metaData, routingTable);
-        PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData
-            .builder()
+        PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
             .addTask(
                 "transform-task-1",
                 TransformTaskParams.NAME,
@@ -78,8 +77,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, pTasks);
 
-        DiscoveryNodes.Builder nodes = DiscoveryNodes
-            .builder()
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
                     "past-data-node-1",
@@ -124,7 +122,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
-        TransformConfigManager transformsConfigManager = new TransformConfigManager(client, xContentRegistry());
+        IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(client, xContentRegistry());
         TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
             client,
             transformsConfigManager,
@@ -175,20 +173,16 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         } else {
             Index index = new Index(indexToRemove, "_uuid");
             ShardId shardId = new ShardId(index, 0);
-            ShardRouting shardRouting = ShardRouting
-                .newUnassigned(
-                    shardId,
-                    true,
-                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
-                );
+            ShardRouting shardRouting = ShardRouting.newUnassigned(
+                shardId,
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+            );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
-            routingTable
-                .add(
-                    IndexRoutingTable
-                        .builder(index)
-                        .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
-                );
+            routingTable.add(
+                IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+            );
         }
 
         csBuilder.routingTable(routingTable.build());
@@ -204,32 +198,26 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
-            indexMetaData
-                .settings(
-                    Settings
-                        .builder()
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                );
+            indexMetaData.settings(
+                Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            );
             metaData.put(indexMetaData);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
-            ShardRouting shardRouting = ShardRouting
-                .newUnassigned(
-                    shardId,
-                    true,
-                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
-                );
+            ShardRouting shardRouting = ShardRouting.newUnassigned(
+                shardId,
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+            );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted();
-            routingTable
-                .add(
-                    IndexRoutingTable
-                        .builder(index)
-                        .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
-                );
+            routingTable.add(
+                IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+            );
         }
     }
 

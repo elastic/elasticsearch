@@ -18,11 +18,20 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 public class TransportGetTransformStatsActionDeprecated extends TransportGetTransformStatsAction {
 
     @Inject
-    public TransportGetTransformStatsActionDeprecated(TransportService transportService, ActionFilters actionFilters,
-                                                      ClusterService clusterService,
-                                                      TransformConfigManager transformsConfigManager,
-                                                      TransformCheckpointService transformsCheckpointService) {
-        super(GetTransformStatsActionDeprecated.NAME, transportService, actionFilters, clusterService, transformsConfigManager,
-              transformsCheckpointService);
+    public TransportGetTransformStatsActionDeprecated(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        TransformConfigManager transformsConfigManager,
+        TransformCheckpointService transformsCheckpointService
+    ) {
+        super(
+            GetTransformStatsActionDeprecated.NAME,
+            transportService,
+            actionFilters,
+            clusterService,
+            transformsConfigManager,
+            transformsCheckpointService
+        );
     }
 }

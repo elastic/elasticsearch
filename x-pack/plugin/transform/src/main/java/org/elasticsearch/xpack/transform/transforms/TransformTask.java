@@ -162,8 +162,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             transformsCheckpointService.getCheckpointingInfo(transform.getId(), context.getCheckpoint(), initialPosition, null, listener);
             return;
         }
-        indexer
-            .getCheckpointProvider()
+        indexer.getCheckpointProvider()
             .getCheckpointingInfo(
                 indexer.getLastCheckpoint(),
                 indexer.getNextCheckpoint(),
@@ -189,13 +188,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     synchronized void start(Long startingCheckpoint, ActionListener<StartTransformAction.Response> listener) {
         logger.debug("[{}] start called with state [{}].", getTransformId(), getState());
         if (context.getTaskState() == TransformTaskState.FAILED) {
-            listener
-                .onFailure(
-                    new ElasticsearchStatusException(
-                        TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
-                        RestStatus.CONFLICT
-                    )
-                );
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
+                    RestStatus.CONFLICT
+                )
+            );
             return;
         }
         if (getIndexer() == null) {
@@ -205,23 +203,21 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             String msg = context.getTaskState() == TransformTaskState.FAILED
                 ? "It failed during the initialization process; force stop to allow reinitialization."
                 : "Try again later.";
-            listener
-                .onFailure(
-                    new ElasticsearchStatusException(
-                        "Task for transform [{}] not fully initialized. {}",
-                        RestStatus.CONFLICT,
-                        getTransformId(),
-                        msg
-                    )
-                );
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Task for transform [{}] not fully initialized. {}",
+                    RestStatus.CONFLICT,
+                    getTransformId(),
+                    msg
+                )
+            );
             return;
         }
         final IndexerState newState = getIndexer().start();
         if (Arrays.stream(RUNNING_STATES).noneMatch(newState::equals)) {
-            listener
-                .onFailure(
-                    new ElasticsearchException("Cannot start task for transform [{}], because state was [{}]", transform.getId(), newState)
-                );
+            listener.onFailure(
+                new ElasticsearchException("Cannot start task for transform [{}], because state was [{}]", transform.getId(), newState)
+            );
             return;
         }
         context.resetTaskState();
@@ -254,20 +250,18 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             registerWithSchedulerJob();
             listener.onResponse(new StartTransformAction.Response(true));
         }, exc -> {
-            auditor
-                .warning(
-                    transform.getId(),
-                    "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
-                );
+            auditor.warning(
+                transform.getId(),
+                "Failed to persist to cluster state while marking task as started. Failure: " + exc.getMessage()
+            );
             logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
             getIndexer().stop();
-            listener
-                .onFailure(
-                    new ElasticsearchException(
-                        "Error while updating state for transform [" + transform.getId() + "] to [" + state.getIndexerState() + "].",
-                        exc
-                    )
-                );
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Error while updating state for transform [" + transform.getId() + "] to [" + state.getIndexerState() + "].",
+                    exc
+                )
+            );
         }));
     }
 
@@ -288,13 +282,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         boolean shouldStopAtCheckpoint,
         ActionListener<Void> shouldStopAtCheckpointListener
     ) {
-        logger
-            .debug(
-                "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
-                getTransformId(),
-                shouldStopAtCheckpoint,
-                getState()
-            );
+        logger.debug(
+            "[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
+            getTransformId(),
+            shouldStopAtCheckpoint,
+            getState()
+        );
         if (context.getTaskState() != TransformTaskState.STARTED || getIndexer() == null) {
             shouldStopAtCheckpointListener.onResponse(null);
             return;
@@ -363,12 +356,11 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }
 
         if (context.getTaskState() == TransformTaskState.FAILED || context.getTaskState() == TransformTaskState.STOPPED) {
-            logger
-                .debug(
-                    "[{}] schedule was triggered for transform but task is [{}]. Ignoring trigger.",
-                    getTransformId(),
-                    context.getTaskState()
-                );
+            logger.debug(
+                "[{}] schedule was triggered for transform but task is [{}]. Ignoring trigger.",
+                getTransformId(),
+                context.getTaskState()
+            );
             return;
         }
 

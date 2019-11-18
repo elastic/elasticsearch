@@ -23,13 +23,30 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 public class TransportStartTransformActionDeprecated extends TransportStartTransformAction {
 
     @Inject
-    public TransportStartTransformActionDeprecated(TransportService transportService, ActionFilters actionFilters,
-                                                   ClusterService clusterService, XPackLicenseState licenseState,
-                                                   ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   TransformConfigManager transformConfigManager,
-                                                   PersistentTasksService persistentTasksService, Client client,
-                                                   TransformAuditor auditor) {
-        super(StartTransformActionDeprecated.NAME, transportService, actionFilters, clusterService, licenseState, threadPool,
-              indexNameExpressionResolver, transformConfigManager, persistentTasksService, client, auditor);
+    public TransportStartTransformActionDeprecated(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformConfigManager transformConfigManager,
+        PersistentTasksService persistentTasksService,
+        Client client,
+        TransformAuditor auditor
+    ) {
+        super(
+            StartTransformActionDeprecated.NAME,
+            transportService,
+            actionFilters,
+            clusterService,
+            licenseState,
+            threadPool,
+            indexNameExpressionResolver,
+            transformConfigManager,
+            persistentTasksService,
+            client,
+            auditor
+        );
     }
 }

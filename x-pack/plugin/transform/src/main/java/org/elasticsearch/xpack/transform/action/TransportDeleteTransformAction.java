@@ -41,18 +41,40 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
     private final Client client;
 
     @Inject
-    public TransportDeleteTransformAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
-                                          ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          TransformConfigManager transformsConfigManager, TransformAuditor auditor,
-                                          Client client) {
-        this(DeleteTransformAction.NAME, transportService, actionFilters, threadPool, clusterService, indexNameExpressionResolver,
-             transformsConfigManager, auditor, client);
+    public TransportDeleteTransformAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformConfigManager transformsConfigManager,
+        TransformAuditor auditor,
+        Client client
+    ) {
+        this(
+            DeleteTransformAction.NAME,
+            transportService,
+            actionFilters,
+            threadPool,
+            clusterService,
+            indexNameExpressionResolver,
+            transformsConfigManager,
+            auditor,
+            client
+        );
     }
 
-    protected TransportDeleteTransformAction(String name, TransportService transportService, ActionFilters actionFilters,
-                                             ThreadPool threadPool, ClusterService clusterService,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             TransformConfigManager transformConfigManager, TransformAuditor auditor, Client client) {
+    protected TransportDeleteTransformAction(
+        String name,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformConfigManager transformConfigManager,
+        TransformAuditor auditor,
+        Client client
+    ) {
         super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
         this.transformConfigManager = transformConfigManager;
         this.auditor = auditor;
@@ -70,32 +92,32 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         final PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null && request.isForce() == false) {
-            listener.onFailure(new ElasticsearchStatusException("Cannot delete transform [" + request.getId() +
-                    "] as the task is running. Stop the task first", RestStatus.CONFLICT));
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot delete transform [" + request.getId() + "] as the task is running. Stop the task first",
+                    RestStatus.CONFLICT
+                )
+            );
         } else {
             ActionListener<Void> stopTransformActionListener = ActionListener.wrap(
-                stopResponse -> transformConfigManager.deleteTransform(request.getId(),
-                    ActionListener.wrap(
-                        r -> {
-                            auditor.info(request.getId(), "Deleted transform.");
-                            listener.onResponse(new AcknowledgedResponse(r));
-                        },
-                        listener::onFailure)),
+                stopResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
+                    auditor.info(request.getId(), "Deleted transform.");
+                    listener.onResponse(new AcknowledgedResponse(r));
+                }, listener::onFailure)),
                 listener::onFailure
             );
 
             if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
-                executeAsyncWithOrigin(client,
+                executeAsyncWithOrigin(
+                    client,
                     TRANSFORM_ORIGIN,
                     StopTransformAction.INSTANCE,
                     new StopTransformAction.Request(request.getId(), true, true, null, true, false),
-                    ActionListener.wrap(
-                        r -> stopTransformActionListener.onResponse(null),
-                        stopTransformActionListener::onFailure));
+                    ActionListener.wrap(r -> stopTransformActionListener.onResponse(null), stopTransformActionListener::onFailure)
+                );
             } else {
                 stopTransformActionListener.onResponse(null);
             }

@@ -145,6 +145,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getDefinition(), equalTo(inferenceModel.build()));
         assertThat(storedModel.getInput().getFieldNames(), equalTo(expectedFieldNames));
+        assertThat(storedModel.getEstimatedHeapMemory(), equalTo(inferenceModel.build().ramBytesUsed()));
+        assertThat(storedModel.getEstimatedOperations(), equalTo(inferenceModel.build().getTrainedModel().estimatedNumOperations()));
         Map<String, Object> metadata = storedModel.getMetadata();
         assertThat(metadata.size(), equalTo(1));
         assertThat(metadata, hasKey("analytics_config"));

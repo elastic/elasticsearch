@@ -28,6 +28,10 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.XIntervals;
+import org.apache.lucene.queries.intervals.IntervalQuery;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -1084,16 +1088,10 @@ public class QueryAnalyzerTests extends ESTestCase {
     public void testEmptyQueries() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         Result result = analyze(builder.build(), Version.CURRENT);
-        assertThat(result.verified, is(false));
-        assertThat(result.matchAllDocs, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(0));
-        assertThat(result.extractions.size(), equalTo(0));
+        assertEquals(result, Result.MATCH_NONE);
 
         result = analyze(new DisjunctionMaxQuery(Collections.emptyList(), 0f), Version.CURRENT);
-        assertThat(result.verified, is(false));
-        assertThat(result.matchAllDocs, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(0));
-        assertThat(result.extractions.size(), equalTo(0));
+        assertEquals(result, Result.MATCH_NONE);
     }
 
     private static void assertDimension(byte[] expected, Consumer<byte[]> consumer) {
@@ -1104,6 +1102,110 @@ public class QueryAnalyzerTests extends ESTestCase {
 
     private static void assertTermsEqual(Set<QueryExtraction> actual, Term... expected) {
         assertEquals(Arrays.stream(expected).map(QueryExtraction::new).collect(Collectors.toSet()), actual);
+    }
+
+    public void testIntervalQueries() {
+        IntervalsSource source = Intervals.or(Intervals.term("term1"), Intervals.term("term2"));
+        Result result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "term1"), new Term("field", "term2"));
+
+        source = Intervals.ordered(Intervals.term("term1"), Intervals.term("term2"),
+            Intervals.or(Intervals.term("term3"), Intervals.term("term4")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "term1"), new Term("field", "term2"),
+            new Term("field", "term3"), new Term("field", "term4"));
+
+        source = Intervals.ordered(Intervals.term("term1"), XIntervals.wildcard(new BytesRef("a*")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "term1"));
+
+        source = Intervals.ordered(XIntervals.wildcard(new BytesRef("a*")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertEquals(Result.UNKNOWN, result);
+
+        source = Intervals.or(Intervals.term("b"), XIntervals.wildcard(new BytesRef("a*")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertEquals(Result.UNKNOWN, result);
+
+        source = Intervals.ordered(Intervals.term("term1"), XIntervals.prefix(new BytesRef("a")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "term1"));
+
+        source = Intervals.ordered(XIntervals.prefix(new BytesRef("a")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertEquals(Result.UNKNOWN, result);
+
+        source = Intervals.or(Intervals.term("b"), XIntervals.prefix(new BytesRef("a")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertEquals(Result.UNKNOWN, result);
+
+        source = Intervals.containedBy(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "a"), new Term("field", "b"), new Term("field", "c"));
+
+        source = Intervals.containing(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "a"), new Term("field", "b"), new Term("field", "c"));
+
+        source = Intervals.overlapping(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "a"), new Term("field", "b"), new Term("field", "c"));
+
+        source = Intervals.within(Intervals.term("a"), 2, Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "a"), new Term("field", "b"), new Term("field", "c"));
+
+        source = Intervals.notContainedBy(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "a"));
+
+        source = Intervals.notContaining(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "a"));
+
+        source = Intervals.nonOverlapping(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "a"));
+
+        source = Intervals.notWithin(Intervals.term("a"), 2, Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "a"));
     }
 
 }

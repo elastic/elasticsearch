@@ -20,16 +20,14 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -42,7 +40,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,7 +48,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 final class QueryAnalyzer {
@@ -94,54 +90,56 @@ final class QueryAnalyzer {
 
     private static final Set<Class<?>> verifiedQueries = Set.of(
         TermQuery.class, TermInSetQuery.class, SynonymQuery.class, SpanTermQuery.class, SpanOrQuery.class,
-        BooleanQuery.class, DisjunctionMaxQuery.class, ConstantScoreQuery.class, BoostQuery.class
+        BooleanQuery.class, DisjunctionMaxQuery.class, ConstantScoreQuery.class, BoostQuery.class,
+        BlendedTermQuery.class
     );
 
     private static boolean isVerified(Query query) {
         if (query instanceof FunctionScoreQuery) {
             return ((FunctionScoreQuery)query).getMinScore() == null;
         }
-        return verifiedQueries.contains(query.getClass());
+        for (Class<?> cls : verifiedQueries) {
+            if (cls.isAssignableFrom(query.getClass())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static class ResultBuilder extends QueryVisitor {
 
-        final boolean conjointTerms;
-        List<ResultBuilder> conjunctions = new ArrayList<>();
-        List<ResultBuilder> disjunctions = new ArrayList<>();
+        final boolean conjunction;
+        List<ResultBuilder> children = new ArrayList<>();
         boolean verified = true;
         int minimumShouldMatch = 0;
-        List<Result> results = new ArrayList<>();
+        List<Result> terms = new ArrayList<>();
 
-        private ResultBuilder(boolean conjointTerms) {
-            this.conjointTerms = conjointTerms;
+        private ResultBuilder(boolean conjunction) {
+            this.conjunction = conjunction;
         }
 
-        public Result getResult() {
+        @Override
+        public String toString() {
+            return (conjunction ? "CONJ" : "DISJ") + children + terms + "~" + minimumShouldMatch;
+        }
+
+        Result getResult() {
             List<Result> partialResults = new ArrayList<>();
-            if (results.size() > 0) {
-                partialResults.add(conjointTerms ? handleConjunction(results) : handleDisjunction(results, minimumShouldMatch));
+            if (terms.size() > 0) {
+                partialResults.add(conjunction ? handleConjunction(terms) : handleDisjunction(terms, minimumShouldMatch));
             }
-            if (disjunctions.isEmpty() == false && (minimumShouldMatch > 0 || conjunctions.isEmpty())) {
-                List<Result> childResults = disjunctions.stream().map(c -> c.getResult()).collect(Collectors.toList());
-                if (childResults.size() > 1) {
-                    partialResults.add(handleDisjunction(childResults, minimumShouldMatch));
-                } else {
-                    partialResults.add(childResults.get(0));
-                }
-            }
-            if (conjunctions.isEmpty() == false) {
-                List<Result> childResults = conjunctions.stream().map(c -> c.getResult()).collect(Collectors.toList());
+            if (children.isEmpty() == false) {
+                List<Result> childResults = children.stream().map(ResultBuilder::getResult).collect(Collectors.toList());
                 partialResults.addAll(childResults);
             }
             if (partialResults.isEmpty()) {
-                return new Result(true, Collections.emptySet(), 0);
+                return verified ? Result.MATCH_NONE : Result.UNKNOWN;
             }
             Result result;
             if (partialResults.size() == 1) {
                 result = partialResults.get(0);
             } else {
-                result = conjointTerms ? handleConjunction(partialResults) : handleDisjunction(partialResults, minimumShouldMatch);
+                result = conjunction ? handleConjunction(partialResults) : handleDisjunction(partialResults, minimumShouldMatch);
             }
             if (verified == false) {
                 result = result.unverify();
@@ -151,140 +149,56 @@ final class QueryAnalyzer {
 
         @Override
         public QueryVisitor getSubVisitor(Occur occur, Query parent) {
-            System.out.println("getSubVisitor " + occur.name() + " " + parent);
             this.verified = isVerified(parent);
             if (occur == Occur.MUST || occur == Occur.FILTER) {
                 ResultBuilder builder = new ResultBuilder(true);
-                conjunctions.add(builder);
+                children.add(builder);
                 return builder;
             }
             if (occur == Occur.MUST_NOT) {
                 this.verified = false;
                 return QueryVisitor.EMPTY_VISITOR;
             }
-            ResultBuilder builder = new ResultBuilder(false);
+            int minimumShouldMatch = 0;
             if (parent instanceof BooleanQuery) {
-                builder.minimumShouldMatch = ((BooleanQuery)parent).getMinimumNumberShouldMatch();
+                BooleanQuery bq = (BooleanQuery) parent;
+                if (bq.getMinimumNumberShouldMatch() == 0
+                    && bq.clauses().stream().anyMatch(c -> c.getOccur() == Occur.MUST || c.getOccur() == Occur.FILTER)) {
+                    return QueryVisitor.EMPTY_VISITOR;
+                }
+                minimumShouldMatch = bq.getMinimumNumberShouldMatch();
             }
-            disjunctions.add(builder);
-            return builder;
+            ResultBuilder child = new ResultBuilder(false);
+            child.minimumShouldMatch = minimumShouldMatch;
+            children.add(child);
+            return child;
         }
 
         @Override
         public void visitLeaf(Query query) {
             if (query instanceof MatchAllDocsQuery) {
-                results.add(new Result(true, true));
+                terms.add(new Result(true, true));
             }
             else if (query instanceof MatchNoDocsQuery) {
-                results.add(new Result(true, Collections.emptySet(), 0));
+                terms.add(Result.MATCH_NONE);
             }
             else if (query instanceof PointRangeQuery) {
-                results.add(pointRangeQuery((PointRangeQuery)query));
+                terms.add(pointRangeQuery((PointRangeQuery)query));
             }
             else {
-                results.add(Result.UNKNOWN);
+                terms.add(Result.UNKNOWN);
             }
         }
 
         @Override
         public void consumeTerms(Query query, Term... terms) {
-            System.out.println("Terms " + Arrays.toString(terms));
-            boolean verified = verifiedQueries.contains(query.getClass());
+            boolean verified = isVerified(query);
             Set<QueryExtraction> qe = Arrays.stream(terms).map(QueryExtraction::new).collect(Collectors.toUnmodifiableSet());
             if (qe.size() > 0) {
-                results.add(new Result(verified, qe, conjointTerms ? qe.size() : 1));
+                this.terms.add(new Result(verified, qe, conjunction ? qe.size() : 1));
             }
         }
 
-    }
-
-
-
-    private static BiFunction<Query, Version, Result> multiPhraseQuery() {
-        return (query, version) -> {
-            Term[][] terms = ((MultiPhraseQuery) query).getTermArrays();
-            if (terms.length == 0) {
-                return new Result(true, Collections.emptySet(), 0);
-            }
-
-            // This query has the same problem as boolean queries when it comes to duplicated terms
-            // So to keep things simple, we just rewrite to a boolean query
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (Term[] termArr : terms) {
-                BooleanQuery.Builder subBuilder = new BooleanQuery.Builder();
-                for (Term term : termArr) {
-                    subBuilder.add(new TermQuery(term), Occur.SHOULD);
-                }
-                builder.add(subBuilder.build(), Occur.FILTER);
-            }
-            // Make sure to unverify the result
-            return booleanQuery().apply(builder.build(), version).unverify();
-        };
-    }
-
-
-    private static BiFunction<Query, Version, Result> booleanQuery() {
-        return (query, version) -> {
-            BooleanQuery bq = (BooleanQuery) query;
-            int minimumShouldMatch = bq.getMinimumNumberShouldMatch();
-            List<Query> requiredClauses = new ArrayList<>();
-            List<Query> optionalClauses = new ArrayList<>();
-            boolean hasProhibitedClauses = false;
-            for (BooleanClause clause : bq.clauses()) {
-                if (clause.isRequired()) {
-                    requiredClauses.add(clause.getQuery());
-                } else if (clause.isProhibited()) {
-                    hasProhibitedClauses = true;
-                } else {
-                    assert clause.getOccur() == Occur.SHOULD;
-                    optionalClauses.add(clause.getQuery());
-                }
-            }
-
-            if (minimumShouldMatch > optionalClauses.size()
-                    || (requiredClauses.isEmpty() && optionalClauses.isEmpty())) {
-                return new Result(false, Collections.emptySet(), 0);
-            }
-
-            if (requiredClauses.size() > 0) {
-                if (minimumShouldMatch > 0) {
-                    // mix of required clauses and required optional clauses, we turn it into
-                    // a pure conjunction by moving the optional clauses to a sub query to
-                    // simplify logic
-                    BooleanQuery.Builder minShouldMatchQuery = new BooleanQuery.Builder();
-                    minShouldMatchQuery.setMinimumNumberShouldMatch(minimumShouldMatch);
-                    for (Query q : optionalClauses) {
-                        minShouldMatchQuery.add(q, Occur.SHOULD);
-                    }
-                    requiredClauses.add(minShouldMatchQuery.build());
-                    optionalClauses.clear();
-                    minimumShouldMatch = 0;
-                } else {
-                    optionalClauses.clear(); // only matter for scoring, not matching
-                }
-            }
-
-            // Now we now have either a pure conjunction or a pure disjunction, with at least one clause
-            Result result;
-            if (requiredClauses.size() > 0) {
-                assert optionalClauses.isEmpty();
-                assert minimumShouldMatch == 0;
-                result = handleConjunctionQuery(requiredClauses, version);
-            } else {
-                assert requiredClauses.isEmpty();
-                if (minimumShouldMatch == 0) {
-                    // Lucene always requires one matching clause for disjunctions
-                    minimumShouldMatch = 1;
-                }
-                result = handleDisjunctionQuery(optionalClauses, minimumShouldMatch, version);
-            }
-
-            if (hasProhibitedClauses) {
-                result = result.unverify();
-            }
-
-            return result;
-        };
     }
 
     private static Result pointRangeQuery(PointRangeQuery query) {
@@ -312,33 +226,6 @@ final class QueryAnalyzer {
         byte[] result = new byte[BinaryRange.BYTES];
         System.arraycopy(original, 0, result, offset, original.length);
         return result;
-    }
-
-    private static BiFunction<Query, Version, Result> indexOrDocValuesQuery() {
-        return (query, version) -> {
-            IndexOrDocValuesQuery indexOrDocValuesQuery = (IndexOrDocValuesQuery) query;
-            return analyze(indexOrDocValuesQuery.getIndexQuery(), version);
-        };
-    }
-
-    private static BiFunction<Query, Version, Result> toParentBlockJoinQuery() {
-        return (query, version) -> {
-            ESToParentBlockJoinQuery toParentBlockJoinQuery = (ESToParentBlockJoinQuery) query;
-            Result result = analyze(toParentBlockJoinQuery.getChildQuery(), version);
-            return new Result(false, result.extractions, result.minimumShouldMatch);
-        };
-    }
-
-    private static Result handleConjunctionQuery(List<Query> conjunctions, Version version) {
-        List<Result> results = new ArrayList<>(conjunctions.size());
-        for (Query query : conjunctions) {
-            Result subResult = analyze(query, version);
-            if (subResult.isMatchNoDocs()) {
-                return subResult;
-            }
-            results.add(subResult);
-        }
-        return handleConjunction(results);
     }
 
     private static Result handleConjunction(List<Result> conjunctionsWithUnknowns) {
@@ -395,10 +282,8 @@ final class QueryAnalyzer {
                 }
 
                 if (extractions.contains(queryExtraction)) {
-
-                    resultMsm = 0;
+                    resultMsm = Math.max(0, resultMsm - 1);
                     verified = false;
-                    break;
                 }
             }
             msm += resultMsm;
@@ -416,16 +301,6 @@ final class QueryAnalyzer {
         } else {
             return new Result(verified, extractions, hasDuplicateTerms ? 1 : msm);
         }
-    }
-
-    private static Result handleDisjunctionQuery(List<Query> disjunctions, int requiredShouldClauses, Version version) {
-        List<Result> subResults = new ArrayList<>();
-        for (Query query : disjunctions) {
-            // if either query fails extraction, we need to propagate as we could miss hits otherwise
-            Result subResult = analyze(query, version);
-            subResults.add(subResult);
-        }
-        return handleDisjunction(subResults, requiredShouldClauses);
     }
 
     private static Result handleDisjunction(List<Result> disjunctions, int requiredShouldClauses) {
@@ -547,6 +422,11 @@ final class QueryAnalyzer {
             this(matchAllDocs, verified, Collections.emptySet(), 0);
         }
 
+        @Override
+        public String toString() {
+            return extractions.toString();
+        }
+
         Result unverify() {
             if (verified) {
                 return new Result(matchAllDocs, false, extractions, minimumShouldMatch);
@@ -577,6 +457,13 @@ final class QueryAnalyzer {
             @Override
             public String toString() {
                 return "UNKNOWN";
+            }
+        };
+
+        static final Result MATCH_NONE = new Result(false, true, Collections.emptySet(), 0) {
+            @Override
+            boolean isMatchNoDocs() {
+                return true;
             }
         };
     }

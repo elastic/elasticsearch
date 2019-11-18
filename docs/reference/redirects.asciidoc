@@ -995,3 +995,9 @@ See <<ref-ldap-settings>>.
 === Setting up SSL between Elasticsearch and LDAP
 
 See <<tls-ldap>>. 
+
+[role="exclude",id="configuring-kerberos-realm"]
+=== Configuring a Kerberos realm
+
+See <<kerberos-realm-configuration>>.
+

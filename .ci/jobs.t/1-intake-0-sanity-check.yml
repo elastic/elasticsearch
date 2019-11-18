@@ -9,5 +9,4 @@
              -Dorg.elasticsearch.build.cache.push=true \
              -Dignore.tests.seed \
              -Dscan.capture-task-input-files \
-             --build-cache
              precommit

@@ -9,7 +9,8 @@
         {
           "path":"/_slm/policy/{policy_id}/_execute",
           "methods":[
-            "PUT"
+            "PUT",
+            "POST"
           ],
           "parts":{
             "policy_id":{

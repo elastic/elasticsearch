@@ -577,7 +577,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         ElasticsearchException parsed;
         try (XContentParser parser = createParser(builder)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = ElasticsearchException.fromXContent(parser, false);
+            parsed = ElasticsearchException.fromXContent(parser, true);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }

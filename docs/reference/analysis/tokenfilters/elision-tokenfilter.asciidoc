@@ -92,7 +92,7 @@ The following <<indices-create-index,create index API>> request uses the
 `elision` filter to configure a new 
 <<analysis-custom-analyzer,custom analyzer>>.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /elision_example
 {

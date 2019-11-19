@@ -86,12 +86,12 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
 
     @Override
     public void process(Map<String, Object> fields) {
-        String value = fields.get(field).toString();
+        Object value = fields.get(field);
         if (value == null) {
             return;
         }
         hotMap.forEach((val, col) -> {
-            int encoding = value.equals(val) ? 1 : 0;
+            int encoding = value.toString().equals(val) ? 1 : 0;
             fields.put(col, encoding);
         });
     }

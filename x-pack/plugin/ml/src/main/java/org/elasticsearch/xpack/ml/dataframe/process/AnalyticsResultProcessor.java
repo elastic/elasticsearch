@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -41,18 +43,21 @@ public class AnalyticsResultProcessor {
     private final ProgressTracker progressTracker;
     private final TrainedModelProvider trainedModelProvider;
     private final DataFrameAnalyticsAuditor auditor;
+    private final List<String> fieldNames;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
     private volatile String failure;
 
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
                                     Supplier<Boolean> isProcessKilled, ProgressTracker progressTracker,
-                                    TrainedModelProvider trainedModelProvider, DataFrameAnalyticsAuditor auditor) {
+                                    TrainedModelProvider trainedModelProvider, DataFrameAnalyticsAuditor auditor,
+                                    List<String> fieldNames) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.isProcessKilled = Objects.requireNonNull(isProcessKilled);
         this.progressTracker = Objects.requireNonNull(progressTracker);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.auditor = Objects.requireNonNull(auditor);
+        this.fieldNames = Collections.unmodifiableList(Objects.requireNonNull(fieldNames));
     }
 
     @Nullable
@@ -111,13 +116,13 @@ public class AnalyticsResultProcessor {
         if (progressPercent != null) {
             progressTracker.analyzingPercent.set(progressPercent);
         }
-        TrainedModelDefinition inferenceModel = result.getInferenceModel();
-        if (inferenceModel != null) {
-            createAndIndexInferenceModel(inferenceModel);
+        TrainedModelDefinition.Builder inferenceModelBuilder = result.getInferenceModelBuilder();
+        if (inferenceModelBuilder != null) {
+            createAndIndexInferenceModel(inferenceModelBuilder);
         }
     }
 
-    private void createAndIndexInferenceModel(TrainedModelDefinition inferenceModel) {
+    private void createAndIndexInferenceModel(TrainedModelDefinition.Builder inferenceModel) {
         TrainedModelConfig trainedModelConfig = createTrainedModelConfig(inferenceModel);
         CountDownLatch latch = storeTrainedModel(trainedModelConfig);
 
@@ -131,10 +136,12 @@ public class AnalyticsResultProcessor {
         }
     }
 
-    private TrainedModelConfig createTrainedModelConfig(TrainedModelDefinition inferenceModel) {
+    private TrainedModelConfig createTrainedModelConfig(TrainedModelDefinition.Builder inferenceModel) {
         Instant createTime = Instant.now();
+        String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
+        TrainedModelDefinition definition = inferenceModel.setModelId(modelId).build();
         return TrainedModelConfig.builder()
-            .setModelId(analytics.getId() + "-" + createTime.toEpochMilli())
+            .setModelId(modelId)
             .setCreatedBy("data-frame-analytics")
             .setVersion(Version.CURRENT)
             .setCreateTime(createTime)
@@ -142,7 +149,10 @@ public class AnalyticsResultProcessor {
             .setDescription(analytics.getDescription())
             .setMetadata(Collections.singletonMap("analytics_config",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
-            .setDefinition(inferenceModel)
+            .setDefinition(definition)
+            .setEstimatedHeapMemory(definition.ramBytesUsed())
+            .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
+            .setInput(new TrainedModelInput(fieldNames))
             .build();
     }
 

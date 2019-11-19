@@ -1479,7 +1479,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testDateProvidedAsNumber() throws InterruptedException {
         createIndex("test");
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type")
+        assertAcked(client().admin().indices().preparePutMapping("test")
             .setSource("field", "type=date,format=epoch_millis").get());
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource("field", 1000000000001L),
@@ -1660,41 +1660,6 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         RangeQueryBuilder range = new RangeQueryBuilder("int_range").relation("intersects").from(Integer.MIN_VALUE).to(Integer.MAX_VALUE);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-    }
-
-    public void testRangeQueryTypeField_31476() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("foo", "field", "type=keyword"));
-
-        client().prepareIndex("test").setId("1").setSource("field", "value").get();
-        refresh();
-
-        RangeQueryBuilder range = new RangeQueryBuilder("_type").from("ape").to("zebra");
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("monkey").to("zebra");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("donkey");
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 1);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(false);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
-        assertHitCount(searchResponse, 0);
-
-        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
-        searchResponse = client().prepareSearch("test").setQuery(range).get();
         assertHitCount(searchResponse, 1);
     }
 

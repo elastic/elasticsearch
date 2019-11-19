@@ -128,7 +128,7 @@ exist. To update an existing document, you must use the `_doc` resource.
 
 If the specified index does not already exist, by default the index operation
 automatically creates it and applies any configured
-<<indices-templates,index templates>>. If no mapping exists, the index opration
+<<indices-templates,index templates>>. If no mapping exists, the index operation
 creates a dynamic mapping.  By default,  new fields and objects are
 automatically added to the mapping if needed. For more information about field
 mapping, see <<mapping,mapping>> and the <<indices-put-mapping,put mapping>> API.

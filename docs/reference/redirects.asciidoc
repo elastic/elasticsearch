@@ -996,6 +996,11 @@ See <<ref-ldap-settings>>.
 
 See <<tls-ldap>>. 
 
+[role="exclude",id="configuring-kerberos-realm"]
+=== Configuring a Kerberos realm
+
+See <<kerberos-realm-configuration>>.
+
 [role="exclude",id="beats"]
 === Beats and Security
 
@@ -1006,4 +1011,5 @@ See:
 * {metricbeat-ref}/securing-beats.html[{metricbeat}]
 * {packetbeat-ref}/securing-beats.html[{packetbeat}]
 * {winlogbeat-ref}/securing-beats.html[{winlogbeat}]
+
 

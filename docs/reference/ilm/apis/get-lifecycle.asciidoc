@@ -8,31 +8,37 @@
 
 Retrieves a lifecycle policy.
 
-==== Request
+[[sample-api-request]]
+==== {api-request-title}
 
 `GET _ilm/policy`
 `GET _ilm/policy/<policy_id>`
 
-==== Description
+[[sample-api-desc]]
+==== {api-description-title}
 
 Returns the specified policy definition. Includes the policy version and last
 modified date. If no policy is specified, returns all defined policies.
 
-==== Path Parameters
+[[sample-api-path-params]]
+==== {api-path-parms-title}
 
 `policy` (optional)::
   (string) Identifier for the policy.
 
-==== Request Parameters
+[[sample-api-query-params]]
+==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
+[[sample-api-prereqs]]
+==== {api-prereq-title}
 
 You must have the `manage_ilm` or `read_ilm` or both cluster privileges to use this API.
 For more information, see <<security-privileges>>.
 
-==== Examples
+[[sample-api-example]]
+==== {api-examples-title}
 
 The following example retrieves `my_policy`:
 

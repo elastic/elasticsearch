@@ -10,26 +10,31 @@
 
 Start the {ilm} ({ilm-init}) plugin.
 
-==== Request
+[[sample-api-request]]
+==== {api-request-title}
 
 `POST /_ilm/start`
 
-==== Description
+[[sample-api-desc]]
+==== {api-description-title}
 
 Starts the {ilm-init} plugin if it is currently stopped. {ilm-init} is started
 automatically when the cluster is formed. Restarting {ilm-init} is only
 necessary if it has been stopped using the <<ilm-stop, Stop {ilm-init} API>>.
 
-==== Request Parameters
+[[sample-api-query-params]]
+==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
+[[sample-api-prereqs]]
+==== {api-prereq-title}
 
 You must have the `manage_ilm` cluster privilege to use this API.
 For more information, see <<security-privileges>>.
 
-==== Examples
+[[sample-api-example]]
+==== {api-examples-title}
 
 The following example starts the ILM plugin.
 

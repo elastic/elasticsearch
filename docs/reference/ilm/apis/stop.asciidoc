@@ -10,11 +10,13 @@
 
 Stop the {ilm} ({ilm-init}) plugin.
 
-==== Request
+[[sample-api-request]]
+==== {api-request-title}
 
 `POST /_ilm/stop`
 
-==== Description
+[[sample-api-desc]]
+==== {api-description-title}
 
 Halts all lifecycle management operations and stops the {ilm-init} plugin. This
 is useful when you are performing maintenance on the cluster and need to prevent
@@ -25,16 +27,19 @@ plugin might continue to run until in-progress operations complete and the plugi
 can be safely stopped. Use the  <<ilm-get-status, Get ILM Status>> API to see
 if {ilm-init} is running.
 
-==== Request Parameters
+[[sample-api-query-params]]
+==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
+[[sample-api-prereqs]]
+==== {api-prereq-title}
 
 You must have the `manage_ilm` cluster privilege to use this API.
 For more information, see <<security-privileges>>.
 
-==== Examples
+[[sample-api-example]]
+==== {api-examples-title}
 
 The following example stops the ILM plugin.
 

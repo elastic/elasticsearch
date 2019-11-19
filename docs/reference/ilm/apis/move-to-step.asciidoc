@@ -8,11 +8,13 @@
 
 Triggers execution of a specific step in the lifecycle policy.
 
-==== Request
+[[sample-api-request]]
+==== {api-request-title}
 
 `POST _ilm/move/<index>`
 
-==== Description
+[[sample-api-desc]]
+==== {api-description-title}
 
 WARNING: This operation can result in the loss of data. Manually moving an index
 into a specific step executes that step even if it has already been performed.
@@ -27,21 +29,25 @@ The request will fail if the current step does not match the step currently
 being executed for the index. This is to prevent the index from being moved from
 an unexpected step into the next step.
 
-==== Path Parameters
+[[sample-api-path-params]]
+==== {api-path-parms-title}
 
 `index` (required)::
   (string) Identifier for the index.
 
-==== Request Parameters
+[[sample-api-query-params]]
+==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
+[[sample-api-prereqs]]
+==== {api-prereq-title}
 
 You must have the `manage_ilm` privileges on the indices being managed to use this API.
 For more information, see <<security-privileges>>.
 
-==== Examples
+[[sample-api-example]]
+==== {api-examples-title}
 
 The following example moves `my_index` from the initial step to the
 `forcemerge` step:

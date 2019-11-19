@@ -8,23 +8,27 @@
 
 Shows an index's current lifecycle status.
 
-==== Request
+[[sample-api-request]]
+==== {api-request-title}
 
 `GET <index>/_ilm/explain`
 
-==== Description
+[[sample-api-desc]]
+==== {api-description-title}
 
 Retrieves information about the index's current lifecycle state, such as
 the currently executing phase, action, and step. Shows when the index entered
 each one, the definition of the running phase, and information
 about any failures.
 
-==== Path Parameters
+[[sample-api-path-params]]
+==== {api-path-parms-title}
 
 `index` (required)::
   (string) Identifier for the index.
 
-==== Request Parameters
+[[sample-api-query-params]]
+==== {api-query-parms-title}
 
 `only_managed`::
   (boolean) Filters the returned indices to only indices that are managed by
@@ -37,13 +41,15 @@ about any failures.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
+[[sample-api-prereqs]]
+==== {api-prereq-title}
 
 You must have the `view_index_metadata` or `manage_ilm` or both privileges on the indices
 being managed to use this API.
 For more information, see <<security-privileges>>.
 
-==== Examples
+[[sample-api-example]]
+==== {api-examples-title}
 
 The following example retrieves the lifecycle state of `my_index`:
 

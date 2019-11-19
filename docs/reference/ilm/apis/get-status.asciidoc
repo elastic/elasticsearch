@@ -10,27 +10,32 @@
 
 Retrieves the current {ilm} ({ilm-init}) status.
 
-==== Request
+[[sample-api-request]]
+==== {api-request-title}
 
 `GET /_ilm/status`
 
-==== Description
+[[sample-api-desc]]
+==== {api-description-title}
 
 Returns the status of the {ilm-init} plugin. The `operation_mode` field in the
 response shows one of three states: `STARTED`, `STOPPING`,
 or `STOPPED`. You can change the status of the {ilm-init} plugin with the
 <<ilm-start, Start ILM>> and <<ilm-stop, Stop ILM>> APIs.
 
-==== Request Parameters
+[[sample-api-query-params]]
+==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
+[[sample-api-prereqs]]
+==== {api-prereq-title}
 
 You must have the `manage_ilm` or `read_ilm` or both cluster privileges to use this API.
 For more information, see <<security-privileges>>.
 
-==== Examples
+[[sample-api-example]]
+==== {api-examples-title}
 
 The following example gets the {ilm-init} plugin status.
 

@@ -9,11 +9,13 @@
 Creates or updates lifecycle policy. See <<ilm-policy-definition,Policy phases and actions>>
 for definitions of policy components.
 
-==== Request
+[[sample-api-request]]
+==== {api-request-title}
 
 `PUT _ilm/policy/<policy_id>`
 
-==== Description
+[[sample-api-desc]]
+==== {api-description-title}
 
 Creates a lifecycle policy. If the specified policy exists, the policy is
 replaced and the policy version is incremented.
@@ -21,16 +23,19 @@ replaced and the policy version is incremented.
 NOTE: Only the latest version of the policy is stored, you cannot revert to
 previous versions.
 
-==== Path Parameters
+[[sample-api-path-params]]
+==== {api-path-parms-title}
 
 `policy` (required)::
   (string) Identifier for the policy.
 
-==== Request Parameters
+[[sample-api-query-params]]
+==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
+[[sample-api-prereqs]]
+==== {api-prereq-title}
 
 You must have the `manage_ilm` cluster privilege to use this API. You must
 also have the `manage` index privilege on all indices being managed by `policy`.
@@ -38,7 +43,8 @@ All operations executed by {ilm} for a policy are executed as the user that
 put the latest version of a policy.
 For more information, see <<security-privileges>>.
 
-==== Examples
+[[sample-api-example]]
+==== {api-examples-title}
 
 The following example creates a new policy named `my_policy`:
 

@@ -5,12 +5,16 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -19,6 +23,8 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -27,13 +33,18 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
-public class TrainedModelDefinition implements ToXContentObject, Writeable {
+public class TrainedModelDefinition implements ToXContentObject, Writeable, Accountable {
 
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TrainedModelDefinition.class);
     public static final String NAME = "trained_model_definition";
+    public static final String HEAP_MEMORY_ESTIMATION = "heap_memory_estimation";
 
     public static final ParseField TRAINED_MODEL = new ParseField("trained_model");
     public static final ParseField PREPROCESSORS = new ParseField("preprocessors");
@@ -106,6 +117,11 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
             true,
             PREPROCESSORS.getPreferredName(),
             preProcessors);
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
+            builder.humanReadableField(HEAP_MEMORY_ESTIMATION + "_bytes",
+                HEAP_MEMORY_ESTIMATION,
+                new ByteSizeValue(ramBytesUsed()));
+        }
         if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
             assert modelId != null;
@@ -121,6 +137,15 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
 
     public List<PreProcessor> getPreProcessors() {
         return preProcessors;
+    }
+
+    private void preProcess(Map<String, Object> fields) {
+        preProcessors.forEach(preProcessor -> preProcessor.process(fields));
+    }
+
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
+        preProcess(fields);
+        return trainedModel.infer(fields, config);
     }
 
     @Override
@@ -141,6 +166,24 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(trainedModel, preProcessors, modelId);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOf(trainedModel);
+        size += RamUsageEstimator.sizeOfCollection(preProcessors);
+        return size;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> accountables = new ArrayList<>(preProcessors.size() + 2);
+        accountables.add(Accountables.namedAccountable("trained_model", trainedModel));
+        for(PreProcessor preProcessor : preProcessors) {
+            accountables.add(Accountables.namedAccountable("pre_processor_" + preProcessor.getName(), preProcessor));
+        }
+        return accountables;
     }
 
     public static class Builder {

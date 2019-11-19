@@ -945,3 +945,59 @@ See <<native-realm-configuration>>.
 ==== Native realm settings
 
 See <<ref-native-settings>>. 
+
+[role="exclude",id="configuring-saml-realm"]
+=== Configuring a SAML realm
+
+See <<saml-guide>>.
+
+[role="exclude",id="saml-settings"]
+==== SAML realm settings
+
+See <<ref-saml-settings>>. 
+
+[role="exclude",id="_saml_realm_signing_settings"]
+==== SAML realm signing settings
+
+See <<ref-saml-signing-settings>>. 
+
+[role="exclude",id="_saml_realm_encryption_settings"]
+==== SAML realm encryption settings
+
+See <<ref-saml-encryption-settings>>. 
+
+[role="exclude",id="_saml_realm_ssl_settings"]
+==== SAML realm SSL settings
+
+See <<ref-saml-ssl-settings>>. 
+
+[role="exclude",id="configuring-file-realm"]
+=== Configuring a file realm
+
+See <<file-realm-configuration>>. 
+
+[role="exclude",id="ldap-user-search"]
+=== User search mode and user DN templates mode
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="configuring-ldap-realm"]
+=== Configuring an LDAP realm
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="ldap-settings"]
+=== LDAP realm settings
+
+See <<ref-ldap-settings>>.
+
+[role="exclude",id="ldap-ssl"]
+=== Setting up SSL between Elasticsearch and LDAP
+
+See <<tls-ldap>>. 
+
+[role="exclude",id="configuring-kerberos-realm"]
+=== Configuring a Kerberos realm
+
+See <<kerberos-realm-configuration>>.
+

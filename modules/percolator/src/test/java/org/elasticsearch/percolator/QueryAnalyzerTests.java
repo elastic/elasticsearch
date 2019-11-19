@@ -28,6 +28,10 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.XIntervals;
+import org.apache.lucene.queries.intervals.IntervalQuery;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -71,11 +75,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.percolator.QueryAnalyzer.UnsupportedQueryException;
 import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class QueryAnalyzerTests extends ESTestCase {
 
@@ -374,7 +376,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
         builder.add(termQuery3, BooleanClause.Occur.SHOULD);
         result = analyze(builder.build(), Version.CURRENT);
-        assertThat("Minimum match has not impact on whether the result is verified", result.verified, is(true));
+        assertThat("Minimum match has no impact on whether the result is verified", result.verified, is(true));
         assertThat("msm is at least two so result.minimumShouldMatch should 2 too", result.minimumShouldMatch, equalTo(msm));
 
         builder = new BooleanQuery.Builder();
@@ -722,18 +724,14 @@ public class QueryAnalyzerTests extends ESTestCase {
 
     public void testExtractQueryMetadata_unsupportedQuery() {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
-        UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class,
-            () -> analyze(termRangeQuery, Version.CURRENT));
-        assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
+        assertEquals(Result.UNKNOWN, analyze(termRangeQuery, Version.CURRENT));
 
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termRangeQuery, BooleanClause.Occur.SHOULD);
         BooleanQuery bq = builder.build();
-
-        e = expectThrows(UnsupportedQueryException.class, () -> analyze(bq, Version.CURRENT));
-        assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
+        assertEquals(Result.UNKNOWN, analyze(bq, Version.CURRENT));
     }
 
     public void testExtractQueryMetadata_unsupportedQueryInBoolQueryWithMustClauses() {
@@ -765,8 +763,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
         builder.add(unsupportedQuery, BooleanClause.Occur.MUST);
         BooleanQuery bq2 = builder.build();
-        UnsupportedQueryException e = expectThrows(UnsupportedQueryException.class, () -> analyze(bq2, Version.CURRENT));
-        assertThat(e.getUnsupportedQuery(), sameInstance(unsupportedQuery));
+        assertEquals(Result.UNKNOWN, analyze(bq2, Version.CURRENT));
     }
 
     public void testExtractQueryMetadata_disjunctionMaxQuery() {
@@ -936,10 +933,10 @@ public class QueryAnalyzerTests extends ESTestCase {
     public void testTooManyPointDimensions() {
         // For now no extraction support for geo queries:
         Query query1 = LatLonPoint.newBoxQuery("_field", 0, 1, 0, 1);
-        expectThrows(UnsupportedQueryException.class, () -> analyze(query1, Version.CURRENT));
+        assertEquals(Result.UNKNOWN, analyze(query1, Version.CURRENT));
 
         Query query2 = LongPoint.newRangeQuery("_field", new long[]{0, 0, 0}, new long[]{1, 1, 1});
-        expectThrows(UnsupportedQueryException.class, () -> analyze(query2, Version.CURRENT));
+        assertEquals(Result.UNKNOWN, analyze(query2, Version.CURRENT));
     }
 
     public void testPointRangeQuery_lowerUpperReversed() {
@@ -1054,7 +1051,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         Result result = analyze(builder.build(), Version.CURRENT);
         assertThat(result.verified, is(false));
         assertThat(result.matchAllDocs, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.minimumShouldMatch, equalTo(4));
         assertTermsEqual(result.extractions, new Term("field", "value1"), new Term("field", "value2"),
                 new Term("field", "value3"), new Term("field", "value4"));
 
@@ -1091,16 +1088,10 @@ public class QueryAnalyzerTests extends ESTestCase {
     public void testEmptyQueries() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         Result result = analyze(builder.build(), Version.CURRENT);
-        assertThat(result.verified, is(false));
-        assertThat(result.matchAllDocs, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(0));
-        assertThat(result.extractions.size(), equalTo(0));
+        assertEquals(result, Result.MATCH_NONE);
 
         result = analyze(new DisjunctionMaxQuery(Collections.emptyList(), 0f), Version.CURRENT);
-        assertThat(result.verified, is(false));
-        assertThat(result.matchAllDocs, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(0));
-        assertThat(result.extractions.size(), equalTo(0));
+        assertEquals(result, Result.MATCH_NONE);
     }
 
     private static void assertDimension(byte[] expected, Consumer<byte[]> consumer) {
@@ -1111,6 +1102,110 @@ public class QueryAnalyzerTests extends ESTestCase {
 
     private static void assertTermsEqual(Set<QueryExtraction> actual, Term... expected) {
         assertEquals(Arrays.stream(expected).map(QueryExtraction::new).collect(Collectors.toSet()), actual);
+    }
+
+    public void testIntervalQueries() {
+        IntervalsSource source = Intervals.or(Intervals.term("term1"), Intervals.term("term2"));
+        Result result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "term1"), new Term("field", "term2"));
+
+        source = Intervals.ordered(Intervals.term("term1"), Intervals.term("term2"),
+            Intervals.or(Intervals.term("term3"), Intervals.term("term4")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "term1"), new Term("field", "term2"),
+            new Term("field", "term3"), new Term("field", "term4"));
+
+        source = Intervals.ordered(Intervals.term("term1"), XIntervals.wildcard(new BytesRef("a*")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "term1"));
+
+        source = Intervals.ordered(XIntervals.wildcard(new BytesRef("a*")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertEquals(Result.UNKNOWN, result);
+
+        source = Intervals.or(Intervals.term("b"), XIntervals.wildcard(new BytesRef("a*")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertEquals(Result.UNKNOWN, result);
+
+        source = Intervals.ordered(Intervals.term("term1"), XIntervals.prefix(new BytesRef("a")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "term1"));
+
+        source = Intervals.ordered(XIntervals.prefix(new BytesRef("a")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertEquals(Result.UNKNOWN, result);
+
+        source = Intervals.or(Intervals.term("b"), XIntervals.prefix(new BytesRef("a")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertEquals(Result.UNKNOWN, result);
+
+        source = Intervals.containedBy(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "a"), new Term("field", "b"), new Term("field", "c"));
+
+        source = Intervals.containing(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "a"), new Term("field", "b"), new Term("field", "c"));
+
+        source = Intervals.overlapping(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "a"), new Term("field", "b"), new Term("field", "c"));
+
+        source = Intervals.within(Intervals.term("a"), 2, Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, new Term("field", "a"), new Term("field", "b"), new Term("field", "c"));
+
+        source = Intervals.notContainedBy(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "a"));
+
+        source = Intervals.notContaining(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "a"));
+
+        source = Intervals.nonOverlapping(Intervals.term("a"), Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "a"));
+
+        source = Intervals.notWithin(Intervals.term("a"), 2, Intervals.ordered(Intervals.term("b"), Intervals.term("c")));
+        result = analyze(new IntervalQuery("field", source), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, new Term("field", "a"));
     }
 
 }

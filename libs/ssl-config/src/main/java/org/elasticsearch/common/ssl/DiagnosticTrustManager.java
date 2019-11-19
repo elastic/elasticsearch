@@ -160,5 +160,4 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
     private SSLSession session(SSLEngine engine) {
         return engine.getHandshakeSession();
     }
-
 }

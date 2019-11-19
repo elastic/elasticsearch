@@ -418,5 +418,4 @@ public class SslDiagnosticsTests extends ESTestCase {
         Mockito.when(mock.getPeerHost()).thenReturn(peerHost);
         return mock;
     }
-
 }

@@ -380,5 +380,4 @@ public class SslDiagnostics {
     private static boolean isSelfIssued(X509Certificate certificate) {
         return certificate.getIssuerX500Principal().equals(certificate.getSubjectX500Principal());
     }
-
 }

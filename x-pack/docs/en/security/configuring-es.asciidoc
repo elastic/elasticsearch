@@ -77,7 +77,7 @@ your subscription. For more information, see https://www.elastic.co/subscription
 ** <<kerberos-realm,Kerberos realms>>
 ** <<ldap-realm,LDAP realms>>
 ** <<native-realm,Native realms>>
-** <<configuring-pki-realm,PKI realms>>
+** <<pki-realm,PKI realms>>
 ** <<saml-realm,SAML realms>>
 
 . Set up roles and users to control access to {es}.
@@ -138,7 +138,6 @@ Events are logged to a dedicated `<clustername>_audit.json` file in
 To walk through the configuration of {security-features} in {es}, {kib}, {ls}, and {metricbeat}, see <<security-getting-started>>.
 
 include::authentication/configuring-active-directory-realm.asciidoc[]
-include::authentication/configuring-pki-realm.asciidoc[]
 
 include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]

@@ -31,18 +31,20 @@ now work for the {ref}/shape.html[`shape`] field type introduced in 7.3.
 [float]
 ==== Snapshot lifecycle management retention
 
-A new {ref}/slm-retention.html[snapshot lifecycle management retention] which
-allows to delete older snapshots automatically through custom policy’s schedule.
+There is a new {ref}/slm-retention.html[snapshot lifecycle management retention],
+which allows you to delete older snapshots automatically through a custom
+policy’s schedule.
 
 // end::notable-highlights[]
 
 
 // tag::notable-highlights[]
 [float]
-==== Pause Cross-Cluster Replication
+==== Pause {ccr}
 
-New {ref}/ccr-post-pause-follow.html[pause] and {ref}/ccr-post-pause-follow.html[resume]
-API endpoints for {ref}/ccr.htm[cross-cluster replication] which allow to temporarily pause
+New {ref}/ccr-post-pause-follow.html[pause] and
+{ref}/ccr-post-pause-follow.html[resume] API endpoints for
+{ref}/ccr.htm[{ccr}] have been added, which enable you to temporarily pause
 auto-follow patterns.
 
 // end::notable-highlights[]
@@ -51,8 +53,8 @@ auto-follow patterns.
 [float]
 ==== Classification API
 
-The {ref}/ml-df-analytics-apis.html[data frame analytics jobs] now supports binary classification
-which allows to predict the class or category of a document.
+{ref}/ml-df-analytics-apis.html[{dfanalytics-jobs-cap}] now support binary
+classification, which enables you to predict the class or category of a document.
 
 // end::notable-highlights[]
 

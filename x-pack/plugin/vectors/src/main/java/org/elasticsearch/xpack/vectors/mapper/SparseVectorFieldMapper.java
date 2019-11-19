@@ -66,15 +66,15 @@ public class SparseVectorFieldMapper extends FieldMapper {
         public SparseVectorFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new SparseVectorFieldMapper(
-                name, fieldType, defaultFieldType,
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    name, fieldType, defaultFieldType,
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
+                throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
                 throw new IllegalArgumentException(ERROR_MESSAGE);
             } else {

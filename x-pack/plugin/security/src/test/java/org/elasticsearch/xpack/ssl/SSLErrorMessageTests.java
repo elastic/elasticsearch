@@ -127,6 +127,50 @@ public class SSLErrorMessageTests extends ESTestCase {
         checkBlockedTrustManagerResource("certificate_authorities", "certificate_authorities");
     }
 
+    public void testMessageForTransportSslEnabledWithoutKeys() throws Exception {
+        final String prefix = "xpack.security.transport.ssl";
+        final Settings.Builder settings = Settings.builder();
+        settings.put(prefix + ".enabled", true);
+        configureWorkingTruststore(prefix, settings);
+
+        expectSuccess(settings);
+        assertWarnings("invalid SSL configuration for " + prefix +
+            " - server ssl configuration requires a key and certificate, but these have not been configured;" +
+            " you must set either [" + prefix + ".keystore.path], or both [" + prefix + ".key] and [" + prefix + ".certificate]");
+    }
+
+    public void testNoErrorIfTransportSslDisabledWithoutKeys() throws Exception {
+        final String prefix = "xpack.security.transport.ssl";
+        final Settings.Builder settings = Settings.builder();
+        settings.put(prefix + ".enabled", false);
+        configureWorkingTruststore(prefix, settings);
+        expectSuccess(settings);
+    }
+
+    public void testMessageForTransportNotEnabledButKeystoreConfigured() throws Exception {
+        final String prefix = "xpack.security.transport.ssl";
+        checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password",
+            this::configureWorkingKeystore);
+    }
+
+    public void testMessageForTransportNotEnabledButTruststoreConfigured() throws Exception {
+        final String prefix = "xpack.security.transport.ssl";
+        checkUnusedConfiguration(prefix, prefix + ".truststore.path," + prefix + ".truststore.secure_password",
+            this::configureWorkingTruststore);
+    }
+
+    public void testMessageForHttpsNotEnabledButKeystoreConfigured() throws Exception {
+        final String prefix = "xpack.security.http.ssl";
+        checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password",
+            this::configureWorkingKeystore);
+    }
+
+    public void testMessageForHttpsNotEnabledButTruststoreConfigured() throws Exception {
+        final String prefix = "xpack.security.http.ssl";
+        checkUnusedConfiguration(prefix, prefix + ".truststore.path," + prefix + ".truststore.secure_password",
+            this::configureWorkingTruststore);
+    }
+
     private void checkMissingKeyManagerResource(String fileType, String configKey, @Nullable Settings.Builder additionalSettings) {
         checkMissingResource("KeyManager", fileType, configKey,
             (prefix, builder) -> buildKeyConfigSettings(additionalSettings, prefix, builder));
@@ -235,6 +279,15 @@ public class SSLErrorMessageTests extends ESTestCase {
         assertThat(exception, throwableWithMessage(containsString(fileName)));
     }
 
+    private void checkUnusedConfiguration(String prefix, String settingsConfigured, BiConsumer<String, Settings.Builder> configure) {
+        final Settings.Builder settings = Settings.builder();
+        configure.accept(prefix, settings);
+
+        expectSuccess(settings);
+        assertWarnings("invalid configuration for " + prefix + " - [" + prefix + ".enabled] is not set," +
+            " but the following settings have been configured in elasticsearch.yml : [" + settingsConfigured + "]");
+    }
+
     private String missingFile() {
         return resource("cert1a.p12").replace("cert1a.p12", "file.dne");
     }
@@ -291,6 +344,10 @@ public class SSLErrorMessageTests extends ESTestCase {
 
     private ElasticsearchException expectFailure(Settings.Builder settings) {
         return expectThrows(ElasticsearchException.class, () -> new SSLService(settings.build(), env));
+    }
+
+    private SSLService expectSuccess(Settings.Builder settings) {
+        return new SSLService(settings.build(), env);
     }
 
     private String resource(String fileName) {

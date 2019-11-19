@@ -7,14 +7,17 @@ package org.elasticsearch.xpack.ml.dataframe.process.results;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
 
 public class AnalyticsResult implements ToXContentObject {
 
@@ -67,7 +70,9 @@ public class AnalyticsResult implements ToXContentObject {
             builder.field(PROGRESS_PERCENT.getPreferredName(), progressPercent);
         }
         if (inferenceModel != null) {
-            builder.field(INFERENCE_MODEL.getPreferredName(), inferenceModel);
+            builder.field(INFERENCE_MODEL.getPreferredName(),
+                inferenceModel,
+                new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true")));
         }
         builder.endObject();
         return builder;

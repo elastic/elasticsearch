@@ -54,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -929,20 +930,20 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return this;
         }
 
-        public MappingMetaData mapping(String type) {
-            return mappings.get(type);
+        public MappingMetaData mapping() {
+            return mappings.get(MapperService.SINGLE_MAPPING_NAME);
         }
 
-        // TODO remove type here
-        public Builder putMapping(String type, String source) throws IOException {
-            putMapping(new MappingMetaData(type, XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
+        public Builder putMapping(String source) {
+            putMapping(new MappingMetaData(MapperService.SINGLE_MAPPING_NAME,
+                XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
             return this;
         }
 
         public Builder putMapping(MappingMetaData mappingMd) {
             mappings.clear();
             if (mappingMd != null) {
-                mappings.put(mappingMd.type(), mappingMd);
+                mappings.put(MapperService.SINGLE_MAPPING_NAME, mappingMd);
             }
             return this;
         }

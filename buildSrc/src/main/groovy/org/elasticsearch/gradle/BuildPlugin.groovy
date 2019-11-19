@@ -26,13 +26,12 @@ import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.elasticsearch.gradle.info.GlobalInfoExtension
-import org.elasticsearch.gradle.info.JavaHome
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.tool.Boilerplate
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -138,31 +137,50 @@ class BuildPlugin implements Plugin<Project> {
         configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
-
         configureFips140(project)
     }
 
-    public static void configureFips140(Project project) {
-        // Need to do it here to support external plugins
-        GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
-        // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
-        globalInfo.ready {
-                // Common config when running with a FIPS-140 runtime JVM
-                if (BuildParams.inFipsJvm) {
-                    project.tasks.withType(Test).configureEach { Test task ->
-                        task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                        task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+    static void configureFips140(Project project) {
+        // Common config when running with a FIPS-140 runtime JVM
+        if (inFipsJvm()) {
+            ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources') as ExportElasticsearchBuildResourcesTask
+            File securityProperties = buildResources.copy("fips_java.security")
+            File securityPolicy = buildResources.copy("fips_java.policy")
+            File bcfksKeystore = buildResources.copy("cacerts.bcfks")
+            // This configuration can be removed once system modules are available
+            Boilerplate.maybeCreate(project.configurations, 'extraJars') {
+                project.dependencies.add('extraJars', "org.bouncycastle:bc-fips:1.0.1")
+                project.dependencies.add('extraJars', "org.bouncycastle:bctls-fips:1.0.9")
+            }
+            project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
+                testClusters.all { ElasticsearchCluster cluster ->
+                    for (File dep : project.getConfigurations().getByName("extraJars").getFiles()){
+                        cluster.extraJarFile(dep)
                     }
-                    project.pluginManager.withPlugin("elasticsearch.testclusters") {
-                        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
-                        if (testClusters != null) {
-                            testClusters.all { ElasticsearchCluster cluster ->
-                                cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                                cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                            }
-                        }
-                    }
+                    cluster.extraConfigFile("fips_java.security", securityProperties)
+                    cluster.extraConfigFile("fips_java.policy", securityPolicy)
+                    cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
+                    cluster.systemProperty('java.security.properties', '=${ES_PATH_CONF}/fips_java.security')
+                    cluster.systemProperty('java.security.policy', '=${ES_PATH_CONF}/fips_java.policy')
+                    cluster.systemProperty('javax.net.ssl.trustStore', '${ES_PATH_CONF}/cacerts.bcfks')
+                    cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                    cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                    cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
                 }
+            }
+            project.tasks.withType(Test).configureEach { Test task ->
+                task.dependsOn(buildResources)
+                task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
+                task.systemProperty('javax.net.ssl.trustStoreType', 'BCFKS')
+                // Using the key==value format to override default JVM security settings and policy
+                // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
+                task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", securityProperties.toString()))
+                task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", securityPolicy.toString()))
+                task.systemProperty('javax.net.ssl.trustStore', bcfksKeystore.toString())
+            }
+
         }
     }
 
@@ -623,19 +641,16 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
 
-                    if (BuildParams.inFipsJvm) {
-                        nonInputProperties.systemProperty('runtime.java', "${-> BuildParams.runtimeJavaVersion.majorVersion}FIPS")
-                    } else {
-                        nonInputProperties.systemProperty('runtime.java', "${-> BuildParams.runtimeJavaVersion.majorVersion}")
-                    }
                     //TODO remove once jvm.options are added to test system properties
                     test.systemProperty ('java.locale.providers','SPI,COMPAT')
                 }
-
+                if (inFipsJvm()) {
+                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1")
+                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bctls-fips:1.0.9")
+                }
                 test.jvmArgumentProviders.add(nonInputProperties)
                 test.extensions.add('nonInputProperties', nonInputProperties)
 
-                test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
                 test.maxParallelForks = System.getProperty('tests.jvms', BuildParams.defaultParallel.toString()) as Integer
 
@@ -774,5 +789,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             })
         }
+    }
+
+    private static inFipsJvm(){
+        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 }

@@ -77,7 +77,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
         return Map.of(
-            "/", new GoogleCloudStorageHttpHandler("bucket"),
+            "/", new GoogleCloudStorageBlobStoreHttpHandler("bucket"),
             "/token", new FakeOAuth2HttpHandler()
         );
     }
@@ -183,6 +183,14 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                         };
                     }
                 });
+        }
+    }
+
+    @SuppressForbidden(reason = "this test uses a HttpHandler to emulate a Google Cloud Storage endpoint")
+    private static class GoogleCloudStorageBlobStoreHttpHandler extends GoogleCloudStorageHttpHandler implements BlobStoreHttpHandler {
+
+        GoogleCloudStorageBlobStoreHttpHandler(final String bucket) {
+            super(bucket);
         }
     }
 

@@ -1,41 +1,11 @@
 package org.elasticsearch.search.geo;
 
-import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-import org.apache.lucene.geo.GeoTestUtil;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.*;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.query.ExistsQueryBuilder;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.spatial4j.shape.Rectangle;
-
-import java.io.IOException;
-import java.util.Locale;
-
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.geo.RandomShapeGenerator.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
 
-public class GeoShapeGeoShapeQueryTests extends GeoShapeQueryTests {
+public class GeoPointShapeQueryTests extends GeoQueryTests {
 
+    /*
     public void testIndexPointsFilterRectangle() throws Exception {
         String mapping = Strings.toString(createMapping());
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
@@ -356,7 +326,7 @@ public class GeoShapeGeoShapeQueryTests extends GeoShapeQueryTests {
             result.getHits().getTotalHits().value > 0);
     }
 
-    /** tests querying a random geometry collection with a point */
+    // ** tests querying a random geometry collection with a point
     public void testPointQuery() throws Exception {
         // Create a random geometry collection to index.
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
@@ -663,4 +633,6 @@ public class GeoShapeGeoShapeQueryTests extends GeoShapeQueryTests {
         assertNotEquals("1", response.getHits().getAt(0).getId());
         assertNotEquals("1", response.getHits().getAt(1).getId());
     }
+
+     */
 }

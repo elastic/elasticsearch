@@ -273,9 +273,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     private void rmKeystoreIfExists() {
-        Path keystore = installation.config("elasticsearch.keystore");
-        if (Files.exists(keystore)) {
-            FileUtils.rm(keystore);
+        if (installation != null) {
+            Path keystore = installation.config("elasticsearch.keystore");
+            if (Files.exists(keystore)) {
+                FileUtils.rm(keystore);
+            }
         }
     }
 

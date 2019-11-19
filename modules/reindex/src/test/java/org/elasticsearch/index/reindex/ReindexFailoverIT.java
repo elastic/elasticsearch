@@ -129,7 +129,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
         assertThat(client().prepareSearch("dest").get().getHits().getTotalHits().value, greaterThanOrEqualTo(10L));
 
         logger.info("--> restarting node: " + nodeName);
-        ensureGreen(ReindexIndexClient.REINDEX_INDEX);
+        ensureGreen(ReindexIndexClient.REINDEX_ALIAS);
         internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
         client().admin().indices().prepareRefresh("dest").get();
         long hitsAfterRestart = client().prepareSearch("dest").get().getHits().getTotalHits().value;

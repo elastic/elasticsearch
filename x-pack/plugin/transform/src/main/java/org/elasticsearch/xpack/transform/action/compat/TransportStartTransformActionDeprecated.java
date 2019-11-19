@@ -16,9 +16,8 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
-import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 public class TransportStartTransformActionDeprecated extends TransportStartTransformAction {
 
@@ -30,10 +29,9 @@ public class TransportStartTransformActionDeprecated extends TransportStartTrans
         XPackLicenseState licenseState,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformConfigManager transformConfigManager,
+        TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client,
-        TransformAuditor auditor
+        Client client
     ) {
         super(
             StartTransformActionDeprecated.NAME,
@@ -43,10 +41,9 @@ public class TransportStartTransformActionDeprecated extends TransportStartTrans
             licenseState,
             threadPool,
             indexNameExpressionResolver,
-            transformConfigManager,
+            transformServices,
             persistentTasksService,
-            client,
-            auditor
+            client
         );
     }
 }

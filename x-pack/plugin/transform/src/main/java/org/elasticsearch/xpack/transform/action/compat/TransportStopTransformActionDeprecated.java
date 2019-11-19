@@ -14,8 +14,8 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 public class TransportStopTransformActionDeprecated extends TransportStopTransformAction {
 
@@ -26,7 +26,7 @@ public class TransportStopTransformActionDeprecated extends TransportStopTransfo
         ClusterService clusterService,
         ThreadPool threadPool,
         PersistentTasksService persistentTasksService,
-        TransformConfigManager transformConfigManager,
+        TransformServices transformServices,
         Client client
     ) {
         super(
@@ -36,7 +36,7 @@ public class TransportStopTransformActionDeprecated extends TransportStopTransfo
             clusterService,
             threadPool,
             persistentTasksService,
-            transformConfigManager,
+            transformServices,
             client
         );
     }

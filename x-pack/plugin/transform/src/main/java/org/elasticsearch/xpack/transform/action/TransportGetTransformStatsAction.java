@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingI
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
@@ -59,17 +60,9 @@ public class TransportGetTransformStatsAction extends
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        TransformConfigManager transformConfigManager,
-        TransformCheckpointService transformsCheckpointService
+        TransformServices transformServices
     ) {
-        this(
-            GetTransformStatsAction.NAME,
-            transportService,
-            actionFilters,
-            clusterService,
-            transformConfigManager,
-            transformsCheckpointService
-        );
+        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices);
     }
 
     protected TransportGetTransformStatsAction(
@@ -77,12 +70,11 @@ public class TransportGetTransformStatsAction extends
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        TransformConfigManager transformsConfigManager,
-        TransformCheckpointService transformsCheckpointService
+        TransformServices transformServices
     ) {
         super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
-        this.transformConfigManager = transformsConfigManager;
-        this.transformCheckpointService = transformsCheckpointService;
+        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformCheckpointService = transformServices.getCheckpointService();
     }
 
     @Override

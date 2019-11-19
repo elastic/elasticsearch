@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
@@ -74,10 +75,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         XPackLicenseState licenseState,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformConfigManager transformConfigManager,
+        TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client,
-        TransformAuditor auditor
+        Client client
     ) {
         this(
             StartTransformAction.NAME,
@@ -87,10 +87,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             licenseState,
             threadPool,
             indexNameExpressionResolver,
-            transformConfigManager,
+            transformServices,
             persistentTasksService,
-            client,
-            auditor
+            client
         );
     }
 
@@ -102,10 +101,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         XPackLicenseState licenseState,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformConfigManager transformConfigManager,
+        TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client,
-        TransformAuditor auditor
+        Client client
     ) {
         super(
             name,
@@ -117,10 +115,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             indexNameExpressionResolver
         );
         this.licenseState = licenseState;
-        this.transformConfigManager = transformConfigManager;
+        this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.auditor = auditor;
+        this.auditor = transformServices.getAuditor();
     }
 
     @Override

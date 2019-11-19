@@ -122,10 +122,7 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     private final boolean enabled;
     private final Settings settings;
-    private final SetOnce<TransformConfigManager> transformConfigManager = new SetOnce<>();
-    private final SetOnce<TransformAuditor> transformAuditor = new SetOnce<>();
-    private final SetOnce<TransformCheckpointService> transformCheckpointService = new SetOnce<>();
-    private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
+    private final SetOnce<TransformServices> transformServices = new SetOnce<>();
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
 
@@ -244,16 +241,15 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
         if (enabled == false) {
             return emptyList();
         }
-        transformAuditor.set(new TransformAuditor(client, clusterService.getNodeName()));
-        transformConfigManager.set(new IndexBasedTransformConfigManager(client, xContentRegistry));
-        transformCheckpointService.set(new TransformCheckpointService(client, transformConfigManager.get(), transformAuditor.get()));
 
-        return Arrays.asList(
-            transformConfigManager.get(),
-            transformAuditor.get(),
-            transformCheckpointService.get(),
-            new TransformClusterStateListener(clusterService, client)
-        );
+        TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
+        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
+        TransformCheckpointService checkpointService = new TransformCheckpointService(client, configManager, auditor);
+        SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
+
+        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
+
+        return Arrays.asList(transformServices.get(), new TransformClusterStateListener(clusterService, client));
     }
 
     @Override
@@ -287,25 +283,11 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
 
-        schedulerEngine.set(new SchedulerEngine(settings, Clock.systemUTC()));
-
-        // the transforms config manager should have been created
-        assert transformConfigManager.get() != null;
-        // the auditor should have been created
-        assert transformAuditor.get() != null;
-        assert transformCheckpointService.get() != null;
+        // the transform services should have been created
+        assert transformServices.get() != null;
 
         return Collections.singletonList(
-            new TransformPersistentTasksExecutor(
-                client,
-                transformConfigManager.get(),
-                transformCheckpointService.get(),
-                schedulerEngine.get(),
-                transformAuditor.get(),
-                threadPool,
-                clusterService,
-                settingsModule.getSettings()
-            )
+            new TransformPersistentTasksExecutor(client, transformServices.get(), threadPool, clusterService, settingsModule.getSettings())
         );
     }
 
@@ -316,8 +298,8 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     @Override
     public void close() {
-        if (schedulerEngine.get() != null) {
-            schedulerEngine.get().stop();
+        if (transformServices.get() != null) {
+            transformServices.get().getSchedulerEngine().stop();
         }
     }
 

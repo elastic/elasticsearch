@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
@@ -128,16 +129,20 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             transformsConfigManager,
             mockAuditor
         );
+        TransformServices transformServices = new TransformServices(
+            transformsConfigManager,
+            transformCheckpointService,
+            mockAuditor,
+            mock(SchedulerEngine.class)
+        );
+
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
         when(clusterService.state()).thenReturn(TransformInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
         TransformPersistentTasksExecutor executor = new TransformPersistentTasksExecutor(
             client,
-            transformsConfigManager,
-            transformCheckpointService,
-            mock(SchedulerEngine.class),
-            new TransformAuditor(client, ""),
+            transformServices,
             mock(ThreadPool.class),
             clusterService,
             Settings.EMPTY

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Respons
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
@@ -67,7 +68,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         ClusterService clusterService,
         ThreadPool threadPool,
         PersistentTasksService persistentTasksService,
-        TransformConfigManager transformConfigManager,
+        TransformServices transformServices,
         Client client
     ) {
         this(
@@ -77,7 +78,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             clusterService,
             threadPool,
             persistentTasksService,
-            transformConfigManager,
+            transformServices,
             client
         );
     }
@@ -89,12 +90,12 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         ClusterService clusterService,
         ThreadPool threadPool,
         PersistentTasksService persistentTasksService,
-        TransformConfigManager transformConfigManager,
+        TransformServices transformServices,
         Client client
     ) {
         super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
-        this.transformConfigManager = transformConfigManager;
+        this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;
     }

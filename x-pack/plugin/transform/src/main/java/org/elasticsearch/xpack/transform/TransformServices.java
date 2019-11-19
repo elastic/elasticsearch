@@ -26,8 +26,12 @@ public final class TransformServices {
     private final TransformAuditor auditor;
     private final SchedulerEngine schedulerEngine;
 
-    public TransformServices(TransformConfigManager transformConfigManager, TransformCheckpointService checkpointProvider,
-            TransformAuditor transformAuditor, SchedulerEngine schedulerEngine) {
+    public TransformServices(
+        TransformConfigManager transformConfigManager,
+        TransformCheckpointService checkpointProvider,
+        TransformAuditor transformAuditor,
+        SchedulerEngine schedulerEngine
+    ) {
         this.configManager = Objects.requireNonNull(transformConfigManager);
         this.checkpointService = Objects.requireNonNull(checkpointProvider);
         this.auditor = Objects.requireNonNull(transformAuditor);

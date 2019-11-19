@@ -16,9 +16,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
-import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 public class TransportUpdateTransformActionDeprecated extends TransportUpdateTransformAction {
 
@@ -31,9 +30,8 @@ public class TransportUpdateTransformActionDeprecated extends TransportUpdateTra
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         XPackLicenseState licenseState,
-        TransformConfigManager transformConfigManager,
-        Client client,
-        TransformAuditor auditor
+        TransformServices transformServices,
+        Client client
     ) {
         super(
             UpdateTransformActionDeprecated.NAME,
@@ -44,9 +42,8 @@ public class TransportUpdateTransformActionDeprecated extends TransportUpdateTra
             indexNameExpressionResolver,
             clusterService,
             licenseState,
-            transformConfigManager,
-            client,
-            auditor
+            transformServices,
+            client
         );
     }
 

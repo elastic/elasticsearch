@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Reque
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -79,9 +80,8 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         XPackLicenseState licenseState,
-        TransformConfigManager transformConfigManager,
-        Client client,
-        TransformAuditor auditor
+        TransformServices transformServices,
+        Client client
     ) {
         this(
             UpdateTransformAction.NAME,
@@ -92,9 +92,8 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
             indexNameExpressionResolver,
             clusterService,
             licenseState,
-            transformConfigManager,
-            client,
-            auditor
+            transformServices,
+            client
         );
     }
 
@@ -107,18 +106,17 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         XPackLicenseState licenseState,
-        TransformConfigManager transformConfigManager,
-        Client client,
-        TransformAuditor auditor
+        TransformServices transformServices,
+        Client client
     ) {
         super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
-        this.transformConfigManager = transformConfigManager;
+        this.transformConfigManager = transformServices.getConfigManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
-        this.auditor = auditor;
+        this.auditor = transformServices.getAuditor();
     }
 
     @Override

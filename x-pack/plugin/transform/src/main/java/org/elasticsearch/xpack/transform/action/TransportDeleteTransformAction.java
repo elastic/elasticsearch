@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
@@ -47,8 +48,7 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
         ThreadPool threadPool,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformConfigManager transformsConfigManager,
-        TransformAuditor auditor,
+        TransformServices transformServices,
         Client client
     ) {
         this(
@@ -58,8 +58,7 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
             threadPool,
             clusterService,
             indexNameExpressionResolver,
-            transformsConfigManager,
-            auditor,
+            transformServices,
             client
         );
     }
@@ -71,13 +70,12 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
         ThreadPool threadPool,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformConfigManager transformConfigManager,
-        TransformAuditor auditor,
+        TransformServices transformServices,
         Client client
     ) {
         super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
-        this.transformConfigManager = transformConfigManager;
-        this.auditor = auditor;
+        this.transformConfigManager = transformServices.getConfigManager();
+        this.auditor = transformServices.getAuditor();
         this.client = client;
     }
 

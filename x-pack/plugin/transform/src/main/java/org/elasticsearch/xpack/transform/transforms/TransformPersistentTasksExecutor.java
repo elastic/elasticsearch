@@ -29,7 +29,6 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
@@ -40,10 +39,9 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.Transform;
-import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
@@ -60,9 +58,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     // The amount of time we wait for the cluster state to respond when being marked as failed
     private static final int MARK_AS_FAILED_TIMEOUT_SEC = 90;
     private final Client client;
-    private final TransformConfigManager transformsConfigManager;
-    private final TransformCheckpointService transformCheckpointService;
-    private final SchedulerEngine schedulerEngine;
+    private final TransformServices transformServices;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransformAuditor auditor;
@@ -70,22 +66,17 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
     public TransformPersistentTasksExecutor(
         Client client,
-        TransformConfigManager transformsConfigManager,
-        TransformCheckpointService transformsCheckpointService,
-        SchedulerEngine schedulerEngine,
-        TransformAuditor auditor,
+        TransformServices transformServices,
         ThreadPool threadPool,
         ClusterService clusterService,
         Settings settings
     ) {
         super(TransformField.TASK_NAME, Transform.TASK_THREAD_POOL_NAME);
         this.client = client;
-        this.transformsConfigManager = transformsConfigManager;
-        this.transformCheckpointService = transformsCheckpointService;
-        this.schedulerEngine = schedulerEngine;
-        this.auditor = auditor;
+        this.transformServices = transformServices;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.auditor = transformServices.getAuditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
     }
@@ -143,8 +134,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setAuditor(auditor)
             .setClient(client)
-            .setTransformsCheckpointService(transformCheckpointService)
-            .setTransformsConfigManager(transformsConfigManager);
+            .setTransformsCheckpointService(transformServices.getCheckpointService())
+            .setTransformsConfigManager(transformServices.getConfigManager());
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 
@@ -187,11 +178,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             indexerBuilder.setLastCheckpoint(lastCheckpoint);
 
             logger.trace("[{}] Loaded last checkpoint [{}], looking for next checkpoint", transformId, lastCheckpoint.getCheckpoint());
-            transformsConfigManager.getTransformCheckpoint(
-                transformId,
-                lastCheckpoint.getCheckpoint() + 1,
-                getTransformNextCheckpointListener
-            );
+            transformServices.getConfigManager()
+                .getTransformCheckpoint(transformId, lastCheckpoint.getCheckpoint() + 1, getTransformNextCheckpointListener);
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
             logger.error(msg, error);
@@ -226,10 +214,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
                 if (lastCheckpoint == 0) {
                     logger.trace("[{}] No last checkpoint found, looking for next checkpoint", transformId);
-                    transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint + 1, getTransformNextCheckpointListener);
+                    transformServices.getConfigManager()
+                        .getTransformCheckpoint(transformId, lastCheckpoint + 1, getTransformNextCheckpointListener);
                 } else {
                     logger.trace("[{}] Restore last checkpoint: [{}]", transformId, lastCheckpoint);
-                    transformsConfigManager.getTransformCheckpoint(transformId, lastCheckpoint, getTransformLastCheckpointListener);
+                    transformServices.getConfigManager()
+                        .getTransformCheckpoint(transformId, lastCheckpoint, getTransformLastCheckpointListener);
                 }
             },
             error -> {
@@ -247,7 +237,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         // <4> set fieldmappings for the indexer, get the previous stats (if they exist)
         ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(fieldMappings -> {
             indexerBuilder.setFieldMappings(fieldMappings);
-            transformsConfigManager.getTransformStoredDoc(transformId, transformStatsActionListener);
+            transformServices.getConfigManager().getTransformStoredDoc(transformId, transformStatsActionListener);
         }, error -> {
             String msg = TransformMessages.getMessage(
                 TransformMessages.UNABLE_TO_GATHER_FIELD_MAPPINGS,
@@ -273,7 +263,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         // <2> Get the transform config
         ActionListener<Void> templateCheckListener = ActionListener.wrap(
-            aVoid -> transformsConfigManager.getTransformConfiguration(transformId, getTransformConfigListener),
+            aVoid -> transformServices.getConfigManager().getTransformConfiguration(transformId, getTransformConfigListener),
             error -> {
                 String msg = "Failed to create internal index mappings";
                 logger.error(msg, error);
@@ -356,7 +346,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             parentTaskId,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
-            schedulerEngine,
+            transformServices.getSchedulerEngine(),
             auditor,
             threadPool,
             headers

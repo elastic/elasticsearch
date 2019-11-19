@@ -137,12 +137,6 @@ Events are logged to a dedicated `<clustername>_audit.json` file in
 
 To walk through the configuration of {security-features} in {es}, {kib}, {ls}, and {metricbeat}, see <<security-getting-started>>.
 
-include::securing-communications/securing-elasticsearch.asciidoc[]
-
-include::securing-communications/configuring-tls-docker.asciidoc[]
-
-include::securing-communications/enabling-cipher-suites.asciidoc[]
-
 include::authentication/configuring-active-directory-realm.asciidoc[]
 include::authentication/configuring-pki-realm.asciidoc[]
 

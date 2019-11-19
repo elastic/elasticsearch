@@ -177,7 +177,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         "cluster.remote.",
         "transport.compress",
         key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),
-        REMOTE_CLUSTERS_SEEDS);
+        SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
 
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();

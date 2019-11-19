@@ -61,7 +61,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class SniffConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
-    private final ConnectionProfile profile = RemoteClusterConnection.buildConnectionProfileFromSettings(Settings.EMPTY, "cluster");
+    private final String modeKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+    private final Settings settings = Settings.builder().put(modeKey, "sniff").build();
+    private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile("cluster", settings);
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Override
@@ -509,8 +511,8 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(strategy.assertNoRunningConnections());
 
-                    Setting<?> seedSetting = RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> proxySetting = RemoteClusterService.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> proxySetting = SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("cluster-alias");
 
                     Settings noChange = Settings.builder()
                         .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))

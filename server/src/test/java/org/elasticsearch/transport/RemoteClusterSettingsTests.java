@@ -28,10 +28,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTERS_PROXY;
+<<<<<<< HEAD
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTERS_SEEDS;
-import static org.elasticsearch.transport.RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY;
+import static org.elasticsearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY;
 import static org.elasticsearch.transport.RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS;
+=======
+import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD;
+>>>>>>> 4f4140431b8... Allow simple connection strategy to be configured (#49066)
 import static org.elasticsearch.transport.RemoteClusterService.ENABLE_REMOTE_CLUSTERS;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER;
@@ -123,7 +126,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
 
     public void testSeedsDefault() {
         final String alias = randomAlphaOfLength(8);
-        assertThat(REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyCollectionOf(String.class));
+        assertThat(REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), emptyCollectionOf(String.class));
     }
 
     public void testProxyFallback() {

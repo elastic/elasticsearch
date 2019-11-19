@@ -135,6 +135,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             // We don't have any in-progress shards, just return current stats
             buildResponse(request, currentSnapshots, null, listener);
         }
+
     }
 
     private void buildResponse(SnapshotsStatusRequest request, List<SnapshotsInProgress.Entry> currentSnapshotEntries,

@@ -71,6 +71,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -202,6 +203,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -414,6 +416,74 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
+    }
+
+    public void testConcurrentSnapshotCreateAndDeleteOther() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNodes.TestClusterNode masterNode =
+            testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createRepoAndIndex(masterNode, repoName, index, shards),
+            createIndexResponse -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(true).execute(createSnapshotResponseStepListener));
+
+        final StepListener<CreateSnapshotResponse> createOtherSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createSnapshotResponseStepListener,
+            createSnapshotResponse -> masterNode.client.admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2")
+                .execute(createOtherSnapshotResponseStepListener));
+
+        final StepListener<Boolean> deleteSnapshotStepListener = new StepListener<>();
+
+        continueOrDie(createOtherSnapshotResponseStepListener,
+            createSnapshotResponse -> masterNode.client.admin().cluster().deleteSnapshot(
+                new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.wrap(
+                    resp -> deleteSnapshotStepListener.onResponse(true),
+                    e -> {
+                        assertThat(e, instanceOf(ConcurrentSnapshotExecutionException.class));
+                        deleteSnapshotStepListener.onResponse(false);
+                    })));
+
+        final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(deleteSnapshotStepListener, deleted -> {
+            if (deleted) {
+                // The delete worked out, creating a third snapshot
+                masterNode.client.admin().cluster()
+                    .prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
+                    .execute(createAnotherSnapshotResponseStepListener);
+                continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
+                    assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS));
+            } else {
+                createAnotherSnapshotResponseStepListener.onResponse(null);
+            }
+        });
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        final CreateSnapshotResponse thirdSnapshotResponse = createAnotherSnapshotResponseStepListener.result();
+
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
+        assertThat(snapshotIds, hasSize(thirdSnapshotResponse == null ? 2 : 3));
+
+        for (SnapshotId snapshotId : snapshotIds) {
+            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+            assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+            assertEquals(shards, snapshotInfo.successfulShards());
+            assertEquals(0, snapshotInfo.failedShards());
+        }
     }
 
     /**
@@ -713,7 +783,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         private final Map<String, TestClusterNode> nodes = new LinkedHashMap<>();
 
         /**
-         * Node ids that are disconnected from all other nodes.
+         * Node names that are disconnected from all other nodes.
          */
         private final Set<String> disconnectedNodes = new HashSet<>();
 
@@ -793,11 +863,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         public void disconnectNode(TestClusterNode node) {
-            if (disconnectedNodes.contains(node.node.getId())) {
+            if (disconnectedNodes.contains(node.node.getName())) {
                 return;
             }
             testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().disconnectFromNode(node.node));
-            disconnectedNodes.add(node.node.getId());
+            disconnectedNodes.add(node.node.getName());
         }
 
         public void clearNetworkDisruptions() {
@@ -807,7 +877,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
                     testClusterNodes.nodes.values().forEach(
-                        n -> n.transportService.openConnection(node, null, ActionListener.wrap(() -> {})));
+                        n -> n.transportService.openConnection(node, null,
+                            ActionTestUtils.assertNoFailureListener(c -> logger.debug("--> Connected [{}] to [{}]", n.node, node))));
                 }
             });
         }
@@ -900,7 +971,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         if (nodes.containsKey(node.getName()) == false || nodes.containsKey(destination.getName()) == false) {
                             return ConnectionStatus.DISCONNECTED;
                         }
-                        return disconnectedNodes.contains(node.getId()) || disconnectedNodes.contains(destination.getId())
+                        return disconnectedNodes.contains(node.getName()) || disconnectedNodes.contains(destination.getName())
                             ? ConnectionStatus.DISCONNECTED : ConnectionStatus.CONNECTED;
                     }
 

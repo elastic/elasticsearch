@@ -426,7 +426,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     private static void assertExpectedFields(Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings,
                                             String... expectedFields) {
         assertEquals(1, mappings.size());
-        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(mappings.get("type1"));
+        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(mappings.get("_doc"));
         Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
         for (String field : builtInMetaDataFields) {
             GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);

@@ -91,6 +91,8 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -371,6 +373,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
         } else {
+            final long latestKnownGen = latestKnownRepoGen.get();
+            if (latestKnownGen > repositoryStateId) {
+                listener.onFailure(new ConcurrentSnapshotExecutionException(
+                    new Snapshot(metadata.name(), snapshotId), "Another concurrent operation moved repo generation to [ " + latestKnownGen
+                    + "] but this delete assumed generation [" + repositoryStateId + "]"));
+                return;
+            }
             try {
                 final Map<String, BlobMetaData> rootBlobs = blobContainer().listBlobs();
                 final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);

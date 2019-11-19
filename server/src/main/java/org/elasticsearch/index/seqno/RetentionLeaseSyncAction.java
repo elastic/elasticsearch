@@ -105,6 +105,7 @@ public class RetentionLeaseSyncAction extends
                     ActionListener<ReplicationResponse> listener) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
             final Request request = new Request(shardId, retentionLeases);
             final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_sync", request);
             transportService.sendChildRequest(clusterService.localNode(), transportPrimaryAction,

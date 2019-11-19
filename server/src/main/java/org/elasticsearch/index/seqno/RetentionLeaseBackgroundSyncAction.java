@@ -107,6 +107,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     final void backgroundSync(ShardId shardId, String primaryAllocationId, long primaryTerm, RetentionLeases retentionLeases) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
             final Request request = new Request(shardId, retentionLeases);
             final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_background_sync", request);
             transportService.sendChildRequest(clusterService.localNode(), transportPrimaryAction,

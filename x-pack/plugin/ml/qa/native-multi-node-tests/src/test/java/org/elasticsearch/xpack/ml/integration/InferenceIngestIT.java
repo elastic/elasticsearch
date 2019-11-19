@@ -16,7 +16,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.inference.utils.ToXContentCompressor;
+import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.junit.Before;
 
@@ -498,12 +498,12 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
 
     private static String buildClassificationModelDoc() throws IOException {
         String compressed =
-            ToXContentCompressor.deflate(new BytesArray(CLASSIFICATION_DEFINITION.getBytes(StandardCharsets.UTF_8)));
+            InferenceToXContentCompressor.deflate(new BytesArray(CLASSIFICATION_DEFINITION.getBytes(StandardCharsets.UTF_8)));
         return modelDocString(compressed, "test_classification");
     }
 
     private static String buildRegressionModelDoc() throws IOException {
-        String compressed = ToXContentCompressor.deflate(new BytesArray(REGRESSION_DEFINITION.getBytes(StandardCharsets.UTF_8)));
+        String compressed = InferenceToXContentCompressor.deflate(new BytesArray(REGRESSION_DEFINITION.getBytes(StandardCharsets.UTF_8)));
         return modelDocString(compressed, "test_regression");
     }
 
@@ -513,6 +513,9 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
             "\"model_id\": \"" + modelId + "\",\n" +
             "\"doc_num\": 0,\n" +
             "\"doc_type\": \"trained_model_definition_doc\",\n" +
+            "  \"compression_version\": " + 1 + ",\n" +
+            "  \"total_definition_length\": " + compressedDefinition.length() + ",\n" +
+            "  \"definition_length\": " + compressedDefinition.length() + ",\n" +
             "\"definition\": \"" + compressedDefinition + "\"\n" +
             "}";
     }

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.inference.utils.ToXContentCompressor;
+import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -108,7 +108,7 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"count\":1"));
 
         getModel = client().performRequest(new Request("GET",
-            MachineLearning.BASE_PATH + "inference/test_regression_model?human=false&include_model_definition=true"));
+            MachineLearning.BASE_PATH + "inference/test_regression_model?decompress_definition=false&include_model_definition=true"));
         assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
 
         response = EntityUtils.toString(getModel.getEntity());
@@ -219,8 +219,13 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setPreProcessors(Collections.emptyList())
                 .setTrainedModel(LocalModelTests.buildRegression())
                 .build();
+            String compressedString = InferenceToXContentCompressor.deflate(definition);
             TrainedModelDefinitionDoc doc = new TrainedModelDefinitionDoc.Builder().setDocNum(0)
-                .setCompressedString(ToXContentCompressor.deflate(definition)).setModelId(modelId).build();
+                .setCompressedString(compressedString)
+                .setTotalDefinitionLength(compressedString.length())
+                .setDefinitionLength(compressedString.length())
+                .setCompressionVersion(1)
+                .setModelId(modelId).build();
             doc.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));
             return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
         }

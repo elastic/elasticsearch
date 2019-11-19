@@ -116,10 +116,15 @@ public class TrainedModelProvider {
 
         TrainedModelDefinitionDoc trainedModelDefinitionDoc;
         try {
+            // TODO should we check length against allowed stream size???
+            String compressedString = trainedModelConfig.getCompressedDefinition();
             trainedModelDefinitionDoc = new TrainedModelDefinitionDoc.Builder()
                 .setDocNum(0)
                 .setModelId(trainedModelConfig.getModelId())
-                .setCompressedString(trainedModelConfig.getCompressedDefinition())
+                .setCompressedString(compressedString)
+                .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
+                .setDefinitionLength(compressedString.length())
+                .setTotalDefinitionLength(compressedString.length())
                 .build();
         } catch (IOException ex) {
             listener.onFailure(ExceptionsHelper.serverError(
@@ -204,7 +209,6 @@ public class TrainedModelProvider {
         ActionListener<MultiSearchResponse> multiSearchResponseActionListener = ActionListener.wrap(
             multiSearchResponse -> {
                 TrainedModelConfig.Builder builder;
-                TrainedModelDefinition definition;
                 try {
                     builder = handleSearchItem(multiSearchResponse.getResponses()[0], modelId, this::parseInferenceDocLenientlyFromSource);
                 } catch (ResourceNotFoundException ex) {
@@ -221,6 +225,11 @@ public class TrainedModelProvider {
                         TrainedModelDefinitionDoc doc = handleSearchItem(multiSearchResponse.getResponses()[1],
                             modelId,
                             this::parseModelDefinitionDocLenientlyFromSource);
+                        if (doc.getCompressedString().length() != doc.getTotalDefinitionLength()) {
+                            listener.onFailure(ExceptionsHelper.serverError(
+                                Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                            return;
+                        }
                         builder.setDefinitionFromString(doc.getCompressedString());
                     } catch (ResourceNotFoundException ex) {
                         listener.onFailure(new ResourceNotFoundException(

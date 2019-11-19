@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.inference.utils.ToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -145,7 +144,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
 
         reference = XContentHelper.toXContent(config,
             XContentType.JSON,
-            new ToXContent.MapParams(Collections.singletonMap("human", "false")),
+            new ToXContent.MapParams(Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, "false")),
             false);
         assertThat(reference.utf8ToString(), not(containsString("\"definition\"")));
         assertThat(reference.utf8ToString(), containsString("compressed_definition"));
@@ -235,7 +234,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         xContentTester(this::createParser,
             () -> {
             try {
-                String compressedString = ToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
+                String compressedString = InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
                 return createTestInstance(randomAlphaOfLength(10))
                     .setDefinitionFromString(compressedString)
                     .build();
@@ -266,7 +265,8 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         xContentTester(this::createParser,
             () -> {
                 try {
-                    String compressedString = ToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
+                    String compressedString =
+                        InferenceToXContentCompressor.deflate(TrainedModelDefinitionTests.createRandomBuilder().build());
                     return createTestInstance(randomAlphaOfLength(10))
                         .setDefinitionFromString(compressedString)
                         .build();
@@ -275,7 +275,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
                     return null;
                 }
             },
-            new ToXContent.MapParams(Collections.singletonMap("human", "false")),
+            new ToXContent.MapParams(Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, "false")),
             (p) -> TrainedModelConfig.fromXContent(p, true).build())
             .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
             .supportsUnknownFields(false)

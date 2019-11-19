@@ -4,8 +4,9 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.ml.inference.utils;
+package org.elasticsearch.xpack.core.ml.inference;
 
+import org.apache.commons.io.input.BoundedInputStream;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,40 +31,42 @@ import java.util.zip.GZIPOutputStream;
 /**
  * Collection of helper methods. Similar to CompressedXContent, but this utilizes GZIP for parity with the native compression
  */
-public final class ToXContentCompressor {
+public final class InferenceToXContentCompressor {
     private static final int BUFFER_SIZE = 4096;
+    private static final long MAX_INFLATED_BYTES = 1_000_000_000; // 1 gb maximum
 
-    private ToXContentCompressor() {}
+    private InferenceToXContentCompressor() {}
 
     public static <T extends ToXContentObject> String deflate(T objectToCompress) throws IOException {
         BytesReference reference = XContentHelper.toXContent(objectToCompress, XContentType.JSON, false);
         return deflate(reference);
     }
 
-    public static <T> T inflate(String compressedString,
+    static <T> T inflate(String compressedString,
                                 CheckedFunction<XContentParser, T, IOException> parserFunction,
                                 NamedXContentRegistry xContentRegistry) throws IOException {
         try(XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE,
-            inflate(compressedString),
+            inflate(compressedString, MAX_INFLATED_BYTES),
             XContentType.JSON)) {
             return parserFunction.apply(parser);
         }
     }
 
-    public static Map<String, Object> inflateToMap(String compressedString) throws IOException {
-        // Don't need the xcontent registry as we are now deflating named objects.
+    static Map<String, Object> inflateToMap(String compressedString) throws IOException {
+        // Don't need the xcontent registry as we are not deflating named objects.
         try(XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,
-            inflate(compressedString),
+            inflate(compressedString, MAX_INFLATED_BYTES),
             XContentType.JSON)) {
             return parser.mapOrdered();
         }
     }
 
-    static BytesReference inflate(String compressedString) throws IOException {
+    static BytesReference inflate(String compressedString, long streamSize) throws IOException {
         byte[] compressedBytes = Base64.getDecoder().decode(compressedString.getBytes(StandardCharsets.UTF_8));
-        InputStream inflateStream = new GZIPInputStream(new BytesArray(compressedBytes).streamInput(), BUFFER_SIZE);
+        InputStream gzipStream = new GZIPInputStream(new BytesArray(compressedBytes).streamInput(), BUFFER_SIZE);
+        InputStream inflateStream = new BoundedInputStream(gzipStream, streamSize);
         return Streams.readFully(inflateStream);
     }
 

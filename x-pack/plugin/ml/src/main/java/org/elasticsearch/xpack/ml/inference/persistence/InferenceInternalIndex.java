@@ -120,6 +120,15 @@ public final class InferenceInternalIndex {
             .endObject()
             .startObject(TrainedModelDefinitionDoc.DEFINITION.getPreferredName())
             .field(ENABLED, false)
+            .endObject()
+            .startObject(TrainedModelDefinitionDoc.COMPRESSION_VERSION.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())
+            .field(TYPE, LONG)
             .endObject();
     }
 }

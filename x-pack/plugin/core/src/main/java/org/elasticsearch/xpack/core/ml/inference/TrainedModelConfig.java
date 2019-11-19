@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.inference.utils.ToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -38,6 +37,8 @@ import java.util.Objects;
 public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public static final String NAME = "trained_model_config";
+    public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
+    public static final String DECOMPRESS_DEFINITION = "decompress_definition";
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
 
@@ -242,7 +243,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
         // We don't store the definition in the same document as the configuration
         if ((params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) && definition != null) {
-            if (params.paramAsBoolean("human", true)) {
+            if (params.paramAsBoolean(DECOMPRESS_DEFINITION, true)) {
                 builder.field(DEFINITION.getPreferredName(), definition);
             } else {
                 builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.getCompressedString());
@@ -504,7 +505,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public void ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
             if (parsedDefinition == null) {
-                parsedDefinition = ToXContentCompressor.inflate(compressedString,
+                parsedDefinition = InferenceToXContentCompressor.inflate(compressedString,
                     parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
                     xContentRegistry);
             }
@@ -512,7 +513,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public String getCompressedString() throws IOException {
             if (compressedString == null) {
-                compressedString = ToXContentCompressor.deflate(parsedDefinition);
+                compressedString = InferenceToXContentCompressor.deflate(parsedDefinition);
             }
             return compressedString;
         }
@@ -527,7 +528,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (parsedDefinition != null) {
                 return parsedDefinition.toXContent(builder, params);
             }
-            Map<String, Object> map = ToXContentCompressor.inflateToMap(compressedString);
+            Map<String, Object> map = InferenceToXContentCompressor.inflateToMap(compressedString);
             return builder.map(map);
         }
 

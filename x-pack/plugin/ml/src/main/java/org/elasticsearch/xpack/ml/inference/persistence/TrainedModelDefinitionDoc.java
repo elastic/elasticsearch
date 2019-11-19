@@ -30,6 +30,9 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
 
     public static final ParseField DOC_NUM = new ParseField("doc_num");
     public static final ParseField DEFINITION = new ParseField("definition");
+    public static final ParseField COMPRESSION_VERSION = new ParseField("compression_version");
+    public static final ParseField TOTAL_DEFINITION_LENGTH = new ParseField("total_definition_length");
+    public static final ParseField DEFINITION_LENGTH = new ParseField("definition_length");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelDefinitionDoc.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -42,6 +45,9 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         parser.declareString(TrainedModelDefinitionDoc.Builder::setModelId, TrainedModelConfig.MODEL_ID);
         parser.declareString(TrainedModelDefinitionDoc.Builder::setCompressedString, DEFINITION);
         parser.declareInt(TrainedModelDefinitionDoc.Builder::setDocNum, DOC_NUM);
+        parser.declareInt(TrainedModelDefinitionDoc.Builder::setCompressionVersion, COMPRESSION_VERSION);
+        parser.declareLong(TrainedModelDefinitionDoc.Builder::setDefinitionLength, DEFINITION_LENGTH);
+        parser.declareLong(TrainedModelDefinitionDoc.Builder::setTotalDefinitionLength, TOTAL_DEFINITION_LENGTH);
         return parser;
     }
 
@@ -57,14 +63,31 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
     private final String compressedString;
     private final String modelId;
     private final int docNum;
+    private final long totalDefinitionLength;
+    private final long definitionLength;
+    private final int compressionVersion;
 
-    private TrainedModelDefinitionDoc(String compressedString, String modelId, int docNum) {
+    private TrainedModelDefinitionDoc(String compressedString,
+                                      String modelId,
+                                      int docNum,
+                                      long totalDefinitionLength,
+                                      long definitionLength,
+                                      int compressionVersion) {
         this.compressedString = ExceptionsHelper.requireNonNull(compressedString, DEFINITION);
         this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
         if (docNum < 0) {
             throw new IllegalArgumentException("[doc_num] must be greater than or equal to 0");
         }
         this.docNum = docNum;
+        if (totalDefinitionLength <= 0L) {
+            throw new IllegalArgumentException("[total_definition_length] must be greater than 0");
+        }
+        this.totalDefinitionLength = totalDefinitionLength;
+        if (definitionLength <= 0L) {
+            throw new IllegalArgumentException("[definition_length] must be greater than 0");
+        }
+        this.definitionLength = definitionLength;
+        this.compressionVersion = compressionVersion;
     }
 
     public String getCompressedString() {
@@ -79,12 +102,27 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         return docNum;
     }
 
+    public long getTotalDefinitionLength() {
+        return totalDefinitionLength;
+    }
+
+    public long getDefinitionLength() {
+        return definitionLength;
+    }
+
+    public int getCompressionVersion() {
+        return compressionVersion;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
         builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
         builder.field(DOC_NUM.getPreferredName(), docNum);
+        builder.field(TOTAL_DEFINITION_LENGTH.getPreferredName(), totalDefinitionLength);
+        builder.field(DEFINITION_LENGTH.getPreferredName(), definitionLength);
+        builder.field(COMPRESSION_VERSION.getPreferredName(), compressionVersion);
         builder.field(DEFINITION.getPreferredName(), compressedString);
         builder.endObject();
         return builder;
@@ -102,12 +140,15 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         TrainedModelDefinitionDoc that = (TrainedModelDefinitionDoc) o;
         return Objects.equals(modelId, that.modelId) &&
             Objects.equals(docNum, that.docNum) &&
+            Objects.equals(definitionLength, that.definitionLength) &&
+            Objects.equals(totalDefinitionLength, that.totalDefinitionLength) &&
+            Objects.equals(compressionVersion, that.compressionVersion) &&
             Objects.equals(compressedString, that.compressedString);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, docNum, compressedString);
+        return Objects.hash(modelId, docNum, totalDefinitionLength, definitionLength, compressionVersion, compressedString);
     }
 
     public static class Builder {
@@ -115,6 +156,9 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         private String modelId;
         private String compressedString;
         private int docNum;
+        private long totalDefinitionLength;
+        private long definitionLength;
+        private int compressionVersion;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -131,8 +175,29 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
             return this;
         }
 
+        public Builder setTotalDefinitionLength(long totalDefinitionLength) {
+            this.totalDefinitionLength = totalDefinitionLength;
+            return this;
+        }
+
+        public Builder setDefinitionLength(long definitionLength) {
+            this.definitionLength = definitionLength;
+            return this;
+        }
+
+        public Builder setCompressionVersion(int compressionVersion) {
+            this.compressionVersion = compressionVersion;
+            return this;
+        }
+
         public TrainedModelDefinitionDoc build() {
-            return new TrainedModelDefinitionDoc(this.compressedString, this.modelId, this.docNum);
+            return new TrainedModelDefinitionDoc(
+                this.compressedString,
+                this.modelId,
+                this.docNum,
+                this.totalDefinitionLength,
+                this.definitionLength,
+                this.compressionVersion);
         }
     }
 

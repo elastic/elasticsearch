@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.xpack.core.ml.inference.utils.ToXContentCompressor;
+import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -666,12 +666,17 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             "    }\n" +
             "  }" +
             "}";
+        String compressedDefinitionString =
+            InferenceToXContentCompressor.deflate(new BytesArray(definition.getBytes(StandardCharsets.UTF_8)));
         String compressedDefinition = "" +
             "{" +
             "  \"model_id\": \"" + modelId + "\",\n" +
             "  \"doc_type\": \"" + TrainedModelDefinitionDoc.NAME + "\",\n" +
             "  \"doc_num\": " + 0 + ",\n" +
-            "  \"definition\": \"" + ToXContentCompressor.deflate(new BytesArray(definition.getBytes(StandardCharsets.UTF_8))) + "\"\n" +
+            "  \"compression_version\": " + 1 + ",\n" +
+            "  \"total_definition_length\": " + compressedDefinitionString.length() + ",\n" +
+            "  \"definition_length\": " + compressedDefinitionString.length() + ",\n" +
+            "  \"definition\": \"" + compressedDefinitionString + "\"\n" +
             "}";
         assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setId(modelId)

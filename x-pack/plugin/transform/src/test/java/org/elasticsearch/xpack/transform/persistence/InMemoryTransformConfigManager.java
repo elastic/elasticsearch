@@ -122,7 +122,7 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
             return;
         }
 
-        configAndVersionListener.onResponse(Tuple.tuple(config, new SeqNoPrimaryTermAndIndex(1l, 1l, "index-1")));
+        configAndVersionListener.onResponse(Tuple.tuple(config, new SeqNoPrimaryTermAndIndex(1L, 1L, "index-1")));
     }
 
     @Override
@@ -172,7 +172,7 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
 
         // for now we ignore seqNoPrimaryTermAndIndex
         transformStoredDocs.put(storedDoc.getId(), storedDoc);
-        listener.onResponse(new SeqNoPrimaryTermAndIndex(1l, 1l, "index-1"));
+        listener.onResponse(new SeqNoPrimaryTermAndIndex(1L, 1L, "index-1"));
     }
 
     @Override
@@ -189,7 +189,7 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
             return;
         }
 
-        resultListener.onResponse(Tuple.tuple(storedDoc, new SeqNoPrimaryTermAndIndex(1l, 1l, "index-1")));
+        resultListener.onResponse(Tuple.tuple(storedDoc, new SeqNoPrimaryTermAndIndex(1L, 1L, "index-1")));
     }
 
     @Override

@@ -997,7 +997,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(recoveryStates.get(0).getTranslog().recoveredOperations(), greaterThan(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47974")
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex("test", Settings.builder()

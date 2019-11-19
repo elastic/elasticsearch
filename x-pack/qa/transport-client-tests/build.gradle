@@ -7,7 +7,7 @@ dependencies {
 }
 
 testClusters.integTest {
-  testDistribution = "DEFAULT"  
+  testDistribution = "DEFAULT"
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }

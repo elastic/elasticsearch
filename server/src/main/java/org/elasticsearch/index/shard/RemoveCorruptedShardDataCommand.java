@@ -223,7 +223,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
         final String[] files = directory.listAll();
         for (String file : files) {
-            if (file.startsWith(Store.CORRUPTED)) {
+            if (file.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
                 found = true;
                 break;
             }
@@ -243,7 +243,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         String[] files = directory.listAll();
         boolean found = false;
         for (String file : files) {
-            if (file.startsWith(Store.CORRUPTED)) {
+            if (file.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
                 directory.deleteFile(file);
 
                 terminal.println("Deleted corrupt marker " + file + " from " + path);

@@ -23,18 +23,18 @@ apply plugin: 'elasticsearch.docs-test'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'reference/ml/anomaly-detection/transforms.asciidoc',
-        'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-category.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-record.asciidoc',
-        'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
-        'reference/ml/anomaly-detection/apis/post-data.asciidoc',
-        'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
-        'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/transforms.asciidoc',
+  'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+  'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
 ]
 
 testClusters.integTest {
@@ -116,20 +116,20 @@ Closure setupTwitter = { String name, int count ->
           index: twitter
           refresh: true
           body: |'''
-    for (int i = 0; i < count; i++) {
-      String user, text
-      if (i == 0) {
-        user = 'kimchy'
-        text = 'trying out Elasticsearch'
-      } else {
-        user = 'test'
-        text = "some message with the number $i"
-      }
-      buildRestTests.setups[name] += """
+  for (int i = 0; i < count; i++) {
+    String user, text
+    if (i == 0) {
+      user = 'kimchy'
+      text = 'trying out Elasticsearch'
+    } else {
+      user = 'test'
+      text = "some message with the number $i"
+    }
+    buildRestTests.setups[name] += """
             {"index":{"_id": "$i"}}
             {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
-    }
   }
+}
 setupTwitter('twitter', 5)
 setupTwitter('big_twitter', 120)
 setupTwitter('huge_twitter', 1200)
@@ -177,7 +177,7 @@ buildRestTests.setups['ledger'] = '''
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
             {"index":{}}
-            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "decription": "another thing"}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "description": "another thing"}
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
             {"index":{}}
@@ -501,7 +501,7 @@ buildRestTests.setups['latency'] = '''
 for (int i = 0; i < 100; i++) {
   def value = i
   if (i % 10) {
-    value = i*10
+    value = i * 10
   }
   buildRestTests.setups['latency'] += """
             {"index":{}}
@@ -962,7 +962,7 @@ buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_j
           "job_id":"farequote",
           "indexes":"farequote"
           }
-'''          
+'''
 buildRestTests.setups['server_metrics_index'] = '''
   - do:
         indices.create:

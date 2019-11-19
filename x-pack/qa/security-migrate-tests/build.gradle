@@ -8,7 +8,7 @@ dependencies {
 }
 
 testClusters.integTest {
-  testDistribution = "DEFAULT"  
+  testDistribution = "DEFAULT"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'roles.yml', file('roles.yml')
@@ -23,7 +23,7 @@ testClusters.integTest {
 }
 
 integTest.runner {
-   nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
+  nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
 }
 
 testingConventions {

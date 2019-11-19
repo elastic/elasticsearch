@@ -213,9 +213,7 @@ public class ReplicationOperation<
 
     private void onNoLongerPrimary(Exception failure) {
         final Throwable cause = ExceptionsHelper.unwrapCause(failure);
-        final boolean nodeIsClosing =
-                cause instanceof NodeClosedException
-                        || ExceptionsHelper.isTransportStoppedForAction(cause, "internal:cluster/shard/failure");
+        final boolean nodeIsClosing = cause instanceof NodeClosedException;
         final String message;
         if (nodeIsClosing) {
             message = String.format(Locale.ROOT,

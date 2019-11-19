@@ -53,8 +53,11 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
 
     @AfterClass
     public static void cleanup() {
-        webServer.close();
-        webServer = null;
+        try {
+            webServer.close();
+        } finally {
+            webServer = null;
+        }
     }
 
     public void testBinaryRequestEnabled() throws Exception {

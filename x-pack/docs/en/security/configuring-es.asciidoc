@@ -73,12 +73,12 @@ your subscription. For more information, see https://www.elastic.co/subscription
  
 --
 ** <<configuring-ad-realm,Active Directory realms>>
-** <<configuring-file-realm,File realms>>
-** <<configuring-kerberos-realm,Kerberos realms>>
-** <<configuring-ldap-realm,LDAP realms>>
-** <<configuring-native-realm,Native realms>>
+** <<file-realm,File realms>>
+** <<kerberos-realm,Kerberos realms>>
+** <<ldap-realm,LDAP realms>>
+** <<native-realm,Native realms>>
 ** <<configuring-pki-realm,PKI realms>>
-** <<configuring-saml-realm,SAML realms>>
+** <<saml-realm,SAML realms>>
 
 . Set up roles and users to control access to {es}.
 +
@@ -146,13 +146,7 @@ include::securing-communications/enabling-cipher-suites.asciidoc[]
 include::securing-communications/separating-node-client-traffic.asciidoc[]
 
 include::authentication/configuring-active-directory-realm.asciidoc[]
-include::authentication/configuring-file-realm.asciidoc[]
-include::authentication/configuring-ldap-realm.asciidoc[]
-include::authentication/configuring-native-realm.asciidoc[]
 include::authentication/configuring-pki-realm.asciidoc[]
-include::authentication/configuring-saml-realm.asciidoc[]
-
-include::authentication/configuring-kerberos-realm.asciidoc[]
 
 include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]

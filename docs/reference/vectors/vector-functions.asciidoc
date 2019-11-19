@@ -3,8 +3,6 @@
 [[vector-functions]]
 ===== Functions for vector fields
 
-experimental[]
-
 NOTE: During vector functions' calculation, all matched documents are
 linearly scanned. Thus, expect the query time grow linearly
 with the number of matched documents. For this reason, we recommend

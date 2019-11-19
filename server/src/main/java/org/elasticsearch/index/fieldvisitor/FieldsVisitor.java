@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -72,7 +71,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     @Override
-    public Status needsField(FieldInfo fieldInfo) throws IOException {
+    public Status needsField(FieldInfo fieldInfo) {
         if (requiredFields.remove(fieldInfo.name)) {
             return Status.YES;
         }
@@ -108,40 +107,52 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     @Override
-    public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+    public void binaryField(FieldInfo fieldInfo, byte[] value) {
+        binaryField(fieldInfo, new BytesRef(value));
+    }
+
+    public void binaryField(FieldInfo fieldInfo, BytesRef value) {
         if (sourceFieldName.equals(fieldInfo.name)) {
             source = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-            id = Uid.decodeId(value);
+            id = Uid.decodeId(value.bytes, value.offset, value.length);
         } else {
-            addValue(fieldInfo.name, new BytesRef(value));
+            addValue(fieldInfo.name, value);
         }
     }
 
     @Override
-    public void stringField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
+    public void stringField(FieldInfo fieldInfo, byte[] bytes) {
+        assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
+        assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
         final String value = new String(bytes, StandardCharsets.UTF_8);
         addValue(fieldInfo.name, value);
     }
 
     @Override
-    public void intField(FieldInfo fieldInfo, int value) throws IOException {
+    public void intField(FieldInfo fieldInfo, int value) {
         addValue(fieldInfo.name, value);
     }
 
     @Override
-    public void longField(FieldInfo fieldInfo, long value) throws IOException {
+    public void longField(FieldInfo fieldInfo, long value) {
         addValue(fieldInfo.name, value);
     }
 
     @Override
-    public void floatField(FieldInfo fieldInfo, float value) throws IOException {
+    public void floatField(FieldInfo fieldInfo, float value) {
         addValue(fieldInfo.name, value);
     }
 
     @Override
-    public void doubleField(FieldInfo fieldInfo, double value) throws IOException {
+    public void doubleField(FieldInfo fieldInfo, double value) {
         addValue(fieldInfo.name, value);
+    }
+
+    public void objectField(FieldInfo fieldInfo, Object object) {
+        assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
+        assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
+        addValue(fieldInfo.name, object);
     }
 
     public BytesReference source() {

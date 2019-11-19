@@ -318,6 +318,13 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         boolean wasFailed = context.setTaskState(TransformTaskState.FAILED, TransformTaskState.STARTED);
         context.resetReasonAndFailureCounter();
 
+        if (getIndexer() == null) {
+            // If there is no indexer the task has not been triggered
+            // but it still needs to be stopped and removed
+            shutdown();
+            return;
+        }
+
         // If state was in a failed state, we should stop immediately
         if (wasFailed) {
             getIndexer().onStop();
@@ -326,13 +333,6 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }
 
         if (getIndexer().getState() == IndexerState.STOPPED || getIndexer().getState() == IndexerState.STOPPING) {
-            return;
-        }
-
-        if (getIndexer() == null) {
-            // If there is no indexer the task has not been triggered
-            // but it still needs to be stopped and removed
-            shutdown();
             return;
         }
 

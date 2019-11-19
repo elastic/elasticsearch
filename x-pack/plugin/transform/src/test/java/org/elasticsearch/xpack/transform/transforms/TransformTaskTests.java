@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -34,6 +35,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -107,6 +109,85 @@ public class TransformTaskTests extends ESTestCase {
             .setFieldMappings(Collections.emptyMap());
 
         transformTask.initializeIndexer(indexerBuilder);
+        TransformState state = transformTask.getState();
+        assertEquals(TransformTaskState.FAILED, state.getTaskState());
+        assertEquals(IndexerState.STOPPED, state.getIndexerState());
+        assertThat(state.getReason(), equalTo("because"));
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> transformTask.stop(false, false));
+
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Unable to stop transform ["
+                    + transformConfig.getId()
+                    + "] as it is in a failed state with reason [because]. Use force stop to stop the transform."
+            )
+        );
+
+        // verify that shutdown has not been called
+        verify(taskManager, times(0)).unregister(any());
+
+        state = transformTask.getState();
+        assertEquals(TransformTaskState.FAILED, state.getTaskState());
+        assertEquals(IndexerState.STOPPED, state.getIndexerState());
+        assertThat(state.getReason(), equalTo("because"));
+
+        transformTask.stop(true, false);
+
+        // verify shutdown has been called
+        verify(taskManager).unregister(any());
+
+        state = transformTask.getState();
+        assertEquals(TransformTaskState.STARTED, state.getTaskState());
+        assertEquals(IndexerState.STOPPED, state.getIndexerState());
+        assertEquals(state.getReason(), null);
+    }
+
+    public void testStopOnFailedTaskWithoutIndexer() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
+
+        TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfigWithoutHeaders();
+        TransformAuditor auditor = new MockTransformAuditor();
+
+        TransformState transformState = new TransformState(
+            TransformTaskState.FAILED,
+            IndexerState.STOPPED,
+            null,
+            0L,
+            "because",
+            null,
+            null,
+            false
+        );
+
+        TransformTask transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            new TransformTaskParams(transformConfig.getId(), Version.CURRENT, TimeValue.timeValueSeconds(10)),
+            transformState,
+            mock(SchedulerEngine.class),
+            auditor,
+            threadPool,
+            Collections.emptyMap()
+        );
+
+        TaskManager taskManager = mock(TaskManager.class);
+
+        transformTask.init(mock(PersistentTasksService.class), taskManager, "task-id", 42);
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        transformTask.fail(
+            "because",
+            ActionListener.wrap(
+                r -> { listenerCalled.compareAndSet(false, true); },
+                e -> { fail("setting transform task to failed failed with: " + e); }
+            )
+        );
+
         TransformState state = transformTask.getState();
         assertEquals(TransformTaskState.FAILED, state.getTaskState());
         assertEquals(IndexerState.STOPPED, state.getIndexerState());

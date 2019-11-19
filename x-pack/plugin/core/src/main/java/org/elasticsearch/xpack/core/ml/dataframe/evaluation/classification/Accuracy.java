@@ -42,7 +42,7 @@ public class Accuracy implements ClassificationMetric {
         return new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args);
     }
 
-    private static final ObjectParser<Accuracy, Void> PARSER = new ObjectParser<>("accuracy", true, Accuracy::new);
+    private static final ObjectParser<Accuracy, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Accuracy::new);
 
     public static Accuracy fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -74,9 +74,9 @@ public class Accuracy implements ClassificationMetric {
 
     @Override
     public void process(Aggregations aggs) {
-        if (result == null && aggs.get(AGG_NAME) != null) {
+        if ((result == null) && (aggs.get(AGG_NAME) instanceof NumericMetricsAggregation.SingleValue)) {
             NumericMetricsAggregation.SingleValue value = aggs.get(AGG_NAME);
-            result = value == null ? new Result(0.0) : new Result(value.value());
+            result = new Result(value.value());
         }
     }
 
@@ -110,16 +110,16 @@ public class Accuracy implements ClassificationMetric {
 
     public static class Result implements EvaluationMetricResult {
 
-        private static final String ACCURACY = "accuracy";
+        private static final String OVERALL_ACCURACY = "overall_accuracy";
 
-        private final double accuracy;
+        private final double overallAccuracy;
 
-        public Result(double accuracy) {
-            this.accuracy = accuracy;
+        public Result(double overallAccuracy) {
+            this.overallAccuracy = overallAccuracy;
         }
 
         public Result(StreamInput in) throws IOException {
-            this.accuracy = in.readDouble();
+            this.overallAccuracy = in.readDouble();
         }
 
         @Override
@@ -132,19 +132,19 @@ public class Accuracy implements ClassificationMetric {
             return NAME.getPreferredName();
         }
 
-        public double getAccuracy() {
-            return accuracy;
+        public double getOverallAccuracy() {
+            return overallAccuracy;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeDouble(accuracy);
+            out.writeDouble(overallAccuracy);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(ACCURACY, accuracy);
+            builder.field(OVERALL_ACCURACY, overallAccuracy);
             builder.endObject();
             return builder;
         }
@@ -154,12 +154,12 @@ public class Accuracy implements ClassificationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return this.accuracy == that.accuracy;
+            return this.overallAccuracy == that.overallAccuracy;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(accuracy);
+            return Objects.hashCode(overallAccuracy);
         }
     }
 }

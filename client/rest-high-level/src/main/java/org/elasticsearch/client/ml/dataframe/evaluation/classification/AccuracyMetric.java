@@ -41,7 +41,7 @@ public class AccuracyMetric implements EvaluationMetric {
 
     public static final String NAME = "accuracy";
 
-    private static final ObjectParser<AccuracyMetric, Void> PARSER = new ObjectParser<>("accuracy", true, AccuracyMetric::new);
+    private static final ObjectParser<AccuracyMetric, Void> PARSER = new ObjectParser<>(NAME, true, AccuracyMetric::new);
 
     public static AccuracyMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -75,24 +75,24 @@ public class AccuracyMetric implements EvaluationMetric {
 
     public static class Result implements EvaluationMetric.Result {
 
-        private static final ParseField ACCURACY = new ParseField("accuracy");
+        private static final ParseField OVERALL_ACCURACY = new ParseField("overall_accuracy");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
             new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((double) a[0]));
 
         static {
-            PARSER.declareDouble(constructorArg(), ACCURACY);
+            PARSER.declareDouble(constructorArg(), OVERALL_ACCURACY);
         }
 
         public static Result fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
-        private final double accuracy;
+        private final double overallAccuracy;
 
-        public Result(double accuracy) {
-            this.accuracy = accuracy;
+        public Result(double overallAccuracy) {
+            this.overallAccuracy = overallAccuracy;
         }
 
         @Override
@@ -100,14 +100,14 @@ public class AccuracyMetric implements EvaluationMetric {
             return NAME;
         }
 
-        public double getAccuracy() {
-            return accuracy;
+        public double getOverallAccuracy() {
+            return overallAccuracy;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field(ACCURACY.getPreferredName(), accuracy);
+            builder.field(OVERALL_ACCURACY.getPreferredName(), overallAccuracy);
             builder.endObject();
             return builder;
         }
@@ -117,12 +117,12 @@ public class AccuracyMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return this.accuracy == that.accuracy;
+            return this.overallAccuracy == that.overallAccuracy;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(accuracy);
+            return Objects.hashCode(overallAccuracy);
         }
     }
 }

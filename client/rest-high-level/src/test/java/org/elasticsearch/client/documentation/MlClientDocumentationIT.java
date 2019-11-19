@@ -3357,7 +3357,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::evaluate-data-frame-results-classification
             AccuracyMetric.Result accuracyResult = response.getMetricByName(AccuracyMetric.NAME); // <1>
-            double accuracy = accuracyResult.getAccuracy(); // <2>
+            double accuracy = accuracyResult.getOverallAccuracy(); // <2>
 
             MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
                 response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <3>

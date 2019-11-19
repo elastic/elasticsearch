@@ -60,7 +60,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
-        assertThat(accuracyResult.getAccuracy(), equalTo(5.0 / 75));
+        assertThat(accuracyResult.getOverallAccuracy(), equalTo(5.0 / 75));
     }
 
     public void testEvaluate_MulticlassClassification_AccuracyAndConfusionMatrixMetricWithDefaultSize() {

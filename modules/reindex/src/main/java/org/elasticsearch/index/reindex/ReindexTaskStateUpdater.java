@@ -32,7 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.reindex.ReindexIndexClient.REINDEX_INDEX;
+import static org.elasticsearch.index.reindex.ReindexIndexClient.REINDEX_ALIAS;
 
 public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
@@ -96,12 +96,12 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                                 // There has been an indexing operation since the GET operation. Try
                                 // again if there are assignment attempts left.
                                 logger.debug(new ParameterizedMessage("Failed to write to {} index on ASSIGNMENT due to version " +
-                                    "conflict, retrying now [task-id={}]", REINDEX_INDEX, taskId), ex);
+                                    "conflict, retrying now [task-id={}]", REINDEX_ALIAS, taskId), ex);
                                 assign(listener, delay);
                             } else {
                                 TimeValue nextDelay = getNextDelay(delay);
                                 logger.info(new ParameterizedMessage("Failed to write to {} index on ASSIGNMENT, retrying in {} " +
-                                    "[task-id={}]", REINDEX_INDEX, nextDelay, taskId), ex);
+                                    "[task-id={}]", REINDEX_ALIAS, nextDelay, taskId), ex);
                                 threadPool.schedule(() -> assign(listener, nextDelay), nextDelay, ThreadPool.Names.SAME);
                             }
                         }
@@ -116,7 +116,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
             public void onFailure(Exception ex) {
                 TimeValue nextDelay = getNextDelay(delay);
                 logger.info(new ParameterizedMessage("Failed to read from {} index on ASSIGNMENT, retrying in {} [task-id={}]",
-                    REINDEX_INDEX, nextDelay, taskId), ex);
+                    REINDEX_ALIAS, nextDelay, taskId), ex);
                 threadPool.schedule(() -> assign(listener, nextDelay), nextDelay, ThreadPool.Names.SAME);
             }
         });
@@ -144,7 +144,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
             public void onFailure(Exception e) {
                 if (e instanceof VersionConflictEngineException) {
                     logger.debug(new ParameterizedMessage("Failed to write to {} index on CHECKPOINT due to version conflict, " +
-                        "verifying allocation now [task-id={}]", REINDEX_INDEX, taskId), e);
+                        "verifying allocation now [task-id={}]", REINDEX_ALIAS, taskId), e);
                     reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
                         @Override
                         public void onResponse(ReindexTaskState reindexTaskState) {
@@ -171,12 +171,12 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                         public void onFailure(Exception e) {
                             // Unable to read from index. Just proceed and try again on the next checkpoint.
                             logger.info(new ParameterizedMessage("Failed to read from {} index on CHECKPOINT [task-id={}]",
-                                REINDEX_INDEX, taskId), e);
+                                REINDEX_ALIAS, taskId), e);
                             whenDone.run();
                         }
                     });
                 } else {
-                    logger.info(new ParameterizedMessage("Failed to write to {} index on CHECKPOINT [task-id={}]", REINDEX_INDEX, taskId),
+                    logger.info(new ParameterizedMessage("Failed to write to {} index on CHECKPOINT [task-id={}]", REINDEX_ALIAS, taskId),
                         e);
                     // Failed to write for other reason. Proceed and try again on the next checkpoint.
                     whenDone.run();
@@ -209,7 +209,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
             public void onFailure(Exception e) {
                 if (e instanceof VersionConflictEngineException) {
                     logger.debug(new ParameterizedMessage("Failed to write to {} index on FINISHED due to version conflict, " +
-                            "verifying allocation now [task-id={}]", REINDEX_INDEX, taskId), e);
+                            "verifying allocation now [task-id={}]", REINDEX_ALIAS, taskId), e);
                     reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
                         @Override
                         public void onResponse(ReindexTaskState reindexTaskState) {
@@ -233,14 +233,14 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                             // Unable to read from index. Backoff and try again.
                             TimeValue nextDelay = getNextDelay(delay);
                             logger.info(new ParameterizedMessage("Failed to read from {} index on FINISHED, retrying in {}",
-                                REINDEX_INDEX, nextDelay), e);
+                                REINDEX_ALIAS, nextDelay), e);
                             reschedule(nextDelay, reindexResponse, exception);
                         }
                     });
                 } else {
                     TimeValue nextDelay = getNextDelay(delay);
                     logger.info(new ParameterizedMessage("Failed to write to {} index on FINISHED, retrying in {} [task-id={}]",
-                        REINDEX_INDEX, nextDelay, taskId), e);
+                        REINDEX_ALIAS, nextDelay, taskId), e);
                     reschedule(nextDelay, reindexResponse, exception);
                 }
             }

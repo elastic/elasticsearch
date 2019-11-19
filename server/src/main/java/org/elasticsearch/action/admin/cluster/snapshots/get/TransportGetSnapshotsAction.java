@@ -209,6 +209,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 CollectionUtil.timSort(snapshotInfos);
             }
         }
+
         return snapshotInfos;
     }
 

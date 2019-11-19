@@ -72,7 +72,7 @@ TIP: The types of authentication realms that you can enable varies according to
 your subscription. For more information, see https://www.elastic.co/subscriptions.
  
 --
-** <<configuring-ad-realm,Active Directory realms>>
+** <<active-directory-realm,Active Directory realms>>
 ** <<file-realm,File realms>>
 ** <<kerberos-realm,Kerberos realms>>
 ** <<ldap-realm,LDAP realms>>
@@ -138,8 +138,6 @@ Events are logged to a dedicated `<clustername>_audit.json` file in
 To walk through the configuration of {security-features} in {es}, {kib}, {ls}, and {metricbeat}, see <<security-getting-started>>.
 
 include::securing-communications/separating-node-client-traffic.asciidoc[]
-include::authentication/configuring-active-directory-realm.asciidoc[]
-
 include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]
 

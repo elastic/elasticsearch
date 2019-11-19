@@ -36,7 +36,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -44,12 +43,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
@@ -180,7 +181,11 @@ public class NodeTests extends ESTestCase {
                 throw new AssertionError("interrupted while waiting", e);
             }
             threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                while (shouldRun.get());
+                try {
+                    while (shouldRun.get());
+                } catch (RejectedExecutionException e) {
+                    assertThat(e.getMessage(), containsString("[Terminated,"));
+                }
             });
         });
         Thread closeThread = new Thread(() -> {
@@ -267,7 +272,7 @@ public class NodeTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(1, TimeUnit.DAYS));
         searcher.close();
-        assertThat(e.getMessage(), Matchers.containsString("Something is leaking index readers or store references"));
+        assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
     }
 
     public void testCloseOnLeakedStoreReference() throws Exception {
@@ -283,6 +288,6 @@ public class NodeTests extends ESTestCase {
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(1, TimeUnit.DAYS));
         shard.store().decRef();
-        assertThat(e.getMessage(), Matchers.containsString("Something is leaking index readers or store references"));
+        assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
     }
 }

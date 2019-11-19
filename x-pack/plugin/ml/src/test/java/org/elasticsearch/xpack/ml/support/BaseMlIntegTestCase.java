@@ -191,13 +191,21 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static DatafeedConfig createDatafeed(String datafeedId, String jobId, List<String> indices) {
-        return createDatafeedBuilder(datafeedId, jobId, indices).build();
+        return createDatafeed(datafeedId, jobId, indices, TimeValue.timeValueSeconds(1));
+    }
+
+    public static DatafeedConfig createDatafeed(String datafeedId, String jobId, List<String> indices, TimeValue frequency) {
+        return createDatafeedBuilder(datafeedId, jobId, indices, frequency).build();
     }
 
     public static DatafeedConfig.Builder createDatafeedBuilder(String datafeedId, String jobId, List<String> indices) {
+        return createDatafeedBuilder(datafeedId, jobId, indices, TimeValue.timeValueSeconds(1));
+    }
+
+    public static DatafeedConfig.Builder createDatafeedBuilder(String datafeedId, String jobId, List<String> indices, TimeValue frequency) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setQueryDelay(TimeValue.timeValueSeconds(1));
-        builder.setFrequency(TimeValue.timeValueSeconds(1));
+        builder.setFrequency(frequency);
         builder.setIndices(indices);
         builder.setTypes(Collections.singletonList("type"));
         return builder;

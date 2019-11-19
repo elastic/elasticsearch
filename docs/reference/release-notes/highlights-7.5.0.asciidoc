@@ -51,10 +51,14 @@ auto-follow patterns.
 
 // tag::notable-highlights[]
 [float]
-==== Classification API
+==== {ml-cap} {classanalysis}
 
-{ref}/ml-df-analytics-apis.html[{dfanalytics-jobs-cap}] now support binary
-classification, which enables you to predict the class or category of a document.
+{ref}/dfa-classification.html[{classanalysis-cap}] is a supervised {ml} process
+for predicting a class or category of a given data point in a dataset. For
+example, it can determine whether an email is spam or not. {classification-cap}
+is for predicting discrete, categorical values, unlike {reganalysis}, which
+predicts continuous, numerical values. 7.5.0 introduces binary classification,
+which can label data points into two possible categories.
 
 // end::notable-highlights[]
 

@@ -44,8 +44,8 @@ policy’s schedule.
 
 New {ref}/ccr-post-pause-follow.html[pause] and
 {ref}/ccr-post-pause-follow.html[resume] API endpoints for
-{ref}/ccr.htm[{ccr}] have been added, which enable you to temporarily pause
-auto-follow patterns.
+{ref}/xpack-ccr.html[{ccr}] have been added, which enable you to temporarily
+pause auto-follow patterns.
 
 // end::notable-highlights[]
 
@@ -53,12 +53,12 @@ auto-follow patterns.
 [float]
 ==== {ml-cap} {classanalysis}
 
-{ref}/dfa-classification.html[{classanalysis-cap}] is a supervised {ml} process
-for predicting a class or category of a given data point in a dataset. For
-example, it can determine whether an email is spam or not. {classification-cap}
-is for predicting discrete, categorical values, unlike {reganalysis}, which
-predicts continuous, numerical values. 7.5.0 introduces binary classification,
-which can label data points into two possible categories.
+{stack-ov}/dfa-classification.html[{classanalysis-cap}] is a supervised {ml}
+process for predicting a class or category of a given data point in a dataset.
+For example, it can determine whether an email is spam or not.
+{classification-cap} is for predicting discrete, categorical values, unlike
+{reganalysis}, which predicts continuous, numerical values. 7.5.0 introduces
+binary classification, which can label data points into two possible categories.
 
 // end::notable-highlights[]
 

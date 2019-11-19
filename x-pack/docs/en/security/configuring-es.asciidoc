@@ -144,7 +144,6 @@ include::securing-communications/configuring-tls-docker.asciidoc[]
 include::securing-communications/enabling-cipher-suites.asciidoc[]
 
 include::authentication/configuring-active-directory-realm.asciidoc[]
-include::authentication/configuring-pki-realm.asciidoc[]
 
 include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]

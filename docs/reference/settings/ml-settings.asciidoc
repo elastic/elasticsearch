@@ -80,6 +80,27 @@ each node. Typically, jobs spend a small amount of time in this state before
 they move to `open` state. Jobs that must restore large models when they are
 opening spend more time in the `opening` state. Defaults to `2`.
 
+`xpack.ml.max_inference_processors` (<<cluster-update-settings,Dynamic>>)::
+The total number of `inference` type processors allowed across all ingest
+pipelines. Once the limit is reached adding an `inference` processor to
+a pipeline will be disallowed. Defaults to `50`.
+
+`xpack.ml.inference_model.cache_size`::
+The maximum allowed inference cache size allowed. The inference cache
+exists in the JVM Heap on each ingest node. The cache affords faster
+processing times for the `inference` processor. The value can be a
+static byte sized value (i.e. "2gb") or a percentage of total allocated
+heap. The default is "40%".
+
+`xpack.ml.inference_model.time_to_live`::
+The time to live (TTL) for models in the inference model cache.
+The TTL is calculate from last access. The `inference` processor
+attempts to load the model from cache. If the `inference` processor
+does not receive any documents for the duration of the TTL, then
+the referenced model is flagged for eviction from the cache. If
+a document is then processed later, the model will be again loaded
+into the cache. Defaults to `5m`.
+
 [float]
 [[advanced-ml-settings]]
 ==== Advanced machine learning settings

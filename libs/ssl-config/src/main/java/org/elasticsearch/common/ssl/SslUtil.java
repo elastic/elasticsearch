@@ -25,7 +25,11 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
 
-public class SslUtil {
+public final class SslUtil {
+
+    private SslUtil() {
+        // utility class
+    }
 
     public static String calculateFingerprint(X509Certificate certificate) throws CertificateEncodingException {
         final MessageDigest sha1 = messageDigest("SHA-1");

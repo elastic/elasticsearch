@@ -20,6 +20,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.http.MockResponse;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
-import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLHandshakeException;
@@ -52,7 +52,6 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
     private static final String HTTP_SERVER_SSL = "xpack.security.http.ssl";
     private static final String HTTP_CLIENT_SSL = "xpack.http.ssl";
-    private static final String TRANSPORT_SSL = "xpack.security.transport.ssl";
 
     public void testMessageForHttpClientHostnameVerificationFailure() throws IOException, URISyntaxException {
         final Settings sslSetup = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
@@ -117,14 +116,14 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                 "ssl diagnostic",
                 DiagnosticTrustManager.class.getName(),
                 Level.WARN,
-                "failed to establish trust with \\[SERVER\\] at \\[" + Pattern.quote(webServer.getHostName()) + "\\];" +
+                "failed to establish trust with server at \\[" + Pattern.quote(webServer.getHostName()) + "\\];" +
                     " the server provided a certificate with subject name \\[CN=not-this-host\\]" +
                     " and fingerprint \\[[0-9a-f]{40}\\];" +
                     " the certificate has subject alternative names \\[DNS:not\\.this\\.host\\];" +
                     " the certificate is issued by \\[CN=Certificate Authority 1,OU=ssl-error-message-test,DC=elastic,DC=co\\]" +
-                    " but the server did not provide a copy of the issuing certificate;" +
-                    " the issuing certificate is trusted in this ssl context " + Pattern.quote("([" + HTTP_CLIENT_SSL + "])") +
-                    " with fingerprint \\[[0-9a-f]{40}\\]"));
+                    " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
+                    " the issuing certificate with fingerprint \\[[0-9a-f]{40}\\]" +
+                    " is trusted in this ssl context " + Pattern.quote("([" + HTTP_CLIENT_SSL + "])")));
             enableHttpsHostnameChecking(clientSocket);
             connect(clientSocket, webServer);
             assertThat(clientSocket.isConnected(), is(true));
@@ -132,6 +131,9 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                 () -> clientSocket.getInputStream().read());
             assertThat(handshakeException, throwableWithMessage(containsStringIgnoringCase("subject alternative names")));
             assertThat(handshakeException, throwableWithMessage(containsString(webServer.getHostName())));
+
+            // Logging message failures are tricky to debug because you just get a "didn't find match" assertion failure.
+            // You should be able to check the log output for the text that was logged and compare to the regex above.
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(diagnosticLogger, mockAppender);

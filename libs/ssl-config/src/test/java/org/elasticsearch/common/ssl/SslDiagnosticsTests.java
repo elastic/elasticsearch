@@ -61,13 +61,13 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt", "ca2/ca.crt", "ca3/ca.crt");
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.1];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by" +
             " (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc] {trusted issuer})" +
-            " which is self-issued [CN=Test CA 1] and is trusted in this ssl context ([xpack.http.ssl])"));
+            " which is self-issued; the [CN=Test CA 1] certificate is trusted in this ssl context ([xpack.http.ssl])"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesAFullCertChainThatIsntTrusted() throws Exception {
@@ -76,12 +76,12 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca2/ca.crt", "ca3/ca.crt");
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.1];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc])" +
-            " which is self-issued [CN=Test CA 1] and is not trusted in this ssl context ([xpack.http.ssl])"));
+            " which is self-issued; the [CN=Test CA 1] certificate is not trusted in this ssl context ([xpack.http.ssl])"));
     }
 
     public void testDiagnosticMessageWhenServerFullCertChainIsntTrustedButMimicIssuerExists() throws Exception {
@@ -90,14 +90,14 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1-b/ca.crt", "ca2/ca.crt", "ca3/ca.crt");
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.1];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by (subject [CN=Test CA 1] fingerprint [2b7b0416391bdf86502505c23149022d2213dadc])" +
-            " which is self-issued [CN=Test CA 1] and is not trusted in this ssl context ([xpack.http.ssl]);" +
+            " which is self-issued; the [CN=Test CA 1] certificate is not trusted in this ssl context ([xpack.http.ssl]);" +
             " this ssl context does trust a certificate with subject [CN=Test CA 1]" +
-            " but it has fingerprint [b095bf2526be20783e1f26dfd69c7aae910e3663]"));
+            " but the trusted certificate has fingerprint [b095bf2526be20783e1f26dfd69c7aae910e3663]"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesEndCertificateOnlyAndTheCertAuthIsTrusted() throws Exception {
@@ -106,12 +106,13 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt", "ca2/ca.crt", "ca3/ca.crt");
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.1];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
-            " the certificate is issued by [CN=Test CA 1] but the server did not provide a copy of the issuing certificate;" +
-            " the issuing certificate is trusted in this ssl context ([xpack.http.ssl])" +
-            " with fingerprint [2b7b0416391bdf86502505c23149022d2213dadc]"));
+            " the certificate is issued by [CN=Test CA 1]" +
+            " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
+            " the issuing certificate with fingerprint [2b7b0416391bdf86502505c23149022d2213dadc]" +
+            " is trusted in this ssl context ([xpack.http.ssl])"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesEndCertificateOnlyButTheCertAuthIsNotTrusted() throws Exception {
@@ -120,10 +121,11 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca2/ca.crt", "ca3/ca.crt");
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.1];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
-            " the certificate is issued by [CN=Test CA 1] but the server did not provide a copy of the issuing certificate;" +
+            " the certificate is issued by [CN=Test CA 1]" +
+            " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
             " this ssl context ([xpack.http.ssl]) is not configured to trust that issuer"));
     }
 
@@ -133,10 +135,11 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1-b/ca.crt", "ca2/ca.crt", "ca3/ca.crt");
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.1];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
-            " the certificate is issued by [CN=Test CA 1] but the server did not provide a copy of the issuing certificate;" +
+            " the certificate is issued by [CN=Test CA 1]" +
+            " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
             " this ssl context ([xpack.http.ssl]) trusts [1] certificate with subject name [CN=Test CA 1]" +
             " and fingerprint [b095bf2526be20783e1f26dfd69c7aae910e3663] but the signatures do not match"));
     }
@@ -148,10 +151,11 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust(ca1b, cloneCertificateAsMock(ca1b));
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.9];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.9];" +
             " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
-            " the certificate is issued by [CN=Test CA 1] but the server did not provide a copy of the issuing certificate;" +
+            " the certificate is issued by [CN=Test CA 1]" +
+            " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
             " this ssl context ([xpack.http.ssl]) trusts [2] certificates with subject name [CN=Test CA 1]" +
             " and fingerprint [b095bf2526be20783e1f26dfd69c7aae910e3663], fingerprint [" + MOCK_FINGERPRINT_1 + "]" +
             " but the signatures do not match"));
@@ -173,7 +177,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust(issuingCA, rootCA);
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.security.authc.realms.ldap.ldap1.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.5];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.5];" +
             " the server provided a certificate with subject name [CN=elastic1,OU=windows,DC=example,DC=com]" +
             " and fingerprint [" + MOCK_FINGERPRINT_4 + "];" +
             " the certificate does not have any subject alternative names;" +
@@ -182,8 +186,8 @@ public class SslDiagnosticsTests extends ESTestCase {
             " signed by (subject [CN=ca,OU=windows,DC=example,DC=com] fingerprint [" + MOCK_FINGERPRINT_3 + "])" +
             " signed by (subject [CN=issuing-ca,DC=example,DC=com] fingerprint [" + MOCK_FINGERPRINT_2 + "] {trusted issuer})" +
             " which is issued by [CN=root-ca,DC=example,DC=com] (but that issuer certificate was not provided in the chain);" +
-            " the issuing certificate is trusted in this ssl context ([xpack.security.authc.realms.ldap.ldap1.ssl])" +
-            " with fingerprint [" + MOCK_FINGERPRINT_1 + "]"));
+            " the issuing certificate with fingerprint [" + MOCK_FINGERPRINT_1 + "]" +
+            " is trusted in this ssl context ([xpack.security.authc.realms.ldap.ldap1.ssl])"));
     }
 
     public void testDiagnosticMessageWhenServerProvidePartialChainFromUntrustedCA() throws Exception {
@@ -202,7 +206,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust(Collections.emptyList());
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.security.authc.realms.ldap.ldap1.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.6];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.6];" +
             " the server provided a certificate with subject name [CN=elastic1,OU=windows,DC=example,DC=com]" +
             " and fingerprint [" + MOCK_FINGERPRINT_4 + "];" +
             " the certificate does not have any subject alternative names;" +
@@ -220,11 +224,11 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt", "ca2/ca.crt");
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.1];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=Test CA 1]" +
             " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc];" +
             " the certificate does not have any subject alternative names;" +
-            " the certificate is self-issued [CN=Test CA 1] and is trusted in this ssl context ([xpack.http.ssl])"));
+            " the certificate is self-issued; the [CN=Test CA 1] certificate is trusted in this ssl context ([xpack.http.ssl])"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesASelfSignedCertThatIsNotTrusted() throws Exception {
@@ -233,11 +237,11 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = Collections.emptyMap();
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.10.10];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.10.10];" +
             " the server provided a certificate with subject name [CN=Test CA 1]" +
             " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc];" +
             " the certificate does not have any subject alternative names;" +
-            " the certificate is self-issued [CN=Test CA 1] and is not trusted in this ssl context ([xpack.http.ssl])"));
+            " the certificate is self-issued; the [CN=Test CA 1] certificate is not trusted in this ssl context ([xpack.http.ssl])"));
     }
 
     public void testDiagnosticMessageWhenServerProvidesASelfSignedCertWithMimicName() throws Exception {
@@ -246,13 +250,13 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1-b/ca.crt", "ca2/ca.crt");
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.1];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.1];" +
             " the server provided a certificate with subject name [CN=Test CA 1]" +
             " and fingerprint [2b7b0416391bdf86502505c23149022d2213dadc];" +
             " the certificate does not have any subject alternative names;" +
-            " the certificate is self-issued [CN=Test CA 1] and is not trusted in this ssl context ([xpack.http.ssl]);" +
+            " the certificate is self-issued; the [CN=Test CA 1] certificate is not trusted in this ssl context ([xpack.http.ssl]);" +
             " this ssl context does trust a certificate with subject [CN=Test CA 1]" +
-            " but it has fingerprint [b095bf2526be20783e1f26dfd69c7aae910e3663]"));
+            " but the trusted certificate has fingerprint [b095bf2526be20783e1f26dfd69c7aae910e3663]"));
     }
 
     public void testDiagnosticMessageWithEmptyChain() throws Exception {
@@ -261,7 +265,7 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = Collections.emptyMap();
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.http.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.2];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.2];" +
             " the server did not provide a certificate"));
     }
 
@@ -275,12 +279,12 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust(certificate);
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.monitoring.exporters.elastic-cloud.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.3];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.3];" +
             " the server provided a certificate with subject name [CN=foo,DC=example,DC=com]" +
             " and fingerprint [" + MOCK_FINGERPRINT_1 + "];" +
             " the certificate does not have any DNS/IP subject alternative names;" +
-            " the certificate is self-issued [CN=foo,DC=example,DC=com]" +
-            " and is trusted in this ssl context ([xpack.monitoring.exporters.elastic-cloud.ssl])"));
+            " the certificate is self-issued;" +
+            " the [CN=foo,DC=example,DC=com] certificate is trusted in this ssl context ([xpack.monitoring.exporters.elastic-cloud.ssl])"));
     }
 
     public void testDiagnosticMessageWhenACertificateHasAnInvalidEncoding() throws Exception {
@@ -293,12 +297,12 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust(Collections.emptyList());
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.security.transport.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.6];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.6];" +
             " the server provided a certificate with subject name [CN=foo,DC=example,DC=com]" +
             " and invalid encoding [java.security.cert.CertificateEncodingException: MOCK INVALID ENCODING];" +
             " the certificate does not have any subject alternative names;" +
-            " the certificate is self-issued [CN=foo,DC=example,DC=com]" +
-            " and is not trusted in this ssl context ([xpack.security.transport.ssl])"));
+            " the certificate is self-issued;" +
+            " the [CN=foo,DC=example,DC=com] certificate is not trusted in this ssl context ([xpack.security.transport.ssl])"));
     }
 
     public void testDiagnosticMessageForClientCertificate() throws Exception {
@@ -308,12 +312,13 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust("ca1/ca.crt");
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.CLIENT, session,
             "xpack.security.transport.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [CLIENT] at [192.168.1.7];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with client at [192.168.1.7];" +
             " the client provided a certificate with subject name [CN=cert1]" +
             " and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
-            " the certificate is issued by [CN=Test CA 1] but the client did not provide a copy of the issuing certificate;" +
-            " the issuing certificate is trusted in this ssl context ([xpack.security.transport.ssl])" +
-            " with fingerprint [2b7b0416391bdf86502505c23149022d2213dadc]"));
+            " the certificate is issued by [CN=Test CA 1]" +
+            " but the client did not provide a copy of the issuing certificate in the certificate chain;" +
+            " the issuing certificate with fingerprint [2b7b0416391bdf86502505c23149022d2213dadc]" +
+            " is trusted in this ssl context ([xpack.security.transport.ssl])"));
     }
 
     public void testDiagnosticMessageWhenCaHasNewIssuingCertificate() throws Exception {
@@ -331,15 +336,16 @@ public class SslDiagnosticsTests extends ESTestCase {
         final Map<String, List<X509Certificate>> trustIssuers = trust(oldCaCert);
         final String message = SslDiagnostics.getTrustDiagnosticFailure(chain, SslDiagnostics.PeerType.SERVER, session,
             "xpack.security.authc.realms.saml.saml1.ssl", trustIssuers);
-        assertThat(message, Matchers.equalTo("failed to establish trust with [SERVER] at [192.168.1.4];" +
+        assertThat(message, Matchers.equalTo("failed to establish trust with server at [192.168.1.4];" +
             " the server provided a certificate with subject name [CN=cert1] and fingerprint [3bebe388a66362784afd6c51a9000961a4e10050];" +
             " the certificate has subject alternative names [DNS:localhost,IP:127.0.0.1];" +
             " the certificate is issued by [CN=Test CA 1];" +
             " the certificate is signed by (subject [CN=Test CA 1]" +
             " fingerprint [2b7b0416391bdf86502505c23149022d2213dadc] {trusted issuer})" +
-            " which is self-issued [CN=Test CA 1] and is trusted in this ssl context ([xpack.security.authc.realms.saml.saml1.ssl])" +
-            " using a certificate with fingerprint [1f8ac10f23c5b5bc1167bda84b833e5c057a77d2]" +
-            " but the same public key"));
+            " which is self-issued;" +
+            " the [CN=Test CA 1] certificate is trusted in this ssl context ([xpack.security.authc.realms.saml.saml1.ssl])" +
+            " because we trust a certificate with fingerprint [1f8ac10f23c5b5bc1167bda84b833e5c057a77d2]" +
+            " for the same public key"));
     }
 
     public X509Certificate cloneCertificateAsMock(X509Certificate clone) throws CertificateParsingException, CertificateEncodingException {

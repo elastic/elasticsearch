@@ -112,6 +112,7 @@ thirdPartyAudit {
     'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
     'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.asn1.x500.X500Name',
 
     // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
     'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
@@ -167,7 +168,6 @@ thirdPartyAudit {
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',
-
 
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',

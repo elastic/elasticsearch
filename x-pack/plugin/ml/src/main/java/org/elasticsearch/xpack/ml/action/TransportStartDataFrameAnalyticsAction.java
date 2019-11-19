@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.MappingsMerger;
 import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -228,33 +229,7 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Step 6. Validate that there are analyzable data in the source index
         ActionListener<StartContext> validateMappingsMergeListener = ActionListener.wrap(
-            startContext -> DataFrameDataExtractorFactory.createForSourceIndices(client,
-                "validate_source_index_has_rows-" + id,
-                startContext.config,
-                ActionListener.wrap(
-                    dataFrameDataExtractorFactory ->
-                        dataFrameDataExtractorFactory
-                            .newExtractor(false)
-                            .collectDataSummaryAsync(ActionListener.wrap(
-                                dataSummary -> {
-                                    if (dataSummary.rows == 0) {
-                                        finalListener.onFailure(ExceptionsHelper.badRequestException(
-                                            "Unable to start {} as no documents in the source indices [{}] contained all the fields "
-                                                + "selected for analysis. If you are relying on automatic field selection then there are "
-                                                + "currently mapped fields that do not exist in any indexed documents, and you will have "
-                                                + "to switch to explicit field selection and include only fields that exist in indexed "
-                                                + "documents.",
-                                            id, Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
-                                        ));
-                                    } else {
-                                        finalListener.onResponse(startContext);
-                                    }
-                                },
-                                finalListener::onFailure
-                            )),
-                    finalListener::onFailure
-                ))
-            ,
+            startContext -> validateSourceIndexHasRows(startContext, finalListener),
             finalListener::onFailure
         );
 
@@ -269,9 +244,7 @@ public class TransportStartDataFrameAnalyticsAction
         // Step 4. Validate dest index is empty if task is starting for first time
         ActionListener<StartContext> toValidateDestEmptyListener = ActionListener.wrap(
             startContext -> {
-                DataFrameAnalyticsTask.StartingState startingState = DataFrameAnalyticsTask.determineStartingState(
-                    startContext.config.getId(), startContext.progressOnStart);
-                switch (startingState) {
+                switch (startContext.startingState) {
                     case FIRST_TIME:
                         checkDestIndexIsEmptyIfExists(startContext, toValidateMappingsListener);
                         break;
@@ -285,7 +258,7 @@ public class TransportStartDataFrameAnalyticsAction
                             "Cannot start because the job has already finished"));
                         break;
                     default:
-                        finalListener.onFailure(ExceptionsHelper.serverError("Unexpected starting state " + startingState));
+                        finalListener.onFailure(ExceptionsHelper.serverError("Unexpected starting state " + startContext.startingState));
                         break;
                 }
             },
@@ -295,9 +268,16 @@ public class TransportStartDataFrameAnalyticsAction
         // Step 3. Validate source and dest; check data extraction is possible
         ActionListener<StartContext> startContextListener = ActionListener.wrap(
             startContext -> {
+                // Validate the query parses
+                startContext.config.getSource().getParsedQuery();
+
+                // Validate source/dest are valid
                 new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(startContext.config);
-                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, startContext.config, ActionListener.wrap(
-                    config -> toValidateDestEmptyListener.onResponse(startContext), finalListener::onFailure));
+
+                // Validate extraction is possible
+                boolean isTaskRestarting = startContext.startingState != DataFrameAnalyticsTask.StartingState.FIRST_TIME;
+                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, isTaskRestarting, ActionListener.wrap(
+                    extractedFieldsDetector -> toValidateDestEmptyListener.onResponse(startContext), finalListener::onFailure));
             },
             finalListener::onFailure
         );
@@ -311,6 +291,38 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Step 1. Get the config
         configProvider.get(id, getConfigListener);
+    }
+
+    private void validateSourceIndexHasRows(StartContext startContext, ActionListener<StartContext> listener) {
+        boolean isTaskRestarting = startContext.startingState != DataFrameAnalyticsTask.StartingState.FIRST_TIME;
+        DataFrameDataExtractorFactory.createForSourceIndices(client,
+            "validate_source_index_has_rows-" + startContext.config.getId(),
+            isTaskRestarting,
+            startContext.config,
+            ActionListener.wrap(
+                dataFrameDataExtractorFactory ->
+                    dataFrameDataExtractorFactory
+                        .newExtractor(false)
+                        .collectDataSummaryAsync(ActionListener.wrap(
+                            dataSummary -> {
+                                if (dataSummary.rows == 0) {
+                                    listener.onFailure(ExceptionsHelper.badRequestException(
+                                        "Unable to start {} as no documents in the source indices [{}] contained all the fields "
+                                            + "selected for analysis. If you are relying on automatic field selection then there are "
+                                            + "currently mapped fields that do not exist in any indexed documents, and you will have "
+                                            + "to switch to explicit field selection and include only fields that exist in indexed "
+                                            + "documents.",
+                                        startContext.config.getId(),
+                                        Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
+                                    ));
+                                } else {
+                                    listener.onResponse(startContext);
+                                }
+                            },
+                            listener::onFailure
+                        )),
+                listener::onFailure
+            ));
     }
 
     private void getProgress(DataFrameAnalyticsConfig config, ActionListener<List<PhaseProgress>> listener) {
@@ -389,10 +401,12 @@ public class TransportStartDataFrameAnalyticsAction
     private static class StartContext {
         private final DataFrameAnalyticsConfig config;
         private final List<PhaseProgress> progressOnStart;
+        private final DataFrameAnalyticsTask.StartingState startingState;
 
         private StartContext(DataFrameAnalyticsConfig config, List<PhaseProgress> progressOnStart) {
             this.config = config;
             this.progressOnStart = progressOnStart;
+            this.startingState = DataFrameAnalyticsTask.determineStartingState(config.getId(), progressOnStart);
         }
     }
 

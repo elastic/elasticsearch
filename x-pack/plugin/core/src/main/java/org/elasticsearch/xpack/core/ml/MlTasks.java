@@ -132,6 +132,7 @@ public final class MlTasks {
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
+        // TODO: report (task != null && task.getState() == null) as STARTING in version 8, and fix side effects
         if (task != null && task.getState() != null) {
             return (DatafeedState) task.getState();
         } else {

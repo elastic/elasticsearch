@@ -24,12 +24,14 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -41,7 +43,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -56,6 +57,10 @@ import static org.hamcrest.Matchers.nullValue;
  * Integration tests for {@link BlobStoreRepository} implementations.
  */
 public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase {
+
+    public static RepositoryData getRepositoryData(Repository repository) {
+        return PlainActionFuture.get(repository::getRepositoryData);
+    }
 
     protected abstract String repositoryType();
 
@@ -255,16 +260,13 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
 
         final SetOnce<BlobContainer> indicesBlobContainer = new SetOnce<>();
-        final SetOnce<RepositoryData> repositoryData = new SetOnce<>();
-        final CountDownLatch latch = new CountDownLatch(1);
+        final PlainActionFuture<RepositoryData> repositoryData = PlainActionFuture.newFuture();
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
             indicesBlobContainer.set(repository.blobStore().blobContainer(repository.basePath().add("indices")));
-            repositoryData.set(repository.getRepositoryData());
-            latch.countDown();
+            repository.getRepositoryData(repositoryData);
         });
 
-        latch.await();
-        for (IndexId indexId : repositoryData.get().getIndices().values()) {
+        for (IndexId indexId : repositoryData.actionGet().getIndices().values()) {
             if (indexId.getName().equals("test-idx-3")) {
                 assertFalse(BlobStoreTestUtil.blobExists(indicesBlobContainer.get(), indexId.getId())); // deleted index
             }

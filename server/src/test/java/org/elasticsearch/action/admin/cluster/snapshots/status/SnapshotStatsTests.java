@@ -28,8 +28,9 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
 
     @Override
     protected SnapshotStats createTestInstance() {
-        long startTime = randomNonNegativeLong();
-        long time = randomNonNegativeLong();
+        // Using less than half of Long.MAX_VALUE for random time values to avoid long overflow in tests that add the two time values
+        long startTime = randomLongBetween(0, Long.MAX_VALUE / 2 - 1);
+        long time =  randomLongBetween(0, Long.MAX_VALUE / 2 - 1);
         int incrementalFileCount = randomIntBetween(0, Integer.MAX_VALUE);
         int totalFileCount = randomIntBetween(0, Integer.MAX_VALUE);
         int processedFileCount = randomIntBetween(0, Integer.MAX_VALUE);

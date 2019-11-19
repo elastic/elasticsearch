@@ -42,8 +42,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     private static final String CONFIG_ID = "dummy";
     private static final int NUM_ROWS = 100;
     private static final int NUM_COLS = 4;
-    private static final MemoryUsageEstimationResult PROCESS_RESULT_ZERO =
-        new MemoryUsageEstimationResult(ByteSizeValue.ZERO, ByteSizeValue.ZERO);
     private static final MemoryUsageEstimationResult PROCESS_RESULT =
         new MemoryUsageEstimationResult(ByteSizeValue.parseBytesSizeValue("20kB", ""), ByteSizeValue.parseBytesSizeValue("10kB", ""));
 
@@ -67,7 +65,7 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         process = mock(AnalyticsProcess.class);
         when(process.readAnalyticsResults()).thenReturn(List.of(PROCESS_RESULT).iterator());
         processFactory = mock(AnalyticsProcessFactory.class);
-        when(processFactory.createAnalyticsProcess(any(), any(), any(), any())).thenReturn(process);
+        when(processFactory.createAnalyticsProcess(any(), any(), any(), any(), any())).thenReturn(process);
         dataExtractor = mock(DataFrameDataExtractor.class);
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(NUM_ROWS, NUM_COLS));
         dataExtractorFactory = mock(DataFrameDataExtractorFactory.class);
@@ -85,9 +83,11 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
 
         processManager.runJobAsync(TASK_ID, dataFrameAnalyticsConfig, dataExtractorFactory, listener);
 
-        verify(listener).onResponse(resultCaptor.capture());
-        MemoryUsageEstimationResult result = resultCaptor.getValue();
-        assertThat(result, equalTo(PROCESS_RESULT_ZERO));
+        verify(listener).onFailure(exceptionCaptor.capture());
+        ElasticsearchException exception = (ElasticsearchException) exceptionCaptor.getValue();
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), containsString(TASK_ID));
+        assertThat(exception.getMessage(), containsString("Unable to estimate memory usage"));
 
         verifyNoMoreInteractions(process, listener);
     }

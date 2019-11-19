@@ -68,6 +68,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -154,16 +155,20 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
             Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
 
-    public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING =
-        Setting.intSetting("index.number_of_routing_shards", INDEX_NUMBER_OF_SHARDS_SETTING,
-                           1, new Setting.Validator<Integer>() {
+    public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
+        "index.number_of_routing_shards",
+        INDEX_NUMBER_OF_SHARDS_SETTING,
+        1,
+        new Setting.Validator<>() {
+
             @Override
-            public void validate(Integer value) {
+            public void validate(final Integer value) {
+
             }
 
             @Override
-            public void validate(Integer numRoutingShards, Map<Setting<Integer>, Integer> settings) {
-                Integer numShards = settings.get(INDEX_NUMBER_OF_SHARDS_SETTING);
+            public void validate(final Integer numRoutingShards, final Map<Setting<?>, Object> settings) {
+                int numShards = (int) settings.get(INDEX_NUMBER_OF_SHARDS_SETTING);
                 if (numRoutingShards < numShards) {
                     throw new IllegalArgumentException("index.number_of_routing_shards [" + numRoutingShards
                         + "] must be >= index.number_of_shards [" + numShards + "]");
@@ -172,10 +177,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
 
             @Override
-            public Iterator<Setting<Integer>> settings() {
-                return Collections.singleton(INDEX_NUMBER_OF_SHARDS_SETTING).iterator();
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(INDEX_NUMBER_OF_SHARDS_SETTING);
+                return settings.iterator();
             }
-        }, Property.IndexScope);
+
+        },
+        Property.IndexScope);
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
@@ -480,36 +488,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     }
 
     /**
-     * Return an object that maps each type to the associated mappings.
-     * The return value is never {@code null} but may be empty if the index
-     * has no mappings.
-     * @deprecated Use {@link #mapping()} instead now that indices have a single type
-     */
-    @Deprecated
-    public ImmutableOpenMap<String, MappingMetaData> getMappings() {
-        return mappings;
-    }
-
-    /**
      * Return the concrete mapping for this index or {@code null} if this index has no mappings at all.
      */
     @Nullable
     public MappingMetaData mapping() {
         for (ObjectObjectCursor<String, MappingMetaData> cursor : mappings) {
-            if (cursor.key.equals(MapperService.DEFAULT_MAPPING) == false) {
-                return cursor.value;
-            }
+            return cursor.value;
         }
         return null;
-    }
-
-    /**
-     * Get the default mapping.
-     * NOTE: this is always {@code null} for 7.x indices which are disallowed to have a default mapping.
-     */
-    @Nullable
-    public MappingMetaData defaultMapping() {
-        return mappings.get(MapperService.DEFAULT_MAPPING);
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -520,25 +506,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public Index getResizeSourceIndex() {
         return INDEX_RESIZE_SOURCE_UUID.exists(settings) ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings),
             INDEX_RESIZE_SOURCE_UUID.get(settings)) : null;
-    }
-
-    /**
-     * Sometimes, the default mapping exists and an actual mapping is not created yet (introduced),
-     * in this case, we want to return the default mapping in case it has some default mapping definitions.
-     * <p>
-     * Note, once the mapping type is introduced, the default mapping is applied on the actual typed MappingMetaData,
-     * setting its routing, timestamp, and so on if needed.
-     */
-    @Nullable
-    public MappingMetaData mappingOrDefault() {
-        MappingMetaData mapping = null;
-        for (ObjectCursor<MappingMetaData> m : mappings.values()) {
-            if (mapping == null || mapping.type().equals(MapperService.DEFAULT_MAPPING)) {
-                mapping = m.value;
-            }
-        }
-
-        return mapping;
     }
 
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
@@ -963,17 +930,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return this;
         }
 
-        public MappingMetaData mapping(String type) {
-            return mappings.get(type);
+        public MappingMetaData mapping() {
+            return mappings.get(MapperService.SINGLE_MAPPING_NAME);
         }
 
-        public Builder putMapping(String type, String source) throws IOException {
-            putMapping(new MappingMetaData(type, XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
+        public Builder putMapping(String source) {
+            putMapping(new MappingMetaData(MapperService.SINGLE_MAPPING_NAME,
+                XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
             return this;
         }
 
         public Builder putMapping(MappingMetaData mappingMd) {
-            mappings.put(mappingMd.type(), mappingMd);
+            mappings.clear();
+            if (mappingMd != null) {
+                mappings.put(MapperService.SINGLE_MAPPING_NAME, mappingMd);
+            }
             return this;
         }
 
@@ -1102,14 +1073,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             ImmutableOpenMap.Builder<String, AliasMetaData> tmpAliases = aliases;
             Settings tmpSettings = settings;
 
-            // update default mapping on the MappingMetaData
-            if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
-                MappingMetaData defaultMapping = mappings.get(MapperService.DEFAULT_MAPPING);
-                for (ObjectCursor<MappingMetaData> cursor : mappings.values()) {
-                    cursor.value.updateDefaultMapping(defaultMapping);
-                }
-            }
-
             Integer maybeNumberOfShards = settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null);
             if (maybeNumberOfShards == null) {
                 throw new IllegalArgumentException("must specify numberOfShards for index [" + index + "]");
@@ -1233,11 +1196,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.endObject();
 
             builder.startArray(KEY_MAPPINGS);
-            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
+            MappingMetaData mmd = indexMetaData.mapping();
+            if (mmd != null) {
                 if (binary) {
-                    builder.value(cursor.value.source().compressed());
+                    builder.value(mmd.source().compressed());
                 } else {
-                    builder.map(XContentHelper.convertToMap(new BytesArray(cursor.value.source().uncompressed()), true).v2());
+                    builder.map(XContentHelper.convertToMap(new BytesArray(mmd.source().uncompressed()), true).v2());
                 }
             }
             builder.endArray();

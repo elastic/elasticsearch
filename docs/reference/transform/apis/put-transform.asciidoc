@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[put-data-frame-transform]]
+[[put-transform]]
 === Create {transforms} API
 
 [subs="attributes"]
@@ -12,23 +12,22 @@ Instantiates a {transform}.
 
 beta[]
 
-[[put-data-frame-transform-request]]
+[[put-transform-request]]
 ==== {api-request-title}
 
-`PUT _data_frame/transforms/<data_frame_transform_id>`
+`PUT _transform/<transform_id>`
 
-[[put-data-frame-transform-prereqs]]
+[[put-transform-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`manage_data_frame_transforms` cluster privileges to use this API. The built-in
-`data_frame_transforms_admin` role has these privileges. You must also
-have `read` and `view_index_metadata` privileges on the source index and `read`,
-`create_index`, and `index` privileges on the destination index. For more
-information, see {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+* If the {es} {security-features} are enabled, you must have `manage_transform` 
+cluster privileges to use this API. The built-in `transform_admin` role has 
+these privileges. You must also have `read` and `view_index_metadata` privileges 
+on the source index and `read`, `create_index`, and `index` privileges on the 
+destination index. For more information, see <<security-privileges>> and 
+<<built-in-roles>>.
 
-[[put-data-frame-transform-desc]]
+[[put-transform-desc]]
 ==== {api-description-title}
 
 This API defines a {transform}, which copies data from source indices,
@@ -37,8 +36,7 @@ entities are defined by the set of `group_by` fields in the `pivot` object. You
 can also think of the destination index as a two-dimensional tabular data
 structure (known as a {dataframe}). The ID for each document in the
 {dataframe} is generated from a hash of the entity, so there is a unique row
-per entity. For more information, see
-{stack-ov}/ml-dataframes.html[{transforms-cap}].
+per entity. For more information, see <<transforms>>.
 
 When the {transform} is created, a series of validations occur to
 ensure its success. For example, there is a check for the existence of the
@@ -55,19 +53,21 @@ have the required privileges on the source and destination indices, the
 
 IMPORTANT:  You must use {kib} or this API to create a {transform}.
             Do not put a {transform} directly into any
-            `.data-frame-internal*` indices using the Elasticsearch index API.
+            `.transform-internal*` indices using the Elasticsearch index API.
             If {es} {security-features} are enabled, do not give users any
-            privileges on `.data-frame-internal*` indices.
+            privileges on `.transform-internal*` indices. If you used transforms
+            prior 7.5, also do not give users any privileges on
+            `.data-frame-internal*` indices.
 
-[[put-data-frame-transform-path-parms]]
+[[put-transform-path-parms]]
 ==== {api-path-parms-title}
 
-`<data_frame_transform_id>`::
+`<transform_id>`::
   (Required, string) Identifier for the {transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
-[[put-data-frame-transform-query-parms]]
+[[put-transform-query-parms]]
 ==== {api-query-parms-title}
 
 `defer_validation`::
@@ -75,7 +75,7 @@ IMPORTANT:  You must use {kib} or this API to create a {transform}.
   behavior may be desired if the source index does not exist until after the
   {transform} is created.
 
-[[put-data-frame-transform-request-body]]
+[[put-transform-request-body]]
 ==== {api-request-body-title}
 
 `description`::
@@ -100,7 +100,7 @@ IMPORTANT:  You must use {kib} or this API to create a {transform}.
 
 `pivot`::
   (Required, object) Defines the pivot function `group by` fields and the aggregation to
-  reduce the data. See <<data-frame-transform-pivot>>.
+  reduce the data. See <<transform-pivot>>.
 
 `source`::
   (Required, object) The source configuration, which has the following
@@ -136,12 +136,12 @@ delays.
       (Optional, <<time-units, time units>>) The time delay between the current time and the
       latest input data time. The default value is `60s`.
 
-[[put-data-frame-transform-example]]
+[[put-transform-example]]
 ==== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
-PUT _data_frame/transforms/ecommerce_transform
+PUT _transform/ecommerce_transform
 {
   "source": {
     "index": "kibana_sample_data_ecommerce",

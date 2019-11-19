@@ -67,15 +67,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         when(ingestService.getProcessorFactories()).thenReturn(registry);
     }
 
-    public void testParseUsingPipelineStoreNoType() throws Exception {
-        innerTestParseUsingPipelineStore(false);
-    }
-
-    public void testParseUsingPipelineStoreWithType() throws Exception {
-        innerTestParseUsingPipelineStore(true);
-    }
-
-    private void innerTestParseUsingPipelineStore(boolean useExplicitType) throws Exception {
+    public void testParseUsingPipelineStore() throws Exception {
         int numDocs = randomIntBetween(1, 10);
 
         Map<String, Object> requestContent = new HashMap<>();
@@ -85,12 +77,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             String index = randomAlphaOfLengthBetween(1, 10);
-            String type = randomAlphaOfLengthBetween(1, 10);
             String id = randomAlphaOfLengthBetween(1, 10);
             doc.put(INDEX.getFieldName(), index);
-            if (useExplicitType) {
-                doc.put(TYPE.getFieldName(), type);
-            }
             doc.put(ID.getFieldName(), id);
             String fieldName = randomAlphaOfLengthBetween(1, 10);
             String fieldValue = randomAlphaOfLengthBetween(1, 10);
@@ -98,11 +86,6 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             docs.add(doc);
             Map<String, Object> expectedDoc = new HashMap<>();
             expectedDoc.put(INDEX.getFieldName(), index);
-            if (useExplicitType) {
-                expectedDoc.put(TYPE.getFieldName(), type);
-            } else {
-                expectedDoc.put(TYPE.getFieldName(), "_doc");
-            }
             expectedDoc.put(ID.getFieldName(), id);
             expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
             expectedDocs.add(expectedDoc);
@@ -117,7 +100,6 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
             assertThat(metadataMap.get(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(metadataMap.get(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
             assertThat(metadataMap.get(ID), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
@@ -125,9 +107,6 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.getPipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
-        if (useExplicitType) {
-            assertWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
-        }
     }
 
     public void testParseWithProvidedPipelineNoType() throws Exception {

@@ -162,6 +162,9 @@ teardown:
 
 ---
 "Test All Indexes Lifecycle Explain":
+  - skip:
+      reason: https://github.com/elastic/elasticsearch/issues/47275
+      version: "6.7.0 - "
 
   - do:
       ilm.explain_lifecycle:

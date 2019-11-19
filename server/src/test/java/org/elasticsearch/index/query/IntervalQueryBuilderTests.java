@@ -19,11 +19,12 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.XIntervals;
+import org.apache.lucene.queries.intervals.IntervalQuery;
+import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.queries.intervals.IntervalQuery;
-import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -35,7 +36,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -134,7 +134,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(IntervalQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(IntervalQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(IntervalQuery.class));
     }
 
@@ -372,7 +372,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         QueryShardContext baseContext = createShardContext();
         QueryShardContext context = new QueryShardContext(baseContext.getShardId(), baseContext.getIndexSettings(),
             BigArrays.NON_RECYCLING_INSTANCE, null, null, baseContext.getMapperService(),
-            null, scriptService, null, null, null, null, null, null);
+            null, scriptService, null, null, null, null, null, null, null);
 
         String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
             "\"match\" : { " +
@@ -396,7 +396,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
             "\"prefix\" : { \"prefix\" : \"term\" } } } }";
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.prefix(new BytesRef("term")));
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, XIntervals.prefix(new BytesRef("term")));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
@@ -423,7 +423,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "\"prefix\" : { \"prefix\" : \"t\" } } } }";
         builder = (IntervalQueryBuilder) parseQuery(short_prefix_json);
         expected = new IntervalQuery(PREFIXED_FIELD, Intervals.or(
-            Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.wildcard(new BytesRef("t?"))),
+            Intervals.fixField(PREFIXED_FIELD + "._index_prefix", XIntervals.wildcard(new BytesRef("t?"))),
             Intervals.term("t")));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
@@ -455,7 +455,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "\"wildcard\" : { \"pattern\" : \"Te?m\" } } } }";
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard(new BytesRef("te?m")));
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, XIntervals.wildcard(new BytesRef("te?m")));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
@@ -469,14 +469,14 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "\"wildcard\" : { \"pattern\" : \"Te?m\", \"analyzer\" : \"keyword\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(keyword_json);
-        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard(new BytesRef("Te?m")));
+        expected = new IntervalQuery(STRING_FIELD_NAME, XIntervals.wildcard(new BytesRef("Te?m")));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String fixed_field_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
             "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"masked_field\" } } } }";
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
-        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard(new BytesRef("te?m"))));
+        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD, XIntervals.wildcard(new BytesRef("te?m"))));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         String fixed_field_json_no_positions = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
@@ -491,7 +491,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(fixed_field_analyzer_json);
         expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD,
-            Intervals.wildcard(new BytesRef("Te?m"))));
+            XIntervals.wildcard(new BytesRef("Te?m"))));
         assertEquals(expected, builder.toQuery(createShardContext()));
     }
 

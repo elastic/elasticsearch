@@ -120,12 +120,11 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings = response.getMappings();
+        ImmutableOpenMap<String, MappingMetaData> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
-        ImmutableOpenMap<String, MappingMetaData> typeMappings = indexMappings.get(sharedResultsIndex);
+        MappingMetaData typeMappings = indexMappings.get(sharedResultsIndex);
         assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
-        assertEquals("expected 1 type in " + typeMappings, 1, typeMappings.size());
-        Map<String, Object> mappings = typeMappings.iterator().next().value.getSourceAsMap();
+        Map<String, Object> mappings = typeMappings.getSourceAsMap();
         assertNotNull(mappings);
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
@@ -563,7 +562,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         for (ScheduledEvent event : events) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(
+                    ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
                 indexRequest.source(event.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
@@ -606,7 +606,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         for (MlFilter filter : filters) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(
+                    ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
                 indexRequest.source(filter.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
@@ -636,7 +637,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         for (Calendar calendar: calendars) {
             IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(calendar.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(
+                    Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
                 indexRequest.source(calendar.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }

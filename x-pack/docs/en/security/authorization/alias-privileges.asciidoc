@@ -2,7 +2,8 @@
 [[securing-aliases]]
 === Granting privileges for indices and aliases
 
-Elasticsearch allows to execute operations against {ref}/indices-aliases.html[index aliases],
+Elasticsearch allows to execute operations against
+<<indices-aliases,index aliases>>,
 which are effectively virtual indices. An alias points to one or more indices,
 holds metadata and potentially a filter. The {es} {security-features} treat
 aliases and indices
@@ -27,9 +28,9 @@ The user attempts to retrieve a document from `current_year`:
 
 [source,console]
 -------------------------------------------------------------------------------
-GET /current_year/event/1
+GET /current_year/_doc/1
 -------------------------------------------------------------------------------
-// TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/event\/1\n{}\n/]
+// TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/_doc\/1\n{}\n/]
 
 The above request gets rejected, although the user has `read` privilege on the
 concrete index that the `current_year` alias points to. The correct permission
@@ -97,4 +98,4 @@ alias need the `manage` permission.
 Aliases can hold a filter, which allows to select a subset of documents that can
 be accessed out of all the documents that the physical index contains. These
 filters are not always applied and should not be used in place of
-<<document-level-security, document level security>>.
+<<document-level-security,document level security>>.

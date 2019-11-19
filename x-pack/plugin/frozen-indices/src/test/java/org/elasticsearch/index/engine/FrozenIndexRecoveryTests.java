@@ -55,7 +55,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
             .put("index.routing.allocation.include._name", String.join(",", dataNodes))
             .build());
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
         ensureGreen(indexName);
         if (randomBoolean()) {
             client().admin().indices().prepareFlush(indexName).get();
@@ -69,7 +69,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
                 Client client = client(dataNodes.get(0));
                 int moreDocs = randomIntBetween(1, 50);
                 for (int i = 0; i < moreDocs; i++) {
-                    client.prepareIndex(indexName, "_doc").setSource("num", i).get();
+                    client.prepareIndex(indexName).setSource("num", i).get();
                 }
                 assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
                 return super.onNodeStopped(nodeName);

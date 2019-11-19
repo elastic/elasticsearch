@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -133,7 +134,7 @@ public final class AnomalyDetectorsIndex {
                         // If it was created between our last check, and this request being handled, we should add the alias
                         // Adding an alias that already exists is idempotent. So, no need to double check if the alias exists
                         // as well.
-                        if (createIndexFailure instanceof ResourceAlreadyExistsException) {
+                        if (ExceptionsHelper.unwrapCause(createIndexFailure) instanceof ResourceAlreadyExistsException) {
                             createAliasListener.onResponse(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
                         } else {
                             finalListener.onFailure(createIndexFailure);

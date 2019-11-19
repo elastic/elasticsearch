@@ -1,5 +1,8 @@
 [[cluster-get-settings]]
-=== Cluster Get Settings
+=== Cluster get settings API
+++++
+<titleabbrev>Cluster get settings</titleabbrev>
+++++
 
 Returns cluster-wide settings.
 

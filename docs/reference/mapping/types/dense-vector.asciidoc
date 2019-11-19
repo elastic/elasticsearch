@@ -6,8 +6,6 @@
 <titleabbrev>Dense vector</titleabbrev>
 ++++
 
-experimental[]
-
 A `dense_vector` field stores dense vectors of float values.
 The maximum number of dimensions that can be in a vector should
 not exceed 2048. A `dense_vector` field is a single-valued field.

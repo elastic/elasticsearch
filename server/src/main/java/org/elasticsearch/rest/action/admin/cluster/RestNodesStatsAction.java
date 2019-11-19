@@ -174,9 +174,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
         if (nodesStatsRequest.indices().isSet(Flag.Search) && (request.hasParam("groups"))) {
             nodesStatsRequest.indices().groups(request.paramAsStringArray("groups", null));
         }
-        if (nodesStatsRequest.indices().isSet(Flag.Indexing) && (request.hasParam("types"))) {
-            nodesStatsRequest.indices().types(request.paramAsStringArray("types", null));
-        }
         if (nodesStatsRequest.indices().isSet(Flag.Segments)) {
             nodesStatsRequest.indices().includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
         }

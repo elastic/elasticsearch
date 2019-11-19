@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -378,12 +377,10 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 if (includeTypeName == false) {
                     Map<String, Object> documentMapping = null;
                     for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
-                        if (!cursor.key.equals(MapperService.DEFAULT_MAPPING)) {
-                            assert documentMapping == null;
-                            byte[] mappingSource = cursor.value.uncompressed();
-                            Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
-                            documentMapping = reduceMapping(cursor.key, mapping);
-                        }
+                        assert documentMapping == null;
+                        byte[] mappingSource = cursor.value.uncompressed();
+                        Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
+                        documentMapping = reduceMapping(cursor.key, mapping);
                     }
 
                     if (documentMapping != null) {

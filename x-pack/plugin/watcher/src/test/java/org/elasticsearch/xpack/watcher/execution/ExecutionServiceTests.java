@@ -1099,7 +1099,7 @@ public class ExecutionServiceTests extends ESTestCase {
             }
 
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            future.onResponse(new UpdateResponse(null, new ShardId("test", "test", 0), "_doc", "test", 0, 0, 0,
+            future.onResponse(new UpdateResponse(null, new ShardId("test", "test", 0), "test", 0, 0, 0,
                 DocWriteResponse.Result.CREATED));
             return future;
         }).when(client).update(any());
@@ -1218,7 +1218,7 @@ public class ExecutionServiceTests extends ESTestCase {
                 listener.onResponse(response);
             } else {
                 GetResult notFoundResult =
-                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0,
+                    new GetResult(request.index(), request.id(), UNASSIGNED_SEQ_NO, 0,
                         -1, false, null, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }
@@ -1234,7 +1234,7 @@ public class ExecutionServiceTests extends ESTestCase {
                 listener.onFailure(e);
             } else {
                 GetResult notFoundResult =
-                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1,
+                    new GetResult(request.index(), request.id(), UNASSIGNED_SEQ_NO, 0, -1,
                         false, null, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }

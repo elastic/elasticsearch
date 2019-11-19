@@ -18,6 +18,7 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
     public static final String LIFECYCLE_INDEXING_COMPLETE = "index.lifecycle.indexing_complete";
     public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
+    public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
 
     public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
     public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";
@@ -32,10 +33,16 @@ public class LifecycleSettings {
         Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING =
         Setting.longSetting(LIFECYCLE_ORIGINATION_DATE, -1, -1, Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(LIFECYCLE_PARSE_ORIGINATION_DATE,
+        false, Setting.Property.Dynamic, Setting.Property.IndexScope);
+
 
     public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(SLM_HISTORY_INDEX_ENABLED, true,
         Setting.Property.NodeScope);
-    public static final Setting<String> SLM_RETENTION_SCHEDULE_SETTING = Setting.simpleString(SLM_RETENTION_SCHEDULE, str -> {
+    public static final Setting<String> SLM_RETENTION_SCHEDULE_SETTING = Setting.simpleString(SLM_RETENTION_SCHEDULE,
+        // Default to 1:30am every day
+        "0 30 1 * * ?",
+        str -> {
         try {
             if (Strings.hasText(str)) {
                 // Test that the setting is a valid cron syntax

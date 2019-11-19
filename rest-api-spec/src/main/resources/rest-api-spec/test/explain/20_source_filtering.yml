@@ -14,7 +14,6 @@
   - do:
       explain: { index:  test_1, id: 1, _source: false, body: { query: { match_all: {}} } }
   - match:   { _index:   test_1  }
-  - match:   { _type:    _doc    }
   - match:   { _id:      "1"       }
   - is_false:  get._source
 

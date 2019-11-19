@@ -46,7 +46,6 @@ setup:
 
   - match: {hits.total: 1}
   - match: {hits.hits.0._index: test_1 }
-  - match: {hits.hits.0._type:  _doc   }
   - match: {hits.hits.0._id:    "1"    }
 
   - do:
@@ -60,7 +59,6 @@ setup:
 
   - match: {hits.total: 1}
   - match: {hits.hits.0._index: test_2 }
-  - match: {hits.hits.0._type:  _doc   }
   - match: {hits.hits.0._id:    "42"   }
 
 ---

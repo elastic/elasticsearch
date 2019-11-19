@@ -38,6 +38,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -70,7 +71,7 @@ public class QueryContainer {
     private final List<Tuple<FieldExtraction, ExpressionId>> fields;
 
     // aliases (maps an alias to its actual resolved attribute)
-    private final AttributeMap<Attribute> aliases;
+    private final Map<ExpressionId, Attribute> aliases;
 
     // pseudo functions (like count) - that are 'extracted' from other aggs
     private final Map<String, GroupByKey> pseudoFunctions;
@@ -83,36 +84,40 @@ public class QueryContainer {
     private final int limit;
     private final boolean trackHits;
     private final boolean includeFrozen;
+    // used when pivoting for retrieving at least one pivot row
+    private final int minPageSize;
 
     // computed
     private Boolean aggsOnly;
     private Boolean customSort;
 
     public QueryContainer() {
-        this(null, null, null, null, null, null, null, -1, false, false);
+        this(null, null, null, null, null, null, null, -1, false, false, -1);
     }
 
     public QueryContainer(Query query,
             Aggs aggs,
             List<Tuple<FieldExtraction,
             ExpressionId>> fields,
-            AttributeMap<Attribute> aliases,
+            Map<ExpressionId, Attribute> aliases,
             Map<String, GroupByKey> pseudoFunctions,
             AttributeMap<Pipe> scalarFunctions,
             Set<Sort> sort,
             int limit,
             boolean trackHits,
-            boolean includeFrozen) {
+            boolean includeFrozen,
+            int minPageSize) {
         this.query = query;
         this.aggs = aggs == null ? Aggs.EMPTY : aggs;
         this.fields = fields == null || fields.isEmpty() ? emptyList() : fields;
-        this.aliases = aliases == null || aliases.isEmpty() ? AttributeMap.emptyAttributeMap() : aliases;
+        this.aliases = aliases == null || aliases.isEmpty() ? Collections.emptyMap() : aliases;
         this.pseudoFunctions = pseudoFunctions == null || pseudoFunctions.isEmpty() ? emptyMap() : pseudoFunctions;
         this.scalarFunctions = scalarFunctions == null || scalarFunctions.isEmpty() ? AttributeMap.emptyAttributeMap() : scalarFunctions;
         this.sort = sort == null || sort.isEmpty() ? emptySet() : sort;
         this.limit = limit;
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
+        this.minPageSize = minPageSize;
     }
 
     /**
@@ -137,7 +142,7 @@ public class QueryContainer {
                 if (as.attribute() instanceof AggregateFunctionAttribute) {
                     aggSort = true;
                     AggregateFunctionAttribute afa = (AggregateFunctionAttribute) as.attribute();
-                    afa = (AggregateFunctionAttribute) aliases.getOrDefault(afa, afa);
+                    afa = (AggregateFunctionAttribute) aliases.getOrDefault(afa.innerId(), afa);
                     int atIndex = -1;
                     for (int i = 0; i < fields.size(); i++) {
                         Tuple<FieldExtraction, ExpressionId> field = fields.get(i);
@@ -175,7 +180,7 @@ public class QueryContainer {
     public BitSet columnMask(List<Attribute> columns) {
         BitSet mask = new BitSet(fields.size());
         for (Attribute column : columns) {
-            Attribute alias = aliases.get(column);
+            Attribute alias = aliases.get(column.id());
             // find the column index
             int index = -1;
 
@@ -184,7 +189,9 @@ public class QueryContainer {
                     .innerId() : alias.id()) : null;
             for (int i = 0; i < fields.size(); i++) {
                 Tuple<FieldExtraction, ExpressionId> tuple = fields.get(i);
-                if (tuple.v2().equals(id) || (aliasId != null && tuple.v2().equals(aliasId))) {
+                // if the index is already set there is a collision,
+                // so continue searching for the other tuple with the same id
+                if (mask.get(i)==false && (tuple.v2().equals(id) || (aliasId != null && tuple.v2().equals(aliasId)))) {
                     index = i;
                     break;
                 }
@@ -211,7 +218,7 @@ public class QueryContainer {
         return fields;
     }
 
-    public AttributeMap<Attribute> aliases() {
+    public Map<ExpressionId, Attribute> aliases() {
         return aliases;
     }
 
@@ -247,53 +254,66 @@ public class QueryContainer {
         return includeFrozen;
     }
 
+    public int minPageSize() {
+        return minPageSize;
+    }
+
     //
     // copy methods
     //
 
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
     }
 
-    public QueryContainer withAliases(AttributeMap<Attribute> a) {
-        return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
+    public QueryContainer withFields(List<Tuple<FieldExtraction, ExpressionId>> f) {
+        return new QueryContainer(query, aggs, f, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
+    }
+
+    public QueryContainer withAliases(Map<ExpressionId, Attribute> a) {
+        return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
     }
 
     public QueryContainer withPseudoFunctions(Map<String, GroupByKey> p) {
-        return new QueryContainer(query, aggs, fields, aliases, p, scalarFunctions, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(query, aggs, fields, aliases, p, scalarFunctions, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
     public QueryContainer with(Aggs a) {
-        return new QueryContainer(query, a, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(query, a, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
     }
 
     public QueryContainer withLimit(int l) {
         return l == limit ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, l, trackHits,
-                includeFrozen);
+                includeFrozen, minPageSize);
     }
 
     public QueryContainer withTrackHits() {
         return trackHits ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, true,
-                includeFrozen);
+                includeFrozen, minPageSize);
     }
 
     public QueryContainer withFrozen() {
         return includeFrozen ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit,
-                trackHits, true);
+                trackHits, true, minPageSize);
     }
 
     public QueryContainer withScalarProcessors(AttributeMap<Pipe> procs) {
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
     public QueryContainer addSort(Sort sortable) {
         Set<Sort> sort = new LinkedHashSet<>(this.sort);
         sort.add(sortable);
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen);
+        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                minPageSize);
     }
 
     private String aliasName(Attribute attr) {
-        return aliases.getOrDefault(attr, attr).name();
+        return aliases.getOrDefault(attr.id(), attr).name();
     }
 
     //
@@ -344,7 +364,8 @@ public class QueryContainer {
                 false, attr.parent().name());
 
         return new Tuple<>(
-                new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen),
+                new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
+                        minPageSize),
                 nestedFieldRef);
     }
 
@@ -377,7 +398,7 @@ public class QueryContainer {
 
     // replace function/operators's input with references
     private Tuple<QueryContainer, FieldExtraction> resolvedTreeComputingRef(ScalarFunctionAttribute ta) {
-        Attribute attribute = aliases.getOrDefault(ta, ta);
+        Attribute attribute = aliases.getOrDefault(ta.id(), ta);
         Pipe proc = scalarFunctions.get(attribute);
 
         // check the attribute itself
@@ -399,7 +420,7 @@ public class QueryContainer {
 
             @Override
             public FieldExtraction resolve(Attribute attribute) {
-                Attribute attr = aliases.getOrDefault(attribute, attribute);
+                Attribute attr = aliases.getOrDefault(attribute.id(), attribute);
                 Tuple<QueryContainer, FieldExtraction> ref = container.toReference(attr);
                 container = ref.v1();
                 return ref.v2();
@@ -447,7 +468,7 @@ public class QueryContainer {
         ExpressionId id = attr instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) attr).innerId() : attr.id();
         return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, id)), aliases, pseudoFunctions,
                 scalarFunctions,
-                sort, limit, trackHits, includeFrozen);
+                sort, limit, trackHits, includeFrozen, minPageSize);
     }
 
     public AttributeMap<Pipe> scalarFunctions() {
@@ -466,8 +487,8 @@ public class QueryContainer {
         return with(aggs.addGroups(values));
     }
 
-    public GroupByKey findGroupForAgg(String aggId) {
-        return aggs.findGroupForAgg(aggId);
+    public GroupByKey findGroupForAgg(Attribute attr) {
+        return aggs.findGroupForAgg(attr);
     }
 
     public QueryContainer updateGroup(GroupByKey group) {

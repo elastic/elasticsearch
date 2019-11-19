@@ -20,7 +20,7 @@ experimental[]
 
 * You must have `monitor`, `monitor_rollup`, `manage` or `manage_rollup` cluster
 privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[rollup-get-job-desc]]
 ==== {api-description-title}

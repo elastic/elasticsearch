@@ -103,11 +103,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
             Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
-            return Explanation.match((float) (execute()), "This script returned " + execute(), scoreExp);
+            return Explanation.match((float) (execute(null)), "This script returned " + execute(null), scoreExp);
         }
 
         @Override
-        public double execute() {
+        public double execute(ExplanationHolder explanation) {
             return ((Number) ((ScriptDocValues) getDoc().get("number_field")).get(0)).doubleValue();
         }
     }
@@ -120,7 +120,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
     public void testExplainScript() throws InterruptedException, IOException, ExecutionException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
-            indexRequests.add(client().prepareIndex("test", "type").setId(Integer.toString(i)).setSource(
+            indexRequests.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource(
                     jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject()));
         }
         indexRandom(true, true, indexRequests);

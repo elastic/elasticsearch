@@ -23,7 +23,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.test.ESTestCase;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -33,6 +32,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
+import static org.elasticsearch.test.ESTestCase.waitUntil;
 
 public class MockPageCacheRecycler extends PageCacheRecycler {
 
@@ -44,8 +45,8 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing pages, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
-            boolean success =
-                    ESTestCase.awaitBusy(() -> Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()));
+            final boolean success =
+                waitUntil(() -> Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()));
             if (!success) {
                 masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
                 ACQUIRED_PAGES.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on

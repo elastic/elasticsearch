@@ -101,7 +101,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         for (int i = 1; i <= numDataFrameAnalyticsTasks; ++i) {
             String id = "analytics" + i;
             allIds.add(id);
-            PersistentTasksCustomMetaData.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id);
+            PersistentTasksCustomMetaData.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
             tasks.put(task.getId(), task);
         }
 
@@ -142,7 +142,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         int numDataFrameAnalyticsTasks = randomIntBetween(2, 5);
         for (int i = 1; i <= numDataFrameAnalyticsTasks; ++i) {
             String id = "analytics" + i;
-            PersistentTasksCustomMetaData.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id);
+            PersistentTasksCustomMetaData.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
             tasks.put(task.getId(), task);
         }
 
@@ -261,9 +261,10 @@ public class MlMemoryTrackerTests extends ESTestCase {
     }
 
     private
-    PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> makeTestDataFrameAnalyticsTask(String id) {
+    PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>
+    makeTestDataFrameAnalyticsTask(String id, boolean allowLazyStart) {
         return new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.dataFrameAnalyticsTaskId(id),
-            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT), 0,
-            PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT);
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT,
+            Collections.emptyList(), allowLazyStart), 0, PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT);
     }
 }

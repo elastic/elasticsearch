@@ -105,7 +105,6 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -146,12 +145,10 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -164,8 +161,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -186,6 +181,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -439,10 +435,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // keep this low so we don't stall tests
             builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
                     RandomNumbers.randomIntBetween(random, 1, 15) + "ms");
-        }
-
-        if (randomBoolean()) {
-            builder.put(Store.FORCE_RAM_TERM_DICT.getKey(), true);
         }
 
         return builder;
@@ -798,8 +790,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             sb.append(value).append("] results. expected [").append(expectedResults).append("]");
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
-                sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
-                    .append("] id [").append(hit.getId()).append("]");
+                sb.append("\n-> _index: [").append(hit.getIndex()).append("] id [").append(hit.getId()).append("]");
             }
             logger.warn("{}", sb);
             fail(failMsg);
@@ -930,67 +921,50 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Waits until at least a give number of document is visible for searchers
      *
      * @param numDocs number of documents to wait for
-     * @param indexer a {@link org.elasticsearch.test.BackgroundIndexer}. If supplied it will be first checked for documents indexed.
+     * @param indexer a {@link org.elasticsearch.test.BackgroundIndexer}. It will be first checked for documents indexed.
      *                This saves on unneeded searches.
-     * @return the actual number of docs seen.
      */
-    public long waitForDocs(final long numDocs, @Nullable final BackgroundIndexer indexer) throws InterruptedException {
+    public void waitForDocs(final long numDocs, final BackgroundIndexer indexer) throws Exception {
         // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
-        return waitForDocs(numDocs, 90, TimeUnit.SECONDS, indexer);
-    }
+        final long maxWaitTimeMs = Math.max(90 * 1000, 200 * numDocs);
 
-    /**
-     * Waits until at least a give number of document is visible for searchers
-     *
-     * @param numDocs         number of documents to wait for
-     * @param maxWaitTime     if not progress have been made during this time, fail the test
-     * @param maxWaitTimeUnit the unit in which maxWaitTime is specified
-     * @param indexer         If supplied it will be first checked for documents indexed.
-     *                        This saves on unneeded searches.
-     * @return the actual number of docs seen.
-     */
-    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, @Nullable final BackgroundIndexer indexer)
-        throws InterruptedException {
-        final AtomicLong lastKnownCount = new AtomicLong(-1);
-        long lastStartCount = -1;
-        BooleanSupplier testDocs = () -> {
-            if (indexer != null) {
-                lastKnownCount.set(indexer.totalIndexedDocs());
-            }
-            if (lastKnownCount.get() >= numDocs) {
-                try {
+        assertBusy(
+            () -> {
+                long lastKnownCount = indexer.totalIndexedDocs();
 
-                    long count = client().prepareSearch()
-                        .setTrackTotalHits(true)
-                        .setSize(0)
-                        .setQuery(matchAllQuery())
-                        .get()
-                        .getHits().getTotalHits().value;
+                if (lastKnownCount >= numDocs) {
+                    try {
+                        long count = client().prepareSearch()
+                            .setTrackTotalHits(true)
+                            .setSize(0)
+                            .setQuery(matchAllQuery())
+                            .get()
+                            .getHits().getTotalHits().value;
 
-                    if (count == lastKnownCount.get()) {
-                        // no progress - try to refresh for the next time
-                        client().admin().indices().prepareRefresh().get();
+                        if (count == lastKnownCount) {
+                            // no progress - try to refresh for the next time
+                            client().admin().indices().prepareRefresh().get();
+                        }
+                        lastKnownCount = count;
+                    } catch (Exception e) { // count now acts like search and barfs if all shards failed...
+                        logger.debug("failed to executed count", e);
+                        throw e;
                     }
-                    lastKnownCount.set(count);
-                } catch (Exception e) { // count now acts like search and barfs if all shards failed...
-                    logger.debug("failed to executed count", e);
-                    return false;
                 }
-                logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
-            } else {
-                logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
-            }
-            return lastKnownCount.get() >= numDocs;
-        };
 
-        while (!awaitBusy(testDocs, maxWaitTime, maxWaitTimeUnit)) {
-            if (lastStartCount == lastKnownCount.get()) {
-                // we didn't make any progress
-                fail("failed to reach " + numDocs + "docs");
-            }
-            lastStartCount = lastKnownCount.get();
-        }
-        return lastKnownCount.get();
+                if (logger.isDebugEnabled()) {
+                    if (lastKnownCount < numDocs) {
+                        logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount, numDocs);
+                    } else {
+                        logger.debug("[{}] docs visible for search (needed [{}])", lastKnownCount, numDocs);
+                    }
+                }
+
+                assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
+            },
+            maxWaitTimeMs,
+            TimeUnit.MILLISECONDS
+        );
     }
 
     /**
@@ -1111,53 +1085,53 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for:
      * <pre>
-     *   client().prepareIndex(index, type).setSource(source).execute().actionGet();
+     *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, XContentBuilder source) {
-        return client().prepareIndex(index, type).setSource(source).execute().actionGet();
+    protected final IndexResponse index(String index, XContentBuilder source) {
+        return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   client().prepareIndex(index, type).setSource(source).execute().actionGet();
+     *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, Map<String, Object> source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    protected final IndexResponse index(String index, String id, Map<String, Object> source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, XContentBuilder source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    protected final IndexResponse index(String index, String id, XContentBuilder source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, Object... source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    protected final IndexResponse indexDoc(String index, String id, Object... source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      * <p>
      * where source is a JSON String.
      */
-    protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index, type, id).setSource(source, XContentType.JSON).execute().actionGet();
+    protected final IndexResponse index(String index, String id, String source) {
+        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
     /**
@@ -1308,10 +1282,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders)
             throws InterruptedException {
         Random random = random();
-        Map<String, Set<String>> indicesAndTypes = new HashMap<>();
+        Set<String> indices = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {
-            final Set<String> types = indicesAndTypes.computeIfAbsent(builder.request().index(), index -> new HashSet<>());
-            types.add(builder.request().type());
+            indices.add(builder.request().index());
         }
         Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
         if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
@@ -1322,33 +1295,31 @@ public abstract class ESIntegTestCase extends ESTestCase {
             for (int i = 0; i < numBogusDocs; i++) {
                 String id = "bogus_doc_"
                         + randomRealisticUnicodeOfLength(unicodeLen)
-                        + Integer.toString(dummmyDocIdGenerator.incrementAndGet());
-                Map.Entry<String, Set<String>> indexAndTypes = RandomPicks.randomFrom(random, indicesAndTypes.entrySet());
-                String index = indexAndTypes.getKey();
-                String type = RandomPicks.randomFrom(random, indexAndTypes.getValue());
-                bogusIds.add(Arrays.asList(index, type, id));
+                        + dummmyDocIdGenerator.incrementAndGet();
+                String index = RandomPicks.randomFrom(random, indices);
+                bogusIds.add(Arrays.asList(index, id));
                 // We configure a routing key in case the mapping requires it
-                builders.add(client().prepareIndex(index, type, id).setSource("{}", XContentType.JSON).setRouting(id));
+                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", XContentType.JSON).setRouting(id));
             }
         }
         Collections.shuffle(builders, random());
         final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
         List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time.  If many then frequently in bulk.
-        final String[] indices = indicesAndTypes.keySet().toArray(new String[0]);
+        final String[] indicesArray = indices.toArray(new String[]{});
         if (builders.size() < FREQUENT_BULK_THRESHOLD ? frequently() : builders.size() < ALWAYS_BULK_THRESHOLD ? rarely() : false) {
             if (frequently()) {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), true, false);
                 for (IndexRequestBuilder indexRequestBuilder : builders) {
                     indexRequestBuilder.execute(
                             new PayloadLatchedActionListener<>(indexRequestBuilder, newLatch(inFlightAsyncOperations), errors));
-                    postIndexAsyncActions(indices, inFlightAsyncOperations, maybeFlush);
+                    postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush);
                 }
             } else {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), false, false);
                 for (IndexRequestBuilder indexRequestBuilder : builders) {
                     indexRequestBuilder.execute().actionGet();
-                    postIndexAsyncActions(indices, inFlightAsyncOperations, maybeFlush);
+                    postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush);
                 }
             }
         } else {
@@ -1381,13 +1352,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
-                assertEquals("failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(2) + "]",
+                assertEquals("failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(1) + "]",
                     DocWriteResponse.Result.DELETED,
-                    client().prepareDelete(doc.get(0), doc.get(1), doc.get(2)).setRouting(doc.get(2)).get().getResult());
+                    client().prepareDelete(doc.get(0), doc.get(1)).setRouting(doc.get(1)).get().getResult());
             }
         }
         if (forceRefresh) {
-            assertNoFailures(client().admin().indices().prepareRefresh(indices)
+            assertNoFailures(client().admin().indices().prepareRefresh(indicesArray)
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .get());
         }
@@ -1975,19 +1946,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     @AfterClass
     public static void afterClass() throws Exception {
-        if (!runTestScopeLifecycle()) {
-            try {
+        try {
+            if (runTestScopeLifecycle()) {
+                clearClusters();
+            } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 checkStaticState(true);
-            } finally {
-                INSTANCE = null;
             }
-        } else {
-            clearClusters();
+        } finally {
+            SUITE_SEED = null;
+            currentCluster = null;
+            INSTANCE = null;
         }
-        SUITE_SEED = null;
-        currentCluster = null;
     }
 
     private static void initializeSuiteScope() throws Exception {
@@ -2114,6 +2085,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
+        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 }

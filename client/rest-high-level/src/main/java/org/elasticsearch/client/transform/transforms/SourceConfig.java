@@ -35,14 +35,14 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 
 /**
- * Class encapsulating all options for a {@link DataFrameTransformConfig} gathering data
+ * Class encapsulating all options for a {@link TransformConfig} gathering data
  */
 public class SourceConfig implements ToXContentObject {
 
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField INDEX = new ParseField("index");
 
-    public static final ConstructingObjectParser<SourceConfig, Void> PARSER = new ConstructingObjectParser<>("data_frame_config_source",
+    public static final ConstructingObjectParser<SourceConfig, Void> PARSER = new ConstructingObjectParser<>("transform_config_source",
     true,
     args -> {
         @SuppressWarnings("unchecked")

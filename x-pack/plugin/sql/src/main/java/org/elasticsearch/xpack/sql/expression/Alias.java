@@ -108,7 +108,7 @@ public class Alias extends NamedExpression {
 
             Attribute attr = Expressions.attribute(c);
             if (attr != null) {
-                return attr.clone(source(), name(), qualifier, child.nullable(), id(), synthetic());
+                return attr.clone(source(), name(), child.dataType(), qualifier, child.nullable(), id(), synthetic());
             }
             else {
                 // TODO: WE need to fix this fake Field

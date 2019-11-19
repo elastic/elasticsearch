@@ -316,7 +316,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         try {
             return context.factoryClazz.cast(factory.getConstructor().newInstance());
-        } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
+        } catch (Exception exception) {
+            // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException(
                 "An internal error occurred attempting to define the factory class [" + className + "].", exception);
         }

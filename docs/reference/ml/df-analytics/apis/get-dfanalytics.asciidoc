@@ -26,8 +26,7 @@ experimental[]
 ==== {api-prereq-title}
 
 * You must have `monitor_ml` privilege to use this API. For more 
-information, see {stack-ov}/security-privileges.html[Security privileges] and 
-{stack-ov}/built-in-roles.html[Built-in roles].
+information, see <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-get-dfanalytics-desc]]
 ==== {api-description-title}

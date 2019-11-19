@@ -31,11 +31,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,48 +53,71 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metaData, routingTable);
-        PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
-            .addTask("transform-task-1",
+        PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData
+            .builder()
+            .addTask(
+                "transform-task-1",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-1", Version.CURRENT, null),
-                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""))
-            .addTask("transform-task-2",
+                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", "")
+            )
+            .addTask(
+                "transform-task-2",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-2", Version.CURRENT, null),
-                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""))
-            .addTask("transform-task-3",
+                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", "")
+            )
+            .addTask(
+                "transform-task-3",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-3", Version.CURRENT, null),
-                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""));
+                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", "")
+            );
 
         PersistentTasksCustomMetaData pTasks = pTasksBuilder.build();
 
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, pTasks);
 
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("past-data-node-1",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-                Version.V_7_2_0))
-            .add(new DiscoveryNode("current-data-node-with-2-tasks",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT))
-            .add(new DiscoveryNode("non-data-node-1",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT))
-            .add(new DiscoveryNode("current-data-node-with-1-tasks",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT));
+        DiscoveryNodes.Builder nodes = DiscoveryNodes
+            .builder()
+            .add(
+                new DiscoveryNode(
+                    "past-data-node-1",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                    Version.V_7_2_0
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "current-data-node-with-2-tasks",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "non-data-node-1",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    Set.of(DiscoveryNodeRole.MASTER_ROLE),
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "current-data-node-with-1-tasks",
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                    Version.CURRENT
+                )
+            );
 
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
-            .nodes(nodes);
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).nodes(nodes);
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
 
@@ -101,25 +125,34 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
         TransformConfigManager transformsConfigManager = new TransformConfigManager(client, xContentRegistry());
-        TransformCheckpointService transformCheckpointService = new TransformCheckpointService(client,
-            transformsConfigManager, mockAuditor);
-        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
-            Collections.singleton(TransformTask.NUM_FAILURE_RETRIES_SETTING));
+        TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
+            client,
+            transformsConfigManager,
+            mockAuditor
+        );
+        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
         when(clusterService.state()).thenReturn(TransformInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
-        TransformPersistentTasksExecutor executor = new TransformPersistentTasksExecutor(client,
+        TransformPersistentTasksExecutor executor = new TransformPersistentTasksExecutor(
+            client,
             transformsConfigManager,
-            transformCheckpointService, mock(SchedulerEngine.class),
+            transformCheckpointService,
+            mock(SchedulerEngine.class),
             new TransformAuditor(client, ""),
             mock(ThreadPool.class),
             clusterService,
-            Settings.EMPTY);
+            Settings.EMPTY
+        );
 
-        assertThat(executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
-            equalTo("current-data-node-with-1-tasks"));
-        assertThat(executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
-            equalTo("past-data-node-1"));
+        assertThat(
+            executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
+            equalTo("current-data-node-with-1-tasks")
+        );
+        assertThat(
+            executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
+            equalTo("past-data-node-1")
+        );
     }
 
     public void testVerifyIndicesPrimaryShardsAreActive() {
@@ -136,17 +169,26 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        String indexToRemove = TransformInternalIndex.LATEST_INDEX_NAME;
+        String indexToRemove = TransformInternalIndexConstants.LATEST_INDEX_NAME;
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
         } else {
             Index index = new Index(indexToRemove, "_uuid");
             ShardId shardId = new ShardId(index, 0);
-            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+            ShardRouting shardRouting = ShardRouting
+                .newUnassigned(
+                    shardId,
+                    true,
+                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
-            routingTable.add(IndexRoutingTable.builder(index)
-                .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+            routingTable
+                .add(
+                    IndexRoutingTable
+                        .builder(index)
+                        .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+                );
         }
 
         csBuilder.routingTable(routingTable.build());
@@ -158,24 +200,36 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
-        indices.add(TransformInternalIndex.AUDIT_INDEX);
-        indices.add(TransformInternalIndex.LATEST_INDEX_NAME);
+        indices.add(TransformInternalIndexConstants.AUDIT_INDEX);
+        indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
-            indexMetaData.settings(Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            );
+            indexMetaData
+                .settings(
+                    Settings
+                        .builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                );
             metaData.put(indexMetaData);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
-            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+            ShardRouting shardRouting = ShardRouting
+                .newUnassigned(
+                    shardId,
+                    true,
+                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted();
-            routingTable.add(IndexRoutingTable.builder(index)
-                .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+            routingTable
+                .add(
+                    IndexRoutingTable
+                        .builder(index)
+                        .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
+                );
         }
     }
 

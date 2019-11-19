@@ -66,9 +66,9 @@ public class ScalarFunctionAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, String qualifier, Nullability nullability,
+    protected Attribute clone(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
                               ExpressionId id, boolean synthetic) {
-        return new ScalarFunctionAttribute(source, name, dataType(), qualifier, nullability,
+        return new ScalarFunctionAttribute(source, name, dataType, qualifier, nullability,
             id, synthetic, functionId(), script, orderBy, pipe);
     }
 

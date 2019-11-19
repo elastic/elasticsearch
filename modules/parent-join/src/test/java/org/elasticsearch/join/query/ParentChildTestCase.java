@@ -111,7 +111,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
         String name = type;
         type = "doc";
 
-        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index, type, id);
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index).setId(id);
         Map<String, Object> joinField = new HashMap<>();
         if (parentId != null) {
             joinField.put("name", name);

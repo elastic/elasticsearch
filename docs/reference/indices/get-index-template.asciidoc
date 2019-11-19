@@ -1,7 +1,7 @@
 [[indices-get-template]]
 === Get index template API
 ++++
-<titleabbrev>Get template index</titleabbrev>
+<titleabbrev>Get index template</titleabbrev>
 ++++
 
 Returns information about one or more index templates.
@@ -45,8 +45,6 @@ or use a value of `_all` or `*`.
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 

@@ -419,7 +419,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         indexMetaData.state(state);
         final Map<String, String> mappings = getTemplateMappings(templateName);
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            indexMetaData.putMapping(entry.getKey(), entry.getValue());
+            indexMetaData.putMapping(entry.getValue());
         }
 
         return indexMetaData;
@@ -535,7 +535,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .build());
 
         for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-            indexMetaData.putMapping(entry.getKey(), entry.getValue());
+            indexMetaData.putMapping(entry.getValue());
         }
         return indexMetaData;
     }

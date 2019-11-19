@@ -76,7 +76,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`.
+The following metadata fields are accessible by a processor: `_index`, `_id`, `_routing`.
 
 [float]
 [[accessing-ingest-metadata]]
@@ -198,7 +198,6 @@ Results in nothing indexed since the conditional evaluated to `true`.
 --------------------------------------------------
 {
   "_index": "test",
-  "_type": "_doc",
   "_id": "1",
   "_version": -3,
   "result": "noop",
@@ -276,7 +275,6 @@ GET test/_doc/2
 --------------------------------------------------
 {
   "_index": "test",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_seq_no": 22,
@@ -465,7 +463,6 @@ GET test/_doc/2
 --------------------------------------------------
 {
   "_index": "test",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_seq_no": 34,
@@ -586,7 +583,6 @@ GET test/_doc/1
 --------------------------------------------------
 {
   "_index": "test",
-  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "_seq_no": 60,
@@ -753,6 +749,10 @@ metadata field to provide the error message.
 --------------------------------------------------
 // NOTCONSOLE
 
+
+include::enrich.asciidoc[]
+
+
 [[ingest-processors]]
 == Processors
 
@@ -829,6 +829,7 @@ include::processors/date-index-name.asciidoc[]
 include::processors/dissect.asciidoc[]
 include::processors/dot-expand.asciidoc[]
 include::processors/drop.asciidoc[]
+include::processors/enrich.asciidoc[]
 include::processors/fail.asciidoc[]
 include::processors/foreach.asciidoc[]
 include::processors/geoip.asciidoc[]

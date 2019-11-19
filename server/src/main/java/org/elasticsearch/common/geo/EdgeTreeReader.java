@@ -21,6 +21,8 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.apache.lucene.geo.GeoUtils.lineCrossesLineWithBoundary;
@@ -34,12 +36,19 @@ public class EdgeTreeReader implements ShapeTreeReader {
     private final int startPosition;
     private final boolean hasArea;
     private final Extent extent;
+    private final Map<Integer, Edge> cachedEdges;
 
     public EdgeTreeReader(ByteBufferStreamInput input, boolean hasArea) throws IOException {
         this.startPosition = input.position();
         this.input = input;
         this.hasArea = hasArea;
         this.extent = getExtent();
+        this.cachedEdges = new LinkedHashMap<>(10, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry eldest) {
+                return size() > 1000;
+            }
+        };
     }
 
     public Extent getExtent() throws IOException {
@@ -72,9 +81,8 @@ public class EdgeTreeReader implements ShapeTreeReader {
     }
 
     boolean containsBottomLeft(Extent extent) throws IOException {
-        resetInputPosition();
-
-        Optional<Boolean> extentCheck = checkExtent(new Extent(input), extent);
+        resetToRootEdge();
+        Optional<Boolean> extentCheck = checkExtent(this.extent, extent);
         if (extentCheck.isPresent()) {
             return extentCheck.get();
         }
@@ -83,15 +91,13 @@ public class EdgeTreeReader implements ShapeTreeReader {
     }
 
     boolean containsFully(Extent extent) throws IOException {
-        resetInputPosition();
-        input.position(input.position() + Extent.WRITEABLE_SIZE_IN_BYTES); // skip extent
+        resetToRootEdge();
         return containsFully(readRoot(input.position()), extent);
     }
 
     public boolean crosses(Extent extent) throws IOException {
-        resetInputPosition();
-
-        Optional<Boolean> extentCheck = checkExtent(new Extent(input), extent);
+        resetToRootEdge();
+        Optional<Boolean> extentCheck = checkExtent(this.extent, extent);
         if (extentCheck.isPresent()) {
             return extentCheck.get();
         }
@@ -108,20 +114,27 @@ public class EdgeTreeReader implements ShapeTreeReader {
     }
 
     private Edge readEdge(int position) throws IOException {
-        input.position(position);
-        int maxY = Math.toIntExact(extent.maxY() - input.readVLong());
-        int minY = Math.toIntExact(extent.maxY() - input.readVLong());
-        int x1 = Math.toIntExact(extent.maxX() - input.readVLong());
-        int x2 = Math.toIntExact(extent.maxX() - input.readVLong());
-        int y1 = Math.toIntExact(extent.maxY() - input.readVLong());
-        int y2 = Math.toIntExact(extent.maxY() - input.readVLong());
-        int rightOffset = input.readVInt();
-        if (rightOffset == 1) {
-            rightOffset = 0;
-        } else if (rightOffset == 0) {
-            rightOffset = -1;
+        Edge edge = cachedEdges.get(position);
+        if (edge == null) {
+            input.position(position);
+            int maxY = Math.toIntExact(extent.maxY() - input.readVLong());
+            int minY = Math.toIntExact(extent.maxY() - input.readVLong());
+            int x1 = Math.toIntExact(extent.maxX() - input.readVLong());
+            int x2 = Math.toIntExact(extent.maxX() - input.readVLong());
+            int y1 = Math.toIntExact(extent.maxY() - input.readVLong());
+            int y2 = Math.toIntExact(extent.maxY() - input.readVLong());
+            int rightOffset = input.readVInt();
+            if (rightOffset == 1) {
+                rightOffset = 0;
+            } else if (rightOffset == 0) {
+                rightOffset = -1;
+            }
+            edge = new Edge(input.position(), x1, y1, x2, y2, minY, maxY, rightOffset);
+            cachedEdges.put(position, edge);
+            return edge;
+        } else {
+            return edge;
         }
-        return new Edge(input.position(), x1, y1, x2, y2, minY, maxY, rightOffset);
     }
 
 
@@ -229,6 +242,10 @@ public class EdgeTreeReader implements ShapeTreeReader {
 
     private void resetInputPosition() throws IOException {
         input.position(startPosition);
+    }
+
+    private void resetToRootEdge() throws IOException {
+        input.position(startPosition + Extent.WRITEABLE_SIZE_IN_BYTES); // skip extent
     }
 
     private static final class Edge {

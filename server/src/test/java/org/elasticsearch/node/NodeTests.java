@@ -180,13 +180,13 @@ public class NodeTests extends ESTestCase {
             } catch (InterruptedException e) {
                 throw new AssertionError("interrupted while waiting", e);
             }
-            threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                try {
+            try {
+                threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
                     while (shouldRun.get());
-                } catch (RejectedExecutionException e) {
-                    assertThat(e.getMessage(), containsString("[Terminated,"));
-                }
-            });
+                });
+            } catch (RejectedExecutionException e) {
+                assertThat(e.getMessage(), containsString("[Terminated,"));
+            }
         });
         Thread closeThread = new Thread(() -> {
             running.countDown();

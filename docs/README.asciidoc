@@ -6,20 +6,15 @@ See: https://github.com/elastic/docs
 === Backporting doc fixes
 
 * Doc changes should generally be made against master and backported through to the current version
-  (as applicable). 
+  (as applicable).  
+  
+* Changes can also be backported to the maintenance version of the previous major version. 
+  This is typically reserved for technical corrections, as it can require resolving more complex
+  merge conflicts, fixing test failures, and figuring out where to apply the change.
 
-* Important technical corrections that need to be applied to the maintenance version of the
-  previous major version also need to be applied to all intervening minor versions. 
-
-* Routine doc fixes and enhancements generally should not be backported to minor versions 
-  that are out of maintenance or across major versions. 
-  The time required to resolve complex merge conflicts, fix test failures, and figure out where
-  to apply the change when the content structure has changed is better spent making additional
-  improvements.  
-
-* Doc PRs opened against out of maintenance, non-EOL versions can be merged to that version. 
-  Where applicable, the change should be merged to master and backported through 
-  to the current version. 
+* Avoid backporting to out-of-maintenance versions. 
+  Docs follow the same policy as code and fixes are not ordinarily merged to
+  versions that are out of maintenance.
   
 * Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions]. 
 

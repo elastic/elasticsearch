@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -270,9 +269,11 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 assertFalse(BlobStoreTestUtil.blobExists(indicesBlobContainer.get(), indexId.getId())); // deleted index
             }
         }
+
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snap2").get());
     }
 
-    protected void addRandomDocuments(String name, int numDocs) throws ExecutionException, InterruptedException {
+    protected void addRandomDocuments(String name, int numDocs) throws InterruptedException {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             indexRequestBuilders[i] = client().prepareIndex(name).setId(Integer.toString(i))

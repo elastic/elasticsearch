@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -136,7 +137,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.ANY, ValueType.DATE);
+        super(name, CoreValuesSourceType.ANY, ValueType.DATE);
     }
 
     protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
@@ -157,7 +158,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY, ValueType.DATE);
+        super(in, CoreValuesSourceType.ANY, ValueType.DATE);
         order = InternalOrder.Streams.readHistogramOrder(in, true);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
@@ -169,7 +170,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     @Override
     protected ValuesSourceType resolveScriptAny(Script script) {
         // TODO: No idea how we'd support Range scripts here.
-        return ValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.NUMERIC;
     }
 
 

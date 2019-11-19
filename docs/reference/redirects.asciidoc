@@ -986,4 +986,13 @@ See:
 * {packetbeat-ref}/securing-beats.html[{packetbeat}]
 * {winlogbeat-ref}/securing-beats.html[{winlogbeat}]
 
+[role="exclude",id="configuring-pki-realm"]
+=== Configuring a PKI realm
+
+See <<pki-realm>>.
+
+[role="exclude",id="pki-settings"]
+==== PKI realm settings
+
+See <<ref-pki-settings>>.
 

@@ -28,9 +28,6 @@ Allocation::
 Analysis::
 * Actually close IndexAnalyzers contents {pull}43914[#43914]
 
-Authentication::
-* Remove unnecessary details logged for OIDC {pull}48271[#48271]
-
 CCR::
 * Handle lower retaining sequence number retention lease error {pull}46420[#46420] (issues: {issue}46013[#46013], {issue}46416[#46416])
 

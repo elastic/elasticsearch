@@ -26,8 +26,12 @@ import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Docker;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Assert;
@@ -40,6 +44,8 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
@@ -119,7 +125,73 @@ public abstract class PackagingTestCase extends Assert {
         return distribution;
     }
 
-    protected Shell newShell() throws Exception {
+    protected static void install() throws Exception {
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                installation = Archives.installArchive(distribution);
+                Archives.verifyArchiveInstallation(installation, distribution);
+                break;
+            case DEB:
+            case RPM:
+                installation = Packages.installPackage(distribution);
+                Packages.verifyPackageInstallation(installation, distribution, newShell());
+                break;
+            case DOCKER:
+                installation = Docker.runContainer(distribution);
+                Docker.verifyContainerInstallation(installation, distribution);
+        }
+    }
+
+    protected Shell.Result runTool(String tool, String args) throws Exception {
+        if (Platforms.WINDOWS) {
+            tool += ".bat";
+        }
+        Path path = installation.bin(tool);
+        return sh.run(path.toString() + " " + args);
+    }
+
+    protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
+        try {
+            switch (distribution.packaging) {
+                case TAR:
+                case ZIP:
+                    Archives.runElasticsearch(installation, sh);
+                    break;
+                case DEB:
+                case RPM:
+                    Packages.startElasticsearch(sh, installation);
+                    break;
+                case DOCKER:
+                    // nothing, "installing" docker image is running it
+            }
+
+        } catch (Exception e ){
+            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
+                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
+                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+                sh.runIgnoreExitCode("jstack " + pid);
+            }
+            throw e;
+        }
+
+        assertions.run();
+
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                Archives.stopElasticsearch(installation);
+                break;
+            case DEB:
+            case RPM:
+                Packages.stopElasticsearch(sh);
+                break;
+            case DOCKER:
+                // nothing, removing container is handled externally
+        }
+    }
+
+    protected static Shell newShell() throws Exception {
         Shell sh = new Shell();
         if (distribution().hasJdk == false) {
             Platforms.onLinux(() -> {

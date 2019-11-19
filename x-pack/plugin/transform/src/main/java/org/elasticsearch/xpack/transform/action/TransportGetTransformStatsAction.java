@@ -47,8 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class TransportGetTransformStatsAction extends
-    TransportTasksAction<TransformTask, GetTransformStatsAction.Request, GetTransformStatsAction.Response, GetTransformStatsAction.Response> {
+public class TransportGetTransformStatsAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetTransformStatsAction.class);
 

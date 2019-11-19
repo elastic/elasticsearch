@@ -408,7 +408,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
      */
     @Override
     public synchronized void shutdown() {
-        logger.trace("shutdown requested");
+        logger.debug("[{}] shutdown of transform requested", transform.getId());
         deregisterSchedulerJob();
         markAsCompleted();
     }

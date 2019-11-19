@@ -98,7 +98,7 @@ public class SSLService {
     }
 
     private static final Setting<Boolean> DIAGNOSE_TRUST_EXCEPTIONS_SETTING = Setting.boolSetting(
-        "xpack.security.ssl.diagnose_trust_failure", true, Setting.Property.NodeScope);
+        "xpack.security.ssl.diagnose.trust", true, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final boolean diagnoseTrustExceptions;
@@ -450,7 +450,7 @@ public class SSLService {
         }
     }
 
-    private X509ExtendedTrustManager wrapWithDiagnostics(X509ExtendedTrustManager trustManager, SSLConfiguration configuration) {
+    X509ExtendedTrustManager wrapWithDiagnostics(X509ExtendedTrustManager trustManager, SSLConfiguration configuration) {
         if (diagnoseTrustExceptions && trustManager instanceof DiagnosticTrustManager == false) {
             final Logger diagnosticLogger = LogManager.getLogger(DiagnosticTrustManager.class);
             // A single configuration might be used in many place, if there are multiple, we just list "shared" because

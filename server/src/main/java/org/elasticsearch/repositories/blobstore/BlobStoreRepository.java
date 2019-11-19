@@ -116,6 +116,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -752,11 +753,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // directory if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
         // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened
         // when writing the index-${N} to each shard directory.
+        final Consumer<Exception> onUpdateFailure =
+            e -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e));
         final ActionListener<SnapshotInfo> allMetaListener = new GroupedActionListener<>(
             ActionListener.wrap(snapshotInfos -> {
-                    assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
-                    final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
-                    final RepositoryData existingRepositoryData = getRepositoryData();
+                assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
+                final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
+                getRepositoryData(ActionListener.wrap(existingRepositoryData -> {
                     final RepositoryData updatedRepositoryData =
                         existingRepositoryData.addSnapshot(snapshotId, snapshotInfo.state(), shardGenerations);
                     writeIndexGen(updatedRepositoryData, repositoryStateId, writeShardGens);
@@ -764,9 +767,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
                     }
                     listener.onResponse(snapshotInfo);
-                },
-                e -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e))),
-            2 + indices.size());
+                }, onUpdateFailure));
+            }, onUpdateFailure), 2 + indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
@@ -931,31 +933,33 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.EMPTY_REPO_GEN);
 
     @Override
-    public RepositoryData getRepositoryData() {
-        // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
-        while (true) {
-            final long generation;
-            try {
-                generation = latestIndexBlobId();
-            } catch (IOException ioe) {
-                throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
-            }
-            final long genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
-            if (genToLoad > generation) {
-                logger.info("Determined repository generation [" + generation
-                    + "] from repository contents but correct generation must be at least [" + genToLoad + "]");
-            }
-            try {
-                return getRepositoryData(genToLoad);
-            } catch (RepositoryException e) {
-                if (genToLoad != latestKnownRepoGen.get()) {
-                    logger.warn("Failed to load repository data generation [" + genToLoad +
-                        "] because a concurrent operation moved the current generation to [" + latestKnownRepoGen.get() + "]", e);
-                    continue;
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        ActionListener.completeWith(listener, () -> {
+            // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
+            while (true) {
+                final long generation;
+                try {
+                    generation = latestIndexBlobId();
+                } catch (IOException ioe) {
+                    throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
                 }
-                throw e;
+                final long genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
+                if (genToLoad > generation) {
+                    logger.info("Determined repository generation [" + generation
+                        + "] from repository contents but correct generation must be at least [" + genToLoad + "]");
+                }
+                try {
+                    return getRepositoryData(genToLoad);
+                } catch (RepositoryException e) {
+                    if (genToLoad != latestKnownRepoGen.get()) {
+                        logger.warn("Failed to load repository data generation [" + genToLoad +
+                            "] because a concurrent operation moved the current generation to [" + latestKnownRepoGen.get() + "]", e);
+                        continue;
+                    }
+                    throw e;
+                }
             }
-        }
+        });
     }
 
     private RepositoryData getRepositoryData(long indexGen) {

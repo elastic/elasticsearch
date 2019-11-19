@@ -38,7 +38,7 @@ Engine::
 * Fix refresh optimization for realtime get in mixed cluster {pull}48151[#48151] (issue: {issue}48114[#48114])
 
 Features/Java High Level REST Client::
-* Fix ILM HLRC Javadoc->Documentation links {pull}48083[#48083]
+* Fix ILM HLRC Javadoc->documentation links {pull}48083[#48083]
 * Prevent deadlock in BulkProcessor by using separate schedulers {pull}48697[#48697] (issue: {issue}47599[#47599])
 
 Infra/Logging::
@@ -50,10 +50,10 @@ Machine Learning::
 
 SQL::
 * Fix issue with negative literels and parentheses {pull}48113[#48113] (issue: {issue}48009[#48009])
-* Failing Group By queries due to different ExpressionIds {pull}43072[#43072] (issues: {issue}33361[#33361], {issue}34543[#34543], {issue}36074[#36074], {issue}37044[#37044], {issue}40001[#40001], {issue}40240[#40240], {issue}41159[#41159], {issue}42041[#42041], {issue}46316[#46316])
+* Failing group by queries due to different ExpressionIds {pull}43072[#43072] (issues: {issue}33361[#33361], {issue}34543[#34543], {issue}36074[#36074], {issue}37044[#37044], {issue}40001[#40001], {issue}40240[#40240], {issue}41159[#41159], {issue}42041[#42041], {issue}46316[#46316])
 
 Snapshot/Restore::
-* Cleanup Concurrent RepositoryData Loading {pull}48329[#48329] (issue: {issue}48122[#48122])
+* Cleanup concurrent RepositoryData loading {pull}48329[#48329] (issue: {issue}48122[#48122])
 
 
 [[release-notes-6.8.4]]

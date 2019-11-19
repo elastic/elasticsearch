@@ -41,10 +41,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
@@ -158,13 +160,34 @@ public class S3HttpHandler implements HttpHandler {
                 if (prefix != null) {
                     list.append("<Prefix>").append(prefix).append("</Prefix>");
                 }
+                final Set<String> commonPrefixes = new HashSet<>();
+                final String delimiter = params.get("delimiter");
+                if (delimiter != null) {
+                    list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
+                }
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
-                    if (prefix == null || blob.getKey().startsWith("/" + bucket + "/" + prefix)) {
-                        list.append("<Contents>");
-                        list.append("<Key>").append(blob.getKey().replace("/" + bucket + "/", "")).append("</Key>");
-                        list.append("<Size>").append(blob.getValue().length()).append("</Size>");
-                        list.append("</Contents>");
+                    if (prefix != null && blob.getKey().startsWith("/" + bucket + "/" + prefix) == false) {
+                        continue;
                     }
+                    String blobPath = blob.getKey().replace("/" + bucket + "/", "");
+                    if (delimiter != null) {
+                        int fromIndex = (prefix != null ? prefix.length() : 0);
+                        int delimiterPosition = blobPath.indexOf(delimiter, fromIndex);
+                        if (delimiterPosition > 0) {
+                            commonPrefixes.add(blobPath.substring(0, delimiterPosition) + delimiter);
+                            continue;
+                        }
+                    }
+                    list.append("<Contents>");
+                    list.append("<Key>").append(blobPath).append("</Key>");
+                    list.append("<Size>").append(blob.getValue().length()).append("</Size>");
+                    list.append("</Contents>");
+                }
+                if (commonPrefixes.isEmpty() == false) {
+                    list.append("<CommonPrefixes>");
+                    commonPrefixes.forEach(commonPrefix -> list.append("<Prefix>").append(commonPrefix).append("</Prefix>"));
+                    list.append("</CommonPrefixes>");
+
                 }
                 list.append("</ListBucketResult>");
 
@@ -239,6 +262,10 @@ public class S3HttpHandler implements HttpHandler {
         } finally {
             exchange.close();
         }
+    }
+
+    public Map<String, BytesReference> blobs() {
+        return blobs;
     }
 
     private static String multipartKey(final String uploadId, int partNumber) {

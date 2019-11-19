@@ -67,7 +67,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/bucket", new S3HttpHandler("bucket"));
+        return Collections.singletonMap("/bucket", new S3BlobStoreHttpHandler("bucket"));
     }
 
     @Override
@@ -131,6 +131,14 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     };
                 }
             };
+        }
+    }
+
+    @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an S3 endpoint")
+    private static class S3BlobStoreHttpHandler extends S3HttpHandler implements BlobStoreHttpHandler {
+
+        S3BlobStoreHttpHandler(final String bucket) {
+            super(bucket);
         }
     }
 

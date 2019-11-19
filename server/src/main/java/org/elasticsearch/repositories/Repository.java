@@ -105,7 +105,7 @@ public interface Repository extends LifecycleComponent {
      * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
      * if there was an error in reading the data.
      */
-    RepositoryData getRepositoryData();
+    void getRepositoryData(ActionListener<RepositoryData> listener);
 
     /**
      * Starts snapshotting process

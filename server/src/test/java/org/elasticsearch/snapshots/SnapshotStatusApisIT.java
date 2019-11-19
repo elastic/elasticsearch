@@ -136,7 +136,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .getSnapshots(new GetSnapshotsRequest("test-repo", new String[] {"test-snap"})).actionGet());
     }
 
-    public void testExceptionOnMissingShardLevelSnapBlob() throws IOException, InterruptedException {
+    public void testExceptionOnMissingShardLevelSnapBlob() throws IOException {
         disableRepoConsistencyCheck("This test intentionally corrupts the repository");
 
         logger.info("--> creating repository");

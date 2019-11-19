@@ -33,11 +33,13 @@ public class EdgeTreeReader implements ShapeTreeReader {
     private final ByteBufferStreamInput input;
     private final int startPosition;
     private final boolean hasArea;
+    private final Extent extent;
 
     public EdgeTreeReader(ByteBufferStreamInput input, boolean hasArea) throws IOException {
         this.startPosition = input.position();
         this.input = input;
         this.hasArea = hasArea;
+        this.extent = getExtent();
     }
 
     public Extent getExtent() throws IOException {
@@ -107,13 +109,18 @@ public class EdgeTreeReader implements ShapeTreeReader {
 
     private Edge readEdge(int position) throws IOException {
         input.position(position);
-        int minY = input.readInt();
-        int maxY = input.readInt();
-        int x1 = input.readInt();
-        int y1 = input.readInt();
-        int x2 = input.readInt();
-        int y2 = input.readInt();
-        int rightOffset = input.readInt();
+        int maxY = Math.toIntExact(extent.maxY() - input.readVLong());
+        int minY = Math.toIntExact(extent.maxY() - input.readVLong());
+        int x1 = Math.toIntExact(extent.maxX() - input.readVLong());
+        int x2 = Math.toIntExact(extent.maxX() - input.readVLong());
+        int y1 = Math.toIntExact(extent.maxY() - input.readVLong());
+        int y2 = Math.toIntExact(extent.maxY() - input.readVLong());
+        int rightOffset = input.readVInt();
+        if (rightOffset == 1) {
+            rightOffset = 0;
+        } else if (rightOffset == 0) {
+            rightOffset = -1;
+        }
         return new Edge(input.position(), x1, y1, x2, y2, minY, maxY, rightOffset);
     }
 

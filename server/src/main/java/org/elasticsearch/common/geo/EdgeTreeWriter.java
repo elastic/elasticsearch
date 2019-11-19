@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.ShapeType;
@@ -145,7 +146,12 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         extent.writeTo(out);
-        out.writeOptionalWriteable(tree);
+        if (tree != null) {
+            out.writeBoolean(true);
+            tree.writeTo(out, new BytesStreamOutput(), extent);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     private static Edge createTree(List<Edge> edges, int low, int high) {
@@ -175,7 +181,7 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
     /**
      * Object representing an in-memory edge-tree to be serialized
      */
-    static class Edge implements Comparable<Edge>, Writeable {
+    static class Edge implements Comparable<Edge> {
         final int x1;
         final int y1;
         final int x2;
@@ -204,28 +210,56 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
             return ret;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeInt(minY);
-            out.writeInt(maxY);
-            out.writeInt(x1);
-            out.writeInt(y1);
-            out.writeInt(x2);
-            out.writeInt(y2);
+        private int writeEdgeContent(StreamOutput out, Extent extent) throws IOException {
+            long startPosition = out.position();
+            out.writeVLong((long) extent.maxY() - maxY);
+            out.writeVLong((long) extent.maxY() - minY);
+            out.writeVLong((long) extent.maxX() - x1);
+            out.writeVLong((long) extent.maxX() - x2);
+            out.writeVLong((long) extent.maxY() - y1);
+            out.writeVLong((long) extent.maxY() - y2);
+            return Math.toIntExact(out.position() - startPosition);
+        }
+
+        private void writeTo(StreamOutput out, BytesStreamOutput scratchBuffer, Extent extent) throws IOException {
+            writeEdgeContent(out, extent);
             // left node is next node, write offset of right node
             if (left != null) {
-                out.writeInt(left.size * EDGE_SIZE_IN_BYTES);
+                out.writeVInt(left.size(scratchBuffer, extent));
             } else if (right == null){
-                out.writeInt(-1);
+                out.writeVInt(0);
             } else {
-                out.writeInt(0);
+                out.writeVInt(1);
             }
             if (left != null) {
-                left.writeTo(out);
+                left.writeTo(out, scratchBuffer, extent);
             }
             if (right != null) {
-                right.writeTo(out);
+                right.writeTo(out, scratchBuffer, extent);
             }
+        }
+
+        private int size(BytesStreamOutput scratchBuffer, Extent extent) throws IOException {
+            int size = writeEdgeContent(scratchBuffer, extent);
+            scratchBuffer.reset();
+            // left node is next node, write offset of right node
+            if (left != null) {
+                int leftSize = left.size(scratchBuffer, extent);
+                scratchBuffer.reset();
+                scratchBuffer.writeVInt(leftSize);
+            } else if (right == null){
+                scratchBuffer.writeVInt(0);
+            } else {
+                scratchBuffer.writeVInt(1);
+            }
+            size += scratchBuffer.size();
+            if (left != null) {
+                size += left.size(scratchBuffer, extent);
+            }
+            if (right != null) {
+                size += right.size(scratchBuffer, extent);
+            }
+            return size;
         }
     }
 }

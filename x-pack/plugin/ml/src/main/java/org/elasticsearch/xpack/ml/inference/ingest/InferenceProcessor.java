@@ -26,22 +26,20 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.license.LicenseStateListener;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -73,8 +71,12 @@ public class InferenceProcessor extends AbstractProcessor {
     private final InferenceConfig inferenceConfig;
     private final Map<String, String> fieldMapping;
     private final boolean includeModelMetadata;
+    private final InferenceAuditor auditor;
+    private volatile boolean previouslyLicensed;
+    private final AtomicBoolean shouldAudit = new AtomicBoolean(true);
 
     public InferenceProcessor(Client client,
+                              InferenceAuditor auditor,
                               String tag,
                               String targetField,
                               String modelId,
@@ -85,6 +87,7 @@ public class InferenceProcessor extends AbstractProcessor {
         super(tag);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
+        this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
         this.modelInfoField = ExceptionsHelper.requireNonNull(modelInfoField, MODEL_INFO_FIELD);
         this.includeModelMetadata = includeModelMetadata;
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
@@ -100,22 +103,32 @@ public class InferenceProcessor extends AbstractProcessor {
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
-            InferModelAction.INSTANCE,
+            InternalInferModelAction.INSTANCE,
             this.buildRequest(ingestDocument),
             ActionListener.wrap(
-                r -> {
-                    try {
-                        mutateDocument(r, ingestDocument);
-                        handler.accept(ingestDocument, null);
-                    } catch(ElasticsearchException ex) {
-                        handler.accept(ingestDocument, ex);
-                    }
-                },
+                r -> handleResponse(r, ingestDocument, handler),
                 e -> handler.accept(ingestDocument, e)
             ));
     }
 
-    InferModelAction.Request buildRequest(IngestDocument ingestDocument) {
+    void handleResponse(InternalInferModelAction.Response response,
+                        IngestDocument ingestDocument,
+                        BiConsumer<IngestDocument, Exception> handler) {
+        if (previouslyLicensed == false) {
+            previouslyLicensed = true;
+        }
+        if (response.isLicensed() == false) {
+            auditWarningAboutLicenseIfNecessary();
+        }
+        try {
+            mutateDocument(response, ingestDocument);
+            handler.accept(ingestDocument, null);
+        } catch(ElasticsearchException ex) {
+            handler.accept(ingestDocument, ex);
+        }
+    }
+
+    InternalInferModelAction.Request buildRequest(IngestDocument ingestDocument) {
         Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
         if (fieldMapping != null) {
             fieldMapping.forEach((src, dest) -> {
@@ -125,10 +138,19 @@ public class InferenceProcessor extends AbstractProcessor {
                 }
             });
         }
-        return new InferModelAction.Request(modelId, fields, inferenceConfig);
+        return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
     }
 
-    void mutateDocument(InferModelAction.Response response, IngestDocument ingestDocument) {
+    void auditWarningAboutLicenseIfNecessary() {
+        if (shouldAudit.get() && shouldAudit.compareAndSet(true, false)) {
+            auditor.warning(
+                modelId,
+                "This cluster is no longer licensed to use this model in the inference ingest processor. " +
+                    "Please update your license information.");
+        }
+    }
+
+    void mutateDocument(InternalInferModelAction.Response response, IngestDocument ingestDocument) {
         if (response.getInferenceResults().isEmpty()) {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
@@ -148,28 +170,25 @@ public class InferenceProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory implements Processor.Factory, Consumer<ClusterState>, LicenseStateListener {
+    public static final class Factory implements Processor.Factory, Consumer<ClusterState> {
 
         private static final Logger logger = LogManager.getLogger(Factory.class);
 
         private final Client client;
         private final IngestService ingestService;
-        private final XPackLicenseState licenseState;
+        private final InferenceAuditor auditor;
         private volatile int currentInferenceProcessors;
         private volatile int maxIngestProcessors;
         private volatile Version minNodeVersion = Version.CURRENT;
-        private volatile boolean inferenceAllowed;
 
         public Factory(Client client,
                        ClusterService clusterService,
                        Settings settings,
-                       IngestService ingestService,
-                       XPackLicenseState licenseState) {
+                       IngestService ingestService) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
             this.ingestService = ingestService;
-            this.licenseState = licenseState;
-            this.inferenceAllowed = licenseState.isMachineLearningAllowed();
+            this.auditor = new InferenceAuditor(client, clusterService.getNodeName());
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
 
@@ -211,10 +230,6 @@ public class InferenceProcessor extends AbstractProcessor {
         public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config)
             throws Exception {
 
-            if (inferenceAllowed == false) {
-                throw LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING);
-            }
-
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException("Max number of inference processors reached, total inference processors [{}]. " +
                     "Adjust the setting [{}]: [{}] if a greater number is desired.",
@@ -236,6 +251,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 modelInfoField += "." + tag;
             }
             return new InferenceProcessor(client,
+                auditor,
                 tag,
                 targetField,
                 modelId,
@@ -289,9 +305,5 @@ public class InferenceProcessor extends AbstractProcessor {
             }
         }
 
-        @Override
-        public void licenseStateChanged() {
-            this.inferenceAllowed = licenseState.isMachineLearningAllowed();
-        }
     }
 }

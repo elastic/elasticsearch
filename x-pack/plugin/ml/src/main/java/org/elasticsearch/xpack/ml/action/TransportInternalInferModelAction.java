@@ -16,38 +16,41 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 
-public class TransportInferModelAction extends HandledTransportAction<InferModelAction.Request, InferModelAction.Response> {
+public class TransportInternalInferModelAction extends HandledTransportAction<Request, Response> {
 
     private final ModelLoadingService modelLoadingService;
     private final Client client;
     private final XPackLicenseState licenseState;
+    private final TrainedModelProvider trainedModelProvider;
 
     @Inject
-    public TransportInferModelAction(TransportService transportService,
-                                     ActionFilters actionFilters,
-                                     ModelLoadingService modelLoadingService,
-                                     Client client,
-                                     XPackLicenseState licenseState) {
-        super(InferModelAction.NAME, transportService, actionFilters, InferModelAction.Request::new);
+    public TransportInternalInferModelAction(TransportService transportService,
+                                             ActionFilters actionFilters,
+                                             ModelLoadingService modelLoadingService,
+                                             Client client,
+                                             XPackLicenseState licenseState,
+                                             TrainedModelProvider trainedModelProvider) {
+        super(InternalInferModelAction.NAME, transportService, actionFilters, InternalInferModelAction.Request::new);
         this.modelLoadingService = modelLoadingService;
         this.client = client;
         this.licenseState = licenseState;
+        this.trainedModelProvider = trainedModelProvider;
     }
 
     @Override
-    protected void doExecute(Task task, InferModelAction.Request request, ActionListener<InferModelAction.Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
 
-        if (licenseState.isMachineLearningAllowed() == false) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
-            return;
-        }
+        Response.Builder responseBuilder = Response.builder();
 
         ActionListener<Model> getModelListener = ActionListener.wrap(
             model -> {
@@ -63,13 +66,28 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
 
                 typedChainTaskExecutor.execute(ActionListener.wrap(
                     inferenceResultsInterfaces ->
-                        listener.onResponse(new InferModelAction.Response(inferenceResultsInterfaces)),
+                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces).build()),
                     listener::onFailure
                 ));
             },
             listener::onFailure
         );
 
-        this.modelLoadingService.getModel(request.getModelId(), getModelListener);
+        if (licenseState.isMachineLearningAllowed()) {
+            responseBuilder.setLicensed(true);
+            this.modelLoadingService.getModel(request.getModelId(), getModelListener);
+        } else {
+            trainedModelProvider.getTrainedModel(request.getModelId(), false, ActionListener.wrap(
+                trainedModelConfig -> {
+                    responseBuilder.setLicensed(trainedModelConfig.isAvailableWithLicense(licenseState));
+                    if (trainedModelConfig.isAvailableWithLicense(licenseState) || request.isPreviouslyLicensed()) {
+                        this.modelLoadingService.getModel(request.getModelId(), getModelListener);
+                    } else {
+                        listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+                    }
+                },
+                listener::onFailure
+            ));
+        }
     }
 }

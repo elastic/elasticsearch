@@ -618,7 +618,7 @@ setup:
             }
           }
 
-  - match: { classification.accuracy.accuracy: 0.625 }
+  - match: { classification.accuracy.overall_accuracy: 0.625 }
 ---
 "Test classification multiclass_confusion_matrix":
   - do:

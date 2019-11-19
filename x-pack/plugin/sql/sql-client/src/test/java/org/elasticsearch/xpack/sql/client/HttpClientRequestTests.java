@@ -59,7 +59,11 @@ public class HttpClientRequestTests extends ESTestCase {
 
     @AfterClass
     public static void cleanup() {
-        webServer.close();
+        try {
+            webServer.close();
+        } finally {
+            webServer = null;
+        }
     }
     
     public void testBinaryRequestForCLIEnabled() throws URISyntaxException {
@@ -145,7 +149,7 @@ public class HttpClientRequestTests extends ESTestCase {
         HttpClient httpClient = new HttpClient(conCfg);
         
         Mode mode = randomFrom(Mode.JDBC, Mode.ODBC);
-        SqlQueryRequest request = new SqlQueryRequest(query, 
+        SqlQueryRequest request = new SqlQueryRequest(query,
                 null,
                 ZoneId.of("Z"),
                 randomIntBetween(1, 100),

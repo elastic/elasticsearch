@@ -132,7 +132,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             ++expectedSearchRetries;
             validateSeqNoCondition(client, seqNo);
         }
-
+        client.validateRequest(SearchAction.INSTANCE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
         SearchResponse searchResponse = createSearchResponse(seqNoGenerator);
         client.respond(SearchAction.INSTANCE, searchResponse);
         seqNo = extractSeqNoFromSearchResponse(searchResponse, seqNo);

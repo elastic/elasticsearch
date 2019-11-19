@@ -158,7 +158,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         assertThat(createIndexRequest.settings().get("index.sort.field"), equalTo("ml__id_copy"));
         assertThat(createIndexRequest.settings().get("index.sort.order"), equalTo("asc"));
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings().get("_doc"))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings())) {
             Map<String, Object> map = parser.map();
             assertThat(extractValue("_doc.properties.ml__id_copy.type", map), equalTo("keyword"));
             assertThat(extractValue("_doc.properties.field_1", map), equalTo("field_1_mappings"));

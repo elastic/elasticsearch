@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -112,7 +113,7 @@ public class DataFrameDataExtractorFactory {
             extractedFieldsDetector -> {
                 ExtractedFields extractedFields = extractedFieldsDetector.detect();
                 DataFrameDataExtractorFactory extractorFactory = new DataFrameDataExtractorFactory(client, config.getId(),
-                    Arrays.asList(config.getSource().getIndex()), extractedFields, config.getHeaders(),
+                    Collections.singletonList(config.getDest().getIndex()), extractedFields, config.getHeaders(),
                     config.getAnalysis().supportsMissingValues());
                 listener.onResponse(extractorFactory);
             },

@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.core.Is.is;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-public class SnapshotLifecycleInitialisationTests extends ESIntegTestCase {
+public class SnapshotLifecycleInitialisationIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

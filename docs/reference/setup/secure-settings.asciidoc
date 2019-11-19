@@ -160,7 +160,7 @@ POST _nodes/reload_secure_settings
 This API will decrypt and re-read the entire keystore, on every cluster node,
 but only the *reloadable* secure settings will be applied. Changes to other
 settings will not go into effect until the next restart. Once the call returns,
-the reload has been completed, meaning that all internal datastructures dependent
+the reload has been completed, meaning that all internal data structures dependent
 on these settings have been changed. Everything should look as if the settings
 had the new value from the start.
 

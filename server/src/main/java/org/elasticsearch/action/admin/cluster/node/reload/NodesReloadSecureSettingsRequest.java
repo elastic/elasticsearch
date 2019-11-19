@@ -22,13 +22,16 @@ package org.elasticsearch.action.admin.cluster.node.reload;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -50,6 +53,19 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
 
     public NodesReloadSecureSettingsRequest(StreamInput in) throws IOException {
         super(in);
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            final BytesReference bytesRef = in.readOptionalBytesReference();
+            if (bytesRef != null) {
+                byte[] bytes = BytesReference.toBytes(bytesRef);
+                try {
+                    this.secureSettingsPassword = new SecureString(CharArrays.utf8BytesToChars(bytes));
+                } finally {
+                    Arrays.fill(bytes, (byte) 0);
+                }
+            } else {
+                this.secureSettingsPassword = null;
+            }
+        }
     }
 
     /**

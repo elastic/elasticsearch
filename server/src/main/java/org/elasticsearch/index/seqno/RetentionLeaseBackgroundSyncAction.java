@@ -25,7 +25,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -68,9 +67,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         RetentionLeaseBackgroundSyncAction.Request,
         ReplicationResponse> {
 
-    public static String ACTION_NAME = "indices:admin/seq_no/retention_lease_background_sync";
-    public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME, ReplicationResponse::new);
-
+    public static final String ACTION_NAME = "indices:admin/seq_no/retention_lease_background_sync";
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
     protected Logger getLogger() {

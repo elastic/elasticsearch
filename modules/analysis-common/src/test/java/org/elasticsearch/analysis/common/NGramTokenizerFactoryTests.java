@@ -59,6 +59,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                     () -> new NGramTokenizerFactory(indexProperties, null, name, settings).create());
             assertEquals("Unknown token type: 'directionality_undefined'", ex.getMessage().substring(0, 46));
+            assertTrue(ex.getMessage().contains("custom"));
         }
         {
             final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "custom")

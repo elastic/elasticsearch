@@ -153,8 +153,16 @@ GET /_search
 --------------------------------------------------
 // TEST[setup:twitter]
 
-NOTE: Scores produced by the `script_score` function must be non-negative,
-otherwise an error will be thrown.
+[IMPORTANT]
+====
+{es} stores scores produced by the `script_score` function as positive
+32-bit floating point numbers in the `_score` meta-field.
+
+As a result, scores are limited to 32-bits of precision. Larger numbers will
+lose precision during storage.
+
+Similarly, scores must be non-negative. Otherwise, {es} returns an error.
+====
 
 On top of the different scripting field values and expression, the
 `_score` script parameter can be used to retrieve the score based on the

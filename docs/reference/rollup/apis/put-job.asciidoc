@@ -61,6 +61,7 @@ Jobs are created in a `STOPPED` state. You can start them with the
   on a daily basis at midnight, as defined by the cron. The cron pattern is
   defined just like Watcher's cron schedule.
 
+[[rollup-groups-config]]
 `groups`::
   (Required, object) Defines the grouping fields and aggregations that are
   defined for this {rollup-job}. These fields will then be available later for
@@ -220,6 +221,7 @@ prevent this behavior.
 
 --
 
+[[rollup-metrics-config]]
 `metrics`::
   (Optional, object) Defines the metrics to collect for each grouping tuple.
   By default, only the doc_counts are collected for each group. To make rollup

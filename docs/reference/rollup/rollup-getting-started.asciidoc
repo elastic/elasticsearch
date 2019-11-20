@@ -93,7 +93,7 @@ simply go back to sleep.  But there's nothing wrong with it either, the job will
 
 **********************************
 
-For more details about the job syntax, see <<rollup-job-config>>.
+For more details about the job syntax, see <<rollup-put-job>>.
 
 
 After you execute the above command and create the job, you'll receive the following response:

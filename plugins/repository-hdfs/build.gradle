@@ -97,7 +97,8 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
     maxWaitInSeconds 60
-    onlyIf { project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled && BuildParams.inFipsJvm == false }
+    onlyIf { project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled &&
+      Boolean.parseBoolean(System.getProperty("tests.fips.enabled") == false) }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
@@ -150,7 +151,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     }
 
     runner {
-      onlyIf { BuildParams.inFipsJvm == false }
+      onlyIf { Boolean.parseBoolean(System.getProperty("tests.fips.enabled")) == false }
       if (integTestTaskName.contains("Ha")) {
         if (integTestTaskName.contains("Secure")) {
           Path path = buildDir.toPath()
@@ -222,7 +223,7 @@ if (legalPath == false) {
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
 integTest.runner {
-  onlyIf { BuildParams.inFipsJvm == false }
+  onlyIf { Boolean.parseBoolean(System.getProperty("tests.fips.enabled")) == false }
   exclude('**/Ha*TestSuiteIT.class')
 }
 

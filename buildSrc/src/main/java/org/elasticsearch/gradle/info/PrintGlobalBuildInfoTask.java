@@ -76,7 +76,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
         BuildParams.init(params -> {
             params.setCompilerJavaVersion(JavaVersion.valueOf(getFileText(getCompilerVersionFile()).asString()));
             params.setRuntimeJavaVersion(JavaVersion.valueOf(getFileText(getRuntimeVersionFile()).asString()));
-            params.setInFipsJvm(Boolean.parseBoolean(getFileText(getFipsJvmFile()).asString()));
         });
     }
 }

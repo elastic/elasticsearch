@@ -164,7 +164,8 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                 || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
                 writer.write("  Compiler JDK Version  : " + compilerJavaVersionEnum + " (" + compilerJavaVersionDetails + ")\n");
                 writer.write("  Compiler java.home    : " + compilerJavaHome + "\n");
-                writer.write("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" + runtimeJavaVersionDetails + ")\n");
+                writer.write("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" + runtimeJavaVersionDetails + ")");
+                writer.write(inFipsJvm ? " (in FIPS 140 mode)\n":"\n");
                 writer.write("  Runtime java.home     : " + runtimeJavaHome + "\n");
                 writer.write("  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion)
                     + " (" + gradleJavaVersionDetails + ")\n");
@@ -213,7 +214,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
         writeToFile(compilerVersionFile.getAsFile().get(), compilerJavaVersionEnum.name());
         writeToFile(runtimeVersionFile.getAsFile().get(), runtimeJavaVersionEnum.name());
-        writeToFile(fipsJvmFile.getAsFile().get(), Boolean.toString(inFipsJvm));
     }
 
     private void writeToFile(File file, String content) {

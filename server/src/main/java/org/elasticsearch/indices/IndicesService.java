@@ -1247,6 +1247,11 @@ public class IndicesService extends AbstractLifecycleComponent
             return false;
         }
 
+        // Profiled queries should not use the cache
+        if (request.source() != null && request.source().profile()) {
+            return false;
+        }
+
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {

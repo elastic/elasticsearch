@@ -1342,7 +1342,7 @@ public class Setting<T> implements ToXContentObject {
         return listSetting(key, fallbackSetting, singleValueParser, defaultStringValue, v -> {}, properties);
     }
 
-    private static <T> Setting<List<T>> listSetting(
+    public static <T> Setting<List<T>> listSetting(
         final String key,
         final @Nullable Setting<List<T>> fallbackSetting,
         final Function<String, T> singleValueParser,

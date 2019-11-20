@@ -86,6 +86,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
         REMOTE_CLUSTER_SEEDS_KEY,
         key -> Setting.listSetting(key,
+            "_na_".equals(key) ? REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(key)
+                : REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(REMOTE_CLUSTER_SEEDS_KEY.getNamespace(key)),
             s -> {
                 // validate seed address
                 parsePort(s);

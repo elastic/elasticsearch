@@ -22,6 +22,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpStatus;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
@@ -72,9 +73,19 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static HttpServer httpServer;
     private Map<String, HttpHandler> handlers;
 
+    private static final Logger log = LogManager.getLogger();
+
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.setExecutor(r -> {
+            try {
+                r.run();
+            } catch (Throwable t) {
+                log.error("Error in execution on mock http server IO thread", t);
+                throw t;
+            }
+        });
         httpServer.start();
     }
 

@@ -75,7 +75,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 parsePort(s);
                 return s;
             },
-            new StrategyValidator<>(ns, ConnectionStrategy.SNIFF),
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope));
 
@@ -93,7 +93,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 return s;
             },
             s -> REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(ns).get(s),
-            new StrategyValidator<>(ns, ConnectionStrategy.SNIFF),
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope));
 
@@ -109,7 +109,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         "proxy",
         (ns, key) -> Setting.simpleString(
             key,
-            new StrategyValidator<>(ns, ConnectionStrategy.SNIFF, s -> {
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF, s -> {
                 if (Strings.hasLength(s)) {
                     parsePort(s);
                 }
@@ -119,6 +119,16 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         REMOTE_CLUSTER_SEEDS);
 
     /**
+     * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
+     * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
+     */
+    public static final Setting<Integer> REMOTE_CONNECTIONS_PER_CLUSTER =
+        intSetting(
+            "cluster.remote.connections_per_cluster",
+            3,
+            1,
+            Setting.Property.NodeScope);
+    /**
      * The maximum number of node connections that will be established to a remote cluster. For instance if there is only a single
      * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
      */
@@ -127,9 +137,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         "sniff.node_connections",
         (ns, key) -> intSetting(
             key,
-            RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
+            REMOTE_CONNECTIONS_PER_CLUSTER,
             1,
-            new StrategyValidator<>(ns, ConnectionStrategy.SNIFF),
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope));
 

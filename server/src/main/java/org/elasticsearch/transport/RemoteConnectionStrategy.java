@@ -67,6 +67,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             this.numberOfChannels = numberOfChannels;
             this.enablementSettings = enablementSettings;
         }
+
+        public int getNumberOfChannels() {
+            return numberOfChannels;
+        }
     }
 
     public static final Setting.AffixSetting<ConnectionStrategy> REMOTE_CONNECTION_MODE = Setting.affixKeySetting(
@@ -74,6 +78,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             key,
             ConnectionStrategy.SNIFF.name(),
             value -> ConnectionStrategy.valueOf(value.toUpperCase(Locale.ROOT)),
+            Setting.Property.NodeScope,
             Setting.Property.Dynamic));
 
 
@@ -325,17 +330,19 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static class StrategyValidator<T> implements Setting.Validator<T> {
 
+        private final String key;
         private final ConnectionStrategy expectedStrategy;
         private final String namespace;
         private final Consumer<T> valueChecker;
 
-        StrategyValidator(String namespace, ConnectionStrategy expectedStrategy) {
-            this(namespace, expectedStrategy, (v) -> {});
+        StrategyValidator(String namespace, String key, ConnectionStrategy expectedStrategy) {
+            this(namespace, key, expectedStrategy, (v) -> {});
         }
 
-        StrategyValidator(String namespace, ConnectionStrategy expectedStrategy, Consumer<T> valueChecker) {
-            this.expectedStrategy = expectedStrategy;
+        StrategyValidator(String namespace, String key, ConnectionStrategy expectedStrategy, Consumer<T> valueChecker) {
             this.namespace = namespace;
+            this.key = key;
+            this.expectedStrategy = expectedStrategy;
             this.valueChecker = valueChecker;
         }
 
@@ -349,7 +356,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             Setting<ConnectionStrategy> concrete = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(namespace);
             ConnectionStrategy modeType = (ConnectionStrategy) settings.get(concrete);
             if (modeType.equals(expectedStrategy) == false) {
-                throw new IllegalArgumentException("");
+                throw new IllegalArgumentException("Setting \"" + key + "\" cannot be used with the configured \"" + concrete.getKey()
+                    + "\" [required=" + expectedStrategy.name() + ", configured=" + modeType.name() + "]");
             }
         }
 

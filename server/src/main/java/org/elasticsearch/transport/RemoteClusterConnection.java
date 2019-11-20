@@ -47,7 +47,7 @@ import java.util.function.Function;
  * in the remote cluster and connects to all eligible nodes, for details see {@link RemoteClusterService#REMOTE_NODE_ATTRIBUTE}.
  *
  * In the case of a disconnection, this class will issue a re-connect task to establish at most
- * {@link RemoteClusterService#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
+ * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
 final class RemoteClusterConnection implements Closeable {

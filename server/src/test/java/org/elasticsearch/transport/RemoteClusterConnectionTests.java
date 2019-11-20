@@ -330,7 +330,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 int maxNumConnections = randomIntBetween(1, 5);
                 String clusterAlias = "test-cluster";
                 Settings settings = Settings.builder().put(buildSniffSettings(clusterAlias, seedNodes))
-                    .put(RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections).build();
+                    .put(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections).build();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
                     // test no nodes connected
                     RemoteConnectionInfo remoteConnectionInfo = assertSerialization(connection.getConnectionInfo());

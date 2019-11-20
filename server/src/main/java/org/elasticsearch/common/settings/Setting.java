@@ -675,7 +675,8 @@ public class Setting<T> implements ToXContentObject {
         private final BiFunction<String, String, Setting<T>> delegateFactory;
         private final Set<AffixSetting> dependencies;
 
-        public AffixSetting(AffixKey key, Setting<T> delegate, BiFunction<String, String, Setting<T>> delegateFactory, AffixSetting... dependencies) {
+        public AffixSetting(AffixKey key, Setting<T> delegate, BiFunction<String, String, Setting<T>> delegateFactory,
+                            AffixSetting... dependencies) {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
@@ -1633,7 +1634,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private static <T> AffixSetting<T> affixKeySetting(AffixKey key, BiFunction<String, String, Setting<T>> delegateFactory,
-                                                      AffixSetting... dependencies) {
+                                                       AffixSetting... dependencies) {
         Setting<T> delegate = delegateFactory.apply("_na_", "_na_");
         return new AffixSetting<>(key, delegate, delegateFactory, dependencies);
     }

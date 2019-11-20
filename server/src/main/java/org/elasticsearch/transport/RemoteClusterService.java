@@ -65,17 +65,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private static final ActionListener<Void> noopListener = ActionListener.wrap((x) -> {}, (x) -> {});
 
     /**
-     * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
-     * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
-     */
-    public static final Setting<Integer> REMOTE_CONNECTIONS_PER_CLUSTER =
-        Setting.intSetting(
-            "cluster.remote.connections_per_cluster",
-            3,
-            1,
-            Setting.Property.NodeScope);
-
-    /**
      * The initial connect timeout for remote cluster connections
      */
     public static final Setting<TimeValue> REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING =

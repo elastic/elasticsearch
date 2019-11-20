@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +32,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigReader;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -194,7 +194,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         ActionListener<StopDatafeedAction.Response> finalListener = ActionListener.wrap(
                 r -> waitForDatafeedStopped(allDataFeedsToWaitFor, request, r, listener),
                 e -> {
-                    if (e instanceof FailedNodeException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof FailedNodeException) {
                         // A node has dropped out of the cluster since we started executing the requests.
                         // Since stopping an already stopped datafeed is not an error we can try again.
                         // The datafeeds that were running on the node that dropped out of the cluster
@@ -232,7 +232,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                         // We validated that the datafeed names supplied in the request existed when we started processing the action.
                         // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop request.
                         // This is not an error.
-                        if (e instanceof ResourceNotFoundException == false) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
                             failures.set(slot - 1, e);
                         }
                         if (slot == notStoppedDatafeeds.size()) {
@@ -264,9 +264,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
-                            if ((e instanceof ResourceNotFoundException &&
-                                Strings.isAllOrWildcard(new String[]{request.getDatafeedId()}))) {
-                                datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
+                            // We validated that the datafeed names supplied in the request existed when we started processing the action.
+                            // If the related task for one of them doesn't exist at this point then it must have been removed by a
+                            // simultaneous force stop request.  This is not an error.
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 listener.onResponse(new StopDatafeedAction.Response(true));
                             } else {
                                 listener.onFailure(e);
@@ -274,14 +275,14 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                         }
 
                         @Override
-                        protected void doRun() throws Exception {
+                        protected void doRun() {
                             datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
                             listener.onResponse(new StopDatafeedAction.Response(true));
                         }
                     });
                 },
                 e -> {
-                    if (e instanceof ResourceNotFoundException) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                         // the task has disappeared so must have stopped
                         listener.onResponse(new StopDatafeedAction.Response(true));
                     } else {

@@ -86,4 +86,8 @@ public class ExceptionsHelper {
         }
         return obj;
     }
+
+    public static Throwable unwrapCause(Throwable t) {
+       return org.elasticsearch.ExceptionsHelper.unwrapCause(t);
+    }
 }

@@ -45,9 +45,10 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * This is a suite of tests to ensure that meaningful error messages are generated for defined SSL configuration problems.
+ * This is a suite of tests to ensure that meaningful error messages are generated for defined SSL configuration problems due to file
+ * problems.
  */
-public class SSLErrorMessageTests extends ESTestCase {
+public class SSLErrorMessageFileTests extends ESTestCase {
 
     private Environment env;
     private Map<String, Path> paths;
@@ -272,7 +273,7 @@ public class SSLErrorMessageTests extends ESTestCase {
         exception = exception.getCause();
         assertThat(exception.getMessage(),
             containsString("failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file"));
-        assertThat(exception.getMessage(),containsString("file.error"));
+        assertThat(exception.getMessage(), containsString("file.error"));
         assertThat(exception, instanceOf(ElasticsearchException.class));
 
         exception = exception.getCause();
@@ -360,7 +361,7 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     private void requirePath(String fileName) throws FileNotFoundException {
-        final Path path = getDataPath("/org/elasticsearch/xpack/ssl/SSLServiceErrorMessageTests/" + fileName);
+        final Path path = getDataPath("/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/" + fileName);
         if (Files.exists(path)) {
             paths.put(fileName, path);
         } else {

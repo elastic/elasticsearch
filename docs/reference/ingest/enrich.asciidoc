@@ -592,3 +592,12 @@ The API returns the following response:
 }
 ----
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
+
+////
+[source,console]
+--------------------------------------------------
+DELETE /_ingest/pipeline/user_lookup
+DELETE /_enrich/policy/users-policy
+--------------------------------------------------
+// TEST[continued]
+////

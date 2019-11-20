@@ -28,8 +28,10 @@ group = 'org.elasticsearch.gradle'
 
 String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
 if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
-  throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
+   throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
+
+println "Local binding address: ${gradle.services.get(org.gradle.internal.remote.internal.inet.InetAddressFactory).localBindingAddress}"
 
 if (project == rootProject) {
   // change the build dir used during build init, so that doing a clean

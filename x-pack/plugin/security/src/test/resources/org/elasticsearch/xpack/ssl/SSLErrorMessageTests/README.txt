@@ -33,6 +33,32 @@ function new-p12-cert() {
     certutil cert --ca="${PWD}/$CaFile" --ca-pass="$CaPass" --days=5000 --out ${PWD}/$CertFile --pass="$CertPass" --name="$CertName" "$@"
 }
 
+function new-pem-cert() {
+    local CrtFile="$1"
+    local KeyFile="$2"
+    local KeyPass="$3"
+    local CertName="$4"
+    local CaFile="$5"
+    local CaPass="$6"
+    shift 6
+
+    local ZipFile=${PWD}/$CertName.zip
+    local PassOpt=""
+    if [ -n "$KeyPass" ]
+    then
+        PassOpt="--pass=$KeyPass"
+    fi
+
+    certutil cert --pem \
+        --ca="${PWD}/$CaFile" --ca-pass="$CaPass" \
+        --name="$CertName" --out $ZipFile \
+        --days=5000 $PassOpt \
+        "$@"
+    unzip -p $ZipFile "$CertName/$CertName.crt" > $CrtFile
+    unzip -p $ZipFile "$CertName/$CertName.key" > $KeyFile
+    rm $ZipFile
+}
+
 function p12-to-jks() {
     local P12File="$1"
     local P12Pass="$2"
@@ -77,7 +103,7 @@ function p12-export-pair() {
     rm $TmpFile
 }
 
-
+function no-op() {
 #
 # Create a CA in PKCS#12
 #
@@ -103,4 +129,10 @@ p12-to-jks cert1a.p12 "cert1a-p12-password" cert1a.jks "cert1a-jks-password"
 # Convert to PEM
 #  - "cert1a.key" is an (unprotected) PKCS#1 key
 p12-export-pair cert1a.p12 "cert1a-p12-password" "cert1a" cert1a.crt cert1a.key 
+}
 
+#
+# Create a Cert/Key Pair in PEM with a hostname "not.this.host"
+#  - "not_this_host.crt" is signed by "ca1"
+#
+new-pem-cert not-this-host.crt not-this-host.key "" "not-this-host" "ca1.p12" "ca1-p12-password" --dns not.this.host

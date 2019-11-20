@@ -36,9 +36,11 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -153,13 +155,32 @@ public class AzureHttpHandler implements HttpHandler {
                 list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 list.append("<EnumerationResults>");
                 final String prefix = params.get("prefix");
+                final Set<String> blobPrefixes = new HashSet<>();
+                final String delimiter = params.get("delimiter");
+                if (delimiter != null) {
+                    list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
+                }
                 list.append("<Blobs>");
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
-                    if (prefix == null || blob.getKey().startsWith("/" + container + "/" + prefix)) {
-                        list.append("<Blob><Name>").append(blob.getKey().replace("/" + container + "/", "")).append("</Name>");
-                        list.append("<Properties><Content-Length>").append(blob.getValue().length()).append("</Content-Length>");
-                        list.append("<BlobType>BlockBlob</BlobType></Properties></Blob>");
+                    if (prefix != null && blob.getKey().startsWith("/" + container + "/" + prefix) == false) {
+                        continue;
                     }
+                    String blobPath = blob.getKey().replace("/" + container + "/", "");
+                    if (delimiter != null) {
+                        int fromIndex = (prefix != null ? prefix.length() : 0);
+                        int delimiterPosition = blobPath.indexOf(delimiter, fromIndex);
+                        if (delimiterPosition > 0) {
+                            blobPrefixes.add(blobPath.substring(0, delimiterPosition) + delimiter);
+                            continue;
+                        }
+                    }
+                    list.append("<Blob><Name>").append(blobPath).append("</Name>");
+                    list.append("<Properties><Content-Length>").append(blob.getValue().length()).append("</Content-Length>");
+                    list.append("<BlobType>BlockBlob</BlobType></Properties></Blob>");
+                }
+                if (blobPrefixes.isEmpty() == false) {
+                    blobPrefixes.forEach(p -> list.append("<BlobPrefix><Name>").append(p).append("</Name></BlobPrefix>"));
+
                 }
                 list.append("</Blobs>");
                 list.append("</EnumerationResults>");
@@ -175,6 +196,10 @@ public class AzureHttpHandler implements HttpHandler {
         } finally {
             exchange.close();
         }
+    }
+
+    public Map<String, BytesReference> blobs() {
+        return blobs;
     }
 
     public static void sendError(final HttpExchange exchange, final RestStatus status) throws IOException {

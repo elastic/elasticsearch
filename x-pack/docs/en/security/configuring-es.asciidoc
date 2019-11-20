@@ -127,7 +127,7 @@ information, see https://www.elastic.co/subscriptions.
 xpack.security.audit.enabled: true
 ----------------------------
 +
-For more information, see <<auditing>> and <<auditing-settings>>. 
+For more information, see <<enable-audit-logging>> and <<auditing-settings>>. 
 
 .. Restart {es}.
 

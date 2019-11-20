@@ -50,7 +50,7 @@ import java.util.stream.Stream;
  * from the search. The extra round trip to the search shards is very cheap and is not subject to rejections
  * which allows to fan out to more shards at the same time without running into rejections even if we are hitting a
  * large portion of the clusters indices.
- * This phase can also be used to pre-sort shards based on the maximum value in each shard of the provided primary sort.
+ * This phase can also be used to pre-sort shards based on min/max values in each shard of the provided primary sort.
  * When the query primary sort is perform on a field, this phase extracts the maximum possible value in each shard and
  * sort them according to the provided order. This can be useful for instance to ensure that shards that contain recent
  * data are executed first.

@@ -37,7 +37,7 @@ package org.elasticsearch.common.util;
 /**
  * Additions or modifications to this class should only come from the original org.math.plot.utils.FastMath source
  */
-public final class FastMath {
+final class FastMath {
 
     private FastMath() { }
 

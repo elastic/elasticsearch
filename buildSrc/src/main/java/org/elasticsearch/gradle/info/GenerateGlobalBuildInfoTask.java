@@ -120,9 +120,9 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
     @TaskAction
     public void generate() {
-        String javaVendor = System.getProperty("java.vendor");
+        String javaVendorVersion = System.getProperty("java.vendor.version", System.getProperty("java.vendor"));
         String gradleJavaVersion = System.getProperty("java.version");
-        String gradleJavaVersionDetails = javaVendor + " " + gradleJavaVersion + " [" + System.getProperty("java.vm.name")
+        String gradleJavaVersionDetails = javaVendorVersion + " " + gradleJavaVersion + " [" + System.getProperty("java.vm.name")
             + " " + System.getProperty("java.vm.version") + "]";
 
         String compilerJavaVersionDetails = gradleJavaVersionDetails;
@@ -147,9 +147,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                     runtimeJavaVersionDetails = findJavaVersionDetails(runtimeJavaHome);
                     runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(runtimeJavaHome));
 
-                    // We don't expect Gradle to be running in a FIPS JVM
-                    String inFipsJvmScript = "print(java.security.Security.getProviders()[0].name.toLowerCase().contains(\"fips\"));";
-                    inFipsJvm = Boolean.parseBoolean(runJavaAsScript(runtimeJavaHome, inFipsJvmScript));
+                    inFipsJvm = Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
                 } else {
                     throw new RuntimeException("Runtime Java home path of '" + compilerJavaHome + "' does not exist");
                 }
@@ -231,8 +229,10 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
      */
     private String findJavaVersionDetails(File javaHome) {
         String versionInfoScript = "print(" +
-            "java.lang.System.getProperty(\"java.vendor\") + \" \" + java.lang.System.getProperty(\"java.version\") + " +
-            "\" [\" + java.lang.System.getProperty(\"java.vm.name\") + \" \" + java.lang.System.getProperty(\"java.vm.version\") + \"]\");";
+            "java.lang.System.getProperty(\"java.vendor.version\", java.lang.System.getProperty(\"java.vendor\")) + \" \" + " +
+            "java.lang.System.getProperty(\"java.version\") + \" [\" + " +
+            "java.lang.System.getProperty(\"java.vm.name\") + \" \" + " +
+            "java.lang.System.getProperty(\"java.vm.version\") + \"]\");";
         return runJavaAsScript(javaHome, versionInfoScript).trim();
     }
 

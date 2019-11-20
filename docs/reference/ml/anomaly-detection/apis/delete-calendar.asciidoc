@@ -18,7 +18,7 @@ Deletes a calendar.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-delete-calendar-desc]]
 ==== {api-description-title}
@@ -37,18 +37,17 @@ calendar.
 
 The following example deletes the `planned-outages` calendar:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/calendars/planned-outages
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:calendar_outages]
 
 When the calendar is deleted, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

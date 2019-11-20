@@ -6,9 +6,6 @@ archivesBaseName = 'x-pack'
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  if (isEclipse) {
-    testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-  }
 }
 
 // https://github.com/elastic/x-plugins/issues/724
@@ -51,7 +48,7 @@ File nodeCert = file("$keystoreDir/testnode.crt")
 task copyKeyCerts(type: Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
-    }
+  }
   into keystoreDir
 }
 // Add keystores to test classpath: it expects it there

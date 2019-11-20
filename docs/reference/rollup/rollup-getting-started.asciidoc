@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-getting-started]]
-== Getting Started
+=== Getting started with {rollups}
+++++
+<titleabbrev>Getting started</titleabbrev>
+++++
 
 experimental[]
 
@@ -23,12 +26,12 @@ look like this:
 // NOTCONSOLE
 
 [float]
-=== Creating a Rollup Job
+==== Creating a rollup job
 
 We'd like to rollup these documents into hourly summaries, which will allow us to generate reports and dashboards with any time interval
 one hour or greater.  A rollup job might look like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
@@ -57,7 +60,6 @@ PUT _rollup/job/sensor
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
 We give the job the ID of "sensor" (in the url: `PUT _rollup/job/sensor`), and tell it to rollup the index pattern `"sensor-*"`.
@@ -96,38 +98,36 @@ For more details about the job syntax, see <<rollup-job-config>>.
 
 After you execute the above command and create the job, you'll receive the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE
 
 [float]
-=== Starting the job
+==== Starting the job
 
 After the job is created, it will be sitting in an inactive state.  Jobs need to be started before they begin processing data (this allows
 you to stop them later as a way to temporarily pause, without deleting the configuration).
 
 To start the job, execute this command:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _rollup/job/sensor/_start
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 
 [float]
-=== Searching the Rolled results
+==== Searching the rolled results
 
 After the job has run and processed some data, we can use the <<rollup-search>> endpoint to do some searching.  The Rollup feature is designed
 so that you can use the same Query DSL syntax that you are accustomed to... it just happens to run on the rolled up data instead.
 
 For example, take this query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
@@ -141,7 +141,6 @@ GET /sensor_rollup/_rollup_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 
 It's a simple aggregation that calculates the maximum of the `temperature` field.  But you'll notice that is is being sent to the `sensor_rollup`
@@ -150,7 +149,7 @@ is exactly as you'd expect.
 
 If you were to execute that query, you'd receive a result that looks like a normal aggregation response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 102,
@@ -185,7 +184,7 @@ is nearly identical to normal DSL, making it easy to integrate into dashboards a
 
 Finally, we can use those grouping fields we defined to construct a more complicated query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
@@ -219,12 +218,11 @@ GET /sensor_rollup/_rollup_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 
 Which returns a corresponding response:
 
-[source,js]
+[source,console-result]
 ----
 {
    "took" : 93,
@@ -297,7 +295,7 @@ In addition to being more complicated (date histogram and a terms aggregation, p
 the date_histogram uses a `7d` interval instead of `60m`.
 
 [float]
-=== Conclusion
+==== Conclusion
 
 This quickstart should have provided a concise overview of the core functionality that Rollup exposes.  There are more tips and things
 to consider when setting up Rollups, which you can find throughout the rest of this section.  You may also explore the <<rollup-api-quickref,REST API>>

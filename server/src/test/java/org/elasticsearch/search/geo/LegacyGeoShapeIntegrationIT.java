@@ -118,7 +118,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
             .endArray()
             .endObject());
 
-        indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape",
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape",
             polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -152,7 +152,7 @@ public class LegacyGeoShapeIntegrationIT extends ESIntegTestCase {
             "    }\n" +
             "}";
 
-        indexRandom(true, client().prepareIndex("test", "doc", "0").setSource(source, XContentType.JSON).setRouting("ABC"));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
 
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(
             geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC")

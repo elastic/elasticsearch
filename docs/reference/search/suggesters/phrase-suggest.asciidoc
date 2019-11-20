@@ -21,7 +21,7 @@ In general the `phrase` suggester requires special mapping up front to work.
 The `phrase` suggester examples on this page need the following mapping to
 work. The `reverse` analyzer is used only in the last example.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -74,13 +74,12 @@ POST test/_doc?refresh=true
 POST test/_doc?refresh=true
 {"title": "nobel prize"}
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 Once you have the analyzers and mappings set up you can use the `phrase`
 suggester in the same spot you'd use the `term` suggester:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_search
 {
@@ -104,11 +103,10 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-The response contains suggestions scored by the most likely spell correction first. In this case we received the expected correction "nobel prize".
+The response contains suggestions scored by the most likely spelling correction first. In this case we received the expected correction "nobel prize".
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards": ...
@@ -222,7 +220,7 @@ The response contains suggestions scored by the most likely spell correction fir
     matching documents for the phrase was found, `false` otherwise.
     The default value for `prune` is `false`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_search
 {
@@ -253,7 +251,7 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> This query will be run once for every suggestion.
 <2> The `{{suggestion}}` variable will be replaced by the text
     of each suggestion.
@@ -291,7 +289,7 @@ properties that can be configured.
     All parameters (`trigram_lambda`, `bigram_lambda`, `unigram_lambda`)
     must be supplied.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_search
 {
@@ -311,7 +309,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Candidate Generators
 
@@ -412,7 +409,7 @@ of the direct generators to require a constant prefix to provide
 high-performance suggestions. The `pre_filter` and `post_filter` options
 accept ordinary analyzer names.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_search
 {
@@ -436,7 +433,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 `pre_filter` and `post_filter` can also be used to inject synonyms after
 candidates are generated. For instance for the query `captain usq` we

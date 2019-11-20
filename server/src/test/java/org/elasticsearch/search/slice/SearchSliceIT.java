@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchContextException;
+import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -83,7 +83,7 @@ public class SearchSliceIT extends ESIntegTestCase {
                     .field("static_int", 0)
                     .field("invalid_random_int", randomInt())
                 .endObject();
-            requests.add(client().prepareIndex("test", "type").setSource(builder));
+            requests.add(client().prepareIndex("test").setSource(builder));
         }
         indexRandom(true, requests);
     }
@@ -205,7 +205,7 @@ public class SearchSliceIT extends ESIntegTestCase {
                 .slice(new SliceBuilder("invalid_random_int", 0, 10))
                 .get());
         Throwable rootCause = findRootCause(exc);
-        assertThat(rootCause.getClass(), equalTo(SearchContextException.class));
+        assertThat(rootCause.getClass(), equalTo(SearchException.class));
         assertThat(rootCause.getMessage(),
             equalTo("`slice` cannot be used outside of a scroll context"));
     }

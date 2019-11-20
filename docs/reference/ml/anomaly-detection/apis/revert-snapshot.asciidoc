@@ -19,7 +19,7 @@ Reverts to a specific snapshot.
 * Before you revert to a saved snapshot, you must close the job.
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-revert-snapshot-desc]]
 ==== {api-description-title}
@@ -59,7 +59,7 @@ If you want to resend data, then delete the intervening results.
 The following example reverts to the `1491856080` snapshot for the
 `it_ops_new_kpi` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST
 _ml/anomaly_detectors/it_ops_new_kpi/model_snapshots/1491856080/_revert
@@ -67,7 +67,6 @@ _ml/anomaly_detectors/it_ops_new_kpi/model_snapshots/1491856080/_revert
   "delete_intervening_results": true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 When the operation is complete, you receive the following results:

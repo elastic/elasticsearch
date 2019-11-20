@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isBoolean;
+import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Iif extends Case {
 
@@ -25,13 +26,13 @@ public class Iif extends Case {
         super(source, Arrays.asList(new IfConditional(source, condition, thenResult), elseResult != null ? elseResult : Literal.NULL));
     }
 
-    private Iif(Source source, List<Expression> expressions) {
+    Iif(Source source, List<Expression> expressions) {
         super(source, expressions);
     }
 
     @Override
     protected NodeInfo<? extends Iif> info() {
-        return NodeInfo.create(this, Iif::new, conditions().get(0).condition(), conditions().get(0).result(), elseResult());
+        return NodeInfo.create(this, Iif::new, combine(conditions(), elseResult()));
     }
 
     @Override
@@ -41,6 +42,10 @@ public class Iif extends Case {
 
     @Override
     protected TypeResolution resolveType() {
+        if (conditions().isEmpty()) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+
         TypeResolution conditionTypeResolution = isBoolean(conditions().get(0).condition(), sourceText(), Expressions.ParamOrdinal.FIRST);
         if (conditionTypeResolution.unresolved()) {
             return conditionTypeResolution;

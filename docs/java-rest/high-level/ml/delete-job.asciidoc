@@ -3,6 +3,7 @@
 :request: DeleteJobRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete {anomaly-job} API
 

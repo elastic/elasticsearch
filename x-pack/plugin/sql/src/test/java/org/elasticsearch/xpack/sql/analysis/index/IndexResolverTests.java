@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Stream;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class IndexResolverTests extends ESTestCase {
@@ -209,6 +210,12 @@ public class IndexResolverTests extends ESTestCase {
         for (int i = 0; i < indicesCount; i++) {
             assertEqualsMaps(expectedIndices[i].mapping(), actualIndices.get(i).mapping());
         }
+    }
+
+    public void testIndexWithNoMapping() {
+        Map<String, Map<String, FieldCapabilities>> versionFC = singletonMap("_version",
+                singletonMap("_index", new FieldCapabilities("_version", "_version", false, false)));
+        assertTrue(IndexResolver.mergedMappings("*", new String[] { "empty" }, versionFC).isValid());
     }
 
     public static IndexResolution merge(EsIndex... indices) {

@@ -49,9 +49,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("name", "test1", "number", 1).get();
-        client().prepareIndex("test", "type1", "2").setSource("name", "test2", "number", 2).get();
-        client().prepareIndex("test", "type1", "3").setSource("name", "test3", "number", 3).get();
+        client().prepareIndex("test").setId("1").setSource("name", "test1", "number", 1).get();
+        client().prepareIndex("test").setId("2").setSource("name", "test2", "number", 2).get();
+        client().prepareIndex("test").setId("3").setSource("name", "test3", "number", 3).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -93,9 +93,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("name", "test", "title", "title1").get();
-        client().prepareIndex("test", "type1", "2").setSource("name", "test").get();
-        client().prepareIndex("test", "type1", "3").setSource("name", "test").get();
+        client().prepareIndex("test").setId("1").setSource("name", "test", "title", "title1").get();
+        client().prepareIndex("test").setId("2").setSource("name", "test").get();
+        client().prepareIndex("test").setId("3").setSource("name", "test").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -140,9 +140,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("name", "test", "title", "title1").get();
-        client().prepareIndex("test", "type1", "2").setSource("name", "test", "title", "title2").get();
-        client().prepareIndex("test", "type1", "3").setSource("name", "test", "title", "title3").get();
+        client().prepareIndex("test").setId("1").setSource("name", "test", "title", "title1").get();
+        client().prepareIndex("test").setId("2").setSource("name", "test", "title", "title2").get();
+        client().prepareIndex("test").setId("3").setSource("name", "test", "title", "title3").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -176,7 +176,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
+        client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -197,7 +197,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
+        client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -218,7 +218,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
+        client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -239,7 +239,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        client().prepareIndex("test1", "type1", "1").setSource("title", "title1").get();
+        client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -260,7 +260,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test1");
         ensureGreen();
 
-        client().prepareIndex("test1", "type1", "1").setSource("title", "title1 title2").get();
+        client().prepareIndex("test1").setId("1").setSource("title", "title1 title2").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -284,8 +284,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("content", "Lorem ipsum dolor sit amet").get();
-        client().prepareIndex("test", "type1", "2").setSource("content", "consectetur adipisicing elit").get();
+        client().prepareIndex("test").setId("1").setSource("content", "Lorem ipsum dolor sit amet").get();
+        client().prepareIndex("test").setId("2").setSource("content", "consectetur adipisicing elit").get();
         refresh();
 
         // Execute search at least two times to load it in cache
@@ -319,7 +319,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("content", "Lorem ipsum dolor sit amet").get();
+        client().prepareIndex("test").setId("1").setSource("content", "Lorem ipsum dolor sit amet").get();
         refresh();
 
         MatchQueryBuilder matchQueryBuilder = matchQuery("content", "amet").queryName("abc");

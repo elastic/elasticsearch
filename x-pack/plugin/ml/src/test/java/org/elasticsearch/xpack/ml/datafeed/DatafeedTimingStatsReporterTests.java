@@ -132,6 +132,15 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         verifyNoMoreInteractions(timingStatsPersister);
     }
 
+    public void testDisallowPersisting() {
+        DatafeedTimingStatsReporter reporter = createReporter(createDatafeedTimingStats(JOB_ID, 0, 0, 0.0));
+        reporter.disallowPersisting();
+        // This call would normally trigger persisting but because of the "disallowPersisting" call above it will not.
+        reporter.reportSearchDuration(ONE_SECOND);
+
+        verifyZeroInteractions(timingStatsPersister);
+    }
+
     public void testTimingStatsDifferSignificantly() {
         assertThat(
             DatafeedTimingStatsReporter.differSignificantly(

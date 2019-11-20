@@ -36,13 +36,13 @@ You must have the `manage_ilm` cluster privilege to use this API. You must
 also have the `manage` index privilege on all indices being managed by `policy`.
 All operations executed by {ilm} for a policy are executed as the user that
 put the latest version of a policy.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 ==== Examples
 
 The following example creates a new policy named `my_policy`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -66,15 +66,12 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 If the request succeeds, you receive the following result:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// CONSOLE
-// TESTRESPONSE

@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -78,6 +77,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -230,8 +230,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // TODO: feels hacky, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
         if (state.blocks().disableStatePersistence()) {
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-                indicesService.removeIndex(indexService.index(), NO_LONGER_ASSIGNED,
-                    "cleaning index (disabled block persistence)"); // also cleans shards
+                // also cleans shards
+                indicesService.removeIndex(indexService.index(), NO_LONGER_ASSIGNED, "cleaning index (disabled block persistence)");
             }
             return;
         }
@@ -335,8 +335,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 ActionListener.wrap(
                     r -> {},
                     e -> {
-                        if (ExceptionsHelper.isTransportStoppedForAction(e, RetentionLeaseBackgroundSyncAction.ACTION_NAME + "[p]")) {
-                            // we are likely shutting down
+                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
+                            // node shutting down
                             return;
                         }
                         if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
@@ -408,7 +408,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             // holding on to the lock due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the
                             // lock is released so it's guaranteed to be deleted by the time we get the lock
                             indicesService.processPendingDeletes(index, indexSettings, new TimeValue(30, TimeUnit.MINUTES));
-                        } catch (LockObtainFailedException exc) {
+                        } catch (ShardLockObtainFailedException exc) {
                             logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
                         } catch (InterruptedException e) {
                             logger.warn("[{}] failed to lock all shards for index - interrupted", index);
@@ -587,8 +587,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetaData newIndexMetaData = state.metaData().index(index);
             assert newIndexMetaData != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetaDataChanged(currentIndexMetaData, newIndexMetaData)) {
-                indexService.updateMetaData(currentIndexMetaData, newIndexMetaData);
+                String reason = null;
                 try {
+                    reason = "metadata update failed";
+                    try {
+                        indexService.updateMetaData(currentIndexMetaData, newIndexMetaData);
+                    } catch (Exception e) {
+                        assert false : e;
+                        throw e;
+                    }
+
+                    reason = "mapping update failed";
                     if (indexService.updateMapping(currentIndexMetaData, newIndexMetaData) && sendRefreshMapping) {
                         nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                             new NodeMappingRefreshAction.NodeMappingRefreshRequest(newIndexMetaData.getIndex().getName(),
@@ -596,14 +605,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         );
                     }
                 } catch (Exception e) {
-                    indicesService.removeIndex(indexService.index(), FAILURE, "removing index (mapping update failed)");
+                    indicesService.removeIndex(indexService.index(), FAILURE, "removing index (" + reason + ")");
 
                     // fail shards that would be created or updated by createOrUpdateShards
                     RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
                     if (localRoutingNode != null) {
                         for (final ShardRouting shardRouting : localRoutingNode) {
                             if (shardRouting.index().equals(index) && failedShardsCache.containsKey(shardRouting.shardId()) == false) {
-                                sendFailShard(shardRouting, "failed to update mapping for index", e, state);
+                                sendFailShard(shardRouting, "failed to update index (" + reason + ")", e, state);
                             }
                         }
                     }

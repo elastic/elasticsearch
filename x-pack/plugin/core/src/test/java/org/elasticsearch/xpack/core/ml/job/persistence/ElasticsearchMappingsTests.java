@@ -85,11 +85,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private static List<String> INTERNAL_FIELDS = Arrays.asList(
             GetResult._ID,
-            GetResult._INDEX,
-            GetResult._TYPE
+            GetResult._INDEX
     );
 
-    public void testResultsMapppingReservedFields() throws Exception {
+    public void testResultsMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names
@@ -109,7 +108,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
     }
 
-    public void testConfigMapppingReservedFields() throws Exception {
+    public void testConfigMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names
@@ -255,15 +254,14 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         verifyNoMoreInteractions(client);
 
         PutMappingRequest request = requestCaptor.getValue();
-        assertThat(request.type(), equalTo("_doc"));
         assertThat(request.indices(), equalTo(new String[] { "index-name" }));
         assertThat(request.source(), equalTo("{\"_doc\":{\"properties\":{\"some-field\":{\"type\":\"long\"}}}}"));
     }
 
-    private static XContentBuilder fakeMapping(String mappingType) throws IOException {
+    private static XContentBuilder fakeMapping() throws IOException {
         return jsonBuilder()
             .startObject()
-                .startObject(mappingType)
+                .startObject("_doc")
                     .startObject(ElasticsearchMappings.PROPERTIES)
                         .startObject("some-field")
                             .field(ElasticsearchMappings.TYPE, ElasticsearchMappings.LONG)
@@ -311,7 +309,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(ElasticsearchMappings.resultsMapping("_doc"));
+        return collectFieldNames(ElasticsearchMappings.resultsMapping());
     }
 
     private Set<String> collectConfigDocFieldNames() throws IOException {

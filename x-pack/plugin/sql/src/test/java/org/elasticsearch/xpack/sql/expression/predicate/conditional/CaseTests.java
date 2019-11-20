@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
@@ -115,6 +117,13 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
             new IfConditional(EMPTY, new Equals(EMPTY, Literal.of(EMPTY, 2), Literal.of(EMPTY, 2)), Literal.of(EMPTY, "foo")),
             Literal.NULL));
         assertEquals(DataType.KEYWORD, c.dataType());
+    }
+
+    public void testAllConditionsFolded() {
+        Case c = new Case(EMPTY, Collections.singletonList(Literal.of(EMPTY, "foo")));
+        assertEquals(DataType.KEYWORD, c.dataType());
+        assertEquals(TypeResolution.TYPE_RESOLVED, c.typeResolved());
+        assertNotNull(c.info());
     }
 
     private List<Expression> mutateChildren(Case c) {

@@ -79,7 +79,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // this
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i ++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setSource("f", Integer.toString(i)).get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("f", Integer.toString(i)).get();
         }
         refresh();
 
@@ -114,9 +114,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
                 .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
+        client().prepareIndex("test").setId("3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").get();
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
@@ -162,21 +162,21 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(builder.put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "massachusetts avenue boston massachusetts").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts").get();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "boston avenue lexington massachusetts").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "massachusetts avenue boston massachusetts").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts").get();
+        client().prepareIndex("test").setId("3").setSource("field1", "boston avenue lexington massachusetts").get();
         client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test", "type1", "4").setSource("field1", "boston road lexington massachusetts").get();
-        client().prepareIndex("test", "type1", "5").setSource("field1", "lexington street lexington massachusetts").get();
-        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
-        client().prepareIndex("test", "type1", "7").setSource("field1", "bosten street san franciso california").get();
+        client().prepareIndex("test").setId("4").setSource("field1", "boston road lexington massachusetts").get();
+        client().prepareIndex("test").setId("5").setSource("field1", "lexington street lexington massachusetts").get();
+        client().prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        client().prepareIndex("test").setId("7").setSource("field1", "bosten street san franciso california").get();
         client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test", "type1", "8").setSource("field1", "hollywood boulevard los angeles california").get();
-        client().prepareIndex("test", "type1", "9").setSource("field1", "1st street boston massachussetts").get();
-        client().prepareIndex("test", "type1", "10").setSource("field1", "1st street boston massachusetts").get();
+        client().prepareIndex("test").setId("8").setSource("field1", "hollywood boulevard los angeles california").get();
+        client().prepareIndex("test").setId("9").setSource("field1", "1st street boston massachussetts").get();
+        client().prepareIndex("test").setId("10").setSource("field1", "1st street boston massachusetts").get();
         client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test", "type1", "11").setSource("field1", "2st street boston massachusetts").get();
-        client().prepareIndex("test", "type1", "12").setSource("field1", "3st street boston massachusetts").get();
+        client().prepareIndex("test").setId("11").setSource("field1", "2st street boston massachusetts").get();
+        client().prepareIndex("test").setId("12").setSource("field1", "3st street boston massachusetts").get();
         client().admin().indices().prepareRefresh("test").get();
         SearchResponse searchResponse = client()
                 .prepareSearch()
@@ -235,11 +235,11 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(builder.put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").get();
-        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        client().prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
+        client().prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
         client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "lexington massachusetts avenue").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts road").get();
         client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client()
@@ -302,11 +302,11 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(builder.put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").get();
-        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        client().prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
+        client().prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
         client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "lexington massachusetts avenue").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts road").get();
         client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client()
@@ -434,9 +434,9 @@ public class QueryRescorerIT extends ESIntegTestCase {
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
         );
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test", "type1", "3")
+        client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").get();
+        client().prepareIndex("test").setId("3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").get();
         refresh();
 
@@ -658,7 +658,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i));
         }
 
         indexRandom(true, dummyDocs, docs);
@@ -673,7 +673,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         settings.put(SETTING_NUMBER_OF_REPLICAS, 0);
         assertAcked(prepareCreate("test").setSettings(settings));
         for(int i=0;i<5;i++) {
-            client().prepareIndex("test", "type", ""+i).setSource("text", "hello world").get();
+            client().prepareIndex("test").setId(""+i).setSource("text", "hello world").get();
         }
         refresh();
 
@@ -689,7 +689,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
     public void testRescorePhaseWithInvalidSort() throws Exception {
         assertAcked(prepareCreate("test"));
         for(int i=0;i<5;i++) {
-            client().prepareIndex("test", "type", ""+i).setSource("number", 0).get();
+            client().prepareIndex("test").setId(""+i).setSource("number", 0).get();
         }
         refresh();
 

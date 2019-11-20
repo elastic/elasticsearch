@@ -12,7 +12,7 @@ any issues with the policy, index, or cluster.
 An example will be helpful in illustrating this, imagine the following policy
 has been created by a user:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/shrink-the-index
 {
@@ -30,7 +30,6 @@ PUT _ilm/policy/shrink-the-index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 This policy waits until the index is at least 5 days old, and then shrinks
@@ -39,7 +38,7 @@ the index to 4 shards.
 Now imagine that a user creates a new index "myindex" with two primary shards,
 telling it to use the policy they have created:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /myindex
 {
@@ -49,7 +48,6 @@ PUT /myindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 After five days have passed, ILM will attempt to shrink this index from 2
@@ -58,16 +56,15 @@ number of shards. When this occurs, ILM will move this
 index to the "error" step. Once an index is in this step, information about the
 reason for the error can be retrieved from the <<ilm-explain-lifecycle,ILM Explain API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /myindex/_ilm/explain
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Which returns the following information:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices" : {
@@ -105,8 +102,8 @@ Which returns the following information:
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
+
 <1> this index is managed by ILM
 <2> the policy in question, in this case, "shrink-the-index"
 <3> the current age for the index
@@ -123,7 +120,7 @@ the policy is using an incorrect number of shards. So rectifying that in the
 policy entails updating the existing policy to use one instead of four for
 the targeted number of shards.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/shrink-the-index
 {
@@ -141,7 +138,6 @@ PUT _ilm/policy/shrink-the-index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -151,11 +147,10 @@ Once the underlying issue that caused an index to move to the error step has
 been corrected, index lifecycle management must be told to retry the step to see
 if it can progress further. This is accomplished by invoking the retry API
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /myindex/_ilm/retry
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:we can't be sure the index is ready to be retried at this point]
 
 Once this has been issue, index lifecycle management will asynchronously pick up

@@ -39,7 +39,7 @@ At query time, there are a few more layers:
 The easiest way to specify an analyzer for a particular field is to define it
 in the field mapping, as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_index
 {
@@ -70,7 +70,7 @@ GET my_index/_analyze <4>
   "text": "The quick Brown Foxes."
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `text` field uses the default `standard` analyzer`.
 <2> The `text.english` <<multi-fields,multi-field>> uses the `english` analyzer, which removes stop words and applies stemming.
 <3> This returns the tokens: [ `the`, `quick`, `brown`, `foxes` ].
@@ -89,7 +89,7 @@ To disable stop words for phrases a field utilising three analyzer settings will
 2. A `search_analyzer` setting for non-phrase queries that will remove stop words
 3. A `search_quote_analyzer` setting for phrase queries that will not remove stop words
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -151,7 +151,7 @@ GET my_index/_search
    }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> `my_analyzer` analyzer which tokens all terms including stop words
 <2> `my_stop_analyzer` analyzer which removes stop words
 <3> `analyzer` setting that points to the `my_analyzer` analyzer which will be used at index time

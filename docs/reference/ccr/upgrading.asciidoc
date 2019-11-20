@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-upgrading]]
-== Upgrading clusters
+=== Upgrading clusters
 
 Clusters that are actively using {ccr} require a careful approach to upgrades.
 Otherwise index following may fail during a rolling upgrade, because of the
@@ -17,8 +17,8 @@ following reasons:
 Rolling upgrading clusters with {ccr} is different in case of uni-directional
 index following and bi-directional index following.
 
-[float]
-=== Uni-directional index following
+
+==== Uni-directional index following
 
 In a uni-directional setup between two clusters, one cluster contains only
 leader indices, and the other cluster contains only follower indices following
@@ -35,14 +35,15 @@ cluster B that follows indices in cluster A and cluster C that follows
 indices in cluster B. In this case the cluster C should be upgraded first,
 then cluster B and finally cluster A.
 
-[float]
-=== Bi-directional index following
+
+==== Bi-directional index following
 
 In a bi-directional setup between two clusters, each cluster contains both
 leader and follower indices.
 
 When upgrading clusters in this setup, all index following needs to be paused
-using the {ref}/ccr-post-pause-follow.html[pause follower API] prior to
+using the {ref}/ccr-post-pause-follow.html[pause follower API] and the
+ {ref}/ccr-pause-auto-follow-pattern.html[pause auto-follower API] prior to
 upgrading both clusters. After both clusters have been upgraded then index
 following can be resumed using the
 {ref}/ccr-post-resume-follow.html[resume follower API]].

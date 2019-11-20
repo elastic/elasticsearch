@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -72,9 +71,9 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     @Override
-    protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         QueryBuilder innerQuery = queryBuilder.rewrite(createShardContext());
-        Query expected = rewrite(innerQuery.toQuery(context.getQueryShardContext()));
+        Query expected = rewrite(innerQuery.toQuery(context));
         assertEquals(rewrite(query), expected);
     }
 

@@ -26,16 +26,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -64,7 +64,7 @@ public final class CardinalityAggregationBuilder
     private Long precisionThreshold = null;
 
     public CardinalityAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, ValuesSourceType.ANY, targetValueType);
+        super(name, CoreValuesSourceType.ANY, targetValueType);
     }
 
     public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -76,7 +76,7 @@ public final class CardinalityAggregationBuilder
      * Read from a stream.
      */
     public CardinalityAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY);
+        super(in, CoreValuesSourceType.ANY);
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }
@@ -124,9 +124,9 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected CardinalityAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, context, parent, subFactoriesBuilder, metaData);
+    protected CardinalityAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource> config,
+                                                      AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        return new CardinalityAggregatorFactory(name, config, precisionThreshold, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

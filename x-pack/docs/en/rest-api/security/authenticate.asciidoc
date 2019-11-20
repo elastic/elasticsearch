@@ -31,15 +31,14 @@ If the user cannot be authenticated, this API returns a 401 status code.
 To authenticate a user, submit a GET request to the
 `/_security/_authenticate` endpoint:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/_authenticate
 --------------------------------------------------
-// CONSOLE
 
 The following example output provides information about the "rdeniro" user:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "username": "rdeniro",

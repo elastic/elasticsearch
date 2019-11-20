@@ -25,16 +25,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -53,7 +53,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     public ValueCountAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, ValuesSourceType.ANY, targetValueType);
+        super(name, CoreValuesSourceType.ANY, targetValueType);
     }
 
     protected ValueCountAggregationBuilder(ValueCountAggregationBuilder clone,
@@ -70,7 +70,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
      * Read from a stream.
      */
     public ValueCountAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY);
+        super(in, CoreValuesSourceType.ANY);
     }
 
     @Override
@@ -84,9 +84,11 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     @Override
-    protected ValueCountAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new ValueCountAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
+    protected ValueCountAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                        ValuesSourceConfig<ValuesSource> config,
+                                                        AggregatorFactory parent,
+                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new ValueCountAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

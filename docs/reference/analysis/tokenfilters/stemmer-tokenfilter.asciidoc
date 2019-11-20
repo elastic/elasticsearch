@@ -10,7 +10,7 @@
 A filter that provides access to (almost) all of the available stemming token
 filters through a single unified interface. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_index
 {
@@ -32,7 +32,6 @@ PUT /my_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `language`/`name` parameter controls the stemmer with the following
 available values (the preferred filters are marked in *bold*):
@@ -180,7 +179,6 @@ Spanish::
 
 http://snowball.tartarus.org/algorithms/spanish/stemmer.html[`spanish`],
 http://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_spanish`*]
-https://issues.apache.org/jira/browse/LUCENE-8936[`minimal_spanish`]
 
 Swedish::
 

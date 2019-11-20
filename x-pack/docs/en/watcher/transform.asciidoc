@@ -1,10 +1,11 @@
+[role="xpack"]
 [[transform]]
 == Transforms
 
-A _Transform_ processes and changes the payload in the watch execution context
+A _transform_ processes and changes the payload in the watch execution context
 to prepare it for the watch actions. {watcher} supports three types of 
-transforms: <<transform-search, `search`>>,
-<<transform-script, `script`>> and <<transform-chain, `chain`>>.
+transforms: <<transform-search,`search`>>,
+<<transform-script,`script`>> and <<transform-chain,`chain`>>.
 
 
 NOTE: Transforms are optional. When none are defined, the actions have access to

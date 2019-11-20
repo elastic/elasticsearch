@@ -55,7 +55,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -423,14 +422,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            SearchContext searchContext = getSearchContext(context);
             /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
             Query firstLuceneQuery = rewritten.toQuery(context);
             assertNotNull("toQuery should not return null", firstLuceneQuery);
-            assertLuceneQuery(firstQuery, firstLuceneQuery, searchContext);
+            assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             //remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
             assertTrue(
                     "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
@@ -441,10 +439,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     + ", secondQuery: " + controlQuery, controlQuery.hashCode(), equalTo(firstQuery.hashCode()));
 
             QB secondQuery = copyQuery(firstQuery);
-            searchContext = getSearchContext(context);
+            // query _name never should affect the result of toQuery, we randomly set it to make sure
+            if (randomBoolean()) {
+                secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
+                        + randomAlphaOfLengthBetween(1, 10));
+            }
+            context = new QueryShardContext(context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
-            assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
+            assertLuceneQuery(secondQuery, secondLuceneQuery, context);
 
             if (builderGeneratesCacheableQueries()) {
                 assertEquals("two equivalent query builders lead to different lucene queries",
@@ -490,11 +493,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Verifies that named queries and boost are properly handled and delegates to
-     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, SearchContext)} for query specific checks.
+     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, QueryShardContext)} for query specific checks.
      */
-    private void assertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException {
+    private void assertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.queryName() != null) {
-            assertTrue(context.getQueryShardContext().matchNamedQueries());
+            assertTrue(context.matchNamedQueries());
         }
         if (query != null) {
             if (queryBuilder.queryName() != null) {
@@ -529,7 +532,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Contains the query specific checks to be implemented by subclasses.
      */
-    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException;
+    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException;
 
     protected void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
         if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {

@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -38,6 +39,12 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class JvmOptionsParserTests extends LaunchersTestCase {
+
+    public void testSubstitution() {
+        final List<String> jvmOptions =
+            JvmOptionsParser.substitutePlaceholders(List.of("-Djava.io.tmpdir=${ES_TMPDIR}"), Map.of("ES_TMPDIR", "/tmp/elasticsearch"));
+        assertThat(jvmOptions, contains("-Djava.io.tmpdir=/tmp/elasticsearch"));
+    }
 
     public void testUnversionedOptions() throws IOException {
         try (StringReader sr = new StringReader("-Xms1g\n-Xmx1g");

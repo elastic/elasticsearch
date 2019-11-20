@@ -3,11 +3,10 @@
 
 Specifies search criteria as query parameters in the request URI.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_search?q=user:kimchy
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -110,17 +109,16 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 [[search-uri-request-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_search?q=user:kimchy
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "timed_out": false,
@@ -140,7 +138,6 @@ The API returns the following response:
         "hits" : [
             {
                 "_index" : "twitter",
-                "_type" : "_doc",
                 "_id" : "0",
                 "_score": 1.3862944,
                 "_source" : {

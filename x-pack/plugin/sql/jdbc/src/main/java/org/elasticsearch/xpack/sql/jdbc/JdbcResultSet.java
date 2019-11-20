@@ -37,8 +37,8 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
-import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asTimestamp;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTimestamp;
@@ -57,6 +57,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private boolean closed = false;
     private boolean wasNull = false;
+    private boolean wasLast = false;
 
     private int rowNumber;
 
@@ -78,10 +79,13 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         if (columnIndex < 1 || columnIndex > cursor.columnSize()) {
             throw new SQLException("Invalid column index [" + columnIndex + "]");
         }
+        if (wasLast == true || rowNumber < 1) {
+            throw new SQLException("No row available");
+        }
         Object object = null;
         try {
             object = cursor.column(columnIndex - 1);
-        } catch (IllegalArgumentException iae) {
+        } catch (Exception iae) {
             throw new SQLException(iae.getMessage());
         }
         wasNull = (object == null);
@@ -114,6 +118,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             rowNumber++;
             return true;
         }
+        wasLast = true;
         return false;
     }
 
@@ -461,7 +466,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public boolean isAfterLast() throws SQLException {
-        throw new SQLFeatureNotSupportedException("isAfterLast not supported");
+        return rowNumber > 0 && wasLast;
     }
 
     @Override

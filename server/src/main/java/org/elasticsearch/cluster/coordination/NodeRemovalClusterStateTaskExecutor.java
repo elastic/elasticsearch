@@ -56,7 +56,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
 
         @Override
         public String toString() {
-            return node + " " + reason;
+            return node + " reason: " + reason;
         }
     }
 

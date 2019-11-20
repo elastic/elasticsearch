@@ -42,7 +42,7 @@ public class UpdateByQueryWithScriptTests
          * error message to the user, not some ClassCastException.
          */
         Object[] options = new Object[] {"cat", new Object(), 123, new Date(), Math.PI};
-        for (String ctxVar: new String[] {"_index", "_type", "_id", "_version", "_routing"}) {
+        for (String ctxVar: new String[] {"_index", "_id", "_version", "_routing"}) {
             try {
                 applyScript((Map<String, Object> ctx) -> ctx.put(ctxVar, randomFrom(options)));
             } catch (IllegalArgumentException e) {

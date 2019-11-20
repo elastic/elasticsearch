@@ -20,3 +20,15 @@ block is automatically removed when a node drops below the high watermark
 again, but this behaviour could be disabled by setting the system property
 `es.disk.auto_release_flood_stage_block` to `false`. This behaviour is no
 longer optional, and this system property must now not be set.
+
+[float]
+[[breaking_80_allocation_change_include_relocations_removed]]
+==== Accounting for disk usage of relocating shards no longer optional
+
+By default {es} will account for the sizes of relocating shards when making
+allocation decisions based on the disk usage of the nodes in the cluster. In
+earlier versions the `cluster.routing.allocation.disk.include_relocations`
+setting allowed this accounting to be disabled, which would result in poor
+allocation decisions that might overshoot watermarks and require significant
+extra work to correct. This behaviour is no longer optional, and this setting
+has been removed.

@@ -158,7 +158,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         if (r) {
                             nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
                         } else {
-                            finishAndSetState();
+                            onFinish(ActionListener.wrap(
+                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), () -> {}),
+                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), () -> {})));
                         }
                     },
                     this::finishWithFailure));

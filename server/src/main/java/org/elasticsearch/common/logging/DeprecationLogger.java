@@ -253,7 +253,7 @@ public class DeprecationLogger {
                      */
                     String opaqueId = getXOpaqueId(threadContexts);
 
-                    logger.warn(new DeprecatedMessage(message, opaqueId, params));
+                    logger.warn(DeprecatedMessage.of(opaqueId, message, params));
                     return null;
                 }
             });
@@ -262,7 +262,6 @@ public class DeprecationLogger {
 
     public String getXOpaqueId(Set<ThreadContext> threadContexts) {
         return threadContexts.stream()
-                             .filter(t -> t.isClosed() == false)
                              .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
                              .findFirst()
                              .map(t -> t.getHeader(Task.X_OPAQUE_ID))

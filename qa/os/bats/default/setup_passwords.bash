@@ -48,6 +48,7 @@ else
 fi
 
 @test "[$GROUP] test auto generated passwords" {
+    assert_file_not_exist "/home/elasticsearch"
     run_elasticsearch_service 0
     wait_for_xpack
 
@@ -84,4 +85,10 @@ SETUP_AUTO
     set -H
 
     stop_elasticsearch_service
+    assert_file_not_exist "/home/elasticsearch"
+}
+
+@test "[$GROUP] remove Elasticsearch" {
+    # NOTE: this must be the last test, so that running oss tests does not already have the default distro still installed
+    clean_before_test
 }

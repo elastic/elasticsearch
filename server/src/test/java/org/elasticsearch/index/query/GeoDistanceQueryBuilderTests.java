@@ -28,7 +28,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Point;
@@ -126,7 +125,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         // TODO: remove the if statement once we always use LatLonPoint
         if (query instanceof IndexOrDocValuesQuery) {
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();

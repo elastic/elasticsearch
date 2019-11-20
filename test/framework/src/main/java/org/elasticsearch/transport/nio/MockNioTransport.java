@@ -67,7 +67,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -220,7 +219,7 @@ public class MockNioTransport extends TcpTransport {
                 }
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, MockNioTransport.this);
-            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, socketConfig, (e) -> exceptionCaught(nioChannel, e),
+            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, socketConfig, e -> exceptionCaught(nioChannel, e),
                 readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
             nioChannel.addConnectListener((v, e) -> {
@@ -240,10 +239,8 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel, Config.ServerSocket socketConfig) {
             MockServerChannel nioServerChannel = new MockServerChannel(channel);
-            Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
-                new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
             ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, socketConfig,
-                MockNioTransport.this::acceptChannel, exceptionHandler) {
+                MockNioTransport.this::acceptChannel, e -> onServerException(nioServerChannel, e)) {
                 @Override
                 public void acceptChannels(Supplier<NioSelector> selectorSupplier) throws IOException {
                     int acceptCount = 0;

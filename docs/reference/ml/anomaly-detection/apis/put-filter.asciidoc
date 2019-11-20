@@ -18,7 +18,7 @@ Instantiates a filter.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-put-filter-desc]]
 ==== {api-description-title}
@@ -49,7 +49,7 @@ the `custom_rules` property of <<ml-detectorconfig,detector configuration object
 
 The following example creates the `safe_domains` filter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/filters/safe_domains
 {
@@ -57,11 +57,11 @@ PUT _ml/filters/safe_domains
   "items": ["*.google.com", "wikipedia.org"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:need-licence]
 
 When the filter is created, you receive the following response:
-[source,js]
+
+[source,console-result]
 ----
 {
   "filter_id": "safe_domains",
@@ -69,4 +69,3 @@ When the filter is created, you receive the following response:
   "items": ["*.google.com", "wikipedia.org"]
 }
 ----
-// TESTRESPONSE

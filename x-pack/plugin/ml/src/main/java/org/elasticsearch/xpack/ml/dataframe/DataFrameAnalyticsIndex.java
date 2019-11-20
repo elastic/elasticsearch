@@ -183,13 +183,9 @@ public final class DataFrameAnalyticsIndex {
         // We have validated the destination index should match a single index
         assert getIndexResponse.indices().length == 1;
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.getMappings().get(getIndexResponse.indices()[0]);
-        String type = mappings.keysIt().next();
-
         Map<String, Object> addedMappings = Map.of(PROPERTIES, Map.of(ID_COPY, Map.of("type", "keyword")));
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(getIndexResponse.indices());
-        putMappingRequest.type(type);
         putMappingRequest.source(addedMappings);
         ClientHelper.executeWithHeadersAsync(analyticsConfig.getHeaders(), ML_ORIGIN, client, PutMappingAction.INSTANCE,
             putMappingRequest, listener);

@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
@@ -33,7 +32,7 @@ import java.util.Objects;
 /**
  * A request to retrieve information about model snapshots for a given job
  */
-public class GetModelSnapshotsRequest extends ActionRequest implements ToXContentObject {
+public class GetModelSnapshotsRequest implements Validatable, ToXContentObject {
 
 
     public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
@@ -151,11 +150,6 @@ public class GetModelSnapshotsRequest extends ActionRequest implements ToXConten
      */
     public void setDesc(boolean desc) {
         this.desc = desc;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

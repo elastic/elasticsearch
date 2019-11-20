@@ -19,7 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -80,6 +79,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -257,7 +257,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         IndexMetaData.Builder metaData = IndexMetaData.builder(shardRouting.getIndexName())
             .settings(indexSettings)
             .primaryTerm(0, primaryTerm)
-            .putMapping("_doc", "{ \"properties\": {} }");
+            .putMapping("{ \"properties\": {} }");
         return newShard(shardRouting, metaData.build(), null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
@@ -547,7 +547,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(),
             getFakeDiscoNode(primary.routingEntry().currentNodeId()),
             null));
-        primary.recoverFromStore();
+        recoverFromStore(primary);
         updateRoutingEntry(primary, ShardRoutingHelper.moveToStarted(primary.routingEntry()));
     }
 
@@ -695,20 +695,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
             inSyncIds, newRoutingTable);
     }
 
-    private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
-        Store.MetadataSnapshot result;
-        try {
-            result = replica.snapshotStoreMetadata();
-        } catch (IndexNotFoundException e) {
-            // OK!
-            result = Store.MetadataSnapshot.EMPTY;
-        } catch (IOException e) {
-            logger.warn("failed read store, treating as empty", e);
-            result = Store.MetadataSnapshot.EMPTY;
-        }
-        return result;
-    }
-
     public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
         return getDocIdAndSeqNos(shard).stream().map(DocIdSeqNoAndSource::getId).collect(Collectors.toSet());
     }
@@ -742,21 +728,21 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
-        return indexDoc(shard, type, id, source, XContentType.JSON, null);
+        return indexDoc(shard, id, source, XContentType.JSON, null);
     }
 
-    protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source, XContentType xContentType,
+    protected Engine.IndexResult indexDoc(IndexShard shard, String id, String source, XContentType xContentType,
                                           String routing)
         throws IOException {
         SourceToParse sourceToParse = new SourceToParse(
-            shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType, routing);
+            shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing);
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
                 SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 updateMappings(shard, IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
-                    .putMapping(type, result.getRequiredMappingUpdate().toString()).build());
+                    .putMapping(result.getRequiredMappingUpdate().toString()).build());
                 result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
                     SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             }
@@ -766,7 +752,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
-            result = shard.applyIndexOperationOnReplica(seqNo, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
+            result = shard.applyIndexOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
             shard.sync(); // advance local checkpoint
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 throw new TransportReplicationAction.RetryOnReplicaException(shard.shardId,
@@ -782,18 +769,18 @@ public abstract class IndexShardTestCase extends ESTestCase {
             IndexMetaData.builder(indexMetadata).putMapping(new MappingMetaData(shard.mapperService().documentMapper())).build());
     }
 
-    protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {
+    protected Engine.DeleteResult deleteDoc(IndexShard shard, String id) throws IOException {
         final Engine.DeleteResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyDeleteOperationOnPrimary(
-                Versions.MATCH_ANY, type, id, VersionType.INTERNAL, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+                Versions.MATCH_ANY, id, VersionType.INTERNAL, SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             shard.sync(); // advance local checkpoint
             shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
                 shard.getLocalCheckpoint());
         } else {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
-            result = shard.applyDeleteOperationOnReplica(seqNo, 0L, type, id);
+            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id);
             shard.sync(); // advance local checkpoint
         }
         return result;
@@ -805,6 +792,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected void flushShard(IndexShard shard, boolean force) {
         shard.flush(new FlushRequest(shard.shardId().getIndexName()).force(force));
+    }
+
+    public static boolean recoverFromStore(IndexShard newShard) {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        newShard.recoverFromStore(future);
+        return future.actionGet();
     }
 
     /** Recover a shard from a snapshot using a given repository **/
@@ -820,32 +813,42 @@ public abstract class IndexShardTestCase extends ESTestCase {
             new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, version, index);
         final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, recoverySource);
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repository.restoreShard(shard.store(),
-            snapshot.getSnapshotId(), version,
+            snapshot.getSnapshotId(),
             indexId,
             shard.shardId(),
-            shard.recoveryState());
+            shard.recoveryState(),
+            future);
+        future.actionGet();
     }
 
-    /** Snapshot a shard using a given repository **/
-    protected void snapshotShard(final IndexShard shard,
-                                 final Snapshot snapshot,
-                                 final Repository repository) throws IOException {
-        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+    /**
+     * Snapshot a shard using a given repository.
+     *
+     * @return new shard generation
+     */
+    protected String snapshotShard(final IndexShard shard,
+                                   final Snapshot snapshot,
+                                   final Repository repository) throws IOException {
+        final Index index = shard.shardId().getIndex();
+        final IndexId indexId = new IndexId(index.getName(), index.getUUID());
+        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
+            ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).shardGenerations().getShardGen(
+                indexId, shard.shardId().getId()));
+        final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+        final String shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
-            Index index = shard.shardId().getIndex();
-            IndexId indexId = new IndexId(index.getName(), index.getUUID());
-
             repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
-                indexCommitRef.getIndexCommit(), snapshotStatus, future);
-            future.actionGet();
+                indexCommitRef.getIndexCommit(), snapshotStatus, true, future);
+            shardGen = future.actionGet();
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
         assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());
         assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.getTotalFileCount());
         assertNull(lastSnapshotStatus.getFailure());
+        return shardGen;
     }
 
     /**

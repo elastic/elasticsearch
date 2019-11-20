@@ -146,11 +146,11 @@ import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assert.assertEquals;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertFalse;
@@ -875,10 +875,16 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         void startNode() {
+            boolean success = false;
             try {
                 node.start();
+                success = true;
             } catch (NodeValidationException e) {
                 throw new RuntimeException(e);
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(node);
+                }
             }
         }
 
@@ -1099,22 +1105,17 @@ public final class InternalTestCluster extends TestCluster {
         logger.trace("validating cluster formed via [{}], expecting {}", viaNode, expectedNodes);
         final Client client = client(viaNode);
         try {
-            if (awaitBusy(() -> {
+            assertBusy(() -> {
                 DiscoveryNodes discoveryNodes = client.admin().cluster().prepareState().get().getState().nodes();
-                if (discoveryNodes.getSize() != expectedNodes.size()) {
-                    return false;
-                }
+                assertEquals(expectedNodes.size(), discoveryNodes.getSize());
                 for (DiscoveryNode expectedNode : expectedNodes) {
-                    if (discoveryNodes.nodeExists(expectedNode) == false) {
-                        return false;
-                    }
+                    assertTrue("Expected node to exist: " + expectedNode, discoveryNodes.nodeExists(expectedNode));
                 }
-                return true;
-            }, 30, TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual nodes " +
-                    client.admin().cluster().prepareState().get().getState().nodes());
-            }
-        } catch (InterruptedException e) {
+            }, 30, TimeUnit.SECONDS);
+        } catch (AssertionError ae) {
+            throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual nodes " +
+                client.admin().cluster().prepareState().get().getState().nodes());
+        } catch (Exception e) {
             throw new IllegalStateException(e);
         }
     }
@@ -1996,6 +1997,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put(settings)
                 .put(Node.NODE_MASTER_SETTING.getKey(), true)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
+                .put(Node.NODE_INGEST_SETTING.getKey(), false)
                 .build();
         return startNode(settings1);
     }

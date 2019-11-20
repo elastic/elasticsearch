@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -52,7 +53,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -131,7 +131,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.ANY, ValueType.DATE);
+        super(name, CoreValuesSourceType.ANY, ValueType.DATE);
     }
 
     protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
@@ -152,7 +152,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY, ValueType.DATE);
+        super(in, CoreValuesSourceType.ANY, ValueType.DATE);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
@@ -164,7 +164,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     @Override
     protected ValuesSourceType resolveScriptAny(Script script) {
         // TODO: No idea how we'd support Range scripts here.
-        return ValuesSourceType.NUMERIC;
+        return CoreValuesSourceType.NUMERIC;
     }
 
 
@@ -485,11 +485,13 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<ValuesSource> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
         final Rounding rounding = dateHistogramInterval.createRounding(tz);
-        final ZoneId rewrittenTimeZone = rewriteTimeZone(context.getQueryShardContext());
+        final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);
         final Rounding shardRounding;
         if (tz == rewrittenTimeZone) {
             shardRounding = rounding;
@@ -500,10 +502,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         ExtendedBounds roundedBounds = null;
         if (this.extendedBounds != null) {
             // parse any string bounds to longs and round
-            roundedBounds = this.extendedBounds.parseAndValidate(name, context, config.format()).round(rounding);
+            roundedBounds = this.extendedBounds.parseAndValidate(name, queryShardContext, config.format()).round(rounding);
         }
         return new DateHistogramAggregatorFactory(name, config, offset, order, keyed, minDocCount,
-                rounding, shardRounding, roundedBounds, context, parent, subFactoriesBuilder, metaData);
+                rounding, shardRounding, roundedBounds, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

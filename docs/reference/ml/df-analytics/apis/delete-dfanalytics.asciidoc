@@ -20,8 +20,7 @@ experimental[]
 ==== {api-prereq-title}
 
 * You must have `machine_learning_admin` built-in role to use this API. For more 
-information, see {stack-ov}/security-privileges.html[Security privileges] and 
-{stack-ov}/built-in-roles.html[Built-in roles].
+information, see <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-delete-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -34,19 +33,17 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 
 The following example deletes the `loganalytics` {dfanalytics-job}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/data_frame/analytics/loganalytics
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged" : true
 }
 ----
-// TESTRESPONSE

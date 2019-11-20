@@ -186,7 +186,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
         leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -253,7 +253,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
         leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -318,7 +318,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
         leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -398,7 +398,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     .admin()
                     .indices()
                     .preparePutMapping(leaderIndex)
-                    .setType("doc")
                     .setSource("{\"properties\":{\"k\":{\"type\":\"long\"}}}", XContentType.JSON)
                     .execute(ActionListener.wrap(latch::countDown));
             }
@@ -435,7 +434,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             clusterStateRequest.metaData(true);
             clusterStateRequest.indices(followerIndex);
             MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
-                .get("index2").get("doc");
+                .get("index2");
             assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         } finally {
             for (MockTransportService transportService : transportServices) {
@@ -445,7 +444,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
     }
 
     private void assertExpectedDocument(String followerIndex, final int value) {
-        final GetResponse getResponse = followerClient().prepareGet(followerIndex, "doc", Integer.toString(value)).get();
+        final GetResponse getResponse = followerClient().prepareGet(followerIndex, Integer.toString(value)).get();
         assertTrue("Doc with id [" + value + "] is missing", getResponse.isExists());
         assertTrue((getResponse.getSource().containsKey("f")));
         assertThat(getResponse.getSource().get("f"), equalTo(value));

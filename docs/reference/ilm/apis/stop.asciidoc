@@ -32,7 +32,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 ==== Authorization
 
 You must have the `manage_ilm` cluster privilege to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 ==== Examples
 
@@ -40,7 +40,7 @@ The following example stops the ILM plugin.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -66,36 +66,31 @@ PUT _ilm/policy/my_policy
 
 PUT my_index
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/stop
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 If the request does not encounter errors, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/start
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////

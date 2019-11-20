@@ -194,7 +194,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 CountDownLatch listenerCalled = new CountDownLatch(1);
                 AtomicReference<Exception> exceptionReference = new AtomicReference<>();
                 String clusterAlias = "test-cluster";
-                Settings settings = buildSniffSettings(clusterAlias, seedNodes(seedNode));
+                Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
                     ActionListener<Void> listener = ActionListener.wrap(x -> {
                         listenerCalled.countDown();
@@ -219,7 +219,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    private static List<String> seedNodes(final DiscoveryNode... seedNodes) {
+    private static List<String> addresses(final DiscoveryNode... seedNodes) {
         return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toList());
     }
 
@@ -234,14 +234,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             knownNodes.add(discoverableTransport.getLocalDiscoNode());
             knownNodes.add(seedTransport1.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
-            List<String> seedNodes = seedNodes(seedNode1, seedNode);
+            List<String> seedNodes = addresses(seedNode1, seedNode);
             Collections.shuffle(seedNodes, random());
 
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
-                Settings settings = buildSniffSettings(clusterAlias, seedNodes);
+                Settings settings = buildRandomSettings(clusterAlias, seedNodes);
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
                     int numThreads = randomIntBetween(4, 10);
                     Thread[] threads = new Thread[numThreads];
@@ -321,7 +321,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             knownNodes.add(transport3.getLocalDiscoNode());
             knownNodes.add(transport2.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
-            List<String> seedNodes = seedNodes(node3, node1, node2);
+            List<String> seedNodes = addresses(node3, node1, node2);
             Collections.shuffle(seedNodes, random());
 
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
@@ -421,7 +421,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
-                Settings settings = buildSniffSettings(clusterAlias, seedNodes(seedNode));
+                Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
+
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
                     CountDownLatch responseLatch = new CountDownLatch(1);
                     AtomicReference<Function<String, DiscoveryNode>> reference = new AtomicReference<>();
@@ -460,8 +461,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 discoverableTransports.add(transportService);
             }
 
-            List<String> seedNodes = new CopyOnWriteArrayList<>(randomSubsetOf(discoverableNodes.stream()
-                .map(d -> d.getAddress().toString()).collect(Collectors.toList())));
+            List<String> seedNodes = new CopyOnWriteArrayList<>(randomSubsetOf(randomIntBetween(1, discoverableNodes.size()),
+                discoverableNodes.stream().map(d -> d.getAddress().toString()).collect(Collectors.toList())));
             Collections.shuffle(seedNodes, random());
 
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
@@ -469,7 +470,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
 
                 String clusterAlias = "test-cluster";
-                Settings settings = buildSniffSettings(clusterAlias, seedNodes);
+                Settings settings = buildRandomSettings(clusterAlias, seedNodes);
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
                     final int numGetThreads = randomIntBetween(4, 10);
                     final Thread[] getThreads = new Thread[numGetThreads];
@@ -570,7 +571,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 String clusterAlias = "test-cluster";
-                Settings settings = buildSniffSettings(clusterAlias, seedNodes(connectedNode));
+                Settings settings = buildRandomSettings(clusterAlias, addresses(connectedNode));
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service, connectionManager)) {
                     PlainActionFuture.get(fut -> connection.ensureConnected(ActionListener.map(fut, x -> null)));
                     for (int i = 0; i < 10; i++) {
@@ -595,10 +596,32 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
+    private Settings buildRandomSettings(String clusterAlias, List<String> addresses) {
+        if (randomBoolean()) {
+            return buildSimpleSettings(clusterAlias, addresses);
+        } else {
+            return buildSniffSettings(clusterAlias, addresses);
+        }
+    }
+
+    private static Settings buildSimpleSettings(String clusterAlias, List<String> addresses) {
+        Settings.Builder builder = Settings.builder();
+        builder.put(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).getKey(),
+            Strings.collectionToCommaDelimitedString(addresses));
+        builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "simple");
+        return builder.build();
+    }
+
     private static Settings buildSniffSettings(String clusterAlias, List<String> seedNodes) {
         Settings.Builder builder = Settings.builder();
-        builder.put(RemoteClusterAware.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
-            Strings.collectionToCommaDelimitedString(seedNodes));
+        builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "sniff");
+        if (randomBoolean()) {
+            builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                Strings.collectionToCommaDelimitedString(seedNodes));
+        } else {
+            builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                Strings.collectionToCommaDelimitedString(seedNodes));
+        }
         return builder.build();
     }
 }

@@ -329,18 +329,13 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         private final String namespace;
         private final Consumer<T> valueChecker;
 
-        StrategyValidator(Setting.AffixKey affixKey, String key, ConnectionStrategy expectedStrategy) {
-            this(affixKey, key, expectedStrategy, (v) -> {});
-
+        StrategyValidator(String namespace, ConnectionStrategy expectedStrategy) {
+            this(namespace, expectedStrategy, (v) -> {});
         }
 
-        StrategyValidator(Setting.AffixKey affixKey, String key, ConnectionStrategy expectedStrategy, Consumer<T> valueChecker) {
+        StrategyValidator(String namespace, ConnectionStrategy expectedStrategy, Consumer<T> valueChecker) {
             this.expectedStrategy = expectedStrategy;
-            if ("_na_".equals(key)) {
-                this.namespace = key;
-            } else {
-                this.namespace = affixKey.getNamespace(key);
-            }
+            this.namespace = namespace;
             this.valueChecker = valueChecker;
         }
 

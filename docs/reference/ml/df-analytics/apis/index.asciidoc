@@ -5,16 +5,16 @@
 
 You can use the following APIs to perform {ml} {dfanalytics} activities.
 
-* <<put-dfanalytics,Create {dfanalytics-jobs}>> 
+* <<put-dfanalytics,Create {dfanalytics-jobs}>>
 * <<delete-dfanalytics,Delete {dfanalytics-jobs}>>
 * <<get-dfanalytics,Get {dfanalytics-jobs} info>>
 * <<get-dfanalytics-stats,Get {dfanalytics-jobs} statistics>>
 * <<start-dfanalytics,Start {dfanalytics-jobs}>>
 * <<stop-dfanalytics,Stop {dfanalytics-jobs}>>
 * <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
-* <<estimate-memory-usage-dfanalytics,Estimate memory usage for {dfanalytics}>>
+* <<dfanalytics-info,{dfanalytics} info>>
 
-See also <<ml-apis>>. 
+See also <<ml-apis>>.
 
 //CREATE
 include::put-dfanalytics.asciidoc[]
@@ -23,7 +23,7 @@ include::delete-dfanalytics.asciidoc[]
 //EVALUATE
 include::evaluate-dfanalytics.asciidoc[]
 //ESTIMATE_MEMORY_USAGE
-include::estimate-memory-usage-dfanalytics.asciidoc[]
+include::dfanalytics-info.asciidoc[]
 //GET
 include::get-dfanalytics.asciidoc[]
 include::get-dfanalytics-stats.asciidoc[]

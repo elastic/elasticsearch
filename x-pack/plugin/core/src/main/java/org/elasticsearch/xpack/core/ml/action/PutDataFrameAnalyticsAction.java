@@ -51,13 +51,13 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         }
 
         /**
-         * Parses request for memory estimation.
-         * {@link Request} is reused across {@link PutDataFrameAnalyticsAction} and {@link EstimateMemoryUsageAction} but parsing differs
+         * Parses request for info.
+         * {@link Request} is reused across {@link PutDataFrameAnalyticsAction} and {@link DataFrameAnalyticsInfoAction} but parsing differs
          * between these two usages.
          */
-        public static Request parseRequestForMemoryEstimation(XContentParser parser) {
+        public static Request parseRequestForInfo(XContentParser parser) {
             DataFrameAnalyticsConfig.Builder configBuilder = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
-            DataFrameAnalyticsConfig config = configBuilder.buildForMemoryEstimation();
+            DataFrameAnalyticsConfig config = configBuilder.buildForInfo();
             return new PutDataFrameAnalyticsAction.Request(config);
         }
 

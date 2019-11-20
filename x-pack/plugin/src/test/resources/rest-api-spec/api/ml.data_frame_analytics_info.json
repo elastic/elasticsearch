@@ -1,0 +1,31 @@
+{
+  "ml.data_frame_analytics_info": {
+    "documentation": {
+      "url": "http://www.elastic.co/guide/en/elasticsearch/reference/current/dfanalytics-info.html"
+    },
+    "stability": "experimental",
+    "url": {
+      "paths" : [
+        {
+          "path" : "/_ml/data_frame/analytics/_info",
+          "methods": [ "GET", "POST" ],
+          "parts": {}
+        },
+        {
+          "path" : "/_ml/data_frame/analytics/{id}/_info",
+          "methods": [ "GET", "POST" ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the data frame analytics whose info to get"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description" : "A data frame analytics config",
+      "required" : false
+    }
+  }
+}

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml;
+package org.elasticsearch.client.ml.dataframe.info;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -24,22 +24,22 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class EstimateMemoryUsageResponseTests extends AbstractXContentTestCase<EstimateMemoryUsageResponse> {
+public class MemoryEstimationTests extends AbstractXContentTestCase<MemoryEstimation> {
 
-    public static EstimateMemoryUsageResponse randomResponse() {
-        return new EstimateMemoryUsageResponse(
+    public static MemoryEstimation createRandom() {
+        return new MemoryEstimation(
             randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null,
             randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null);
     }
 
     @Override
-    protected EstimateMemoryUsageResponse createTestInstance() {
-        return randomResponse();
+    protected MemoryEstimation createTestInstance() {
+        return createRandom();
     }
 
     @Override
-    protected EstimateMemoryUsageResponse doParseInstance(XContentParser parser) throws IOException {
-        return EstimateMemoryUsageResponse.fromXContent(parser);
+    protected MemoryEstimation doParseInstance(XContentParser parser) throws IOException {
+        return MemoryEstimation.PARSER.apply(parser, null);
     }
 
     @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
+import org.elasticsearch.xpack.core.ml.dataframe.info.FieldSelection;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
@@ -29,13 +31,12 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -57,9 +58,8 @@ public class ExtractedFieldsDetector {
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
     private final Map<String, Long> fieldCardinalities;
 
-    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, boolean isTaskRestarting,
-                            int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse,
-                            Map<String, Long> fieldCardinalities) {
+    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, boolean isTaskRestarting, int docValueFieldsLimit,
+                                    FieldCapabilitiesResponse fieldCapabilitiesResponse, Map<String, Long> fieldCardinalities) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
         this.isTaskRestarting = isTaskRestarting;
@@ -68,8 +68,30 @@ public class ExtractedFieldsDetector {
         this.fieldCardinalities = Objects.requireNonNull(fieldCardinalities);
     }
 
-    public ExtractedFields detect() {
-        Set<String> fields = getIncludedFields();
+    public Tuple<ExtractedFields, List<FieldSelection>> detect() {
+        TreeSet<FieldSelection> fieldSelection = new TreeSet<>(Comparator.comparing(FieldSelection::getName));
+        Set<String> fields = getIncludedFields(fieldSelection);
+        checkFieldsHaveCompatibleTypes(fields);
+        checkRequiredFields(fields);
+        checkFieldsWithCardinalityLimit();
+        ExtractedFields extractedFields = detectExtractedFields(fields, fieldSelection);
+        addIncludedFields(extractedFields, fieldSelection);
+
+        return Tuple.tuple(extractedFields, Collections.unmodifiableList(new ArrayList<>(fieldSelection)));
+    }
+
+    private Set<String> getIncludedFields(Set<FieldSelection> fieldSelection) {
+        Set<String> fields = new TreeSet<>(fieldCapabilitiesResponse.get().keySet());
+        fields.removeAll(IGNORE_FIELDS);
+        checkResultsFieldIsNotPresent();
+        removeFieldsUnderResultsField(fields);
+        FetchSourceContext analyzedFields = config.getAnalyzedFields();
+
+        // If the user has not explicitly included fields we'll include all compatible fields
+        if (analyzedFields == null || analyzedFields.includes().length == 0) {
+            removeFieldsWithIncompatibleTypes(fields, fieldSelection);
+        }
+        includeAndExcludeFields(fields, fieldSelection);
 
         if (fields.isEmpty()) {
             throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index {}. Supported types are {}.",
@@ -77,26 +99,19 @@ public class ExtractedFieldsDetector {
                 getSupportedTypes());
         }
 
-        checkNoIgnoredFields(fields);
-        checkFieldsHaveCompatibleTypes(fields);
-        checkRequiredFields(fields);
-        checkFieldsWithCardinalityLimit();
-        return detectExtractedFields(fields);
+        return fields;
     }
 
-    private Set<String> getIncludedFields() {
-        Set<String> fields = new HashSet<>(fieldCapabilitiesResponse.get().keySet());
-        checkResultsFieldIsNotPresent();
-        removeFieldsUnderResultsField(fields);
-        FetchSourceContext analyzedFields = config.getAnalyzedFields();
-
-        // If the user has not explicitly included fields we'll include all compatible fields
-        if (analyzedFields == null || analyzedFields.includes().length == 0) {
-            fields.removeAll(IGNORE_FIELDS);
-            removeFieldsWithIncompatibleTypes(fields);
+    private void removeFieldsUnderResultsField(Set<String> fields) {
+        String resultsField = config.getDest().getResultsField();
+        Iterator<String> fieldsIterator = fields.iterator();
+        while (fieldsIterator.hasNext()) {
+            String field = fieldsIterator.next();
+            if (field.startsWith(resultsField + ".")) {
+                fieldsIterator.remove();
+            }
         }
-        includeAndExcludeFields(fields);
-        return fields;
+        fields.removeIf(field -> field.startsWith(resultsField + "."));
     }
 
     private void checkResultsFieldIsNotPresent() {
@@ -117,16 +132,21 @@ public class ExtractedFieldsDetector {
         }
     }
 
-    private void removeFieldsUnderResultsField(Set<String> fields) {
-        // Ignore fields under the results object
-        fields.removeIf(field -> field.startsWith(config.getDest().getResultsField() + "."));
+    private void addExcludedField(String field, String reason, Set<FieldSelection> fieldSelection) {
+        fieldSelection.add(FieldSelection.excluded(field, getMappingTypes(field), reason));
     }
 
-    private void removeFieldsWithIncompatibleTypes(Set<String> fields) {
+    private Set<String> getMappingTypes(String field) {
+        Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(field);
+        return fieldCaps == null ? Collections.emptySet() : fieldCaps.keySet();
+    }
+
+    private void removeFieldsWithIncompatibleTypes(Set<String> fields, Set<FieldSelection> fieldSelection) {
         Iterator<String> fieldsIterator = fields.iterator();
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
             if (hasCompatibleType(field) == false) {
+                addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
                 fieldsIterator.remove();
             }
         }
@@ -163,7 +183,7 @@ public class ExtractedFieldsDetector {
         return supportedTypes;
     }
 
-    private void includeAndExcludeFields(Set<String> fields) {
+    private void includeAndExcludeFields(Set<String> fields, Set<FieldSelection> fieldSelection) {
         FetchSourceContext analyzedFields = config.getAnalyzedFields();
         if (analyzedFields == null) {
             return;
@@ -188,18 +208,30 @@ public class ExtractedFieldsDetector {
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex)))
                 .expand(excludes, true);
 
-            fields.retainAll(includedSet);
-            fields.removeAll(excludedSet);
+            applyIncludesExcludes(fields, includedSet, excludedSet, fieldSelection);
         } catch (ResourceNotFoundException ex) {
             // Re-wrap our exception so that we throw the same exception type when there are no fields.
             throw ExceptionsHelper.badRequestException(ex.getMessage());
         }
     }
 
-    private void checkNoIgnoredFields(Set<String> fields) {
-        Optional<String> ignoreField = IGNORE_FIELDS.stream().filter(fields::contains).findFirst();
-        if (ignoreField.isPresent()) {
-            throw ExceptionsHelper.badRequestException("field [{}] cannot be analyzed", ignoreField.get());
+    private void applyIncludesExcludes(Set<String> fields, Set<String> includes, Set<String> excludes,
+                                       Set<FieldSelection> fieldSelection) {
+        Iterator<String> fieldsIterator = fields.iterator();
+        while (fieldsIterator.hasNext()) {
+            String field = fieldsIterator.next();
+            if (includes.contains(field)) {
+                if (IGNORE_FIELDS.contains(field)) {
+                    throw ExceptionsHelper.badRequestException("field [{}] cannot be analyzed", field);
+                }
+            } else {
+                fieldsIterator.remove();
+                addExcludedField(field, "field not in includes list", fieldSelection);
+            }
+            if (excludes.contains(field)) {
+                fieldsIterator.remove();
+                addExcludedField(field, "field in excludes list", fieldSelection);
+            }
         }
     }
 
@@ -247,13 +279,10 @@ public class ExtractedFieldsDetector {
         }
     }
 
-    private ExtractedFields detectExtractedFields(Set<String> fields) {
-        List<String> sortedFields = new ArrayList<>(fields);
-        // We sort the fields to ensure the checksum for each document is deterministic
-        Collections.sort(sortedFields);
-        ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse);
+    private ExtractedFields detectExtractedFields(Set<String> fields, Set<FieldSelection> fieldSelection) {
+        ExtractedFields extractedFields = ExtractedFields.build(fields, Collections.emptySet(), fieldCapabilitiesResponse);
         boolean preferSource = extractedFields.getDocValueFields().size() > docValueFieldsLimit;
-        extractedFields = deduplicateMultiFields(extractedFields, preferSource);
+        extractedFields = deduplicateMultiFields(extractedFields, preferSource, fieldSelection);
         if (preferSource) {
             extractedFields = fetchFromSourceIfSupported(extractedFields);
             if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
@@ -266,7 +295,8 @@ public class ExtractedFieldsDetector {
         return extractedFields;
     }
 
-    private ExtractedFields deduplicateMultiFields(ExtractedFields extractedFields, boolean preferSource) {
+    private ExtractedFields deduplicateMultiFields(ExtractedFields extractedFields, boolean preferSource,
+                                                   Set<FieldSelection> fieldSelection) {
         Set<String> requiredFields = config.getAnalysis().getRequiredFields().stream().map(RequiredField::getName)
             .collect(Collectors.toSet());
         Map<String, ExtractedField> nameOrParentToField = new LinkedHashMap<>();
@@ -276,43 +306,53 @@ public class ExtractedFieldsDetector {
             if (existingField != null) {
                 ExtractedField parent = currentField.isMultiField() ? existingField : currentField;
                 ExtractedField multiField = currentField.isMultiField() ? currentField : existingField;
-                nameOrParentToField.put(nameOrParent, chooseMultiFieldOrParent(preferSource, requiredFields, parent, multiField));
+                nameOrParentToField.put(nameOrParent,
+                    chooseMultiFieldOrParent(preferSource, requiredFields, parent, multiField, fieldSelection));
             }
         }
         return new ExtractedFields(new ArrayList<>(nameOrParentToField.values()));
     }
 
-    private ExtractedField chooseMultiFieldOrParent(boolean preferSource, Set<String> requiredFields,
-                                                    ExtractedField parent, ExtractedField multiField) {
+    private ExtractedField chooseMultiFieldOrParent(boolean preferSource, Set<String> requiredFields, ExtractedField parent,
+                                                    ExtractedField multiField, Set<FieldSelection> fieldSelection) {
         // Check requirements first
         if (requiredFields.contains(parent.getName())) {
+            addExcludedField(multiField.getName(), "[" + parent.getName() + "] is required instead", fieldSelection);
             return parent;
         }
         if (requiredFields.contains(multiField.getName())) {
+            addExcludedField(parent.getName(), "[" + multiField.getName() + "] is required instead", fieldSelection);
             return multiField;
         }
 
         // If both are multi-fields it means there are several. In this case parent is the previous multi-field
         // we selected. We'll just keep that.
         if (parent.isMultiField() && multiField.isMultiField()) {
+            addExcludedField(multiField.getName(), "[" + parent.getName() + "] came first", fieldSelection);
             return parent;
         }
 
         // If we prefer source only the parent may support it. If it does we pick it immediately.
         if (preferSource && parent.supportsFromSource()) {
+            addExcludedField(multiField.getName(), "[" + parent.getName() + "] is preferred because it supports fetching from source",
+                fieldSelection);
             return parent;
         }
 
         // If any of the two is a doc_value field let's prefer it as it'd support aggregations.
         // We check the parent first as it'd be a shorter field name.
         if (parent.getMethod() == ExtractedField.Method.DOC_VALUE) {
+            addExcludedField(multiField.getName(), "[" + parent.getName() + "] is preferred because it is aggregatable", fieldSelection);
             return parent;
         }
         if (multiField.getMethod() == ExtractedField.Method.DOC_VALUE) {
+            addExcludedField(parent.getName(), "[" + multiField.getName() + "] is preferred because it is aggregatable", fieldSelection);
             return multiField;
         }
 
         // None is aggregatable. Let's pick the parent for its shorter name.
+        addExcludedField(multiField.getName(), "[" + parent.getName() + "] is preferred because none of the multi-fields are aggregatable",
+            fieldSelection);
         return parent;
     }
 
@@ -341,6 +381,26 @@ public class ExtractedFieldsDetector {
             }
         }
         return new ExtractedFields(adjusted);
+    }
+
+    private void addIncludedFields(ExtractedFields extractedFields, Set<FieldSelection> fieldSelection) {
+        Set<String> requiredFields = config.getAnalysis().getRequiredFields().stream().map(RequiredField::getName)
+            .collect(Collectors.toSet());
+        Set<String> categoricalFields = getCategoricalFields(extractedFields);
+        for (ExtractedField includedField : extractedFields.getAllFields()) {
+            FieldSelection.FeatureType featureType = categoricalFields.contains(includedField.getName()) ?
+                FieldSelection.FeatureType.CATEGORICAL : FieldSelection.FeatureType.NUMERICAL;
+            fieldSelection.add(FieldSelection.included(includedField.getName(), includedField.getTypes(),
+                requiredFields.contains(includedField.getName()), featureType));
+        }
+    }
+
+    private Set<String> getCategoricalFields(ExtractedFields extractedFields) {
+        return extractedFields.getAllFields().stream()
+            .filter(extractedField -> config.getAnalysis().getAllowedCategoricalTypes(extractedField.getName())
+                .containsAll(extractedField.getTypes()))
+            .map(ExtractedField::getName)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     private static boolean isBoolean(Set<String> types) {

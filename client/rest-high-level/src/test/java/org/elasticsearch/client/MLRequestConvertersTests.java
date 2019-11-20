@@ -25,6 +25,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DataFrameAnalyticsInfoRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -788,14 +789,25 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testEstimateMemoryUsage() throws IOException {
-        PutDataFrameAnalyticsRequest estimateRequest = new PutDataFrameAnalyticsRequest(randomDataFrameAnalyticsConfig());
-        Request request = MLRequestConverters.estimateMemoryUsage(estimateRequest);
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/data_frame/analytics/_estimate_memory_usage", request.getEndpoint());
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
-            DataFrameAnalyticsConfig parsedConfig = DataFrameAnalyticsConfig.fromXContent(parser);
-            assertThat(parsedConfig, equalTo(estimateRequest.getConfig()));
+    public void testDataFrameAnalyticsInfo() throws IOException {
+        // Request with config
+        {
+            DataFrameAnalyticsInfoRequest estimateRequest = new DataFrameAnalyticsInfoRequest(randomDataFrameAnalyticsConfig());
+            Request request = MLRequestConverters.dataFrameAnalyticsInfo(estimateRequest);
+            assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+            assertEquals("/_ml/data_frame/analytics/_info", request.getEndpoint());
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+                DataFrameAnalyticsConfig parsedConfig = DataFrameAnalyticsConfig.fromXContent(parser);
+                assertThat(parsedConfig, equalTo(estimateRequest.getConfig()));
+            }
+        }
+        // Request with id
+        {
+            DataFrameAnalyticsInfoRequest estimateRequest = new DataFrameAnalyticsInfoRequest("foo");
+            Request request = MLRequestConverters.dataFrameAnalyticsInfo(estimateRequest);
+            assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+            assertEquals("/_ml/data_frame/analytics/foo/_info", request.getEndpoint());
+            assertNull(request.getEntity());
         }
     }
 

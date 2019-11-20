@@ -36,6 +36,8 @@ import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DataFrameAnalyticsInfoRequest;
+import org.elasticsearch.client.ml.DataFrameAnalyticsInfoResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -48,7 +50,6 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
-import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
@@ -155,6 +156,8 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Confu
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric.ConfusionMatrix;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.info.FieldSelection;
+import org.elasticsearch.client.ml.dataframe.info.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
@@ -213,6 +216,7 @@ import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -3460,10 +3464,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testEstimateMemoryUsage() throws Exception {
-        createIndex("estimate-test-source-index");
+    public void testDataFrameAnalyticsInfo() throws Exception {
+        createIndex("df-info-test-source-index");
         BulkRequest bulkRequest =
-            new BulkRequest("estimate-test-source-index")
+            new BulkRequest("df-info-test-source-index")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; ++i) {
             bulkRequest.add(new IndexRequest().source(XContentType.JSON, "timestamp", 123456789L, "total", 10L));
@@ -3471,22 +3475,32 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
         {
-            // tag::estimate-memory-usage-request
+            // tag::data-frame-analytics-info-id-request
+            DataFrameAnalyticsInfoRequest request = new DataFrameAnalyticsInfoRequest("existing_job_id"); // <1>
+            // end::data-frame-analytics-info-id-request
+
+            // tag::data-frame-analytics-info-config-request
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
-                .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("df-info-test-source-index").build())
                 .setAnalysis(OutlierDetection.createDefault())
                 .build();
-            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config); // <1>
-            // end::estimate-memory-usage-request
+            request = new DataFrameAnalyticsInfoRequest(config); // <1>
+            // end::data-frame-analytics-info-config-request
 
-            // tag::estimate-memory-usage-execute
-            EstimateMemoryUsageResponse response = client.machineLearning().estimateMemoryUsage(request, RequestOptions.DEFAULT);
-            // end::estimate-memory-usage-execute
+            // tag::data-frame-analytics-info-execute
+            DataFrameAnalyticsInfoResponse response = client.machineLearning().dataFrameAnalyticsInfo(request, RequestOptions.DEFAULT);
+            // end::data-frame-analytics-info-execute
 
-            // tag::estimate-memory-usage-response
-            ByteSizeValue expectedMemoryWithoutDisk = response.getExpectedMemoryWithoutDisk(); // <1>
-            ByteSizeValue expectedMemoryWithDisk = response.getExpectedMemoryWithDisk(); // <2>
-            // end::estimate-memory-usage-response
+            // tag::data-frame-analytics-info-response
+            List<FieldSelection> fieldSelection = response.getFieldSelection();// <1>
+            MemoryEstimation memoryEstimation = response.getMemoryEstimation();// <2>
+            // end::data-frame-analytics-info-response
+
+            assertThat(fieldSelection.size(), equalTo(2));
+            assertThat(fieldSelection.stream().map(FieldSelection::getName).collect(Collectors.toList()), contains("timestamp", "total"));
+
+            ByteSizeValue expectedMemoryWithoutDisk = memoryEstimation.getExpectedMemoryWithoutDisk(); // <1>
+            ByteSizeValue expectedMemoryWithDisk = memoryEstimation.getExpectedMemoryWithDisk(); // <2>
 
             // We are pretty liberal here as this test does not aim at verifying concrete numbers but rather end-to-end user workflow.
             ByteSizeValue lowerBound = new ByteSizeValue(1, ByteSizeUnit.KB);
@@ -3496,14 +3510,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
-                .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("df-info-test-source-index").build())
                 .setAnalysis(OutlierDetection.createDefault())
                 .build();
-            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config);
+            DataFrameAnalyticsInfoRequest request = new DataFrameAnalyticsInfoRequest(config);
             // tag::estimate-memory-usage-execute-listener
-            ActionListener<EstimateMemoryUsageResponse> listener = new ActionListener<>() {
+            ActionListener<DataFrameAnalyticsInfoResponse> listener = new ActionListener<>() {
                 @Override
-                public void onResponse(EstimateMemoryUsageResponse response) {
+                public void onResponse(DataFrameAnalyticsInfoResponse response) {
                     // <1>
                 }
 
@@ -3519,7 +3533,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::estimate-memory-usage-execute-async
-            client.machineLearning().estimateMemoryUsageAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            client.machineLearning().dataFrameAnalyticsInfoAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::estimate-memory-usage-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

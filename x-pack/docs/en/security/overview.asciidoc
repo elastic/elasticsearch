@@ -1,0 +1,75 @@
+[role="xpack"]
+[[elasticsearch-security]]
+== Security overview
+++++
+<titleabbrev>Overview</titleabbrev>
+++++
+
+An {es} cluster is typically made out of many moving parts. There are the {es}
+nodes that form the cluster and often {ls} instances, {kib} instances, Beats
+agents, and clients all communicating with the cluster. It should not come as a
+surprise that securing such clusters has many facets and layers.
+
+Security protects {es} clusters by:
+
+* <<preventing-unauthorized-access, Preventing unauthorized access>>
+  with password protection, role-based access control, and IP filtering.
+* <<preserving-data-integrity, Preserving the integrity of your data>>
+  with SSL/TLS encryption.
+* <<maintaining-audit-trail, Maintaining an audit trail>>
+  so you know who's doing what to your cluster and the data it stores.  
+
+[float]
+[[preventing-unauthorized-access]]
+=== Preventing unauthorized access
+
+To prevent unauthorized access to your {es} cluster, you must have a
+way to _authenticate_ users. This simply means that you need a way to validate
+that a user is who they claim to be. For example, you have to make sure only
+the person named _Kelsey Andorra_ can sign in as the user `kandorra`. The
+{es-security-features} provide a standalone authentication mechanism that enables
+you to quickly password-protect your cluster. If you're already using LDAP, 
+Active Directory, or PKI to manage users in your organization, the
+{security-features} are able to integrate with those systems to perform user
+authentication. 
+
+In many cases, simply authenticating users isn't enough. You also need a way to
+control what data users have access to and what tasks they can perform. The
+{es-security-features} enable you to _authorize_ users by assigning access
+_privileges_ to _roles_ and assigning those roles to users. For example, this
+role-based access control mechanism (a.k.a RBAC) enables you to specify that the
+user `kandorra` can only perform read operations on the `events` index and can't
+do anything at all with other indices.
+
+See <<setting-up-authentication>> and <<authorization>>.
+
+The {security-features} also enable you to restrict the nodes and clients that
+can connect to the cluster based on <<ip-filtering,IP filters>>. You can
+whitelist and blacklist specific IP addresses, subnets, or DNS domains to
+control network-level access to a cluster.
+
+[float]
+[[preserving-data-integrity]]
+=== Preserving data integrity
+
+A critical part of security is keeping confidential data confidential.
+{es} has built-in protections against accidental data loss and
+corruption. However, there's nothing to stop deliberate tampering or data
+interception. The {stack-security-features} preserve the integrity of your
+data by encrypting communications to, from, and within the cluster. See
+<<encrypting-communications>>. For even	greater protection, you can increase the
+<<ciphers,encryption strength>>.
+
+[float]
+[[maintaining-audit-trail]]
+=== Maintaining an audit trail
+
+Keeping a system secure takes vigilance. By using {stack-security-features} to
+maintain an audit trail, you can easily see who is accessing your cluster and
+what they're doing. You can configure the audit level, which accounts for the
+type of events that are logged. These events include failed authentication
+attempts, user access denied, node connection denied, and more. By analyzing
+access patterns and failed attempts to access your cluster, you can gain
+insights into attempted attacks and data breaches. Keeping an auditable log of
+the activity in your cluster can also help diagnose operational issues. For more
+information, see <<enable-audit-logging>>.

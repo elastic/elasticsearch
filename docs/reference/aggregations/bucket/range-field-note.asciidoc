@@ -117,7 +117,8 @@ POST /range_index/_search?size=0
         "november_data" : {
             "date_histogram" : {
                 "field" : "time_frame",
-                "calendar_interval" : "day"
+                "calendar_interval" : "day",
+                "format": "yyyy-MM-dd"
               }
         }
     }
@@ -135,35 +136,43 @@ calculated over the ranges of all matching documents.
   "aggregations" : {
     "november_data" : {
       "buckets" : [
-        {
+              {
+          "key_as_string" : "2019-10-28",
           "key" : 1572220800000,
           "doc_count" : 1
         },
         {
+          "key_as_string" : "2019-10-29",
           "key" : 1572307200000,
           "doc_count" : 1
         },
         {
+          "key_as_string" : "2019-10-30",
           "key" : 1572393600000,
           "doc_count" : 1
         },
         {
+          "key_as_string" : "2019-10-31",
           "key" : 1572480000000,
           "doc_count" : 1
         },
         {
+          "key_as_string" : "2019-11-01",
           "key" : 1572566400000,
           "doc_count" : 1
         },
         {
+          "key_as_string" : "2019-11-02",
           "key" : 1572652800000,
           "doc_count" : 1
         },
         {
+          "key_as_string" : "2019-11-03",
           "key" : 1572739200000,
           "doc_count" : 1
         },
         {
+          "key_as_string" : "2019-11-04",
           "key" : 1572825600000,
           "doc_count" : 1
         }

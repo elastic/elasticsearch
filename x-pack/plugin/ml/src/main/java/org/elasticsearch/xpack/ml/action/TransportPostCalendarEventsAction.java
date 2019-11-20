@@ -65,7 +65,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME);
                         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                             indexRequest.source(event.toXContent(builder,
-                                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE,
+                                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE,
                                             "true"))));
                         } catch (IOException e) {
                             throw new IllegalStateException("Failed to serialise event", e);

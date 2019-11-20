@@ -55,7 +55,6 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
     private static String docType = "_doc";
 
     protected static String indexedShapeId;
-    protected static String indexedShapeType;
     protected static String indexedShapePath;
     protected static String indexedShapeIndex;
     protected static String indexedShapeRouting;
@@ -95,8 +94,7 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
         } else {
             indexedShapeToReturn = shape;
             indexedShapeId = randomAlphaOfLengthBetween(3, 20);
-            indexedShapeType = randomBoolean() ? randomAlphaOfLengthBetween(3, 20) : null;
-            builder = new ShapeQueryBuilder(fieldName(), indexedShapeId, indexedShapeType);
+            builder = new ShapeQueryBuilder(fieldName(), indexedShapeId);
             if (randomBoolean()) {
                 indexedShapeIndex = randomAlphaOfLengthBetween(3, 20);
                 builder.indexedShapeIndex(indexedShapeIndex);
@@ -128,7 +126,6 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
     public void clearShapeFields() {
         indexedShapeToReturn = null;
         indexedShapeId = null;
-        indexedShapeType = null;
         indexedShapePath = null;
         indexedShapeIndex = null;
         indexedShapeRouting = null;
@@ -155,7 +152,7 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
 
     public void testNoIndexedShape() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new ShapeQueryBuilder(fieldName(), null, "type"));
+            () -> new ShapeQueryBuilder(fieldName(), null, null));
         assertEquals("either shape or indexedShapeId is required", e.getMessage());
     }
 
@@ -248,18 +245,11 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, instanceOf(ShapeQueryBuilder.class));
-
-        ShapeQueryBuilder shapeQuery = (ShapeQueryBuilder) query;
-        if (shapeQuery.indexedShapeType() != null) {
-            assertWarnings(ShapeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
-        }
         return query;
     }
 
     @Override
     protected GetResponse executeGet(GetRequest getRequest) {
-        String indexedType = indexedShapeType != null ? indexedShapeType : MapperService.SINGLE_MAPPING_NAME;
-
         assertThat(indexedShapeToReturn, notNullValue());
         assertThat(indexedShapeId, notNullValue());
         assertThat(getRequest.id(), equalTo(indexedShapeId));

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -110,7 +109,7 @@ public class JobNodeSelector {
                 continue;
             }
 
-            // Assuming the node is elligible at all, check loading
+            // Assuming the node is eligible at all, check loading
             CurrentLoad currentLoad = calculateCurrentLoadForNode(node, persistentTasks, allocateByMemory);
             allocateByMemory = currentLoad.allocateByMemory;
 
@@ -170,6 +169,11 @@ public class JobNodeSelector {
                     long maxMlMemory = machineMemory * maxMachineMemoryPercent / 100;
                     Long estimatedMemoryFootprint = memoryTracker.getJobMemoryRequirement(taskName, jobId);
                     if (estimatedMemoryFootprint != null) {
+                        // If this will be the first job assigned to the node then it will need to
+                        // load the native code shared libraries, so add the overhead for this
+                        if (currentLoad.numberOfAssignedJobs == 0) {
+                            estimatedMemoryFootprint += MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+                        }
                         long availableMemory = maxMlMemory - currentLoad.assignedJobMemory;
                         if (estimatedMemoryFootprint > availableMemory) {
                             reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
@@ -264,7 +268,7 @@ public class JobNodeSelector {
             Collection<PersistentTasksCustomMetaData.PersistentTask<?>> assignedAnalyticsTasks = persistentTasks.findTasks(
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, task -> node.getId().equals(task.getExecutorNode()));
             for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedAnalyticsTasks) {
-                DataFrameAnalyticsState dataFrameAnalyticsState = ((DataFrameAnalyticsTaskState) assignedTask.getState()).getState();
+                DataFrameAnalyticsState dataFrameAnalyticsState = MlTasks.getDataFrameAnalyticsState(assignedTask);
 
                 // Don't count stopped and failed df-analytics tasks as they don't consume native memory
                 if (dataFrameAnalyticsState.isAnyOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED) == false) {
@@ -282,6 +286,11 @@ public class JobNodeSelector {
                         result.assignedJobMemory += jobMemoryRequirement;
                     }
                 }
+            }
+            // if any jobs are running then the native code will be loaded, but shared between all jobs,
+            // so increase the total memory usage of the assigned jobs to account for this
+            if (result.numberOfAssignedJobs > 0) {
+                result.assignedJobMemory += MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
             }
         }
 

@@ -1,4 +1,3 @@
-
 tag::actions[]
 `actions`::
 +
@@ -68,7 +67,7 @@ tag::committed[]
 If `true`,
 the segments is synced to disk. Segments that are synced can survive a hard reboot.
 +
-If `false`, 
+If `false`,
 the data from uncommitted segments is also stored in
 the transaction log so that Elasticsearch is able to replay
 changes on the next start.
@@ -113,6 +112,11 @@ is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
 documents when a segment is merged.
 end::docs-deleted[]
 
+tag::enrich-policy[]
+Enrich policy name
+used to limit the request.
+end::enrich-policy[]
+
 tag::expand-wildcards[]
 `expand_wildcards`::
 +
@@ -133,6 +137,13 @@ Expand only to closed indices.
 Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
+
+tag::field_statistics[]
+`field_statistics`::
+(Optional, boolean) If `true`, the response includes the document count, sum of document frequencies, 
+and sum of total term frequencies.
+Defaults to `true`.
+end::field_statistics[]
 
 tag::fielddata-fields[]
 `fielddata_fields`::
@@ -221,9 +232,16 @@ end::cat-h[]
 
 tag::help[]
 `help`::
-(Optional, boolean) If `true`, the response returns help information. Defaults
+(Optional, boolean) If `true`, the response includes help information. Defaults
 to `false`.
 end::help[]
+
+tag::bulk-id[]
+`_id`::
+(Optional, string) 
+The document ID.
+If no ID is specified, a document ID is automatically generated. 
+end::bulk-id[]
 
 tag::if_primary_term[]
 `if_primary_term`::
@@ -258,17 +276,10 @@ end::include-defaults[]
 tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
 (Optional, boolean)
-If `true`, the call reports the aggregated disk usage of 
-each one  of the Lucene index files (only applies if segment stats are 
+If `true`, the call reports the aggregated disk usage of
+each one  of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
-
-tag::include-type-name[]
-`include_type_name`::
-deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.]
-(Optional, boolean) If `true`, a mapping type is expected in the body of
-mappings. Defaults to `false`.
-end::include-type-name[]
 
 tag::include-unloaded-segments[]
 `include_unloaded_segments`::
@@ -288,6 +299,13 @@ tag::index[]
 (Optional, string) Comma-separated list or wildcard expression of index names
 used to limit the request.
 end::index[]
+
+tag::bulk-index[]
+`_index`::
+(Optional, string)
+The name of the target index. 
+Required if not specified as a path parameter.
+end::bulk-index[]
 
 tag::index-metric[]
 `<index-metric>`::
@@ -425,11 +443,6 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
-tag::name[]
-`<name>`::
-(Optional, string) Comma-separated list of alias names to return.
-end::name[]
-
 tag::node-id[]
 `<node_id>`::
 (Optional, string) Comma-separated list of node IDs or names used to limit
@@ -442,6 +455,12 @@ tag::node-id-query-parm[]
 Comma-separated list of node IDs or names
 used to limit returned information.
 end::node-id-query-parm[]
+
+tag::offsets[]
+`<offsets>`::
+(Optional, boolean) If `true`, the response includes term offsets.
+Defaults to `true`.
+end::offsets[]
 
 tag::parent-task-id[]
 `parent_task_id`::
@@ -468,9 +487,21 @@ tag::path-pipeline[]
 used to limit the request.
 end::path-pipeline[]
 
+tag::payloads[]
+`payloads`::
+(Optional, boolean) If `true`, the response includes term payloads.
+Defaults to `true`.
+end::payloads[]
+
+tag::positions[]
+`positions`::
+(Optional, boolean) If `true`, the response includes term positions.
+Defaults to `true`.
+end::positions[]
+
 tag::preference[]
 `preference`::
-(Optional, string) Specifies the node or shard the operation should be 
+(Optional, string) Specifies the node or shard the operation should be
 performed on. Random by default.
 end::preference[]
 
@@ -485,6 +516,12 @@ tag::query[]
 <<query-dsl,Query DSL>>.
 end::query[]
 
+tag::realtime[]
+`realtime`::
+(Optional, boolean) If `true`, the request is real-time as opposed to near-real-time. 
+Defaults to `true`. See <<realtime>>.
+end::realtime[]
+
 tag::refresh[]
 `refresh`::
 (Optional, enum) If `true`, {es} refreshes the affected shards to make this
@@ -495,8 +532,8 @@ end::refresh[]
 
 tag::request_cache[]
 `request_cache`::
-(Optional, boolean) Specifies if the request cache should be used for this
-request. Defaults to the index-level setting.
+(Optional, boolean) If `true`, the request cache is used for this request. 
+Defaults to the index-level setting.
 end::request_cache[]
 
 tag::requests_per_second[]
@@ -537,8 +574,9 @@ end::scroll_size[]
 
 tag::search_timeout[]
 `search_timeout`::
-(Optional, <<time-units, time units>> Explicit timeout for each search 
-request. Defaults to no timeout.
+(Optional, <<time-units, time units>>)
+Explicit timeout for each search request.
+Defaults to no timeout.
 end::search_timeout[]
 
 tag::search_type[]
@@ -611,9 +649,15 @@ end::source_includes[]
 
 tag::stats[]
 `stats`::
-(Optional, string) Specific `tag` of the request for logging and statistical 
+(Optional, string) Specific `tag` of the request for logging and statistical
 purposes.
 end::stats[]
+
+tag::stored_fields[]
+`stored_fields`::
+(Optional, boolean) If `true`, retrieves the document fields stored in the
+index rather than the document `_source`. Defaults to `false`.
+end::stored_fields[]
 
 tag::target-index[]
 `<target-index>`::
@@ -632,11 +676,23 @@ tag::task-id[]
 (`node_id:task_number`).
 end::task-id[]
 
+tag::term_statistics[]
+`term_statistics`::
+(Optional, boolean) If `true`, the response includes term frequency and document frequency. 
+Defaults to `false`.
+end::term_statistics[]
+
 tag::terminate_after[]
 `terminate_after`::
 (Optional, integer) The maximum number of documents to collect for each shard, 
 upon reaching which the query execution will terminate early.
 end::terminate_after[]
+
+tag::time[]
+`time`::
+(Optional, <<time-units,time units>>)
+Unit used to display time values.
+end::time[]
 
 tag::timeoutparms[]
 
@@ -658,8 +714,8 @@ end::timeoutparms[]
 
 tag::cat-v[]
 `v`::
-(Optional, boolean) If `true`, the response includes column headings. Defaults
-to `false`.
+(Optional, boolean) If `true`, the response includes column headings. 
+Defaults to `false`.
 end::cat-v[]
 
 tag::version[]
@@ -699,6 +755,6 @@ end::wait_for_active_shards[]
 
 tag::wait_for_completion[]
 `wait_for_completion`::
-(Optional, boolean) Should the request block until the operation is 
-complete. Defaults to `true`.
+(Optional, boolean) If `true`, the request blocks until the operation is complete. 
+Defaults to `true`.
 end::wait_for_completion[]

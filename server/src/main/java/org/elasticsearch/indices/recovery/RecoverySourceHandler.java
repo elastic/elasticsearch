@@ -406,10 +406,7 @@ public class RecoverySourceHandler {
             // TODO: We shouldn't use the generic thread pool here as we already execute this from the generic pool.
             //       While practically unlikely at a min pool size of 128 we could technically block the whole pool by waiting on futures
             //       below and thus make it impossible for the store release to execute which in turn would block the futures forever
-            threadPool.generic().execute(ActionRunnable.wrap(future, l -> {
-                store.decRef();
-                l.onResponse(null);
-            }));
+            threadPool.generic().execute(ActionRunnable.run(future, store::decRef));
             FutureUtils.get(future);
         });
     }
@@ -893,7 +890,7 @@ public class RecoverySourceHandler {
                 }
 
                 @Override
-                protected void sendChunkRequest(FileChunk request, ActionListener<Void> listener) {
+                protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     cancellableThreads.checkForCancel();
                     recoveryTarget.writeFileChunk(
                         request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(), listener);

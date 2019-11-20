@@ -209,6 +209,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     case REINDEXING:
                         reindexingProgress = legacyProgressPercent;
                         break;
+                    case STARTING:
                     case STARTED:
                     case STOPPED:
                     case STOPPING:
@@ -231,8 +232,20 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return state;
             }
 
+            public String getFailureReason() {
+                return failureReason;
+            }
+
             public List<PhaseProgress> getProgress() {
                 return progress;
+            }
+
+            public DiscoveryNode getNode() {
+                return node;
+            }
+
+            public String getAssignmentExplanation() {
+                return assignmentExplanation;
             }
 
             @Override
@@ -297,6 +310,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     case REINDEXING:
                         targetPhase = "reindexing";
                         break;
+                    case STARTING:
                     case STARTED:
                     case STOPPED:
                     case STOPPING:
@@ -330,6 +344,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return Objects.equals(id, other.id)
                         && Objects.equals(this.state, other.state)
                         && Objects.equals(this.failureReason, other.failureReason)
+                        && Objects.equals(this.progress, other.progress)
                         && Objects.equals(this.node, other.node)
                         && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
             }

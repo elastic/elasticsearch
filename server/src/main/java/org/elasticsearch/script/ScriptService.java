@@ -415,7 +415,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return typesAllowed == null || typesAllowed.contains(scriptType.getName());
     }
 
-    public boolean isContextEnabled(ScriptContext scriptContext) {
+    public boolean isContextEnabled(ScriptContext<?> scriptContext) {
         return contextsAllowed == null || contextsAllowed.contains(scriptContext.name);
     }
 
@@ -536,6 +536,14 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         } else {
             return null;
         }
+    }
+
+    public Set<ScriptContextInfo> getContextInfos() {
+        Set<ScriptContextInfo> infos = new HashSet<ScriptContextInfo>(contexts.size());
+        for (ScriptContext<?> context : contexts.values()) {
+            infos.add(new ScriptContextInfo(context.name, context.instanceClazz));
+        }
+        return infos;
     }
 
     public ScriptStats stats() {

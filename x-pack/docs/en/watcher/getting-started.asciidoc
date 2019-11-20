@@ -117,7 +117,7 @@ adds a 404 error to the `logs` index:
 
 [source,console]
 --------------------------------------------------
-POST logs/event
+POST logs/_doc
 {
     "timestamp" : "2015-05-17T18:12:07.613Z",
     "request" : "GET index.html",

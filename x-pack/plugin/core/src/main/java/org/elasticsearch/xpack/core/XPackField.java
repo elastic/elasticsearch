@@ -33,6 +33,8 @@ public final class XPackField {
     public static final String ROLLUP = "rollup";
     /** Name constant for the index lifecycle feature. */
     public static final String INDEX_LIFECYCLE = "ilm";
+    /** Name constant for the snapshot lifecycle management feature. */
+    public static final String SNAPSHOT_LIFECYCLE = "slm";
     /** Name constant for the CCR feature. */
     public static final String CCR = "ccr";
     /** Name constant for the transform feature. */
@@ -49,6 +51,8 @@ public final class XPackField {
     public static final String SPATIAL = "spatial";
     /** Name constant for the data science plugin. */
     public static final String ANALYTICS = "analytics";
+    /** Name constant for the enrich plugin. */
+    public static final String ENRICH = "enrich";
 
     private XPackField() {}
 

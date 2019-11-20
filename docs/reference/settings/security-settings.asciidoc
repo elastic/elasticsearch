@@ -64,8 +64,7 @@ See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
 [[anonymous-access-settings]]
 ==== Anonymous access settings
 You can configure the following anonymous access settings in
-`elasticsearch.yml`.  For more information, see {stack-ov}/anonymous-access.html[
-Enabling anonymous access].
+`elasticsearch.yml`.  For more information, see <<anonymous-access>>.
 
 `xpack.security.authc.anonymous.username`::
 The username (principal) of the anonymous user. Defaults to `_es_anonymous_user`.
@@ -115,8 +114,7 @@ Defaults to `48h` (48 hours).
 
 You can set the following document and field level security
 settings in `elasticsearch.yml`. For more information, see
-{stack-ov}/field-and-document-access-control.html[Setting up document and field
-level security].
+<<field-and-document-access-control>>.
 
 `xpack.security.dls_fls.enabled`::
 Set to `false` to prevent document and field level security
@@ -205,7 +203,7 @@ xpack.security.authc.realms:
 ----------------------------------------
 
 The valid settings vary depending on the realm type. For more
-information, see {stack-ov}/setting-up-authentication.html[Setting up authentication].
+information, see <<setting-up-authentication>>.
 
 [float]
 [[ref-realm-settings]]
@@ -244,8 +242,8 @@ Defaults to `ssha256`.
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 [[ref-users-settings]]
@@ -260,7 +258,7 @@ the following settings:
 `cache.ttl`::
 The time-to-live for cached user entries. A user and a hash of its credentials 
 are cached for this configured period of time. Defaults to `20m`. Specify values 
-using the standard {es} {ref}/common-options.html#time-units[time units].
+using the standard {es} <<time-units,time units>>.
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -273,8 +271,8 @@ user credentials. See <<cache-hash-algo>>. Defaults to `ssha256`.
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 [[ref-ldap-settings]]
@@ -325,14 +323,14 @@ The DN template that replaces the user name with the string `{0}`.
 This setting is multivalued; you can specify multiple user contexts.
 Required to operate in user template mode. If `user_search.base_dn` is specified, 
 this setting is not valid. For more information on
-the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
+the different modes, see <<ldap-realm>>.
 
 `authorization_realms`::
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the LDAP realm does not perform role mapping and
 instead loads the user from the listed realms. The referenced realms are
 consulted in the order that they are defined in this list.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+See <<authorization_realms>>.
 +
 --
 NOTE: If any settings starting with `user_search` are specified, the 
@@ -349,7 +347,7 @@ to `memberOf`.
 Specifies a container DN to search for users. Required
 to operated in user search mode. If `user_dn_templates` is specified, this 
 setting is not valid. For more information on
-the different modes, see {stack-ov}/ldap-realm.html[LDAP realms].
+the different modes, see <<ldap-realm>>.
 
 `user_search.scope`::
 The scope of the user search. Valid values are `sub_tree`, `one_level` or
@@ -421,13 +419,12 @@ the filter.  If not set, the user DN is passed into the filter. Defaults to Empt
 `unmapped_groups_as_roles`::
 If set to `true`, the names of any unmapped LDAP groups are used as role names 
 and assigned to the user. A group is considered to be _unmapped_ if it is not 
-referenced in a
-{stack-ov}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
+referenced in a <<mapping-roles-file,role-mapping file>>. API-based 
 role mappings are not considered. Defaults to `false`.
 
 `files.role_mapping`::
-The <<security-files,location>> for the {stack-ov}/mapping-roles.html#mapping-roles[
-YAML role mapping configuration file]. Defaults to
+The <<security-files,location>> for the
+<<mapping-roles,YAML role mapping configuration file>>. Defaults to
 `ES_PATH_CONF/role_mapping.yml`.
 
 `follow_referrals`::
@@ -542,8 +539,8 @@ in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssha256
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 [[ref-ad-settings]]
@@ -781,7 +778,7 @@ the default values.
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
 credentials are cached for this configured period of time. Use the
-standard Elasticsearch {ref}/common-options.html#time-units[time units]).
+standard Elasticsearch <<time-units,time units>>).
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -794,8 +791,8 @@ the in-memory cached user credentials. See <<cache-hash-algo>>. Defaults to `ssh
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the {stack-ov}/run-as-privilege.html[run as] and
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] features).
+(See the <<run-as-privilege,run as>> and
+<<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 
 `follow_referrals`::
@@ -836,19 +833,19 @@ for SSL. This setting cannot be used with `certificate_authorities`.
 
 `files.role_mapping`::
 Specifies the <<security-files,location>> of the
-{stack-ov}/mapping-roles.html[YAML role  mapping configuration file].
+<<mapping-roles,YAML role  mapping configuration file>>.
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `authorization_realms`::
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the PKI realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+See <<authorization_realms>>. 
 
 `cache.ttl`::
 Specifies the time-to-live for cached user entries. A user and a hash of its 
 credentials are cached for this period of time. Use the
-standard {es} {ref}/common-options.html#time-units[time units]).
+standard {es} <<time-units,time units>>).
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -909,8 +906,8 @@ URI. We recommend that you use the base URL of your Kibana instance. For example
 
 `sp.acs`::
 The URL of the Assertion Consumer Service within {kib}. Typically this is the 
-"api/security/v1/saml" endpoint of your Kibana server. For example, 
-`https://kibana.example.com/api/security/v1/saml`. 
+"api/security/saml/callback" endpoint of your Kibana server. For example,
+`https://kibana.example.com/api/security/saml/callback`.
 
 `sp.logout`::
 The URL of the Single Logout service within {kib}. Typically this is the 
@@ -978,7 +975,7 @@ provided by the SAML attributes. Defaults to `true`.
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the SAML realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm] 
+See <<authorization_realms>>.
 
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the
@@ -992,7 +989,7 @@ authenticate the current user. The Authentication Context of the corresponding
 authentication response should contain at least one of the requested values.
 +
 For more information, see
-{stack-ov}/saml-guide-authentication.html#req-authn-context[Requesting specific authentication methods].
+<<req-authn-context>>.
 
 [float]
 [[ref-saml-signing-settings]]
@@ -1224,7 +1221,7 @@ cache at any given time. Defaults to 100,000.
 The names of the realms that should be consulted for delegated authorization.
 If this setting is used, then the Kerberos realm does not perform role mapping and
 instead loads the user from the listed realms.
-See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm]
+See <<authorization_realms>>.
 
 [[ref-oidc-settings]]
 [float]
@@ -1495,6 +1492,16 @@ through the list of URLs will continue until a successful connection is made.
 
 [float]
 [[ssl-tls-settings]]
+==== General TLS settings
+`xpack.security.ssl.diagnose.trust`::
+Controls whether to output diagnostic messages for SSL/TLS trust failures.
+If this is `true` (the default), a message will be printed to the Elasticsearch
+log whenever an SSL connection (incoming or outgoing) is rejected due to a failure
+to establish trust.
+This diagnostic message contains information that can be used to determine the
+cause of the failure and assist with resolving the problem.
+Set to `false` to disable these messages.
+
 ==== Default values for TLS/SSL settings
 In general, the values below represent the default values for the various TLS
 settings.
@@ -1503,7 +1510,7 @@ used (e.g. `xpack.security.authc.realms.ldap.corp_ldap.ssl.verification_mode`
 or `xpack.security.transport.ssl.supported_protocols`).
 
 For more information, see
-{stack-ov}/encrypting-communications.html[Encrypting communications].
+<<encrypting-communications>>.
 
 `*.ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
@@ -1566,7 +1573,7 @@ SSL enabled server.
 [[pkcs12-truststore-note]]
 [NOTE]
 Storing trusted certificates in a PKCS#12 file, although supported, is
-uncommon in practice. The {ref}/certutil.html[`elasticsearch-certutil`] tool,
+uncommon in practice. The <<certutil,`elasticsearch-certutil` tool>>,
 as well as Java's `keytool`, are designed to generate PKCS#12 files that
 can be used both as a keystore and as a truststore, but this may not be the
 case for container files that are created using other tools. Usually,
@@ -1613,7 +1620,7 @@ setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 [float]
 [[ip-filtering-settings]]
 ==== IP filtering settings
-You can configure the following settings for {stack-ov}/ip-filtering.html[IP filtering].
+You can configure the following settings for <<ip-filtering,IP filtering>>.
 
 `xpack.security.transport.filter.allow`::
 List of IP addresses to allow.

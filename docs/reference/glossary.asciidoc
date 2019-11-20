@@ -36,7 +36,7 @@ current master node fails.
 // tag::ccr-def[]
 The {ccr} feature enables you to replicate indices in remote clusters to your
 local cluster. For more information, see 
-{stack-ov}/xpack-ccr.html[{ccr-cap}].  
+{ref}/xpack-ccr.html[{ccr-cap}].  
 // end::ccr-def[]
   
 [[glossary-ccs]] {ccs} (CCS)::
@@ -209,14 +209,22 @@ see {ref}/query-filter-context.html[Query and filter context].
 +
 --
 // tag::recovery-def[]
-The process of syncing a shard copy from a source shard. Upon completion, the recovery process makes the shard copy available for queries.
+Shard recovery is the process
+of syncing a <<glossary-replica-shard,replica shard>>
+from a <<glossary-primary-shard,primary shard>>.
+Upon completion,
+the replica shard is available for search.
 
-Recovery automatically occurs anytime a shard moves to a different node in the same cluster, including:
+// tag::recovery-triggers[]
+Recovery automatically occurs
+during the following processes:
 
-* Node startup
-* Node failure
-* Index shard replication
-* Snapshot restoration
+* Node startup or failure.
+  This type of recovery is called a *local store recovery*.
+* <<glossary-replica-shard,Primary shard replication>>.
+* Relocation of a shard to a different node in the same cluster.
+* {ref}/modules-snapshots.html#restore-snapshot[Snapshot restoration].
+// end::recovery-triggers[]
 // end::recovery-def[]
 --
 

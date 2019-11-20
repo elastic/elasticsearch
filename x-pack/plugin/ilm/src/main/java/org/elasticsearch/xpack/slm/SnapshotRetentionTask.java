@@ -90,8 +90,12 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID + " but it was " + event.getJobName();
 
         final ClusterState state = clusterService.state();
-        if (SnapshotLifecycleService.ilmStoppedOrStopping(state)) {
-            logger.debug("skipping SLM retention as ILM is currently stopped or stopping");
+
+        // Skip running retention if SLM is disabled, however, even if it's
+        // disabled we allow manual running.
+        if (SnapshotLifecycleService.slmStoppedOrStopping(state) &&
+            event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID) == false) {
+            logger.debug("skipping SLM retention as SLM is currently stopped or stopping");
             return;
         }
 
@@ -131,7 +135,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 // Finally, asynchronously retrieve all the snapshots, deleting them serially,
                 // before updating the cluster state with the new metrics and setting 'running'
                 // back to false
-                getAllSuccessfulSnapshots(repositioriesToFetch, new ActionListener<>() {
+                getAllRetainableSnapshots(repositioriesToFetch, new ActionListener<>() {
                     @Override
                     public void onResponse(Map<String, List<SnapshotInfo>> allSnapshots) {
                         try {
@@ -222,7 +226,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         return eligible;
     }
 
-    void getAllSuccessfulSnapshots(Collection<String> repositories, ActionListener<Map<String, List<SnapshotInfo>>> listener,
+    void getAllRetainableSnapshots(Collection<String> repositories, ActionListener<Map<String, List<SnapshotInfo>>> listener,
                                    Consumer<Exception> errorHandler) {
         if (repositories.isEmpty()) {
             // Skip retrieving anything if there are no repositories to fetch
@@ -236,11 +240,12 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 @Override
                 public void onResponse(final GetSnapshotsResponse resp) {
                     Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
+                    final Set<SnapshotState> retainableStates = Set.of(SnapshotState.SUCCESS, SnapshotState.FAILED, SnapshotState.PARTIAL);
                     repositories.forEach(repo -> {
                         snapshots.put(repo,
                             // Only return snapshots in the SUCCESS state
                             resp.getSnapshots(repo).stream()
-                                .filter(info -> info.state() == SnapshotState.SUCCESS)
+                                .filter(info -> retainableStates.contains(info.state()))
                                 .collect(Collectors.toList()));
                     });
                     listener.onResponse(snapshots);
@@ -435,7 +440,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
         // Cannot delete while a repository is being cleaned
         final RepositoryCleanupInProgress repositoryCleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
-        if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.cleanupInProgress() == false) {
+        if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
             return false;
         }
 

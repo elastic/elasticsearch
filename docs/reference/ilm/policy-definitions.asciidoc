@@ -89,7 +89,7 @@ executing.
 The below list shows the actions which are available in each phase.
 
 NOTE: The order that configured actions are performed in within each phase is
-determined by automatically by {ilm-init}, and cannot be changed by changing the
+determined automatically by {ilm-init}, and cannot be changed by changing the
 policy definition.
 
 * Hot
@@ -362,12 +362,12 @@ follower index into a regular index as if <<ilm-unfollow-action,the Unfollow
 action>> had been used instead of rolling over.
 
 For example, if an index to be managed has an alias `my_data`. The managed
-index "my_index" must be the write index for the alias. For more information, read
+index "my_index-000001" must be the write index for the alias. For more information, read
 <<indices-rollover-is-write-index,Write Index Alias Behavior>>.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my_index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy",

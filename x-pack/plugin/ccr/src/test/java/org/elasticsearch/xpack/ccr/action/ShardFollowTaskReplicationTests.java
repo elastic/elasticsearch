@@ -115,7 +115,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 // Deletes should be replicated to the follower
                 List<String> deleteDocIds = randomSubsetOf(indexedDocIds);
                 for (String deleteId : deleteDocIds) {
-                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest(index.getName(), "type", deleteId));
+                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest(index.getName(), deleteId));
                     assertThat(resp.getResponse().getResult(), equalTo(DocWriteResponse.Result.DELETED));
                 }
                 leaderGroup.syncGlobalCheckpoint();
@@ -278,7 +278,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     }
                 }
                 for (String deleteId : randomSubsetOf(IndexShardTestCase.getShardDocUIDs(leaderGroup.getPrimary()))) {
-                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", "type", deleteId));
+                    BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", deleteId));
                     assertThat(resp.getFailure(), nullValue());
                 }
                 leaderGroup.syncGlobalCheckpoint();
@@ -335,7 +335,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final int numDocs = between(1, 100);
         final List<Translog.Operation> operations = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
-            operations.add(new Translog.Index("type", Integer.toString(i), i, primaryTerm, 0, source, null, -1));
+            operations.add(new Translog.Index(Integer.toString(i), i, primaryTerm, 0, source, null, -1));
         }
         Future<Void> recoveryFuture = null;
         Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
@@ -451,11 +451,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(primary.routingEntry(),
                     new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, "test"));
                 primary.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
+                final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
                 primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
-                    public void restoreShard(Store store, SnapshotId snapshotId,
-                                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-                        try {
+                    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
+                                             RecoveryState recoveryState, ActionListener<Void> listener) {
+                        ActionListener.completeWith(listener, () -> {
                             IndexShard leader = leaderGroup.getPrimary();
                             Lucene.cleanLuceneIndex(primary.store().directory());
                             try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
@@ -465,11 +466,15 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                         leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }
                             }
-                        } catch (Exception ex) {
-                            throw new AssertionError(ex);
-                        }
+                            return null;
+                        });
                     }
-                });
+                }, future);
+                try {
+                    future.actionGet();
+                } catch (Exception ex) {
+                    throw new AssertionError(ex);
+                }
             }
         };
     }

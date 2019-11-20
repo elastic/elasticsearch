@@ -7,7 +7,7 @@ the watch payload. You can use the `compare` condition without enabling
 dynamic scripting. 
 
 [[condition-compare-operators]]
-. Supported comparison operators
+.Supported comparison operators
 [options="header"]
 |======
 | Name      | Description

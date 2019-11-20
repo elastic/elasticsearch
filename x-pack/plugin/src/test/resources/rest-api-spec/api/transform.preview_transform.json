@@ -7,7 +7,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_data_frame/transforms/_preview",
+          "path":"/_transform/_preview",
           "methods":[
             "POST"
           ]

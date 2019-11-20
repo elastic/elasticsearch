@@ -22,7 +22,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { bytes_in: 1234, bytes_out: 4321 }
@@ -71,7 +70,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { bytes_in: 1234, bytes_out: 4321 }

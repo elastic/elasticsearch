@@ -21,9 +21,11 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -37,16 +39,21 @@ import java.util.concurrent.TimeUnit;
  */
 public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
+    public static final String MAGIC_FAILURE_VALUE = "253402300799";
+    public static final String MAGIC_FAILURE_VALUE_AS_DATE = "9999-12-31 23:59:59";
+
     private static final String FLUSH_ID = "flush-1";
 
     private final String jobId;
     private final ZonedDateTime startTime;
     private final BlockingQueue<AutodetectResult> results = new LinkedBlockingDeque<>();
+    private final Runnable onProcessCrash;
     private volatile boolean open = true;
 
-    public BlackHoleAutodetectProcess(String jobId) {
+    public BlackHoleAutodetectProcess(String jobId, Runnable onProcessCrash) {
         this.jobId = jobId;
         startTime = ZonedDateTime.now();
+        this.onProcessCrash = Objects.requireNonNull(onProcessCrash);
     }
 
     @Override
@@ -59,7 +66,13 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void writeRecord(String[] record) throws IOException {
+    public void writeRecord(String[] record) {
+        if (Arrays.asList(record).contains(MAGIC_FAILURE_VALUE)) {
+            open = false;
+            onProcessCrash.run();
+            AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null);
+            results.add(result);
+        }
     }
 
     @Override

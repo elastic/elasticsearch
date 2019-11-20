@@ -811,7 +811,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     private static Settings createSettings(String clusterAlias, List<String> seeds) {
         Settings.Builder builder = Settings.builder();
-        if (randomBoolean()) {
+        if (true) {
             builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(clusterAlias).getKey(),
                 Strings.collectionToCommaDelimitedString(seeds));
         } else {

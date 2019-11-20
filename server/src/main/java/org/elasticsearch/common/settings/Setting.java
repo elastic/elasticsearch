@@ -675,11 +675,6 @@ public class Setting<T> implements ToXContentObject {
         private final Set<AffixSetting> dependencies;
 
         public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory, AffixSetting... dependencies) {
-            this(key, delegate, delegateFactory, (s) -> (v) -> {}, dependencies);
-        }
-
-        public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory,
-                            Function<String, Validator<T>> validatorFunction, AffixSetting... dependencies) {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
@@ -1330,6 +1325,15 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static <T> Setting<List<T>> listSetting(
+        final String key,
+        final Function<String, T> singleValueParser,
+        final Function<Settings, List<String>> defaultStringValue,
+        final Validator<List<T>> validator,
+        final Property... properties) {
+        return listSetting(key, null, singleValueParser, defaultStringValue, validator, properties);
+    }
+
+    public static <T> Setting<List<T>> listSetting(
             final String key,
             final @Nullable Setting<List<T>> fallbackSetting,
             final Function<String, T> singleValueParser,
@@ -1338,7 +1342,7 @@ public class Setting<T> implements ToXContentObject {
         return listSetting(key, fallbackSetting, singleValueParser, defaultStringValue, v -> {}, properties);
     }
 
-    public static <T> Setting<List<T>> listSetting(
+    private static <T> Setting<List<T>> listSetting(
         final String key,
         final @Nullable Setting<List<T>> fallbackSetting,
         final Function<String, T> singleValueParser,
@@ -1609,8 +1613,8 @@ public class Setting<T> implements ToXContentObject {
         return affixKeySetting(new AffixKey(prefix, suffix), delegateFactory, dependencies);
     }
 
-    private static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory,
-                                                       AffixSetting... dependencies) {
+    public static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory,
+                                                      AffixSetting... dependencies) {
         Setting<T> delegate = delegateFactory.apply("_na_");
         return new AffixSetting<>(key, delegate, delegateFactory, dependencies);
     }
@@ -1687,11 +1691,11 @@ public class Setting<T> implements ToXContentObject {
         private final String prefix;
         private final String suffix;
 
-        AffixKey(String prefix) {
+        public AffixKey(String prefix) {
             this(prefix, null);
         }
 
-        AffixKey(String prefix, String suffix) {
+        public AffixKey(String prefix, String suffix) {
             assert prefix != null || suffix != null: "Either prefix or suffix must be non-null";
 
             this.prefix = prefix;
@@ -1726,7 +1730,7 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Returns a string representation of the concrete setting key
          */
-        String getNamespace(String key) {
+        public String getNamespace(String key) {
             Matcher matcher = pattern.matcher(key);
             if (matcher.matches() == false) {
                 throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");

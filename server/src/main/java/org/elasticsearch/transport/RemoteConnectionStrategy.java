@@ -326,17 +326,21 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     static class StrategyValidator<T> implements Setting.Validator<T> {
 
         private final ConnectionStrategy expectedStrategy;
-        private final Setting<ConnectionStrategy> settingsKey;
+        private final String namespace;
         private final Consumer<T> valueChecker;
 
-        StrategyValidator(String namespace, ConnectionStrategy expectedStrategy) {
-            this(namespace, expectedStrategy, (v) -> {});
+        StrategyValidator(Setting.AffixKey affixKey, String key, ConnectionStrategy expectedStrategy) {
+            this(affixKey, key, expectedStrategy, (v) -> {});
 
         }
 
-        StrategyValidator(String namespace, ConnectionStrategy expectedStrategy, Consumer<T> valueChecker) {
+        StrategyValidator(Setting.AffixKey affixKey, String key, ConnectionStrategy expectedStrategy, Consumer<T> valueChecker) {
             this.expectedStrategy = expectedStrategy;
-            this.settingsKey = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(namespace);
+            if ("_na_".equals(key)) {
+                this.namespace = key;
+            } else {
+                this.namespace = affixKey.getNamespace(key);
+            }
             this.valueChecker = valueChecker;
         }
 
@@ -347,7 +351,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
         @Override
         public void validate(T value, Map<Setting<?>, Object> settings) {
-            ConnectionStrategy modeType = (ConnectionStrategy) settings.get(settingsKey);
+            Setting<ConnectionStrategy> concrete = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(namespace);
+            ConnectionStrategy modeType = (ConnectionStrategy) settings.get(concrete);
             if (modeType.equals(expectedStrategy) == false) {
                 throw new IllegalArgumentException("");
             }
@@ -355,7 +360,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
         @Override
         public Iterator<Setting<?>> settings() {
-            Stream<Setting<?>> settingStream = Stream.of(settingsKey);
+            Setting<ConnectionStrategy> concrete = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(namespace);
+            Stream<Setting<?>> settingStream = Stream.of(concrete);
             return settingStream.iterator();
         }
     }

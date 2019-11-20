@@ -45,7 +45,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -53,7 +52,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -66,66 +64,69 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
+    private static final Setting.AffixKey REMOTE_CLUSTER_SEEDS_OLD_KEY = new Setting.AffixKey("cluster.remote.", "seeds");
     public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS_OLD = Setting.affixKeySetting(
-            "cluster.remote.",
-            "seeds",
-            key -> Setting.listSetting(
-                    key,
-                    Collections.emptyList(),
-                    s -> {
-                        // validate seed address
-                        parsePort(s);
-                        return s;
-                    },
-                    new StrategyValidator<>(key, ConnectionStrategy.SNIFF),
-                    Setting.Property.Dynamic,
-                    Setting.Property.NodeScope));
-
-    /**
-     * A list of initial seed nodes to discover eligible nodes from the remote cluster
-     */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "sniff.seeds",
-        key -> Setting.listSetting(key,
-            "_na_".equals(key) ? REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(key)
-                : REMOTE_CLUSTER_SEEDS_OLD.getConcreteSetting(key.replaceAll("sniff\\.seeds$", "seeds")),
+        REMOTE_CLUSTER_SEEDS_OLD_KEY,
+        key -> Setting.listSetting(
+            key,
+            Collections.emptyList(),
             s -> {
                 // validate seed address
                 parsePort(s);
                 return s;
             },
-            s -> Collections.emptyList(),
-            new StrategyValidator<>(key, ConnectionStrategy.SNIFF),
-            Setting.Property.Dynamic, Setting.Property.NodeScope));
+            new StrategyValidator<>(REMOTE_CLUSTER_SEEDS_OLD_KEY, key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope));
+
+    /**
+     * A list of initial seed nodes to discover eligible nodes from the remote cluster
+     */
+    private static final Setting.AffixKey REMOTE_CLUSTER_SEEDS_KEY = new Setting.AffixKey("cluster.remote.", "sniff.seeds");
+    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
+        REMOTE_CLUSTER_SEEDS_KEY,
+        key -> Setting.listSetting(key,
+            s -> {
+                // validate seed address
+                parsePort(s);
+                return s;
+            },
+            s -> "_na_".equals(key) ? REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(key).get(s) :
+                REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(REMOTE_CLUSTER_SEEDS_KEY.getNamespace(key)).get(s),
+            new StrategyValidator<>(REMOTE_CLUSTER_SEEDS_KEY, key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope));
+
+
     /**
      * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
      * the remote cluster using their publish addresses. If this setting is set to an IP address or hostname then Elasticsearch will connect
      * to the nodes in the remote cluster using this address instead. Use of this setting is not recommended and it is deliberately
      * undocumented as it does not work well with all proxies.
      */
+    private static final Setting.AffixKey REMOTE_CLUSTERS_PROXY_KEY = new Setting.AffixKey("cluster.remote.", "proxy");
     public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
-            "cluster.remote.",
-            "proxy",
-            key -> Setting.simpleString(
-                    key,
-                    new StrategyValidator<>(key, ConnectionStrategy.SNIFF, s -> {
-                        if (Strings.hasLength(s)) {
-                            parsePort(s);
-                        }
-                    }),
-                    Setting.Property.Dynamic,
-                    Setting.Property.NodeScope),
+        REMOTE_CLUSTERS_PROXY_KEY,
+        key -> Setting.simpleString(
+            key,
+            new StrategyValidator<>(REMOTE_CLUSTERS_PROXY_KEY, key, ConnectionStrategy.SNIFF, s -> {
+                if (Strings.hasLength(s)) {
+                    parsePort(s);
+                }
+            }),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope),
         REMOTE_CLUSTER_SEEDS);
 
     /**
      * The maximum number of node connections that will be established to a remote cluster. For instance if there is only a single
      * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
      */
+    private static final Setting.AffixKey REMOTE_NODE_CONNECTIONS_KEY = new Setting.AffixKey("cluster.remote.", "sniff.node_connections");
     public static final Setting.AffixSetting<Integer> REMOTE_NODE_CONNECTIONS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "sniff.node_connections",
-        key -> intSetting(key, RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER, 1, new StrategyValidator<>(key, ConnectionStrategy.SNIFF),
+        REMOTE_NODE_CONNECTIONS_KEY,
+        key -> intSetting(key, RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER, 1,
+            new StrategyValidator<>(REMOTE_NODE_CONNECTIONS_KEY, key, ConnectionStrategy.SNIFF),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     static final int CHANNELS_PER_CONNECTION = 6;

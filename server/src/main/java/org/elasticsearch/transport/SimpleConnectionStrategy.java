@@ -48,23 +48,25 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
      * A list of addresses for remote cluster connections. The connections will be opened to the configured addresses in a round-robin
      * fashion.
      */
+    private static final Setting.AffixKey REMOTE_CLUSTER_ADDRESSES_KEY = new Setting.AffixKey("cluster.remote.", "addresses");
     public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_ADDRESSES = Setting.affixKeySetting(
-        "cluster.remote.",
-        "addresses",
+        REMOTE_CLUSTER_ADDRESSES_KEY,
         key -> Setting.listSetting(key, Collections.emptyList(), s -> {
                 // validate address
                 parsePort(s);
                 return s;
-            }, new StrategyValidator<>(key, ConnectionStrategy.SIMPLE), Setting.Property.Dynamic, Setting.Property.NodeScope));
+            }, new StrategyValidator<>(REMOTE_CLUSTER_ADDRESSES_KEY, key, ConnectionStrategy.SIMPLE),
+            Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     /**
      * The maximum number of socket connections that will be established to a remote cluster. The default is 18.
      */
+    private static final Setting.AffixKey REMOTE_SOCKET_CONNECTIONS_KEY = new Setting.AffixKey(
+        "cluster.remote.", "simple.socket_connections");
     public static final Setting.AffixSetting<Integer> REMOTE_SOCKET_CONNECTIONS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "simple.socket_connections",
-        key -> intSetting(key, 18, 1, new StrategyValidator<>(key, ConnectionStrategy.SNIFF), Setting.Property.Dynamic,
-            Setting.Property.NodeScope));
+        REMOTE_SOCKET_CONNECTIONS_KEY,
+        key -> intSetting(key, 18, 1, new StrategyValidator<>(REMOTE_SOCKET_CONNECTIONS_KEY, key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     static final int CHANNELS_PER_CONNECTION = 1;
 

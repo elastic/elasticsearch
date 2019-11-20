@@ -29,6 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -91,7 +92,7 @@ public class ServerUtils {
         int retries = 60;
         while (retries > 0) {
             retries -= 1;
-            try (Socket s = new Socket("localhost", 9200)) {
+            try (Socket s = new Socket(InetAddress.getLoopbackAddress(), 9200)) {
                 return;
             } catch (IOException e) {
                 try {

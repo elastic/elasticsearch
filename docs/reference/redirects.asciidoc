@@ -1010,3 +1010,8 @@ See <<ref-ad-settings>>.
 === Mapping Active Directory users and groups to roles
 
 See <<ad-realm-configuration>>. 
+
+[role="exclude",id="how-security-works"]
+=== How security works
+
+See <<elasticsearch-security>>.

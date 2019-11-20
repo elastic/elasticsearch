@@ -64,7 +64,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/container", new AzureHttpHandler("container"));
+        return Collections.singletonMap("/container", new AzureBlobStoreHttpHandler("container"));
     }
 
     @Override
@@ -115,6 +115,14 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
     }
 
+    @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an Azure endpoint")
+    private static class AzureBlobStoreHttpHandler extends AzureHttpHandler implements BlobStoreHttpHandler {
+
+        AzureBlobStoreHttpHandler(final String container) {
+            super(container);
+        }
+    }
+
     /**
      * HTTP handler that injects random Azure service errors
      *
@@ -130,9 +138,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         @Override
         protected void handleAsError(final HttpExchange exchange) throws IOException {
-            drainInputStream(exchange.getRequestBody());
-            AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
-            exchange.close();
+            try {
+                drainInputStream(exchange.getRequestBody());
+                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+            } finally {
+                exchange.close();
+            }
         }
 
         @Override

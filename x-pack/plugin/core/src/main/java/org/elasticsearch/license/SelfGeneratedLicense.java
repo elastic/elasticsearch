@@ -20,10 +20,10 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 
-import static org.elasticsearch.license.CryptUtils.encryptV3Format;
-import static org.elasticsearch.license.CryptUtils.encrypt;
-import static org.elasticsearch.license.CryptUtils.decryptV3Format;
 import static org.elasticsearch.license.CryptUtils.decrypt;
+import static org.elasticsearch.license.CryptUtils.decryptV3Format;
+import static org.elasticsearch.license.CryptUtils.encrypt;
+import static org.elasticsearch.license.CryptUtils.encryptV3Format;
 
 class SelfGeneratedLicense {
 
@@ -83,7 +83,13 @@ class SelfGeneratedLicense {
         }
     }
 
-    public static boolean validSelfGeneratedType(String type) {
-        return "basic".equals(type) || "trial".equals(type);
+    static License.LicenseType validateSelfGeneratedType(License.LicenseType type) {
+        switch (type) {
+            case BASIC:
+            case TRIAL:
+                return type;
+        }
+        throw new IllegalArgumentException("invalid self generated license type [" + type + "], only " +
+            License.LicenseType.BASIC + " and " + License.LicenseType.TRIAL + " are accepted");
     }
 }

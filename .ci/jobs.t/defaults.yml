@@ -35,8 +35,7 @@
           fail: true
       - ansicolor
       - timestamps
-      # TODO: No support un JJBB ?
-      # - gradle-build-scan
+      - gradle-build-scan
     properties:
         - github:
             url: https://github.com/elastic/elasticsearch/
@@ -44,21 +43,9 @@
             properties-content: |
               HOME=$JENKINS_HOME
     builders:
-       - inject:
-          properties-file: '.ci/java-versions.properties'
-          properties-content: |
-            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
-            JAVA7_HOME=$HOME/.java/java7
-            JAVA8_HOME=$HOME/.java/java8
-            JAVA9_HOME=$HOME/.java/java9
-            JAVA10_HOME=$HOME/.java/java10
-            JAVA11_HOME=$HOME/.java/java11
-            JAVA12_HOME=$HOME/.java/openjdk12
-            JAVA13_HOME=$HOME/.java/openjdk13
        - shell: |
           #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+git+push
-          .ci/build.sh check
+          .ci/build.sh -Dbwc.checkout.align=true check
     publishers:
       - email:
           recipients: infra-root+build@elastic.co

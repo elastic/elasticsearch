@@ -100,7 +100,7 @@ public class SslDiagnostics {
 
     private static class CertificateTrust {
         /**
-         * This certificates are trusted in the relevant context.
+         * These certificates are trusted in the relevant context.
          * They might not match with the requested certificate (see {@link #match}) but will be for the requested DN.
          */
         private final List<X509Certificate> trustedCertificates;

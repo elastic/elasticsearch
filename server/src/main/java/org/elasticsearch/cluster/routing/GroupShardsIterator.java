@@ -42,7 +42,7 @@ public final class GroupShardsIterator<ShardIt extends ShardIterator> implements
     }
 
     /**
-     * Constructs a enw GroupShardsIterator from the given list.
+     * Constructs a new GroupShardsIterator from the given list.
      */
     public GroupShardsIterator(List<ShardIt> iterators, boolean useSort) {
         if (useSort) {

@@ -76,14 +76,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
                 task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
                 task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
-                task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
             });
 
         PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
             task.getBuildInfoFile().set(generateTask.getOutputFile());
             task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
             task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
-            task.getFipsJvmFile().set(generateTask.getFipsJvmFile());
             task.setGlobalInfoListeners(extension.listeners);
         });
 

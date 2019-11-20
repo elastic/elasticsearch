@@ -41,14 +41,12 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     private final RegularFileProperty outputFile;
     private final RegularFileProperty compilerVersionFile;
     private final RegularFileProperty runtimeVersionFile;
-    private final RegularFileProperty fipsJvmFile;
 
     @Inject
     public GenerateGlobalBuildInfoTask(ObjectFactory objectFactory) {
         this.outputFile = objectFactory.fileProperty();
         this.compilerVersionFile = objectFactory.fileProperty();
         this.runtimeVersionFile = objectFactory.fileProperty();
-        this.fipsJvmFile = objectFactory.fileProperty();
     }
 
     @Input
@@ -111,11 +109,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     @OutputFile
     public RegularFileProperty getRuntimeVersionFile() {
         return runtimeVersionFile;
-    }
-
-    @OutputFile
-    public RegularFileProperty getFipsJvmFile() {
-        return fipsJvmFile;
     }
 
     @TaskAction

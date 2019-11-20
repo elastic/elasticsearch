@@ -16,7 +16,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
     private final RegularFileProperty buildInfoFile;
     private final RegularFileProperty compilerVersionFile;
     private final RegularFileProperty runtimeVersionFile;
-    private final RegularFileProperty fipsJvmFile;
     private List<Runnable> globalInfoListeners = new ArrayList<>();
 
     @Inject
@@ -24,7 +23,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
         this.buildInfoFile = objectFactory.fileProperty();
         this.compilerVersionFile = objectFactory.fileProperty();
         this.runtimeVersionFile = objectFactory.fileProperty();
-        this.fipsJvmFile = objectFactory.fileProperty();
     }
 
     @InputFile
@@ -40,11 +38,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
     @InputFile
     public RegularFileProperty getRuntimeVersionFile() {
         return runtimeVersionFile;
-    }
-
-    @InputFile
-    public RegularFileProperty getFipsJvmFile() {
-        return fipsJvmFile;
     }
 
     public void setGlobalInfoListeners(List<Runnable> globalInfoListeners) {

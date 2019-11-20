@@ -1,13 +1,17 @@
 [[release-notes-6.8.5]]
 == {es} version 6.8.5
 
-coming[6.8.5]
-
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 [[enhancement-6.8.5]]
 [float]
 === Enhancements
+
+Engine::
+* Avoid unneeded refresh with concurrent realtime gets {pull}47895[#47895]
+
+Infra/Settings::
+* Do not reference values for filtered settings {pull}48066[#48066]
 
 Machine Learning::
 * The {ml} native processes are now arranged in a `.app` directory structure on
@@ -18,9 +22,38 @@ Machine Learning::
 [float]
 === Bug fixes
 
+Allocation::
+* Handle negative free disk space in deciders {pull}48392[#48392] (issue: {issue}48380[#48380])
+
+Analysis::
+* Actually close IndexAnalyzers contents {pull}43914[#43914]
+
+CCR::
+* Handle lower retaining sequence number retention lease error {pull}46420[#46420] (issues: {issue}46013[#46013], {issue}46416[#46416])
+
+CRUD::
+* Close query cache on index service creation failure {pull}48230[#48230] (issue: {issue}48186[#48186])
+
+Engine::
+* Fix refresh optimization for realtime get in mixed cluster {pull}48151[#48151] (issue: {issue}48114[#48114])
+
+Features/Java High Level REST Client::
+* Fix ILM HLRC Javadoc->documentation links {pull}48083[#48083]
+* Prevent deadlock in BulkProcessor by using separate schedulers {pull}48697[#48697] (issue: {issue}47599[#47599])
+
+Infra/Logging::
+* Slow log must use separate underlying logger for each index {pull}47234[#47234] (issue: {issue}42432[#42432])
+
 Machine Learning::
 * Restore from checkpoint could damage seasonality modeling. For example, it could
   cause seasonal components to be overwritten in error {ml-pull}821[#821]
+
+SQL::
+* Fix issue with negative literels and parentheses {pull}48113[#48113] (issue: {issue}48009[#48009])
+* Failing group by queries due to different ExpressionIds {pull}43072[#43072] (issues: {issue}33361[#33361], {issue}34543[#34543], {issue}36074[#36074], {issue}37044[#37044], {issue}40001[#40001], {issue}40240[#40240], {issue}41159[#41159], {issue}42041[#42041], {issue}46316[#46316])
+
+Snapshot/Restore::
+* Cleanup concurrent RepositoryData loading {pull}48329[#48329] (issue: {issue}48122[#48122])
 
 
 [[release-notes-6.8.4]]

@@ -40,13 +40,16 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -58,11 +61,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         SIMPLE(SimpleConnectionStrategy.CHANNELS_PER_CONNECTION, SimpleConnectionStrategy::enablementSettings);
 
         private final int numberOfChannels;
-        private final Supplier<Stream<Setting.AffixSetting<?>>> enabledSettings;
+        private final Supplier<Stream<Setting.AffixSetting<?>>> enablementSettings;
 
-        ConnectionStrategy(int numberOfChannels, Supplier<Stream<Setting.AffixSetting<?>>> enabledSettings) {
+        ConnectionStrategy(int numberOfChannels, Supplier<Stream<Setting.AffixSetting<?>>> enablementSettings) {
             this.numberOfChannels = numberOfChannels;
-            this.enabledSettings = enabledSettings;
+            this.enablementSettings = enablementSettings;
         }
     }
 
@@ -121,7 +124,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static Set<String> getRemoteClusters(Settings settings) {
         final Stream<Setting.AffixSetting<?>> enablementSettings = Arrays.stream(ConnectionStrategy.values())
-            .flatMap(strategy -> strategy.enabledSettings.get());
+            .flatMap(strategy -> strategy.enablementSettings.get());
         return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
     }
 
@@ -318,5 +321,42 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
+    }
+
+    static class StrategyValidator<T> implements Setting.Validator<T> {
+
+        private final ConnectionStrategy expectedStrategy;
+        private final Setting<ConnectionStrategy> settingsKey;
+        private final Consumer<T> valueChecker;
+
+        StrategyValidator(String namespace, ConnectionStrategy expectedStrategy) {
+            this(namespace, expectedStrategy, (v) -> {});
+
+        }
+
+        StrategyValidator(String namespace, ConnectionStrategy expectedStrategy, Consumer<T> valueChecker) {
+            this.expectedStrategy = expectedStrategy;
+            this.settingsKey = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(namespace);
+            this.valueChecker = valueChecker;
+        }
+
+        @Override
+        public void validate(T value) {
+            valueChecker.accept(value);
+        }
+
+        @Override
+        public void validate(T value, Map<Setting<?>, Object> settings) {
+            ConnectionStrategy modeType = (ConnectionStrategy) settings.get(settingsKey);
+            if (modeType.equals(expectedStrategy) == false) {
+                throw new IllegalArgumentException("");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            Stream<Setting<?>> settingStream = Stream.of(settingsKey);
+            return settingStream.iterator();
+        }
     }
 }

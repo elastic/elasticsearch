@@ -675,6 +675,11 @@ public class Setting<T> implements ToXContentObject {
         private final Set<AffixSetting> dependencies;
 
         public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory, AffixSetting... dependencies) {
+            this(key, delegate, delegateFactory, (s) -> (v) -> {}, dependencies);
+        }
+
+        public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory,
+                            Function<String, Validator<T>> validatorFunction, AffixSetting... dependencies) {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
@@ -689,6 +694,7 @@ public class Setting<T> implements ToXContentObject {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
         }
 
+        @Override
         public Set<Setting<?>> getSettingsDependencies(String settingsKey) {
             if (dependencies.isEmpty()) {
                 return Collections.emptySet();
@@ -1066,6 +1072,12 @@ public class Setting<T> implements ToXContentObject {
             properties);
     }
 
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, Validator<Integer> validator,
+                                              Property... properties) {
+        return new Setting<>(key, Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key, isFiltered(properties)), validator,
+            properties);
+    }
+
     public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, key, isFiltered(properties)), properties);
     }
@@ -1326,7 +1338,7 @@ public class Setting<T> implements ToXContentObject {
         return listSetting(key, fallbackSetting, singleValueParser, defaultStringValue, v -> {}, properties);
     }
 
-    static <T> Setting<List<T>> listSetting(
+    public static <T> Setting<List<T>> listSetting(
         final String key,
         final @Nullable Setting<List<T>> fallbackSetting,
         final Function<String, T> singleValueParser,

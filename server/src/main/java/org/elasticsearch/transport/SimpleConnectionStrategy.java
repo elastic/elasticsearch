@@ -55,7 +55,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                 // validate address
                 parsePort(s);
                 return s;
-            }, Setting.Property.Dynamic, Setting.Property.NodeScope));
+            }, new StrategyValidator<>(key, ConnectionStrategy.SIMPLE), Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     /**
      * The maximum number of socket connections that will be established to a remote cluster. The default is 18.
@@ -63,7 +63,8 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     public static final Setting.AffixSetting<Integer> REMOTE_SOCKET_CONNECTIONS = Setting.affixKeySetting(
         "cluster.remote.",
         "simple.socket_connections",
-        key -> intSetting(key, 18, 1, Setting.Property.Dynamic, Setting.Property.NodeScope));
+        key -> intSetting(key, 18, 1, new StrategyValidator<>(key, ConnectionStrategy.SNIFF), Setting.Property.Dynamic,
+            Setting.Property.NodeScope));
 
     static final int CHANNELS_PER_CONNECTION = 1;
 

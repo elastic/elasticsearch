@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -75,6 +77,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                         parsePort(s);
                         return s;
                     },
+                    new StrategyValidator<>(key, ConnectionStrategy.SNIFF),
                     Setting.Property.Dynamic,
                     Setting.Property.NodeScope));
 
@@ -91,7 +94,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 // validate seed address
                 parsePort(s);
                 return s;
-            }, Setting.Property.Dynamic, Setting.Property.NodeScope));
+            },
+            s -> Collections.emptyList(),
+            new StrategyValidator<>(key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic, Setting.Property.NodeScope));
     /**
      * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
      * the remote cluster using their publish addresses. If this setting is set to an IP address or hostname then Elasticsearch will connect
@@ -103,11 +109,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             "proxy",
             key -> Setting.simpleString(
                     key,
-                    s -> {
+                    new StrategyValidator<>(key, ConnectionStrategy.SNIFF, s -> {
                         if (Strings.hasLength(s)) {
                             parsePort(s);
                         }
-                    },
+                    }),
                     Setting.Property.Dynamic,
                     Setting.Property.NodeScope),
         REMOTE_CLUSTER_SEEDS);
@@ -119,7 +125,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     public static final Setting.AffixSetting<Integer> REMOTE_NODE_CONNECTIONS = Setting.affixKeySetting(
         "cluster.remote.",
         "sniff.node_connections",
-        key -> intSetting(key, RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER, 1,
+        key -> intSetting(key, RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER, 1, new StrategyValidator<>(key, ConnectionStrategy.SNIFF),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     static final int CHANNELS_PER_CONNECTION = 6;

@@ -195,9 +195,12 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         }
 
         protected void handleAsError(final HttpExchange exchange) throws IOException {
-            drainInputStream(exchange.getRequestBody());
-            exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
-            exchange.close();
+            try {
+                drainInputStream(exchange.getRequestBody());
+                exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
+            } finally {
+                exchange.close();
+            }
         }
 
         protected abstract String requestUniqueId(HttpExchange exchange);
@@ -214,10 +217,10 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         return exchange -> {
             try {
                 handler.handle(exchange);
-            } catch (final Exception e) {
+            } catch (Throwable t) {
                 logger.error(() -> new ParameterizedMessage("Exception when handling request {} {} {}",
-                    exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI()), e);
-                throw e;
+                    exchange.getRemoteAddress(), exchange.getRequestMethod(), exchange.getRequestURI()), t);
+                throw t;
             }
         };
     }

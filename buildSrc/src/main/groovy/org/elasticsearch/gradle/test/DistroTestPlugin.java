@@ -392,7 +392,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         // temporary until distro tests have one test per distro
         Configuration packagingConfig = project.getConfigurations().create(DISTRIBUTIONS_CONFIGURATION);
-        List<Configuration> distroConfigs = currentDistros.stream().map(ElasticsearchDistribution::getConfiguration)
+        List<Configuration> distroConfigs = currentDistros.stream()
+            .filter(d -> d.getType() != Type.DOCKER)
+            .map(ElasticsearchDistribution::getConfiguration)
             .collect(Collectors.toList());
         packagingConfig.setExtendsFrom(distroConfigs);
 

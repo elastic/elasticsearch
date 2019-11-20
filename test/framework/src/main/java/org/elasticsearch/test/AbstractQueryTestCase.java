@@ -439,11 +439,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     + ", secondQuery: " + controlQuery, controlQuery.hashCode(), equalTo(firstQuery.hashCode()));
 
             QB secondQuery = copyQuery(firstQuery);
-            // query _name never should affect the result of toQuery, we randomly set it to make sure
-            if (randomBoolean()) {
-                secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
-                        + randomAlphaOfLengthBetween(1, 10));
-            }
             context = new QueryShardContext(context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
@@ -460,6 +455,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
                         rewrite(thirdLuceneQuery));
             }
+
+            secondQuery.queryName(randomAlphaOfLengthBetween(1, 10));
+            Query fourthLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
+            assertNotEquals("modifying the query name doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
+                rewrite(fourthLuceneQuery));
         }
     }
 

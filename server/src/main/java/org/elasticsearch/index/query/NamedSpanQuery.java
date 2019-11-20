@@ -22,8 +22,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Matches;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanWeight;
@@ -104,6 +106,11 @@ public class NamedSpanQuery extends SpanQuery {
         NamedSpanQuery that = (NamedSpanQuery) o;
         return Objects.equals(name, that.name) &&
             Objects.equals(in, that.in);
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        in.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
     }
 
     @Override

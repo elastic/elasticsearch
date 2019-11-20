@@ -24,6 +24,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -81,7 +82,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         executorServiceForProcess = mock(ExecutorService.class);
         process = mock(AnalyticsProcess.class);
         when(process.isProcessAlive()).thenReturn(true);
-        when(process.readAnalyticsResults()).thenReturn(List.of(PROCESS_RESULT).iterator());
+        when(process.readAnalyticsResults()).thenReturn(Arrays.asList(PROCESS_RESULT).iterator());
         processFactory = mock(AnalyticsProcessFactory.class);
         when(processFactory.createAnalyticsProcess(any(), any(), any(), any(), any())).thenReturn(process);
         auditor = mock(DataFrameAnalyticsAuditor.class);

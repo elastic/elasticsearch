@@ -6,7 +6,7 @@ setup:
         # wait for long enough that we give delayed unassigned shards to stop being delayed
         timeout: 70s
 ---
-"Get start, stop, and delete old cluster batch data frame transforms":
+"Get start, stop, and delete old cluster batch transform":
   # Simple and complex OLD transforms
   - do:
       transform.get_transform:
@@ -84,7 +84,7 @@ setup:
   - match: { count: 0 }
 
 ---
-"Get start, stop mixed cluster batch data frame transforms":
+"Get start, stop mixed cluster batch transform":
   # Simple and complex Mixed cluster transforms
   - do:
       transform.get_transform:

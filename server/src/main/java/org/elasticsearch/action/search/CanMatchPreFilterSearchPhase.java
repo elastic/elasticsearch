@@ -127,7 +127,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     private static boolean shouldSortShards(MinAndMax[] minAndMaxes) {
-        return Arrays.stream(minAndMaxes).anyMatch(e -> e != null);
+        return Arrays.stream(minAndMaxes).anyMatch(Objects::nonNull);
     }
 
     private static Comparator<Integer> shardComparator(GroupShardsIterator<SearchShardIterator> shardsIts,

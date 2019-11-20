@@ -44,6 +44,13 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         return Regression::new;
     }
 
+    public void testConstructor_GivenPredictionFieldNameIsBlacklisted() {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "is_training", 50.0));
+
+        assertThat(e.getMessage(), equalTo("[prediction_field_name] must not be equal to any of [is_training]"));
+    }
+
     public void testConstructor_GivenTrainingPercentIsLessThanOne() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 0.999));

@@ -1388,6 +1388,29 @@ setup:
           }
 
 ---
+"Test put regression given prediction_field_name is blacklisted":
+
+  - do:
+      catch: /\[prediction_field_name\] must not be equal to any of \[is_training\]/
+      ml.put_data_frame_analytics:
+        id: "regression-prediction-field-name-is-blacklisted"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "prediction_field_name": "is_training"
+              }
+            }
+          }
+
+---
 "Test put regression given training_percent is less than one":
 
   - do:
@@ -1723,6 +1746,29 @@ setup:
               "classification": {
                 "dependent_variable": "foo",
                 "num_top_classes": 1001
+              }
+            }
+          }
+
+---
+"Test put classification given prediction_field_name is blacklisted":
+
+  - do:
+      catch: /\[prediction_field_name\] must not be equal to any of \[prediction_probability, is_training, top_classes\]/
+      ml.put_data_frame_analytics:
+        id: "classification-prediction-field-name-is-blacklisted"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "prediction_field_name": "is_training"
               }
             }
           }

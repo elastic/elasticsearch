@@ -56,6 +56,12 @@ public class Regression implements DataFrameAnalysis {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
+    /**
+     * User-provided name for prediction field must not clash with names of other fields emitted on the same JSON level by C++ code.
+     * This list should be updated every time a new field is added in lib/api/CDataFrameTrainBoostedTreeRegressionRunner.cc.
+     */
+    private static final List<String> PREDICTION_FIELD_NAME_BLACKLIST = List.of("is_training");
+
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
     private final String predictionFieldName;
@@ -65,6 +71,10 @@ public class Regression implements DataFrameAnalysis {
                       BoostedTreeParams boostedTreeParams,
                       @Nullable String predictionFieldName,
                       @Nullable Double trainingPercent) {
+        if (predictionFieldName != null && PREDICTION_FIELD_NAME_BLACKLIST.contains(predictionFieldName)) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must not be equal to any of {}", PREDICTION_FIELD_NAME.getPreferredName(), PREDICTION_FIELD_NAME_BLACKLIST);
+        }
         if (trainingPercent != null && (trainingPercent < 1.0 || trainingPercent > 100.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a double in [1, 100]", TRAINING_PERCENT.getPreferredName());
         }

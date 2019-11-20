@@ -45,6 +45,33 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         return Classification::new;
     }
 
+    public void testConstructor_GivenPredictionFieldNameIsBlacklisted() {
+        {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> new Classification("foo", BOOSTED_TREE_PARAMS, "prediction_probability", 3, 50.0));
+
+            assertThat(
+                e.getMessage(),
+                equalTo("[prediction_field_name] must not be equal to any of [prediction_probability, is_training, top_classes]"));
+        }
+        {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> new Classification("foo", BOOSTED_TREE_PARAMS, "is_training", 3, 50.0));
+
+            assertThat(
+                e.getMessage(),
+                equalTo("[prediction_field_name] must not be equal to any of [prediction_probability, is_training, top_classes]"));
+        }
+        {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> new Classification("foo", BOOSTED_TREE_PARAMS, "top_classes", 3, 50.0));
+
+            assertThat(
+                e.getMessage(),
+                equalTo("[prediction_field_name] must not be equal to any of [prediction_probability, is_training, top_classes]"));
+        }
+    }
+
     public void testConstructor_GivenTrainingPercentIsLessThanOne() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, 0.999));

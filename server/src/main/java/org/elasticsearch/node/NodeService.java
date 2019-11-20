@@ -19,10 +19,11 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.stats.CoordinatingIndiceStats;
+import org.elasticsearch.action.admin.cluster.node.stats.CoordinatingStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -30,11 +31,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.metrics.CoordinatingIndicesStatsCollector;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
@@ -43,6 +46,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class NodeService implements Closeable {
@@ -59,7 +65,7 @@ public class NodeService implements Closeable {
     private final HttpServerTransport httpServerTransport;
     private final ResponseCollectorService responseCollectorService;
     private final SearchTransportService searchTransportService;
-
+    private final CoordinatingIndicesStatsCollector coordinatingIndicesStatsCollector;
     private final Discovery discovery;
 
     NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
@@ -67,7 +73,7 @@ public class NodeService implements Closeable {
                 CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
                 SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
-                SearchTransportService searchTransportService) {
+                SearchTransportService searchTransportService, CoordinatingIndicesStatsCollector coordinatingIndicesStatsCollector) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -82,6 +88,7 @@ public class NodeService implements Closeable {
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.searchTransportService = searchTransportService;
+        this.coordinatingIndicesStatsCollector = coordinatingIndicesStatsCollector;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -103,7 +110,7 @@ public class NodeService implements Closeable {
 
     public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
                            boolean fs, boolean transport, boolean http, boolean circuitBreaker,
-                           boolean script, boolean discoveryStats, boolean ingest, boolean adaptiveSelection) {
+                           boolean script, boolean discoveryStats, boolean ingest, boolean coordinating, boolean adaptiveSelection) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(transportService.getLocalNode(), System.currentTimeMillis(),
@@ -119,6 +126,7 @@ public class NodeService implements Closeable {
                 script ? scriptService.stats() : null,
                 discoveryStats ? discovery.stats() : null,
                 ingest ? ingestService.stats() : null,
+                coordinating? getCoordinatingStats() : null,
                 adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null
         );
     }
@@ -142,6 +150,21 @@ public class NodeService implements Closeable {
      */
     public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
         return indicesService.awaitClose(timeout, timeUnit);
+    }
+
+    private CoordinatingStats getCoordinatingStats() {
+        Map<String, CoordinatingIndicesStatsCollector.StatsCollector> collectorMap = coordinatingIndicesStatsCollector.getCollectorMap();
+        if (collectorMap == null) {
+            return null;
+        }
+
+        List<CoordinatingIndiceStats> statsList = new ArrayList<>();
+        for (String indexName : collectorMap.keySet()) {
+            CoordinatingIndicesStatsCollector.StatsCollector indexCollector = collectorMap.get(indexName);
+            CoordinatingIndiceStats coordinatingIndiceStats = new CoordinatingIndiceStats(indexName, indexCollector.counterMetricMap, indexCollector.meanMetricMap);
+            statsList.add(coordinatingIndiceStats);
+        }
+        return new CoordinatingStats(statsList);
     }
 
 }

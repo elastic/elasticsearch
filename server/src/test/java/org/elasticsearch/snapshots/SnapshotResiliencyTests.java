@@ -153,6 +153,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.metrics.CoordinatingIndicesStatsCollector;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -1158,7 +1159,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 actions.put(SearchAction.INSTANCE,
                     new TransportSearchAction(threadPool, transportService, searchService,
                         searchTransportService, new SearchPhaseController(searchService::createReduceContext), clusterService,
-                        actionFilters, indexNameExpressionResolver));
+                        actionFilters, indexNameExpressionResolver, new CoordinatingIndicesStatsCollector()));
                 actions.put(RestoreSnapshotAction.INSTANCE,
                     new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters,
                         indexNameExpressionResolver));

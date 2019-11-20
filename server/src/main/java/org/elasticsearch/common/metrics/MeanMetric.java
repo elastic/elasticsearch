@@ -26,6 +26,15 @@ public class MeanMetric implements Metric {
     private final LongAdder counter = new LongAdder();
     private final LongAdder sum = new LongAdder();
 
+    public MeanMetric() {
+
+    }
+
+    public MeanMetric(long count, long sum) {
+        this.counter.add(count);
+        this.sum.add(sum);
+    }
+
     public void inc(long n) {
         counter.increment();
         sum.add(n);
@@ -34,6 +43,11 @@ public class MeanMetric implements Metric {
     public void dec(long n) {
         counter.decrement();
         sum.add(-n);
+    }
+
+    public void merge(MeanMetric other) {
+        this.counter.add(other.count());
+        this.sum.add(other.sum());
     }
 
     public long count() {

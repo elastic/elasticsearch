@@ -23,6 +23,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.metrics.CoordinatingIndicesStatsCollector;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
@@ -54,11 +55,12 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
                                         SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
-                                        SearchResponse.Clusters clusters) {
+                                        SearchResponse.Clusters clusters,
+                                        CoordinatingIndicesStatsCollector coordinatingIndicesStatsCollector) {
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
-                new BitSetSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
+                new BitSetSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters, coordinatingIndicesStatsCollector);
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
     }

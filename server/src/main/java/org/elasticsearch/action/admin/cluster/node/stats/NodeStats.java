@@ -88,6 +88,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     private IngestStats ingestStats;
 
     @Nullable
+    private CoordinatingStats coordinatingStats;
+
+    @Nullable
     private AdaptiveSelectionStats adaptiveSelectionStats;
 
     public NodeStats(StreamInput in) throws IOException {
@@ -107,6 +110,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         scriptStats = in.readOptionalWriteable(ScriptStats::new);
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
+        coordinatingStats = in.readOptionalWriteable(CoordinatingStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
     }
 
@@ -117,6 +121,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                      @Nullable ScriptStats scriptStats,
                      @Nullable DiscoveryStats discoveryStats,
                      @Nullable IngestStats ingestStats,
+                     @Nullable CoordinatingStats coordinatingStats,
                      @Nullable AdaptiveSelectionStats adaptiveSelectionStats) {
         super(node);
         this.timestamp = timestamp;
@@ -132,6 +137,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.scriptStats = scriptStats;
         this.discoveryStats = discoveryStats;
         this.ingestStats = ingestStats;
+        this.coordinatingStats = coordinatingStats;
         this.adaptiveSelectionStats = adaptiveSelectionStats;
     }
 
@@ -223,6 +229,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
+    public CoordinatingStats getCoordinatingStats() {
+        return coordinatingStats;
+    }
+
+    @Nullable
     public AdaptiveSelectionStats getAdaptiveSelectionStats() {
         return adaptiveSelectionStats;
     }
@@ -248,6 +259,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(scriptStats);
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
+        out.writeOptionalWriteable(coordinatingStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
     }
 
@@ -308,6 +320,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getIngestStats() != null) {
             getIngestStats().toXContent(builder, params);
+        }
+        if (getCoordinatingStats() != null) {
+            getCoordinatingStats().toXContent(builder, params);
         }
         if (getAdaptiveSelectionStats() != null) {
             getAdaptiveSelectionStats().toXContent(builder, params);

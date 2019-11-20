@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.metrics.CoordinatingIndicesStatsCollector;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -85,7 +86,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     public void run() throws IOException {
                         result.set(iter);
                         latch.countDown();
-                    }}, SearchResponse.Clusters.EMPTY);
+                    }}, SearchResponse.Clusters.EMPTY, new CoordinatingIndicesStatsCollector());
 
         canMatchPhase.start();
         latch.await();
@@ -153,7 +154,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 public void run() throws IOException {
                     result.set(iter);
                     latch.countDown();
-                }}, SearchResponse.Clusters.EMPTY);
+                }}, SearchResponse.Clusters.EMPTY, new CoordinatingIndicesStatsCollector());
 
         canMatchPhase.start();
         latch.await();
@@ -236,7 +237,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(iter.size()),
                 randomIntBetween(1, 32),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY,
+                new CoordinatingIndicesStatsCollector()) {
 
                 @Override
                 protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -259,7 +261,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                         listener.onFailure(new Exception("failure"));
                     }
                 }
-            }, SearchResponse.Clusters.EMPTY);
+            }, SearchResponse.Clusters.EMPTY,
+            new CoordinatingIndicesStatsCollector());
 
         canMatchPhase.start();
         latch.await();

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
@@ -29,6 +30,7 @@ import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.ingest.IngestStats;
+import org.elasticsearch.metrics.MetricsConstant;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
@@ -48,6 +50,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -295,6 +298,16 @@ public class NodeStatsTests extends ESTestCase {
                         assertFalse(it.hasNext());
                     }
                 }
+
+                CoordinatingStats coordinatingStats = nodeStats.getCoordinatingStats();
+                CoordinatingStats deserializedCoordinatingStats = deserializedNodeStats.getCoordinatingStats();
+                if (coordinatingStats == null) {
+                    assertNull(deserializedCoordinatingStats);
+                } else {
+                    assertEquals(coordinatingStats.getTotal().counterMetricMap.get("search_total").count(), deserializedCoordinatingStats
+                        .getTotal().counterMetricMap.get("search_total").count());
+                }
+
                 AdaptiveSelectionStats adaptiveStats = nodeStats.getAdaptiveSelectionStats();
                 AdaptiveSelectionStats deserializedAdaptiveStats = deserializedNodeStats.getAdaptiveSelectionStats();
                 if (adaptiveStats == null) {
@@ -463,6 +476,18 @@ public class NodeStatsTests extends ESTestCase {
             }
             ingestStats = new IngestStats(totalStats, ingestPipelineStats, ingestProcessorStats);
         }
+
+        CoordinatingStats coordinatingStats = null;
+        if (frequently()) {
+            List<CoordinatingIndiceStats> list = new ArrayList<>();
+            String index = "index";
+            CoordinatingIndiceStats indiceStats = new CoordinatingIndiceStats(index, new ConcurrentHashMap<>(), new ConcurrentHashMap<>());
+            list.add(indiceStats);
+            CounterMetric search_total = new CounterMetric();
+            search_total.inc(randomIntBetween(1, 10));
+            indiceStats.counterMetricMap.put(MetricsConstant.SEARCH_TOTAL, search_total);
+        }
+
         AdaptiveSelectionStats adaptiveSelectionStats = null;
         if (frequently()) {
             int numNodes = randomIntBetween(0,10);
@@ -488,7 +513,7 @@ public class NodeStatsTests extends ESTestCase {
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-                ingestStats, adaptiveSelectionStats);
+                ingestStats, coordinatingStats, adaptiveSelectionStats);
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

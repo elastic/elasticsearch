@@ -282,7 +282,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             IntStream.range(0, pipelineids.size()).boxed().collect(Collectors.toMap(pipelineids::get, processorStats::get)));
         return new NodeStats(mock(DiscoveryNode.class),
             Instant.now().toEpochMilli(), null, null, null, null, null, null, null, null,
-            null, null, null, ingestStats, null);
+            null, null, null, ingestStats, null, null);
 
     }
 

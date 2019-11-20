@@ -28,7 +28,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -46,6 +48,8 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.metrics.CoordinatingIndicesStatsCollector;
+import org.elasticsearch.metrics.MetricsConstant;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -68,6 +72,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,7 +89,7 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 
-public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
+public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> implements ClusterStateListener {
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
@@ -97,12 +102,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final CoordinatingIndicesStatsCollector coordinatingIndicesStatsCollector;
 
     @Inject
     public TransportSearchAction(ThreadPool threadPool, TransportService transportService, SearchService searchService,
                                  SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
                                  ClusterService clusterService, ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver) {
+                                 IndexNameExpressionResolver indexNameExpressionResolver,
+                                 CoordinatingIndicesStatsCollector coordinatingIndicesStatsCollector) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.threadPool = threadPool;
         this.searchPhaseController = searchPhaseController;
@@ -112,6 +119,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.coordinatingIndicesStatsCollector = coordinatingIndicesStatsCollector;
+        this.clusterService.addListener(this);
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        Iterator<String> indexNameIterator = event.state().getRoutingTable().indicesRouting().keysIt();
+        while (indexNameIterator.hasNext()) {
+            registerCoordinatingMetrics(indexNameIterator.next());
+        }
+        for (Index index : event.indicesDeleted()) {
+            removeDeletedIndicesEntry(index.getName());
+        }
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,
@@ -375,6 +395,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    private void collectQps(String[] concreteIndices) {
+        for (String indexName : concreteIndices) {
+            coordinatingIndicesStatsCollector.collectCount(indexName, MetricsConstant.SEARCH_TOTAL, 1);
+        }
+    }
+
+    private void registerCoordinatingMetrics(String indexName) {
+        coordinatingIndicesStatsCollector.register(MetricsConstant.SEARCH_TOTAL, MetricsConstant.MetricsType.COUNTER, indexName);
+        coordinatingIndicesStatsCollector.register(MetricsConstant.SEARCH_LATENCY_MILLIS, MetricsConstant.MetricsType.MEAN, indexName);
+    }
+
+    private void removeDeletedIndicesEntry(String indexName) {
+        coordinatingIndicesStatsCollector.removeIndex(indexName);
+    }
+
     private static ActionListener<SearchResponse> createCCSListener(String clusterAlias, boolean skipUnavailable, CountDown countDown,
                                                              AtomicInteger skippedClusters, AtomicReference<Exception> exceptions,
                                                              SearchResponseMerger searchResponseMerger, int totalClusters,
@@ -564,6 +599,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
+        collectQps(concreteIndices);
+
         // optimize search type for cases where there is only one shard group to search on
         if (shardIterators.size() == 1) {
             // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
@@ -655,19 +692,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         action.start();
                     }
                 };
-            }, clusters);
+            }, clusters, coordinatingIndicesStatsCollector);
         } else {
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterStateVersion, task, clusters);
+                        shardIterators, timeProvider, clusterStateVersion, task, clusters, coordinatingIndicesStatsCollector);
                     break;
                 case QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterStateVersion, task, clusters);
+                        shardIterators, timeProvider, clusterStateVersion, task, clusters, coordinatingIndicesStatsCollector);
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

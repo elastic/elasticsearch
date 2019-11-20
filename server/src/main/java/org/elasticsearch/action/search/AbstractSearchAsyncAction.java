@@ -34,6 +34,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.metrics.CoordinatingIndicesStatsCollector;
+import org.elasticsearch.metrics.MetricsConstant;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -93,6 +95,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
+    private final CoordinatingIndicesStatsCollector coordinatingIndicesStatsCollector;
 
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                                         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -102,7 +105,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         SearchTimeProvider timeProvider, long clusterStateVersion,
                                         SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
-                                        SearchResponse.Clusters clusters) {
+                                        SearchResponse.Clusters clusters, CoordinatingIndicesStatsCollector coordinatingIndicesStatsCollector) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
@@ -137,6 +140,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
+        this.coordinatingIndicesStatsCollector = coordinatingIndicesStatsCollector;
     }
 
     /**
@@ -513,8 +517,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse,
                                                        String scrollId,
                                                        ShardSearchFailure[] failures) {
+        long took = buildTookInMillis();
+        collectSearchLatency(request.indices(), took);
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
-            skippedOps.get(), buildTookInMillis(), failures, clusters);
+            skippedOps.get(), took, failures, clusters);
+    }
+
+
+    private void collectSearchLatency(String[] indices, long took) {
+        for (String indexName : indices) {
+            coordinatingIndicesStatsCollector.collectMean(indexName, MetricsConstant.SEARCH_LATENCY_MILLIS, took);
+        }
     }
 
     @Override

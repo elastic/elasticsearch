@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.metrics.CoordinatingIndicesStatsCollector;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -92,7 +93,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                     )
                 ), timeProvider, 0, null,
                 results, request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY, new CoordinatingIndicesStatsCollector()) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
                 return null;

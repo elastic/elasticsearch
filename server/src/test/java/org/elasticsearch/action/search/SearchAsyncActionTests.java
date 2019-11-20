@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.metrics.CoordinatingIndicesStatsCollector;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -110,7 +111,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY,
+                new CoordinatingIndicesStatsCollector()) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -215,7 +217,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY,
+                new CoordinatingIndicesStatsCollector()) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -318,7 +321,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                         null,
                         new ArraySearchPhaseResults<>(shardsIter.size()),
                         request.getMaxConcurrentShardRequests(),
-                        SearchResponse.Clusters.EMPTY) {
+                        SearchResponse.Clusters.EMPTY,
+                        new CoordinatingIndicesStatsCollector()) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
@@ -423,7 +427,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY,
+                new CoordinatingIndicesStatsCollector()) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,

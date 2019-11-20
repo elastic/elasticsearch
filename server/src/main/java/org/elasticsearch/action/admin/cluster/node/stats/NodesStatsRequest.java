@@ -43,6 +43,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean script;
     private boolean discovery;
     private boolean ingest;
+    private boolean coordinating;
     private boolean adaptiveSelection;
 
     public NodesStatsRequest() {
@@ -63,6 +64,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         script = in.readBoolean();
         discovery = in.readBoolean();
         ingest = in.readBoolean();
+        coordinating = in.readBoolean();
         adaptiveSelection = in.readBoolean();
     }
 
@@ -90,6 +92,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.script = true;
         this.discovery = true;
         this.ingest = true;
+        this.coordinating = true;
         this.adaptiveSelection = true;
         return this;
     }
@@ -110,6 +113,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         this.script = false;
         this.discovery = false;
         this.ingest = false;
+        this.coordinating = false;
         this.adaptiveSelection = false;
         return this;
     }
@@ -286,6 +290,15 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
+    public boolean coordinating() {
+        return coordinating;
+    }
+
+    public NodesStatsRequest coordinating(boolean coordinating) {
+        this.coordinating = coordinating;
+        return this;
+    }
+
     public boolean adaptiveSelection() {
         return adaptiveSelection;
     }
@@ -313,6 +326,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(script);
         out.writeBoolean(discovery);
         out.writeBoolean(ingest);
+        out.writeBoolean(coordinating);
         out.writeBoolean(adaptiveSelection);
     }
 }

@@ -1008,3 +1008,7 @@ See <<ref-ad-settings>>.
 
 See <<ad-realm-configuration>>. 
 
+[role="exclude",id="how-security-works"]
+=== How security works
+
+See <<elasticsearch-security>>.

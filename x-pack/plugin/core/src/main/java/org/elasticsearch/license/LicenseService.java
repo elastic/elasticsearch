@@ -46,6 +46,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Service responsible for managing {@link LicensesMetaData}.
@@ -348,8 +349,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
         License.LicenseType requestedType = License.LicenseType.parse(request.getType());
         if (VALID_TRIAL_TYPES.contains(requestedType) == false) {
-            throw new IllegalArgumentException("Cannot start trial of type [" + request.getType() + "]. Valid trial types are "
-                + VALID_TRIAL_TYPES + ".");
+            throw new IllegalArgumentException("Cannot start trial of type [" + requestedType.getTypeName() + "]. Valid trial types are "
+                + VALID_TRIAL_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.joining(",")));
         }
         StartTrialClusterTask task = new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
         clusterService.submitStateUpdateTask("started trial license", task);

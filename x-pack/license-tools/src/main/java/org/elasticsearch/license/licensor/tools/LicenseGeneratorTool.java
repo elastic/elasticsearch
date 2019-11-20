@@ -89,7 +89,7 @@ public class LicenseGeneratorTool extends LoggingAwareCommand {
                     "Must specify either --license or --licenseFile");
         }
         if (licenseSpec == null) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Could parse license spec");
+            throw new UserException(ExitCodes.DATA_ERROR, "Could not parse license spec");
         }
 
         // sign

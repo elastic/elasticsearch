@@ -178,7 +178,7 @@ public class License implements ToXContentObject {
                 case GOLD:
                     return GOLD;
                 case PLATINUM:
-                case ENTERPRISE: // TODO Add an explicit platinum operating mode
+                case ENTERPRISE: // TODO Add an explicit enterprise operating mode
                     return PLATINUM;
                 case TRIAL:
                     return TRIAL;

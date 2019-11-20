@@ -32,7 +32,7 @@ Jobs are created in a `STOPPED` state. You can start them with the
 [[rollup-put-job-api-path-params]]
 ==== {api-path-parms-title}
 
-`job_id`::
+`<job_id>`::
   (Required, string) Identifier for the {rollup-job}.
 
 [[rollup-put-job-api-request-body]]

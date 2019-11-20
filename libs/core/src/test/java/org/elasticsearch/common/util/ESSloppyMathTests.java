@@ -21,10 +21,10 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.util.FastMath.atan;
-import static org.elasticsearch.common.util.FastMath.sinh;
+import static org.elasticsearch.common.util.ESSloppyMath.atan;
+import static org.elasticsearch.common.util.ESSloppyMath.sinh;
 
-public class FastMathTests extends ESTestCase {
+public class ESSloppyMathTests extends ESTestCase {
 
     // accuracy for atan(x)
     static double ATAN_DELTA = 1E-15;

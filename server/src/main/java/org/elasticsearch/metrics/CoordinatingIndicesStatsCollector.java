@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CoordinatingIndicesStatsCollector {
 
     /**
-     * indexName --> collector
+     * indexName -- collector
      */
     private final Map<String, StatsCollector> collectorMap = new ConcurrentHashMap<>();
 

@@ -99,7 +99,11 @@ public abstract class MultiGeoValues {
 
         @Override
         public GeoRelation relate(Rectangle rectangle) {
-            throw new UnsupportedOperationException("intersect is unsupported for geo_point doc values");
+            if (GeoRelationUtils.pointInRectPrecise(geoPoint.lat(), geoPoint.lon(),
+                    rectangle.getMinLat(), rectangle.getMaxLat(), rectangle.getMinLon(), rectangle.getMaxLon())) {
+                return GeoRelation.QUERY_CROSSES;
+            }
+            return GeoRelation.QUERY_DISJOINT;
         }
 
         @Override

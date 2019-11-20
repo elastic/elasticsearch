@@ -33,9 +33,9 @@ public class EdgeTreeReader implements ShapeTreeReader {
     private final ByteBufferStreamInput input;
     private final int startPosition;
     private final boolean hasArea;
-    private final static Optional<Boolean> OPTIONAL_FALSE = Optional.of(false);
-    private final static Optional<Boolean> OPTIONAL_TRUE = Optional.of(true);
-    private final static Optional<Boolean> OPTIONAL_EMPTY = Optional.empty();
+    private static final Optional<Boolean> OPTIONAL_FALSE = Optional.of(false);
+    private static final Optional<Boolean> OPTIONAL_TRUE = Optional.of(true);
+    private static final Optional<Boolean> OPTIONAL_EMPTY = Optional.empty();
 
     public EdgeTreeReader(ByteBufferStreamInput input, boolean hasArea) throws IOException {
         this.startPosition = input.position();
@@ -83,14 +83,6 @@ public class EdgeTreeReader implements ShapeTreeReader {
         }
 
         return containsBottomLeft(readRoot(input.position()), extent);
-    }
-
-    boolean containsFully(Extent extent) throws IOException {
-        resetInputPosition();
-
-        input.position(input.position() + Extent.WRITEABLE_SIZE_IN_BYTES); // skip extent
-        boolean[] res = containsFully(readRoot(input.position()), extent);
-        return res[0] && res[1] && res[2] && res[3];
     }
 
     public boolean crosses(Extent extent) throws IOException {
@@ -153,42 +145,6 @@ public class EdgeTreeReader implements ShapeTreeReader {
 
             if (root.rightOffset >= 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
                 res ^= containsBottomLeft(readRight(root), extent);
-            }
-        }
-        return res;
-    }
-
-    /**
-     * Returns true if every corner in the rectangle query is contained within the tree's edges.
-     */
-    private boolean[] containsFully(Edge root, Extent extent) throws IOException {
-        boolean[] res = new boolean[] { false, false, false, false };
-        if (root.maxY >= extent.minY()) {
-            // is bbox-query contained within linearRing
-            // cast infinite ray to the right from each corner of the extent
-            res = new boolean[] { lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.minY(),
-                Integer.MAX_VALUE, extent.minY()),
-                lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.minX(), extent.maxY(),
-                    Integer.MAX_VALUE, extent.maxY()),
-                lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.minY(),
-                    Integer.MAX_VALUE, extent.minY()),
-                lineCrossesLineWithBoundary(root.x1, root.y1, root.x2, root.y2, extent.maxX(), extent.maxY(),
-                    Integer.MAX_VALUE, extent.maxY()) };
-
-            if (root.rightOffset > 0) { /* has left node */
-                boolean[] subRes = containsFully(readLeft(root), extent);
-                res[0] ^= subRes[0];
-                res[1] ^= subRes[1];
-                res[2] ^= subRes[2];
-                res[3] ^= subRes[3];
-            }
-
-            if (root.rightOffset >= 0 && extent.maxY() >= root.minY) { /* no right node if rightOffset == -1 */
-                boolean[] subRes = containsFully(readRight(root), extent);
-                res[0] ^= subRes[0];
-                res[1] ^= subRes[1];
-                res[2] ^= subRes[2];
-                res[3] ^= subRes[3];
             }
         }
         return res;

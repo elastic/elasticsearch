@@ -32,7 +32,6 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -95,6 +94,7 @@ import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -1026,13 +1026,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 request::nowInMillis, request.getClusterAlias());
             Rewriteable.rewrite(request.getRewriteable(), context, false);
             FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-            Comparable sortValue = sortBuilder != null ? FieldSortBuilder.getMaxSortValueOrNull(context, sortBuilder) : null;
+            MinAndMax minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
             if (canRewriteToMatchNone(request.source())) {
                 QueryBuilder queryBuilder = request.source().query();
-                return new CanMatchResponse(queryBuilder instanceof MatchNoneQueryBuilder == false, sortValue);
+                return new CanMatchResponse(queryBuilder instanceof MatchNoneQueryBuilder == false, minMax);
             }
             // null query means match_all
-            return new CanMatchResponse(true, sortValue);
+            return new CanMatchResponse(true, minMax);
         }
     }
 
@@ -1093,28 +1093,28 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final class CanMatchResponse extends SearchPhaseResult {
         private final boolean canMatch;
-        private final Comparable sortValue;
+        private final MinAndMax minAndMax;
 
         public CanMatchResponse(StreamInput in) throws IOException {
             super(in);
             this.canMatch = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                sortValue = Lucene.readSortValue(in);
+                minAndMax = in.readOptionalWriteable(MinAndMax::new);
             } else {
-                sortValue = null;
+                minAndMax = null;
             }
         }
 
-        public CanMatchResponse(boolean canMatch, @Nullable Comparable sortValue) {
+        public CanMatchResponse(boolean canMatch, MinAndMax minAndMax) {
             this.canMatch = canMatch;
-            this.sortValue = sortValue;
+            this.minAndMax = minAndMax;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(canMatch);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                Lucene.writeSortValue(out, sortValue);
+                out.writeOptionalWriteable(minAndMax);
             }
         }
 
@@ -1122,9 +1122,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return canMatch;
         }
 
-        @Nullable
-        public Comparable sortValue() {
-            return sortValue;
+        public MinAndMax minAndMax() {
+            return minAndMax;
         }
     }
 

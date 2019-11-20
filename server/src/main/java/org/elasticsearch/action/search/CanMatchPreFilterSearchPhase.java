@@ -28,10 +28,12 @@ import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -107,59 +109,66 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                 iter.resetAndSkip();
             }
         }
-        if (shouldSortShards(results.sortValues) == false) {
+        if (shouldSortShards(results.minAndMaxes) == false) {
             return shardsIts;
         }
-        int sortMul = FieldSortBuilder.getPrimaryFieldSortOrNull(source).order() == SortOrder.ASC ? 1 : -1;
-        return new GroupShardsIterator<>(sortShards(shardsIts, results.sortValues, sortMul), false);
+        FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(source);
+        return new GroupShardsIterator<>(sortShards(shardsIts, results.minAndMaxes, fieldSort.order()), false);
     }
 
     private static List<SearchShardIterator> sortShards(GroupShardsIterator<SearchShardIterator> shardsIts,
-                                                        Comparable[] sortValues,
-                                                        int sortMul) {
+                                                        MinAndMax[] minAndMaxes,
+                                                        SortOrder order) {
         return IntStream.range(0, shardsIts.size())
             .boxed()
-            .sorted((a, b) -> compareShardSortValues(shardsIts.get(a).shardId(), shardsIts.get(b).shardId(),
-                sortValues[a], sortValues[b], sortMul))
+            .sorted(shardComparator(shardsIts, minAndMaxes,  order))
             .map(ord -> shardsIts.get(ord))
             .collect(Collectors.toList());
     }
 
-    private static boolean shouldSortShards(Comparable[] sortValues) {
-        return Arrays.stream(sortValues).anyMatch(e -> e != null);
+    private static boolean shouldSortShards(MinAndMax[] minAndMaxes) {
+        return Arrays.stream(minAndMaxes).anyMatch(e -> e != null);
     }
 
-    static int compareShardSortValues(ShardId shard1, ShardId shard2, Comparable v1, Comparable v2, int sortMul) {
+    private static Comparator<Integer> shardComparator(GroupShardsIterator<SearchShardIterator> shardsIts,
+                                                       MinAndMax[] minAndMaxes,
+                                                       SortOrder order) {
+        final Comparator<MinAndMax> bestComparator = MinAndMax.getComparator(order);
+        return (a, b) -> compareShardSortValues(shardsIts.get(a).shardId(), shardsIts.get(b).shardId(),
+            minAndMaxes[a], minAndMaxes[b], bestComparator);
+    }
+
+    static int compareShardSortValues(ShardId s1, ShardId s2, MinAndMax m1, MinAndMax m2, Comparator<MinAndMax> minMaxCmp) {
         final int cmp;
-        if (v1 == v2) {
+        if (m1 == m2) {
             cmp = 0;
-        } else if (v1 == null || v2 == null) {
+        } else if (m1 == null || m2 == null) {
             // sort null values last
-            if (v1 == null) {
+            if (m1 == null) {
                 cmp = -1;
             } else {
                 cmp = 1;
             }
         } else {
-            cmp = v1.compareTo(v2) * sortMul;
+            cmp = minMaxCmp.compare(m1, m2);
         }
-        return cmp != 0 ? cmp : shard1.compareTo(shard2);
+        return cmp != 0 ? cmp : s1.compareTo(s2);
     }
 
     private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {
         private final FixedBitSet possibleMatches;
-        private final Comparable[] sortValues;
+        private final MinAndMax[] minAndMaxes;
         private int numPossibleMatches;
 
         CanMatchSearchPhaseResults(int size) {
             super(size);
             possibleMatches = new FixedBitSet(size);
-            sortValues = new Comparable[size];
+            minAndMaxes = new MinAndMax[size];
         }
 
         @Override
         void consumeResult(CanMatchResponse result) {
-            consumeResult(result.getShardIndex(), result.canMatch(), result.sortValue());
+            consumeResult(result.getShardIndex(), result.canMatch(), result.minAndMax());
         }
 
         @Override
@@ -173,15 +182,13 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             consumeResult(shardIndex, true, null);
         }
 
-        synchronized void consumeResult(int shardIndex, boolean canMatch, Comparable sortValue) {
+        synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax minAndMax) {
             if (canMatch) {
                 possibleMatches.set(shardIndex);
                 numPossibleMatches++;
             }
-            sortValues[shardIndex] = sortValue;
-
+            minAndMaxes[shardIndex] = minAndMax;
         }
-
 
         synchronized int getNumPossibleMatches() {
             return numPossibleMatches;

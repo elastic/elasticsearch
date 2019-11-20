@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,10 +41,10 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
-import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -59,6 +60,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS;
+import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.NANOSECONDS;
 import static org.elasticsearch.index.search.NestedHelper.parentObject;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
@@ -377,7 +380,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * is an instance of {@link FieldSortBuilder}.
      */
     public static boolean hasPrimaryFieldSort(SearchSourceBuilder source) {
-        return getPrimaryFieldSortOrNull(source) == null;
+        return getPrimaryFieldSortOrNull(source) != null;
     }
 
     /**
@@ -392,43 +395,81 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
-     * Return the maximum {@link Comparable} indexed value from the provided {@link FieldSortBuilder} or <code>null</code> if the
-     * value is unknown. The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other field
-     * and configuration return <code>null</code>
-     * NOTE: The maximum value is the minimum if the order of the provided {@link FieldSortBuilder} is {@link SortOrder#DESC}.
+     * Return a {@link Function} that converts a serialized point into a {@link Number} according to the provided
+     * {@link NumberFieldType}.
      */
-    public static Comparable getMaxSortValueOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
+    private static Function<byte[], Comparable> numericPointConverter(SortField sortField, NumberFieldType numberFieldType) {
+        Function<byte[], Number> converter = v -> numberFieldType.parsePoint(v);
+        switch (IndexSortConfig.getSortFieldType(sortField)) {
+            case LONG:
+                return v -> converter.apply(v).longValue();
+
+            case INT:
+                return v -> converter.apply(v).intValue();
+
+            case DOUBLE:
+                return v -> converter.apply(v).doubleValue();
+
+            case FLOAT:
+                return v -> converter.apply(v).floatValue();
+
+            default:
+                return v -> null;
+        }
+    }
+
+    /**
+     * Return a {@link Function} that converts a serialized date point into a {@link Long} according to the provided
+     * {@link NumericType}.
+     */
+    private static Function<byte[], Comparable> datePointConverter(DateFieldType dateFieldType, String numericTypeStr) {
+        if (numericTypeStr != null) {
+            NumericType numericType = resolveNumericType(numericTypeStr);
+            if (dateFieldType.resolution() == MILLISECONDS && numericType == NumericType.DATE_NANOSECONDS) {
+                return v -> DateUtils.toNanoSeconds(LongPoint.decodeDimension(v, 0));
+            } else if (dateFieldType.resolution() == NANOSECONDS && numericType == NumericType.DATE) {
+                return v -> DateUtils.toMilliSeconds(LongPoint.decodeDimension(v, 0));
+            }
+        }
+        return v -> LongPoint.decodeDimension(v, 0);
+    }
+
+    /**
+     * Return the {@link MinAndMax} indexed value from the provided {@link FieldSortBuilder} or <code>null</code> if unknown.
+     * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
+     * and configurations return <code>null</code>.
+     */
+    public static MinAndMax getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
         SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
         SortField sortField = sort.sort.getSort()[0];
         if (sortField.getField() == null) {
             return null;
         }
+        IndexReader reader = context.getIndexReader();
         MappedFieldType fieldType = context.fieldMapper(sortField.getField());
-        if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
+        if (reader == null || (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE)) {
             return null;
         }
         String fieldName = fieldType.name();
-        IndexReader reader = context.getIndexReader();
-        if (reader == null) {
-            return null;
-        }
         switch (IndexSortConfig.getSortFieldType(sortField)) {
             case LONG:
             case INT:
             case DOUBLE:
             case FLOAT:
                 final Function<byte[], Comparable> converter;
-                if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-                    NumberFieldMapper.NumberFieldType numberFieldType = (NumberFieldMapper.NumberFieldType) fieldType;
-                    converter = v -> (Comparable) numberFieldType.parsePoint(v);
-                } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
-                    converter = v -> (Comparable) LongPoint.decodeDimension(v, 0);
+                if (fieldType instanceof NumberFieldType) {
+                    converter = numericPointConverter(sortField, (NumberFieldType) fieldType);
+                } else if (fieldType instanceof DateFieldType) {
+                    converter = datePointConverter((DateFieldType) fieldType, sortBuilder.getNumericType());
                 } else {
-                    break;
+                    return null;
                 }
-                byte[] sortValue = sortField.getReverse() ?
-                    PointValues.getMinPackedValue(reader, fieldName) : PointValues.getMaxPackedValue(reader, fieldName);
-                return sortValue != null ? converter.apply(sortValue) : null;
+                if (PointValues.size(reader, fieldName) == 0) {
+                    return null;
+                }
+                final Comparable min = converter.apply(PointValues.getMinPackedValue(reader, fieldName));
+                final Comparable max = converter.apply(PointValues.getMaxPackedValue(reader, fieldName));
+                return new MinAndMax(min, max);
 
             case STRING:
             case STRING_VAL:
@@ -437,11 +478,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     if (terms == null) {
                         return null;
                     }
-                    return sortField.getReverse() ? terms.getMin() : terms.getMax();
+                    return terms.getMin() != null ? new MinAndMax(terms.getMin(), terms.getMax()) : null;
                 }
-                break;
-
-            default:
                 break;
         }
         return null;

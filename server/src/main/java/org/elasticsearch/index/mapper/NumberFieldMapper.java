@@ -909,6 +909,10 @@ public class NumberFieldMapper extends FieldMapper {
             return type.name;
         }
 
+        public NumericType numericType() {
+            return type.numericType();
+        }
+
         @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {

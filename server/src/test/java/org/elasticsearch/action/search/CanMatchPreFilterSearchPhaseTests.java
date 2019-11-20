@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -286,22 +287,24 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
         for (SortOrder order : SortOrder.values()) {
-            Map<ShardId, Long> shardSortValues = new HashMap<>();
+            Map<ShardId, MinAndMax> shardSortValues = new HashMap<>();
             Set<ShardId> shardToSkip = new HashSet<>();
 
             SearchTransportService searchTransportService = new SearchTransportService(null, null) {
                 @Override
                 public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                          ActionListener<SearchService.CanMatchResponse> listener) {
-                    Long rand = rarely() ? null : randomLong();
+                    Long min = rarely() ? null : randomLong();
+                    Long max = min == null ? null  : randomLongBetween(min, Long.MAX_VALUE);
+                    MinAndMax minMax = new MinAndMax(min, max);
                     boolean canMatch = frequently();
                     synchronized (shardSortValues) {
-                        shardSortValues.put(request.shardId(), rand);
+                        shardSortValues.put(request.shardId(), minMax);
                         if (canMatch == false) {
                             shardToSkip.add(request.shardId());
                         }
                     }
-                    new Thread(() -> listener.onResponse(new SearchService.CanMatchResponse(canMatch, rand))).start();
+                    new Thread(() -> listener.onResponse(new SearchService.CanMatchResponse(canMatch, minMax))).start();
                 }
             };
 
@@ -331,8 +334,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             canMatchPhase.start();
             latch.await();
             ShardId[] expected = shardSortValues.entrySet().stream()
-                .sorted((a, b) -> compareShardSortValues(a.getKey(), b.getKey(), a.getValue(), b.getValue(),
-                    order == SortOrder.ASC ? 1 : -1))
+                .sorted((a, b) -> compareShardSortValues(a.getKey(), b.getKey(),
+                    a.getValue(), b.getValue(),  MinAndMax.getComparator(order)))
                 .map(Map.Entry::getKey)
                 .toArray(ShardId[]::new);
 

@@ -67,7 +67,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.search.sort.FieldSortBuilder.getMaxSortValueOrNull;
+import static org.elasticsearch.search.sort.FieldSortBuilder.getMinMaxOrNull;
 import static org.elasticsearch.search.sort.FieldSortBuilder.getPrimaryFieldSortOrNull;
 import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
 import static org.hamcrest.Matchers.instanceOf;
@@ -440,8 +440,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         QueryShardContext context = createMockShardContext();
         for (NumberFieldMapper.NumberType numberType : NumberFieldMapper.NumberType.values()) {
             String fieldName = "custom-" + numberType.numericType();
-            assertNull(getMaxSortValueOrNull(context, SortBuilders.fieldSort(fieldName)));
-            assertNull(getMaxSortValueOrNull(context, SortBuilders.fieldSort(fieldName + "-ni")));
+            assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName)));
+            assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName + "-ni")));
 
             try (Directory dir = newDirectory()) {
                 int numDocs = randomIntBetween(10, 30);
@@ -458,7 +458,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
                             case INTEGER:
                                 int v2 = randomInt();
-                                values[i] = v2;
+                                values[i] = (long) v2;
                                 doc.add(new IntPoint(fieldName, v2));
                                 break;
 
@@ -476,19 +476,19 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
                             case HALF_FLOAT:
                                 float v5 = randomFloat();
-                                values[i] = v5;
+                                values[i] = (double) v5;
                                 doc.add(new HalfFloatPoint(fieldName, v5));
                                 break;
 
                             case BYTE:
                                 byte v6 = randomByte();
-                                values[i] = v6;
+                                values[i] = (long) v6;
                                 doc.add(new IntPoint(fieldName, v6));
                                 break;
 
                             case SHORT:
                                 short v7 = randomShort();
-                                values[i] = v7;
+                                values[i] = (long) v7;
                                 doc.add(new IntPoint(fieldName, v7));
                                 break;
 
@@ -501,13 +501,13 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                     try (DirectoryReader reader = writer.getReader()) {
                         QueryShardContext newContext = createMockShardContext(new AssertingIndexSearcher(random(), reader));
                         if (numberType == NumberFieldMapper.NumberType.HALF_FLOAT) {
-                            assertNull(getMaxSortValueOrNull(newContext, SortBuilders.fieldSort(fieldName + "-ni")));
-                            assertNull(getMaxSortValueOrNull(newContext, SortBuilders.fieldSort(fieldName)));
+                            assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName + "-ni")));
+                            assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)));
                         } else {
-                            assertNull(getMaxSortValueOrNull(newContext, SortBuilders.fieldSort(fieldName + "-ni")));
-                            assertEquals(values[numDocs - 1], getMaxSortValueOrNull(newContext, SortBuilders.fieldSort(fieldName)));
-                            assertEquals(values[0], getMaxSortValueOrNull(newContext,
-                                SortBuilders.fieldSort(fieldName).order(SortOrder.DESC)));
+                            assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName + "-ni")));
+                            assertEquals(values[numDocs - 1],
+                                getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                            assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
                         }
                     }
                 }
@@ -518,8 +518,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     public void testGetMaxNumericDateValue() throws IOException {
         QueryShardContext context = createMockShardContext();
         String fieldName = "custom-date";
-        assertNull(getMaxSortValueOrNull(context, SortBuilders.fieldSort(fieldName)));
-        assertNull(getMaxSortValueOrNull(context, SortBuilders.fieldSort(fieldName + "-ni")));
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName)));
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName + "-ni")));
         try (Directory dir = newDirectory()) {
             int numDocs = randomIntBetween(10, 30);
             final long[] values = new long[numDocs];
@@ -533,8 +533,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 Arrays.sort(values);
                 try (DirectoryReader reader = writer.getReader()) {
                     QueryShardContext newContext = createMockShardContext(new AssertingIndexSearcher(random(), reader));
-                    assertEquals(values[numDocs - 1], getMaxSortValueOrNull(newContext, SortBuilders.fieldSort(fieldName)));
-                    assertEquals(values[0], getMaxSortValueOrNull(newContext, SortBuilders.fieldSort(fieldName).order(SortOrder.DESC)));
+                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
                 }
             }
         }
@@ -543,8 +543,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     public void testGetMaxKeywordValue() throws IOException {
         QueryShardContext context = createMockShardContext();
         String fieldName = "custom-keyword";
-        assertNull(getMaxSortValueOrNull(context, SortBuilders.fieldSort(fieldName)));
-        assertNull(getMaxSortValueOrNull(context, SortBuilders.fieldSort(fieldName + "-ni")));
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName)));
+        assertNull(getMinMaxOrNull(context, SortBuilders.fieldSort(fieldName + "-ni")));
         try (Directory dir = newDirectory()) {
             int numDocs = randomIntBetween(10, 30);
             final BytesRef[] values = new BytesRef[numDocs];
@@ -558,8 +558,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                 Arrays.sort(values);
                 try (DirectoryReader reader = writer.getReader()) {
                     QueryShardContext newContext = createMockShardContext(new AssertingIndexSearcher(random(), reader));
-                    assertEquals(values[numDocs - 1], getMaxSortValueOrNull(newContext, SortBuilders.fieldSort(fieldName)));
-                    assertEquals(values[0], getMaxSortValueOrNull(newContext, SortBuilders.fieldSort(fieldName).order(SortOrder.DESC)));
+                    assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                    assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
                 }
             }
         }

@@ -1,5 +1,5 @@
 ---
-"Test put batch data frame transforms on mixed cluster":
+"Test put batch transform on mixed cluster":
   - do:
       cluster.health:
         index: "transform-airline-data"
@@ -110,7 +110,7 @@
   #- match: { transforms.0.state: "stopped" }
 
 ---
-"Test put continuous data frame transform on mixed cluster":
+"Test put continuous transform on mixed cluster":
   - do:
       cluster.health:
         index: "transform-airline-data-cont"

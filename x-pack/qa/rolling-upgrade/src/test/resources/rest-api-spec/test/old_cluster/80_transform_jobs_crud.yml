@@ -1,5 +1,5 @@
 ---
-"Test put batch data frame transforms on old cluster":
+"Test put batch transform on old cluster":
   - do:
       indices.create:
         index: transform-airline-data
@@ -118,7 +118,7 @@
   - match: { transforms.0.id: "old-complex-transform" }
 
 ---
-"Test put continuous data frame transform on old cluster":
+"Test put continuous transform on old cluster":
   - do:
       indices.create:
         index: transform-airline-data-cont

@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -48,6 +49,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -115,6 +117,18 @@ public class RangeIT extends ESIntegTestCase {
                     .field(SINGLE_VALUED_FIELD_NAME, i * 2 - 1)
                     .endObject()));
         }
+
+        createIndex("idx_big");
+        numDocs = 5000;
+        builders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(client().prepareIndex("idx_big").setSource(jsonBuilder()
+                .startObject()
+                .field(SINGLE_VALUED_FIELD_NAME, i+1)
+                .startArray(MULTI_VALUED_FIELD_NAME).value(i+1).value(i+2).endArray()
+                .endObject()));
+        }
+        client().admin().indices().prepareForceMerge("idx_big").setMaxNumSegments(1).get();
 
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
@@ -241,6 +255,47 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(bucket.getFromAsString(), equalTo("6.0"));
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
+    }
+
+    public void testMultipleRangesWithMaxBKDOptimization() throws Exception {
+        SearchResponse response = client().prepareSearch("idx_big")
+            .addAggregation(range("range")
+                .field(SINGLE_VALUED_FIELD_NAME)
+                .addRange(3, 6)
+                .addRange(6, 10)
+                .subAggregation(max("the_max").field(SINGLE_VALUED_FIELD_NAME)))
+            .get();
+
+        assertSearchResponse(response);
+
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(2));
+
+        Range.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("3.0-6.0"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(3.0));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(6.0));
+        assertThat(bucket.getFromAsString(), equalTo("3.0"));
+        assertThat(bucket.getToAsString(), equalTo("6.0"));
+        assertThat(bucket.getDocCount(), equalTo(3L));
+        InternalMax max = bucket.getAggregations().get("the_max");
+        assertThat(max.getValue(), equalTo(5.0));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("6.0-10.0"));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(6.0));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(10.0));
+        assertThat(bucket.getFromAsString(), equalTo("6.0"));
+        assertThat(bucket.getToAsString(), equalTo("10.0"));
+        assertThat(bucket.getDocCount(), equalTo(4L));
+        max = bucket.getAggregations().get("the_max");
+        assertThat(max.getValue(), equalTo(9.0));
     }
 
     public void testSingleValueFieldWithFormat() throws Exception {

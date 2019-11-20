@@ -164,16 +164,24 @@ public class AggregatorFactories {
 
     public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0], new ArrayList<>());
 
-    private AggregatorFactory[] factories;
+    protected AggregatorFactory[] factories;
     private List<PipelineAggregationBuilder> pipelineAggregatorFactories;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory[] factories, List<PipelineAggregationBuilder> pipelineAggregators) {
+    protected AggregatorFactories(AggregatorFactory[] factories, List<PipelineAggregationBuilder> pipelineAggregators) {
         this.factories = factories;
         this.pipelineAggregatorFactories = pipelineAggregators;
+    }
+
+    public AggregatorFactory[] getFactories() {
+        return factories;
+    }
+
+    public List<PipelineAggregationBuilder> getPipelineAggregatorFactories() {
+        return pipelineAggregatorFactories;
     }
 
     public List<PipelineAggregator> createPipelineAggregators() {

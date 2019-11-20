@@ -37,15 +37,15 @@ import java.util.Map;
 public abstract class AggregatorFactory {
 
     public static final class MultiBucketAggregatorWrapper extends Aggregator {
-        private final BigArrays bigArrays;
-        private final Aggregator parent;
-        private final AggregatorFactory factory;
+        protected final BigArrays bigArrays;
+        protected final AggregatorFactory factory;
+        protected ObjectArray<Aggregator> aggregators;
+        protected ObjectArray<LeafBucketCollector> collectors;
+        protected final Aggregator parent;
         private final Aggregator first;
-        ObjectArray<Aggregator> aggregators;
-        ObjectArray<LeafBucketCollector> collectors;
 
         MultiBucketAggregatorWrapper(BigArrays bigArrays, SearchContext context,
-                                        Aggregator parent, AggregatorFactory factory, Aggregator first) {
+                                     Aggregator parent, AggregatorFactory factory, Aggregator first) {
             this.bigArrays = bigArrays;
             this.parent = parent;
             this.factory = factory;

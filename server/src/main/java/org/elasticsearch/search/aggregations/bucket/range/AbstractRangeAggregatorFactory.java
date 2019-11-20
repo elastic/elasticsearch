@@ -31,6 +31,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,15 +44,15 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final R[] ranges;
     private final boolean keyed;
 
-    public AbstractRangeAggregatorFactory(String name,
-                                            ValuesSourceConfig<Numeric> config,
-                                            R[] ranges,
-                                            boolean keyed,
-                                            InternalRange.Factory<?, ?> rangeFactory,
-                                            QueryShardContext queryShardContext,
-                                            AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactoriesBuilder,
-                                            Map<String, Object> metaData) throws IOException {
+    AbstractRangeAggregatorFactory(String name,
+                                   ValuesSourceConfig<Numeric> config,
+                                   R[] ranges,
+                                   boolean keyed,
+                                   InternalRange.Factory<?, ?> rangeFactory,
+                                   QueryShardContext queryShardContext,
+                                   AggregatorFactory parent,
+                                   AggregatorFactories.Builder subFactoriesBuilder,
+                                   Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.ranges = ranges;
         this.keyed = keyed;
@@ -59,21 +61,47 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                        Aggregator parent,
+                                        List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
         return new Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent, rangeFactory, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(Numeric valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new RangeAggregator(name, factories, valuesSource, config, rangeFactory, ranges, keyed, searchContext, parent,
-                pipelineAggregators, metaData);
+                                          SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          List<PipelineAggregator> pipelineAggregators,
+                                          Map<String, Object> metaData) throws IOException {
+
+        AggregatorFactories wrappedFactories = factories;
+
+        // If we don't have a parent, the range agg can potentially optimize by using the BKD tree. But BKD
+        // traversal is per-range, which means that docs are potentially called out-of-order across multiple
+        // ranges. To prevent this from causing problems, we create a special AggregatorFactories that
+        // wraps all the sub-aggs with a MultiBucketAggregatorWrapper. This effectively creates a new agg
+        // sub-tree for each range and prevents out-of-order problems
+        if (parent == null) {
+            wrappedFactories = new AggregatorFactories(factories.getFactories(), factories.getPipelineAggregatorFactories()) {
+                @Override
+                public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent) throws IOException {
+                    Aggregator[] aggregators = new Aggregator[countAggregators()];
+                    for (int i = 0; i < this.factories.length; ++i) {
+                        Aggregator factory = asMultiBucketAggregator(factories[i], searchContext, parent);
+                        Profilers profilers = factory.context().getProfilers();
+                        if (profilers != null) {
+                            factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
+                        }
+                        aggregators[i] = factory;
+                    }
+                    return aggregators;
+                }
+            };
+        }
+
+        return new RangeAggregator(name, wrappedFactories, valuesSource, config, rangeFactory, ranges, keyed, searchContext, parent,
+            pipelineAggregators, metaData);
     }
 
 

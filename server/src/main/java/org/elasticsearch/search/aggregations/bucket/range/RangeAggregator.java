@@ -239,7 +239,6 @@ public class RangeAggregator extends BucketsAggregator {
     private final InternalRange.Factory rangeFactory;
     private final double[] maxTo;
 
-    private BiFunction<Number, Boolean, byte[]> pointEncoder;
     private final String pointField;
     private final boolean canOptimize;
     private byte[][] encodedRanges;
@@ -256,7 +255,7 @@ public class RangeAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
         this.ranges = ranges;
-        this.pointEncoder = configurePointEncoder(context, parent, config);
+        BiFunction<Number, Boolean, byte[]> pointEncoder = configurePointEncoder(context, parent, config);
 
         // Unbounded ranges collect most documents, so the BKD optimization doesn't
         // help nearly as much
@@ -281,7 +280,6 @@ public class RangeAggregator extends BucketsAggregator {
             canOptimize = true;
         } else {
             pointField = null;
-            pointEncoder = null;
             canOptimize = false;
         }
     }

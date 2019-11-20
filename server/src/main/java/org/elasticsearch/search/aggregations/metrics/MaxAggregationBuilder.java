@@ -28,13 +28,13 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -53,7 +53,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     public MaxAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     protected MaxAggregationBuilder(MaxAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -69,7 +69,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
      * Read from a stream.
      */
     public MaxAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override

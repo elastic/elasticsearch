@@ -1,7 +1,3 @@
-[role="xpack"]
-[[configuring-kerberos-realm]]
-=== Configuring a Kerberos realm
-
 Kerberos is used to protect services and uses a ticket-based authentication
 protocol to authenticate users.
 You can configure {es} to use the Kerberos V5 authentication protocol, which is 
@@ -15,9 +11,8 @@ Refer to your Kerberos installation documentation for more information about
 obtaining TGT. {es} clients must first obtain a TGT then initiate the process of 
 authenticating with {es}.
 
-For a summary of Kerberos terminology, see <<kerberos-realm>>.
-
-==== Before you begin
+[[kerberos-realm-prereq]]
+===== Before you begin
 
 . Deploy Kerberos. 
 +
@@ -51,7 +46,8 @@ For more information on Java GSS, see
 https://docs.oracle.com/javase/10/security/kerberos-requirements1.htm[Java GSS Kerberos requirements]
 --
 
-==== Create a Kerberos realm
+[[kerberos-realm-create]]
+===== Create a Kerberos realm
 
 To configure a Kerberos realm in {es}:
 
@@ -176,4 +172,3 @@ NOTE: The Kerberos realm supports
 alternative to role mapping.
 
 --
-

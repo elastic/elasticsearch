@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
@@ -84,70 +86,83 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     @Override
     protected void masterOperation(final GetSnapshotsRequest request, final ClusterState state,
                                    final ActionListener<GetSnapshotsResponse> listener) {
-        try {
-            final String repository = request.repository();
-            final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
-            final List<SnapshotInfo> currentSnapshots = new ArrayList<>();
-            for (SnapshotInfo snapshotInfo : snapshotsService.currentSnapshots(repository)) {
-                SnapshotId snapshotId = snapshotInfo.snapshotId();
+        getSingleRepoSnapshotInfo(request.repository(), request.snapshots(), request.ignoreUnavailable(), request.verbose(),
+            ActionListener.wrap(GetSnapshotsResponse::new, listener::onFailure));
+    }
+
+    private void getSingleRepoSnapshotInfo(String repo, String[] snapshots, boolean ignoreUnavailable, boolean verbose,
+                                           ActionListener<List<SnapshotInfo>> listener) {
+        final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
+        final List<SnapshotInfo> currentSnapshots = new ArrayList<>();
+        for (SnapshotInfo snapshotInfo : snapshotsService.currentSnapshots(repo)) {
+            SnapshotId snapshotId = snapshotInfo.snapshotId();
+            allSnapshotIds.put(snapshotId.getName(), snapshotId);
+            currentSnapshots.add(snapshotInfo);
+        }
+
+        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        if (isCurrentSnapshotsOnly(snapshots)) {
+            repositoryDataListener.onResponse(null);
+        } else {
+            snapshotsService.getRepositoryData(repo, repositoryDataListener);
+        }
+
+        repositoryDataListener.whenComplete(repositoryData -> listener.onResponse(
+            loadSnapshotInfos(repo, snapshots, ignoreUnavailable, verbose, allSnapshotIds, currentSnapshots, repositoryData)),
+            listener::onFailure);
+    }
+
+    private List<SnapshotInfo> loadSnapshotInfos(String repo, String[] snapshots, boolean ignoreUnavailable, boolean verbose,
+                                                 Map<String, SnapshotId> allSnapshotIds, List<SnapshotInfo> currentSnapshots,
+                                                 @Nullable RepositoryData repositoryData) {
+        if (repositoryData != null) {
+            for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
                 allSnapshotIds.put(snapshotId.getName(), snapshotId);
-                currentSnapshots.add(snapshotInfo);
             }
+        }
 
-            final RepositoryData repositoryData;
-            if (isCurrentSnapshotsOnly(request.snapshots()) == false) {
-                repositoryData = snapshotsService.getRepositoryData(repository);
-                for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
-                    allSnapshotIds.put(snapshotId.getName(), snapshotId);
-                }
-            } else {
-                repositoryData = null;
-            }
-
-            final Set<SnapshotId> toResolve = new HashSet<>();
-            if (isAllSnapshots(request.snapshots())) {
-                toResolve.addAll(allSnapshotIds.values());
-            } else {
-                for (String snapshotOrPattern : request.snapshots()) {
-                    if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
-                        toResolve.addAll(currentSnapshots.stream().map(SnapshotInfo::snapshotId).collect(Collectors.toList()));
-                    } else if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
-                        if (allSnapshotIds.containsKey(snapshotOrPattern)) {
-                            toResolve.add(allSnapshotIds.get(snapshotOrPattern));
-                        } else if (request.ignoreUnavailable() == false) {
-                            throw new SnapshotMissingException(repository, snapshotOrPattern);
-                        }
-                    } else {
-                        for (Map.Entry<String, SnapshotId> entry : allSnapshotIds.entrySet()) {
-                            if (Regex.simpleMatch(snapshotOrPattern, entry.getKey())) {
-                                toResolve.add(entry.getValue());
-                            }
+        final Set<SnapshotId> toResolve = new HashSet<>();
+        if (isAllSnapshots(snapshots)) {
+            toResolve.addAll(allSnapshotIds.values());
+        } else {
+            for (String snapshotOrPattern : snapshots) {
+                if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
+                    toResolve.addAll(currentSnapshots.stream().map(SnapshotInfo::snapshotId).collect(Collectors.toList()));
+                } else if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
+                    if (allSnapshotIds.containsKey(snapshotOrPattern)) {
+                        toResolve.add(allSnapshotIds.get(snapshotOrPattern));
+                    } else if (ignoreUnavailable == false) {
+                        throw new SnapshotMissingException(repo, snapshotOrPattern);
+                    }
+                } else {
+                    for (Map.Entry<String, SnapshotId> entry : allSnapshotIds.entrySet()) {
+                        if (Regex.simpleMatch(snapshotOrPattern, entry.getKey())) {
+                            toResolve.add(entry.getValue());
                         }
                     }
                 }
-
-                if (toResolve.isEmpty() && request.ignoreUnavailable() == false && isCurrentSnapshotsOnly(request.snapshots()) == false) {
-                    throw new SnapshotMissingException(repository, request.snapshots()[0]);
-                }
             }
 
-            final List<SnapshotInfo> snapshotInfos;
-            if (request.verbose()) {
-                snapshotInfos = snapshotsService.snapshots(repository, new ArrayList<>(toResolve), request.ignoreUnavailable());
-            } else {
-                if (repositoryData != null) {
-                    // want non-current snapshots as well, which are found in the repository data
-                    snapshotInfos = buildSimpleSnapshotInfos(toResolve, repositoryData, currentSnapshots);
-                } else {
-                    // only want current snapshots
-                    snapshotInfos = currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList());
-                    CollectionUtil.timSort(snapshotInfos);
-                }
+            if (toResolve.isEmpty() && ignoreUnavailable == false && isCurrentSnapshotsOnly(snapshots) == false) {
+                throw new SnapshotMissingException(repo, snapshots[0]);
             }
-            listener.onResponse(new GetSnapshotsResponse(snapshotInfos));
-        } catch (Exception e) {
-            listener.onFailure(e);
         }
+
+        final List<SnapshotInfo> snapshotInfos;
+        if (verbose) {
+            snapshotInfos = snapshotsService.snapshots(repo, new ArrayList<>(toResolve), ignoreUnavailable);
+        } else {
+            if (repositoryData != null) {
+                // want non-current snapshots as well, which are found in the repository data
+                snapshotInfos = buildSimpleSnapshotInfos(toResolve, repositoryData, currentSnapshots);
+            } else {
+                // only want current snapshots
+                snapshotInfos = currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList());
+                CollectionUtil.timSort(snapshotInfos);
+            }
+        }
+
+        return snapshotInfos;
     }
 
     private boolean isAllSnapshots(String[] snapshots) {
@@ -158,7 +173,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 
-    private List<SnapshotInfo> buildSimpleSnapshotInfos(final Set<SnapshotId> toResolve,
+    private static List<SnapshotInfo> buildSimpleSnapshotInfos(final Set<SnapshotId> toResolve,
                                                         final RepositoryData repositoryData,
                                                         final List<SnapshotInfo> currentSnapshots) {
         List<SnapshotInfo> snapshotInfos = new ArrayList<>();

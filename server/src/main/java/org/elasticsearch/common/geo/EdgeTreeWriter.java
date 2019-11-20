@@ -20,7 +20,6 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.ShapeType;
 
 import java.io.IOException;
@@ -32,11 +31,6 @@ import java.util.List;
  * Shape edge-tree writer for use in doc-values
  */
 public class EdgeTreeWriter extends ShapeTreeWriter {
-
-    /**
-     * | minY | maxY | x1 | y1 | x2 | y2 | right_offset |
-     */
-    static final int EDGE_SIZE_IN_BYTES = 28;
 
     private final Extent extent;
     private final int numShapes;

@@ -102,6 +102,8 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.SimpleConnectionStrategy;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -287,6 +289,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
+            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
+            SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
+            SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,

@@ -333,16 +333,18 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         private final String key;
         private final ConnectionStrategy expectedStrategy;
         private final String namespace;
+        private final T disabledValue;
         private final Consumer<T> valueChecker;
 
-        StrategyValidator(String namespace, String key, ConnectionStrategy expectedStrategy) {
-            this(namespace, key, expectedStrategy, (v) -> {});
+        StrategyValidator(String namespace, String key, ConnectionStrategy expectedStrategy, T disabledValue) {
+            this(namespace, key, expectedStrategy, disabledValue, (v) -> {});
         }
 
-        StrategyValidator(String namespace, String key, ConnectionStrategy expectedStrategy, Consumer<T> valueChecker) {
+        StrategyValidator(String namespace, String key, ConnectionStrategy expectedStrategy, T disabledValue, Consumer<T> valueChecker) {
             this.namespace = namespace;
             this.key = key;
             this.expectedStrategy = expectedStrategy;
+            this.disabledValue = disabledValue;
             this.valueChecker = valueChecker;
         }
 
@@ -355,7 +357,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         public void validate(T value, Map<Setting<?>, Object> settings) {
             Setting<ConnectionStrategy> concrete = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(namespace);
             ConnectionStrategy modeType = (ConnectionStrategy) settings.get(concrete);
-            if (modeType.equals(expectedStrategy) == false) {
+            if (value != null && value.equals(disabledValue) == false && modeType.equals(expectedStrategy) == false) {
                 throw new IllegalArgumentException("Setting \"" + key + "\" cannot be used with the configured \"" + concrete.getKey()
                     + "\" [required=" + expectedStrategy.name() + ", configured=" + modeType.name() + "]");
             }

@@ -1,0 +1,33 @@
+---
+"Add transient remote cluster using simple connection mode":
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+
+  - set: { defaults.cluster.remote.my_remote_cluster.seeds.0: remote_ip }
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          transient:
+            cluster.remote.test_remote_cluster.mode: "simple"
+            cluster.remote.test_remote_cluster.simple.socket_connections: "3"
+            cluster.remote.test_remote_cluster.simple.addresses: $remote_ip
+
+  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "simple"}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.simple\.socket_connections: "3"}
+  - match: {transient.cluster\.remote\.test_remote_cluster\.simple\.addresses: $remote_ip}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_remote_cluster:test_index
+
+  - is_false: num_reduce_phases
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6 }
+  - match: { hits.hits.0._index: "test_remote_cluster:test_index" }

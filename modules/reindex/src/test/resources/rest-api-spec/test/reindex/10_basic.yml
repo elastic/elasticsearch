@@ -158,7 +158,6 @@
   - match: {failures.0.index:  dest}
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
-  # TODO: Changed the message because of exception serialization
   - match: {failures.0.cause.type:   exception}
   # Use a regex so we don't mind if the version isn't always 1. Sometimes it comes out 2.
   - match: {failures.0.cause.reason: "/\\[1\\]:.version.conflict,.document.already.exists.\\(current.version.\\[\\d+\\]\\)/"}

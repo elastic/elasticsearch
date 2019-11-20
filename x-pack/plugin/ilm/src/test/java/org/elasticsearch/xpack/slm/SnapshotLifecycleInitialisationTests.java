@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.core.Is.is;
 
-public class SnapshotLifecycleInitialisationIT extends ESSingleNodeTestCase {
+public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
 
     private static Path repositoryLocation;
 

@@ -930,11 +930,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         logger.info("APM beats monitoring index name [{}]", index);
 
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
-        assertThat(APMSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+        assertThat(APMSystemRole.indices().allowedIndicesMatcher(IMPLIED_CREATE_ACTION).test(index), is(true));
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
 
+        assertThat(APMSystemRole.indices().allowedIndicesMatcher(IMPLIED_INDEX_ACTION).test(index), is(false));
+
         assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+
     }
 
     public void testAPMUserRole() {

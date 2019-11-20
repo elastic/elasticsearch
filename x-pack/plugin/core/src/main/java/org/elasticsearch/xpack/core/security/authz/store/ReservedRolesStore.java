@@ -149,7 +149,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         new String[] { "monitor", MonitoringBulkAction.NAME},
                         new RoleDescriptor.IndicesPrivileges[]{
                             RoleDescriptor.IndicesPrivileges.builder()
-                                .indices(".monitoring-beats-*").privileges("create_index", "create").build()
+                                .indices(".monitoring-beats-*").privileges("create_index", "create_doc").build()
                         },
                     null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("apm_user", new RoleDescriptor("apm_user",

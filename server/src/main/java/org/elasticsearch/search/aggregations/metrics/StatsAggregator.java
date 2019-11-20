@@ -105,22 +105,16 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
                     // accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
+                    CompensatedSum kahanSummation = new CompensatedSum(sum, compensation);
 
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        if (Double.isFinite(value) == false) {
-                            sum += value;
-                        } else if (Double.isFinite(sum)) {
-                            double corrected = value - compensation;
-                            double newSum = sum + corrected;
-                            compensation = (newSum - sum) - corrected;
-                            sum = newSum;
-                        }
+                        kahanSummation.add(value);
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }
-                    sums.set(bucket, sum);
-                    compensations.set(bucket, compensation);
+                    sums.set(bucket, kahanSummation.value());
+                    compensations.set(bucket, kahanSummation.delta());
                     mins.set(bucket, min);
                     maxes.set(bucket, max);
                 }

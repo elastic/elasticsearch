@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
-import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.mockito.ArgumentCaptor;
@@ -140,14 +139,13 @@ public class JobResultsProviderTests extends ESTestCase {
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
         clientBuilder.prepareAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo"),
                 AnomalyDetectorsIndex.jobResultsAliasedName("foo123"), jobFilter);
-        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
+        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class));
 
         GetMappingsResponse getMappingsResponse = mock(GetMappingsResponse.class);
-        ImmutableOpenMap<String, MappingMetaData> typeMappings = ImmutableOpenMap.<String, MappingMetaData>of();
 
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings =
-                ImmutableOpenMap.<String, ImmutableOpenMap<String, MappingMetaData>>builder()
-                        .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), typeMappings).build();
+        ImmutableOpenMap<String, MappingMetaData> mappings =
+                ImmutableOpenMap.<String, MappingMetaData>builder()
+                        .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), null).build();
         when(getMappingsResponse.mappings()).thenReturn(mappings);
         clientBuilder.prepareGetMapping(getMappingsResponse);
 
@@ -209,7 +207,7 @@ public class JobResultsProviderTests extends ESTestCase {
         clientBuilder.createIndexRequest(captor, indexName);
         clientBuilder.prepareAlias(indexName, readAliasName, jobFilter);
         clientBuilder.prepareAlias(indexName, writeAliasName);
-        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
+        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class));
 
         Job.Builder job = buildJobBuilder("foo");
         job.setResultsIndexName("bar");

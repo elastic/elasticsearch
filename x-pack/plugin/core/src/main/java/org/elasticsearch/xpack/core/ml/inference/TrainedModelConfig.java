@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,6 +35,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public static final String NAME = "trained_model_config";
 
+    private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
+
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField CREATED_BY = new ParseField("created_by");
     public static final ParseField VERSION = new ParseField("version");
@@ -42,6 +45,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField DEFINITION = new ParseField("definition");
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
+    public static final ParseField INPUT = new ParseField("input");
+    public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
+    public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -61,10 +67,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             ObjectParser.ValueType.VALUE);
         parser.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         parser.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
-        parser.declareObject(TrainedModelConfig.Builder::setDefinition,
-            (p, c) -> TrainedModelDefinition.fromXContent(p, ignoreUnknownFields),
-            DEFINITION);
         parser.declareString((trainedModelConfig, s) -> {}, InferenceIndexConstants.DOC_TYPE);
+        parser.declareObject(TrainedModelConfig.Builder::setInput,
+            (p, c) -> TrainedModelInput.fromXContent(p, ignoreUnknownFields),
+            INPUT);
+        parser.declareLong(TrainedModelConfig.Builder::setEstimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
+        parser.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
         return parser;
     }
 
@@ -79,10 +87,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final Instant createTime;
     private final List<String> tags;
     private final Map<String, Object> metadata;
+    private final TrainedModelInput input;
+    private final long estimatedHeapMemory;
+    private final long estimatedOperations;
 
-    // TODO how to reference and store large models that will not be executed in Java???
-    // Potentially allow this to be null and have an {index: indexName, doc: model_doc_id} or something
-    // TODO Should this be lazily parsed when loading via the index???
     private final TrainedModelDefinition definition;
 
     TrainedModelConfig(String modelId,
@@ -92,7 +100,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        Instant createTime,
                        TrainedModelDefinition definition,
                        List<String> tags,
-                       Map<String, Object> metadata) {
+                       Map<String, Object> metadata,
+                       TrainedModelInput input,
+                       Long estimatedHeapMemory,
+                       Long estimatedOperations) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
@@ -101,6 +112,16 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.description = description;
         this.tags = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(tags, TAGS));
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
+        this.input = ExceptionsHelper.requireNonNull(input, INPUT);
+        if (ExceptionsHelper.requireNonNull(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES) < 0) {
+            throw new IllegalArgumentException(
+                "[" + ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName() + "] must be greater than or equal to 0");
+        }
+        this.estimatedHeapMemory = estimatedHeapMemory;
+        if (ExceptionsHelper.requireNonNull(estimatedOperations, ESTIMATED_OPERATIONS) < 0) {
+            throw new IllegalArgumentException("[" + ESTIMATED_OPERATIONS.getPreferredName() + "] must be greater than or equal to 0");
+        }
+        this.estimatedOperations = estimatedOperations;
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -112,6 +133,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         definition = in.readOptionalWriteable(TrainedModelDefinition::new);
         tags = Collections.unmodifiableList(in.readList(StreamInput::readString));
         metadata = in.readMap();
+        input = new TrainedModelInput(in);
+        estimatedHeapMemory = in.readVLong();
+        estimatedOperations = in.readVLong();
     }
 
     public String getModelId() {
@@ -147,8 +171,20 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return definition;
     }
 
+    public TrainedModelInput getInput() {
+        return input;
+    }
+
     public static Builder builder() {
         return new Builder();
+    }
+
+    public long getEstimatedHeapMemory() {
+        return estimatedHeapMemory;
+    }
+
+    public long getEstimatedOperations() {
+        return estimatedOperations;
     }
 
     @Override
@@ -161,6 +197,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(definition);
         out.writeCollection(tags, StreamOutput::writeString);
         out.writeMap(metadata);
+        input.writeTo(out);
+        out.writeVLong(estimatedHeapMemory);
+        out.writeVLong(estimatedOperations);
     }
 
     @Override
@@ -173,7 +212,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
         builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
-        if (definition != null) {
+        // We don't store the definition in the same document as the configuration
+        if ((params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) && definition != null) {
             builder.field(DEFINITION.getPreferredName(), definition);
         }
         builder.field(TAGS.getPreferredName(), tags);
@@ -183,6 +223,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
         }
+        builder.field(INPUT.getPreferredName(), input);
+        builder.humanReadableField(
+            ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+            ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
+            new ByteSizeValue(estimatedHeapMemory));
+        builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
         builder.endObject();
         return builder;
     }
@@ -204,6 +250,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             Objects.equals(createTime, that.createTime) &&
             Objects.equals(definition, that.definition) &&
             Objects.equals(tags, that.tags) &&
+            Objects.equals(input, that.input) &&
+            Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
+            Objects.equals(estimatedOperations, that.estimatedOperations) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -216,7 +265,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             definition,
             description,
             tags,
-            metadata);
+            metadata,
+            estimatedHeapMemory,
+            estimatedOperations,
+            input);
     }
 
     public static class Builder {
@@ -228,7 +280,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Instant createTime;
         private List<String> tags = Collections.emptyList();
         private Map<String, Object> metadata;
+        private TrainedModelInput input;
         private TrainedModelDefinition definition;
+        private Long estimatedHeapMemory;
+        private Long estimatedOperations;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -279,9 +334,24 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setInput(TrainedModelInput input) {
+            this.input = input;
+            return this;
+        }
+
+        public Builder setEstimatedHeapMemory(long estimatedHeapMemory) {
+            this.estimatedHeapMemory = estimatedHeapMemory;
+            return this;
+        }
+
+        public Builder setEstimatedOperations(long estimatedOperations) {
+            this.estimatedOperations = estimatedOperations;
+            return this;
+        }
+
         // TODO move to REST level instead of here in the builder
         public void validate() {
-            // We require a definition to be available until we support other means of supplying the definition
+            // We require a definition to be available here even though it will be stored in a different doc
             ExceptionsHelper.requireNonNull(definition, DEFINITION);
             ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
 
@@ -309,6 +379,16 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
                     CREATE_TIME.getPreferredName());
             }
+
+            if (estimatedHeapMemory != null) {
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
+                    ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName());
+            }
+
+            if (estimatedOperations != null) {
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
+                    ESTIMATED_OPERATIONS.getPreferredName());
+            }
         }
 
         public TrainedModelConfig build() {
@@ -320,7 +400,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 createTime == null ? Instant.now() : createTime,
                 definition,
                 tags,
-                metadata);
+                metadata,
+                input,
+                estimatedHeapMemory,
+                estimatedOperations);
         }
     }
+
 }

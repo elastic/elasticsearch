@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -31,7 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48085")
 public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String NUMERICAL_FEATURE_FIELD = "feature";
@@ -50,34 +49,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
-
-        {  // Index 350 rows, 300 of them being training rows.
-            client().admin().indices().prepareCreate(sourceIndex)
-                .addMapping("_doc", NUMERICAL_FEATURE_FIELD, "type=double", DEPENDENT_VARIABLE_FIELD, "type=double")
-                .get();
-
-            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (int i = 0; i < 300; i++) {
-                Double field = NUMERICAL_FEATURE_VALUES.get(i % 3);
-                Double value = DEPENDENT_VARIABLE_VALUES.get(i % 3);
-
-                IndexRequest indexRequest = new IndexRequest(sourceIndex)
-                    .source(NUMERICAL_FEATURE_FIELD, field, DEPENDENT_VARIABLE_FIELD, value);
-                bulkRequestBuilder.add(indexRequest);
-            }
-            for (int i = 300; i < 350; i++) {
-                Double field = NUMERICAL_FEATURE_VALUES.get(i % 3);
-
-                IndexRequest indexRequest = new IndexRequest(sourceIndex)
-                    .source(NUMERICAL_FEATURE_FIELD, field);
-                bulkRequestBuilder.add(indexRequest);
-            }
-            BulkResponse bulkResponse = bulkRequestBuilder.get();
-            if (bulkResponse.hasFailures()) {
-                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
-            }
-        }
+        indexData(sourceIndex, 300, 50);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
         registerAnalytics(config);
@@ -109,6 +81,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -121,23 +94,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
         initialize("regression_only_training_data_and_training_percent_is_100");
-
-        {  // Index 350 rows, all of them being training rows.
-            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (int i = 0; i < 350; i++) {
-                Double field = NUMERICAL_FEATURE_VALUES.get(i % 3);
-                Double value = DEPENDENT_VARIABLE_VALUES.get(i % 3);
-
-                IndexRequest indexRequest = new IndexRequest(sourceIndex)
-                    .source(NUMERICAL_FEATURE_FIELD, field, DEPENDENT_VARIABLE_FIELD, value);
-                bulkRequestBuilder.add(indexRequest);
-            }
-            BulkResponse bulkResponse = bulkRequestBuilder.get();
-            if (bulkResponse.hasFailures()) {
-                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
-            }
-        }
+        indexData(sourceIndex, 350, 0);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
         registerAnalytics(config);
@@ -161,6 +118,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -173,23 +131,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty() throws Exception {
         initialize("regression_only_training_data_and_training_percent_is_50");
-
-        {  // Index 350 rows, all of them being training rows.
-            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (int i = 0; i < 350; i++) {
-                Double field = NUMERICAL_FEATURE_VALUES.get(i % 3);
-                Double value = DEPENDENT_VARIABLE_VALUES.get(i % 3);
-
-                IndexRequest indexRequest = new IndexRequest(sourceIndex)
-                    .source(NUMERICAL_FEATURE_FIELD, field, DEPENDENT_VARIABLE_FIELD, value);
-                bulkRequestBuilder.add(indexRequest);
-            }
-            BulkResponse bulkResponse = bulkRequestBuilder.get();
-            if (bulkResponse.hasFailures()) {
-                fail("Failed to index data: " + bulkResponse.buildFailureMessage());
-            }
-        }
+        indexData(sourceIndex, 350, 0);
 
         DataFrameAnalyticsConfig config =
             buildAnalytics(
@@ -228,6 +170,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",
@@ -238,24 +181,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Finished analysis");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47612")
     public void testStopAndRestart() throws Exception {
         initialize("regression_stop_and_restart");
-
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 350; i++) {
-            Double field = NUMERICAL_FEATURE_VALUES.get(i % 3);
-            Double value = DEPENDENT_VARIABLE_VALUES.get(i % 3);
-
-            IndexRequest indexRequest = new IndexRequest(sourceIndex)
-                .source("feature", field, "variable", value);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
-        }
+        indexData(sourceIndex, 350, 0);
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Regression(DEPENDENT_VARIABLE_FIELD));
         registerAnalytics(config);
@@ -269,8 +197,12 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
             DataFrameAnalyticsState state = getAnalyticsStats(jobId).getState();
-            assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
-                equalTo(DataFrameAnalyticsState.STOPPED))));
+            assertThat(
+                state,
+                is(anyOf(
+                    equalTo(DataFrameAnalyticsState.REINDEXING),
+                    equalTo(DataFrameAnalyticsState.ANALYZING),
+                    equalTo(DataFrameAnalyticsState.STOPPED))));
         });
         stopAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
@@ -286,7 +218,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             }
         }
 
-        waitUntilAnalyticsIsStopped(jobId);
+        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
@@ -300,12 +232,38 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
+        assertInferenceModelPersisted(jobId);
     }
 
     private void initialize(String jobId) {
         this.jobId = jobId;
         this.sourceIndex = jobId + "_source_index";
         this.destIndex = sourceIndex + "_results";
+    }
+
+    private static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows) {
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", NUMERICAL_FEATURE_FIELD, "type=double", DEPENDENT_VARIABLE_FIELD, "type=double")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < numTrainingRows; i++) {
+            List<Object> source = List.of(
+                NUMERICAL_FEATURE_FIELD, NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()),
+                DEPENDENT_VARIABLE_FIELD, DEPENDENT_VARIABLE_VALUES.get(i % DEPENDENT_VARIABLE_VALUES.size()));
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
+            bulkRequestBuilder.add(indexRequest);
+        }
+        for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
+            List<Object> source = List.of(NUMERICAL_FEATURE_FIELD, NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()));
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray());
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
     }
 
     private static Map<String, Object> getDestDoc(DataFrameAnalyticsConfig config, SearchHit hit) {

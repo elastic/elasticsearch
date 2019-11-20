@@ -40,7 +40,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final String TYPE = "data_frame_analytics_config";
 
     public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.GB);
-    public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.KB);
     /**
      * This includes the overhead of thread stacks and data structures that the program might use that
      * are not instrumented.  But it does NOT include the memory used by loading the executable code.
@@ -228,7 +228,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(analysis.getWriteableName(), analysis);
         builder.endObject();
 
-        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
         if (analyzedFields != null) {
@@ -442,7 +442,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 if (modelMemoryLimit.compareTo(MIN_MODEL_MEMORY_LIMIT) < 0) {
                     // Explicit setting lower than minimum is an error
                     throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit));
+                        Messages.getMessage(
+                            Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit, MIN_MODEL_MEMORY_LIMIT.getStringRep()));
                 }
                 if (maxModelMemoryIsSet && modelMemoryLimit.compareTo(maxModelMemoryLimit) > 0) {
                     // Explicit setting higher than limit is an error

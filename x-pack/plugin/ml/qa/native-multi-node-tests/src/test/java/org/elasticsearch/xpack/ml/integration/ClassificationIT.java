@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import com.google.common.collect.Ordering;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -16,9 +16,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParamsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.ActualClass;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix.PredictedClass;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -28,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -39,7 +44,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48085")
 public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String BOOLEAN_FIELD = "boolean-field";
@@ -49,7 +53,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private static final List<Boolean> BOOLEAN_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(false, true));
     private static final List<Double> NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(1.0, 2.0));
     private static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList(10, 20));
-    private static final List<String> KEYWORD_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList("dog", "cat"));
+    private static final List<String> KEYWORD_FIELD_VALUES = Collections.unmodifiableList(Arrays.asList("cat", "dog"));
 
     private String jobId;
     private String sourceIndex;
@@ -74,6 +78,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
+        client().admin().indices().refresh(new RefreshRequest(destIndex));
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
@@ -83,11 +88,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat((String) resultsObject.get("keyword-field_prediction"), is(in(KEYWORD_FIELD_VALUES)));
             assertThat(resultsObject.containsKey("is_training"), is(true));
             assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
-            assertThat(resultsObject.containsKey("top_classes"), is(false));
+            assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES, String::valueOf);
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -96,6 +102,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
             "Finished analysis");
+        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml.keyword-field_prediction");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
@@ -112,6 +119,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
+        client().admin().indices().refresh(new RefreshRequest(destIndex));
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
@@ -120,11 +128,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat((String) resultsObject.get("keyword-field_prediction"), is(in(KEYWORD_FIELD_VALUES)));
             assertThat(resultsObject.containsKey("is_training"), is(true));
             assertThat(resultsObject.get("is_training"), is(true));
-            assertThat(resultsObject.containsKey("top_classes"), is(false));
+            assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES, String::valueOf);
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -133,11 +142,13 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
             "Finished analysis");
+        assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml.keyword-field_prediction");
     }
 
     public <T> void testWithOnlyTrainingRowsAndTrainingPercentIsFifty(
             String jobId, String dependentVariable, List<T> dependentVariableValues, Function<String, T> parser) throws Exception {
         initialize(jobId);
+        String predictedClassField = dependentVariable + "_prediction";
         indexData(sourceIndex, 300, 0, dependentVariable);
 
         int numTopClasses = 2;
@@ -159,10 +170,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         int trainingRowsCount = 0;
         int nonTrainingRowsCount = 0;
+        client().admin().indices().refresh(new RefreshRequest(destIndex));
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(getDestDoc(config, hit));
-            String predictedClassField = dependentVariable + "_prediction";
             assertThat(resultsObject.containsKey(predictedClassField), is(true));
             T predictedClassValue = parser.apply((String) resultsObject.get(predictedClassField));
             assertThat(predictedClassValue, is(in(dependentVariableValues)));
@@ -178,8 +189,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
         assertThat(trainingRowsCount, greaterThan(0));
         assertThat(nonTrainingRowsCount, greaterThan(0));
+
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertInferenceModelPersisted(jobId);
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [classification]",
             "Estimated memory usage for this analytics to be",
@@ -188,6 +201,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Creating destination index [" + destIndex + "]",
             "Finished reindexing to destination index [" + destIndex + "]",
             "Finished analysis");
+        assertEvaluation(
+            dependentVariable,
+            dependentVariableValues.stream().map(String::valueOf).collect(toList()),
+            "ml." + predictedClassField);
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword() throws Exception {
@@ -213,54 +230,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, Boolean::valueOf);
     }
 
-    public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows_TopClassesRequested() throws Exception {
-        initialize("classification_top_classes_requested");
-        indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
-
-        int numTopClasses = 2;
-        DataFrameAnalyticsConfig config =
-            buildAnalytics(
-                jobId,
-                sourceIndex,
-                destIndex,
-                null,
-                new Classification(KEYWORD_FIELD, BoostedTreeParamsTests.createRandom(), null, numTopClasses, null));
-        registerAnalytics(config);
-        putAnalytics(config);
-
-        assertIsStopped(jobId);
-        assertProgress(jobId, 0, 0, 0, 0);
-
-        startAnalytics(jobId);
-        waitUntilAnalyticsIsStopped(jobId);
-
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> destDoc = getDestDoc(config, hit);
-            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
-
-            assertThat(resultsObject.containsKey("keyword-field_prediction"), is(true));
-            assertThat((String) resultsObject.get("keyword-field_prediction"), is(in(KEYWORD_FIELD_VALUES)));
-            assertTopClasses(resultsObject, numTopClasses, KEYWORD_FIELD, KEYWORD_FIELD_VALUES, String::valueOf);
-        }
-
-        assertProgress(jobId, 100, 100, 100, 100);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
-            "Starting analytics on node",
-            "Started analytics",
-            "Creating destination index [" + destIndex + "]",
-            "Finished reindexing to destination index [" + destIndex + "]",
-            "Finished analysis");
-    }
-
     public void testDependentVariableCardinalityTooHighError() {
         initialize("cardinality_too_high");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
         // Index one more document with a class different than the two already used.
-        client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox"));
+        client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex)
+            .source(KEYWORD_FIELD, "fox")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
+            .actionGet();
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
         registerAnalytics(config);
@@ -357,7 +334,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             classNames.add((String) topClass.get("class_name"));
             classProbabilities.add((Double) topClass.get("class_probability"));
         }
-        // Assert that all the predicted class names come from the set of keyword field values.
+        // Assert that all the predicted class names come from the set of dependent variable values.
         classNames.forEach(className -> assertThat(parser.apply(className), is(in(dependentVariableValues))));
         // Assert that the first class listed in top classes is the same as the predicted class.
         assertThat(classNames.get(0), equalTo(resultsObject.get(dependentVariable + "_prediction")));
@@ -365,5 +342,27 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         classProbabilities.forEach(p -> assertThat(p, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0))));
         // Assert that the top classes are listed in the order of decreasing probabilities.
         assertThat(Ordering.natural().reverse().isOrdered(classProbabilities), is(true));
+    }
+
+    private void assertEvaluation(String dependentVariable, List<String> dependentVariableValues, String predictedClassField) {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                destIndex,
+                new org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification(
+                    dependentVariable, predictedClassField, null));
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+        MulticlassConfusionMatrix.Result confusionMatrixResult =
+            (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
+        List<ActualClass> actualClasses = confusionMatrixResult.getConfusionMatrix();
+        assertThat(actualClasses.stream().map(ActualClass::getActualClass).collect(toList()), equalTo(dependentVariableValues));
+        for (ActualClass actualClass : actualClasses) {
+            assertThat(actualClass.getOtherPredictedClassDocCount(), equalTo(0L));
+            assertThat(
+                actualClass.getPredictedClasses().stream().map(PredictedClass::getPredictedClass).collect(toList()),
+                equalTo(dependentVariableValues));
+        }
+        assertThat(confusionMatrixResult.getOtherActualClassCount(), equalTo(0L));
     }
 }

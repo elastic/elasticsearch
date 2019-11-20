@@ -7,7 +7,7 @@
 ++++
 
 Returns <<coordinating-node,enrich coordinator>> statistics
-and information about enrich policies
+and information about <<enrich-policy,enrich policies>>
 that are currently executing.
 
 [source,console]
@@ -115,7 +115,7 @@ The API returns the following response:
                 "headers" : {
                     "X-Opaque-Id" : "123456" 
                 }
-            },
+            }
         }
     ],
     "coordinator_stats": [

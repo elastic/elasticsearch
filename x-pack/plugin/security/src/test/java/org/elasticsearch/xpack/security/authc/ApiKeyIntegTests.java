@@ -54,7 +54,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -124,7 +123,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertBusy(() -> assertFalse(apiKeyService.isExpirationInProgress()));
         }
     }
-    
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47958")
     public void testCreateApiKey() {
         final Instant start = Instant.now();
@@ -364,7 +363,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
         UpdateResponse expirationDateUpdatedResponse = client
-                .prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(0).getId())
+                .prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(0).getId())
                 .setDoc("expiration_time", dayBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -374,7 +373,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(weekBefore));
-        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(1).getId())
+        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(1).getId())
                 .setDoc("expiration_time", weekBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();

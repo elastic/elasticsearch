@@ -49,7 +49,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
 
     public void testSizeEnabled() throws Exception {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
-        DocumentMapper docMapper = service.mapperService().documentMapper("type");
+        DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference
             .bytes(XContentFactory.jsonBuilder()
@@ -70,7 +70,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
 
     public void testSizeDisabled() throws Exception {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=false");
-        DocumentMapper docMapper = service.mapperService().documentMapper("type");
+        DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference
             .bytes(XContentFactory.jsonBuilder()
@@ -84,7 +84,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
 
     public void testSizeNotSet() throws Exception {
         IndexService service = createIndex("test", Settings.EMPTY, "type");
-        DocumentMapper docMapper = service.mapperService().documentMapper("type");
+        DocumentMapper docMapper = service.mapperService().documentMapper();
 
         BytesReference source = BytesReference
             .bytes(XContentFactory.jsonBuilder()
@@ -98,7 +98,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
 
     public void testThatDisablingWorksWhenMerging() throws Exception {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
-        DocumentMapper docMapper = service.mapperService().documentMapper("type");
+        DocumentMapper docMapper = service.mapperService().documentMapper();
         assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(true));
 
         String disabledMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")

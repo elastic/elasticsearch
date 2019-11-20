@@ -16,7 +16,7 @@ the following command from the {es} directory:
 ./bin/elasticsearch
 ----------------------------------------------------------------------
 
-See {ref}/starting-elasticsearch.html[Starting {es}].
+See <<starting-elasticsearch>>.
 --
 
 . Set the built-in users' passwords.

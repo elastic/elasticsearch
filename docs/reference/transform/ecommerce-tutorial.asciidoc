@@ -15,9 +15,9 @@ pivot and summarize your data with {transforms}.
 privileges to complete these steps. 
 +
 --
-You need `manage_data_frame_transforms` cluster privileges to preview and create
-{transforms}. Members of the built-in `data_frame_transforms_admin`
-role have these privileges.
+You need `manage_transform` cluster privileges to preview and create 
+{transforms}. Members of the built-in `transform_admin` role have these 
+privileges.
 
 You also need `read` and `view_index_metadata` index privileges on the source
 index and `read`, `create_index`, and `index` privileges on the destination

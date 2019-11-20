@@ -26,7 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -535,7 +535,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.seek(start);
             out.writeInt(operationSize);
             out.seek(end);
-            final ReleasablePagedBytesReference bytes = out.bytes();
+            final ReleasableBytesReference bytes = out.bytes();
             try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
                 if (operation.primaryTerm() > current.getPrimaryTerm()) {
@@ -1593,7 +1593,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 out.seek(start);
                 out.writeInt(operationSize);
                 out.seek(end);
-                ReleasablePagedBytesReference bytes = out.bytes();
+                ReleasableBytesReference bytes = out.bytes();
                 bytes.writeTo(outStream);
             }
         } finally {

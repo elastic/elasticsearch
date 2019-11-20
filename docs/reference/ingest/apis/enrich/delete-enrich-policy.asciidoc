@@ -6,12 +6,20 @@
 <titleabbrev>Delete enrich policy</titleabbrev>
 ++++
 
-Deletes an existing enrich policy and its enrich index.
+Deletes an existing <<enrich-policy,enrich policy>> and its
+<<enrich-index,enrich index>>.
 
 ////
 [source,console]
 ----
 PUT /users
+{
+    "mappings" : {
+        "properties" : {
+            "email" : { "type" : "keyword" }
+        }
+    }
+}
 
 PUT /_enrich/policy/my-policy
 {

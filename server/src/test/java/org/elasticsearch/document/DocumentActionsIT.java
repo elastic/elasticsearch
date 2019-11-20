@@ -67,7 +67,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test"))
+        IndexResponse indexResponse = client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test"))
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
@@ -120,7 +120,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").execute().actionGet();
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
         logger.info("Refreshing");
@@ -160,7 +160,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "type1"))
+            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(termQuery("_type", "_doc"))
                 .execute().actionGet();
             assertNoFailures(countResponse);
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
@@ -184,12 +184,12 @@ public class DocumentActionsIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-                .add(client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setId("2").setSource(source("2", "test")).setCreate(true))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setSource(source("3", "test")))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setCreate(true).setSource(source("4", "test")))
-                .add(client().prepareDelete().setIndex("test").setType("type1").setId("1"))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setSource("{ xxx }", XContentType.JSON)) // failure
+                .add(client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test")))
+                .add(client().prepareIndex().setIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
+                .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
+                .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
+                .add(client().prepareDelete().setIndex("test").setId("1"))
+                .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
                 .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));

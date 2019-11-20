@@ -19,6 +19,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RegressionTests extends AbstractSerializingTestCase<Regression> {
 
+    private static final BoostedTreeParams BOOSTED_TREE_PARAMS = new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0);
+
     @Override
     protected Regression doParseInstance(XContentParser parser) throws IOException {
         return Regression.fromXContent(parser, false);
@@ -42,30 +44,43 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         return Regression::new;
     }
 
-    public void testConstructor_GivenTrainingPercentIsNull() {
-        Regression regression = new Regression("foo", new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0), "result", null);
-        assertThat(regression.getTrainingPercent(), equalTo(100.0));
-    }
-
-    public void testConstructor_GivenTrainingPercentIsBoundary() {
-        Regression regression = new Regression("foo", new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0), "result", 1.0);
-        assertThat(regression.getTrainingPercent(), equalTo(1.0));
-        regression = new Regression("foo", new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0), "result", 100.0);
-        assertThat(regression.getTrainingPercent(), equalTo(100.0));
-    }
-
     public void testConstructor_GivenTrainingPercentIsLessThanOne() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0), "result", 0.999));
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 0.999));
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
     }
 
     public void testConstructor_GivenTrainingPercentIsGreaterThan100() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", new BoostedTreeParams(0.0, 0.0, 0.5, 500, 1.0), "result", 100.0001));
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0001));
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
+    }
+
+    public void testGetPredictionFieldName() {
+        Regression regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 50.0);
+        assertThat(regression.getPredictionFieldName(), equalTo("result"));
+
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, null, 50.0);
+        assertThat(regression.getPredictionFieldName(), equalTo("foo_prediction"));
+    }
+
+    public void testGetTrainingPercent() {
+        Regression regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 50.0);
+        assertThat(regression.getTrainingPercent(), equalTo(50.0));
+
+        // Boundary condition: training_percent == 1.0
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 1.0);
+        assertThat(regression.getTrainingPercent(), equalTo(1.0));
+
+        // Boundary condition: training_percent == 100.0
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0);
+        assertThat(regression.getTrainingPercent(), equalTo(100.0));
+
+        // training_percent == null, default applied
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", null);
+        assertThat(regression.getTrainingPercent(), equalTo(100.0));
     }
 
     public void testFieldCardinalityLimitsIsNonNull() {

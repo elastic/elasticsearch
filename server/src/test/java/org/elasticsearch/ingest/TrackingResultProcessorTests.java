@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
@@ -86,7 +85,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         Exception[] holder = new Exception[1];
         trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
-        assertThat(((ElasticsearchException) holder[0]).getRootCause().getMessage(), equalTo(exception.getMessage()));
+        assertThat(((IngestProcessorException) holder[0]).getRootCause().getMessage(), equalTo(exception.getMessage()));
 
         SimulateProcessorResult expectedFirstResult = new SimulateProcessorResult(testProcessor.getTag(), ingestDocument);
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
@@ -456,9 +455,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         Exception[] holder = new Exception[1];
         trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
-        ElasticsearchException exception = (ElasticsearchException) holder[0];
-        assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(exception.getCause().getCause(), instanceOf(IllegalStateException.class));
+        IngestProcessorException exception = (IngestProcessorException) holder[0];
+        assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
         assertThat(exception.getMessage(), containsString("Cycle detected for pipeline: pipeline1"));
     }
 

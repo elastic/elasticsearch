@@ -32,7 +32,7 @@ import java.util.Optional;
  * This class supports checking bounding box
  * relations against the serialized geometry tree.
  */
-public class GeometryTreeReader {
+public class GeometryTreeReader implements ShapeTreeReader {
 
     private final int extentOffset = 8;
     private final ByteBufferStreamInput input;
@@ -41,18 +41,6 @@ public class GeometryTreeReader {
     public GeometryTreeReader(BytesRef bytesRef, CoordinateEncoder coordinateEncoder) {
         this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
         this.coordinateEncoder = coordinateEncoder;
-    }
-
-    public Extent getExtent() throws IOException {
-        input.position(extentOffset);
-        Extent extent = input.readOptionalWriteable(Extent::new);
-        if (extent != null) {
-            return extent;
-        }
-        assert input.readVInt() == 1;
-        ShapeType shapeType = input.readEnum(ShapeType.class);
-        ShapeTreeReader reader = getReader(shapeType, input);
-        return reader.getExtent();
     }
 
     public double getCentroidX() throws IOException {
@@ -65,34 +53,28 @@ public class GeometryTreeReader {
         return coordinateEncoder.decodeY(input.readInt());
     }
 
-    public boolean intersects(Extent extent) throws IOException {
+    @Override
+    public Extent getExtent() throws IOException {
         input.position(extentOffset);
-        boolean hasExtent = input.readBoolean();
-        if (hasExtent) {
-            Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(new Extent(input), extent);
-            if (extentCheck.isPresent()) {
-                return extentCheck.get();
-            }
+        Extent extent = input.readOptionalWriteable(Extent::new);
+        if (extent != null) {
+            return extent;
         }
-
-        int numTrees = input.readVInt();
-        for (int i = 0; i < numTrees; i++) {
-            ShapeType shapeType = input.readEnum(ShapeType.class);
-            ShapeTreeReader reader = getReader(shapeType, input);
-            if (reader.intersects(extent)) {
-                return true;
-            }
-        }
-        return false;
+        assert input.readVInt() == 1;
+        ShapeType shapeType = input.readEnum(ShapeType.class);
+        ShapeTreeReader reader = getReader(shapeType, input);
+        return reader.getExtent();
     }
 
-    public boolean within(Extent extent) throws IOException {
+    @Override
+    public GeoRelation relate(Extent extent) throws IOException {
+        GeoRelation relation = GeoRelation.QUERY_DISJOINT;
         input.position(extentOffset);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
             Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(new Extent(input), extent);
             if (extentCheck.isPresent()) {
-                return extentCheck.get();
+                return extentCheck.get() ? GeoRelation.QUERY_INSIDE : GeoRelation.QUERY_DISJOINT;
             }
         }
 
@@ -100,11 +82,17 @@ public class GeometryTreeReader {
         for (int i = 0; i < numTrees; i++) {
             ShapeType shapeType = input.readEnum(ShapeType.class);
             ShapeTreeReader reader = getReader(shapeType, input);
-            if (reader.within(extent)) {
-                return true;
+            GeoRelation shapeRelation = reader.relate(extent);
+            if (GeoRelation.QUERY_CROSSES == shapeRelation ||
+                (GeoRelation.QUERY_DISJOINT == shapeRelation && GeoRelation.QUERY_INSIDE == relation)
+            ) {
+                return GeoRelation.QUERY_CROSSES;
+            } else {
+                relation = shapeRelation;
             }
         }
-        return false;
+
+        return relation;
     }
 
     private static ShapeTreeReader getReader(ShapeType shapeType, ByteBufferStreamInput input) throws IOException {

@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import static org.elasticsearch.common.geo.GeoTestUtils.assertRelation;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EdgeTreeTests extends ESTestCase {
@@ -58,44 +59,35 @@ public class EdgeTreeTests extends ESTestCase {
             assertThat(writer.getCentroidCalculator().getY(), equalTo((minY + maxY)/2.0));
 
             // box-query touches bottom-left corner
-            assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY)));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY));
             // box-query touches bottom-right corner
-            assertTrue(reader.intersects(Extent.fromPoints(maxX, minY - randomIntBetween(1, 180), maxX + randomIntBetween(1, 180), minY)));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(maxX, minY - randomIntBetween(1, 180), maxX + randomIntBetween(1, 180), minY));
             // box-query touches top-right corner
-            assertTrue(reader.intersects(Extent.fromPoints(maxX, maxY, maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180))));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(maxX, maxY, maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180)));
             // box-query touches top-left corner
-            assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 180), maxY, minX, maxY + randomIntBetween(1, 180))));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(minX - randomIntBetween(1, 180), maxY, minX, maxY + randomIntBetween(1, 180)));
             // box-query fully-enclosed inside rectangle
-            assertTrue(reader.intersects(Extent.fromPoints((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
-                (3 * maxY + minY) / 4)));
+            assertRelation(GeoRelation.QUERY_INSIDE,reader, Extent.fromPoints((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
+                (3 * maxY + minY) / 4));
             // box-query fully-contains poly
-            assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180),
-                maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180))));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180)));
             // box-query half-in-half-out-right
-            assertTrue(reader.intersects(Extent.fromPoints((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),
-                (3 * maxY + minY) / 4)));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
             // box-query half-in-half-out-left
-            assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 1000), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
-                (3 * maxY + minY) / 4)));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(minX - randomIntBetween(1, 1000), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4, (3 * maxY + minY) / 4));
             // box-query half-in-half-out-top
-            assertTrue(reader.intersects(Extent.fromPoints((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),
-                maxY + randomIntBetween(1, 1000))));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000), maxY + randomIntBetween(1, 1000)));
             // box-query half-in-half-out-bottom
-            assertTrue(reader.intersects(Extent.fromPoints((3 * minX + maxX) / 4, minY - randomIntBetween(1, 1000),
-                maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4)));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints((3 * minX + maxX) / 4, minY - randomIntBetween(1, 1000), maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
 
             // box-query outside to the right
-            assertFalse(reader.intersects(Extent.fromPoints(maxX + randomIntBetween(1, 1000), minY,
-                maxX + randomIntBetween(1001, 2000), maxY)));
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, Extent.fromPoints(maxX + randomIntBetween(1, 1000), minY, maxX + randomIntBetween(1001, 2000), maxY));
             // box-query outside to the left
-            assertFalse(reader.intersects(Extent.fromPoints(maxX - randomIntBetween(1001, 2000), minY,
-                minX - randomIntBetween(1, 1000), maxY)));
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, Extent.fromPoints(maxX - randomIntBetween(1001, 2000), minY, minX - randomIntBetween(1, 1000), maxY));
             // box-query outside to the top
-            assertFalse(reader.intersects(Extent.fromPoints(minX, maxY + randomIntBetween(1, 1000), maxX,
-                maxY + randomIntBetween(1001, 2000))));
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, Extent.fromPoints(minX, maxY + randomIntBetween(1, 1000), maxX, maxY + randomIntBetween(1001, 2000)));
             // box-query outside to the bottom
-            assertFalse(reader.intersects(Extent.fromPoints(minX, minY - randomIntBetween(1001, 2000), maxX,
-                minY - randomIntBetween(1, 1000))));
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, Extent.fromPoints(minX, minY - randomIntBetween(1001, 2000), maxX, minY - randomIntBetween(1, 1000)));
         }
     }
 
@@ -134,16 +126,16 @@ public class EdgeTreeTests extends ESTestCase {
             assertThat(actualExtent.minY(), equalTo(minYBox));
             assertThat(actualExtent.maxY(), equalTo(maxYBox));
             // polygon fully contained within box
-            assertTrue(reader.intersects(Extent.fromPoints(minXBox, minYBox, maxXBox, maxYBox)));
-            // intersects
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(minXBox, minYBox, maxXBox, maxYBox));
+            // relate
             if (maxYBox - 1 >= minYBox) {
-                assertTrue(reader.intersects(Extent.fromPoints(minXBox, minYBox, maxXBox, maxYBox - 1)));
+                assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(minXBox, minYBox, maxXBox, maxYBox - 1));
             }
             if (maxXBox -1 >= minXBox) {
-                assertTrue(reader.intersects(Extent.fromPoints(minXBox, minYBox, maxXBox - 1, maxYBox)));
+                assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(minXBox, minYBox, maxXBox - 1, maxYBox));
             }
             // does not cross
-            assertFalse(reader.intersects(Extent.fromPoints(maxXBox + 1, maxYBox + 1, maxXBox + 10, maxYBox + 10)));
+            assertRelation(GeoRelation.QUERY_DISJOINT, reader, Extent.fromPoints(maxXBox + 1, maxYBox + 1, maxXBox + 10, maxYBox + 10));
         }
     }
 
@@ -152,7 +144,7 @@ public class EdgeTreeTests extends ESTestCase {
         double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
         double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
 
-        // candidate intersects cell
+        // candidate relate cell
         int xMin = 2;//-5;
         int xMax = 11;//0.000001;
         int yMin = -1;//0;
@@ -164,7 +156,7 @@ public class EdgeTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
-        assertTrue(reader.containsBottomLeft(Extent.fromPoints(xMin, yMin, xMax, yMax)));
+        assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(xMin, yMin, xMax, yMax));
     }
 
     public void testGetShapeType() {

@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.spatial.util.GeoRelationUtils;
 import org.elasticsearch.common.geo.CoordinateEncoder;
 import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoRelation;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
@@ -96,13 +98,8 @@ public abstract class MultiGeoValues {
         }
 
         @Override
-        public boolean intersects(Rectangle rectangle) {
+        public GeoRelation relate(Rectangle rectangle) {
             throw new UnsupportedOperationException("intersect is unsupported for geo_point doc values");
-        }
-
-        @Override
-        public boolean within(Rectangle rectangle) {
-            throw new UnsupportedOperationException("within is unsupported for geo_point doc values");
         }
 
         @Override
@@ -146,28 +143,14 @@ public abstract class MultiGeoValues {
          * @return the latitude of the centroid of the shape
          */
         @Override
-        public boolean intersects(Rectangle rectangle) {
+        public GeoRelation relate(Rectangle rectangle) {
             int minX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMinX());
             int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
             int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
             int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
             Extent extent = new Extent(maxY, minY, minX, maxX, minX, maxX);
             try {
-                return reader.intersects(extent);
-            } catch (IOException e) {
-                throw new IllegalStateException("unable to check intersection", e);
-            }
-        }
-
-        @Override
-        public boolean within(Rectangle rectangle) {
-            int minX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMinX());
-            int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
-            int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
-            int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
-            Extent extent = new Extent(maxY, minY, minX, maxX, minX, maxX);
-            try {
-                return reader.within(extent);
+                return reader.relate(extent);
             } catch (IOException e) {
                 throw new IllegalStateException("unable to check intersection", e);
             }
@@ -213,8 +196,7 @@ public abstract class MultiGeoValues {
         double lat();
         double lon();
         BoundingBox boundingBox();
-        boolean intersects(Rectangle rectangle);
-        boolean within(Rectangle rectangle);
+        GeoRelation relate(Rectangle rectangle);
     }
 
     public static class BoundingBox {

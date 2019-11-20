@@ -18,15 +18,15 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.geometry.Geometry;
-
 import java.io.IOException;
 
-/**
- * Shape Reader to read different {@link Geometry} doc-values
- */
-public interface ShapeTreeReader {
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
-    Extent getExtent() throws IOException;
-    GeoRelation relate(Extent extent) throws IOException;
+class GeoTestUtils {
+
+    static void assertRelation(GeoRelation expectedRelation, ShapeTreeReader reader, Extent extent) throws IOException {
+        GeoRelation actualRelation = reader.relate(extent);
+        assertThat(actualRelation, equalTo(expectedRelation));
+    }
 }

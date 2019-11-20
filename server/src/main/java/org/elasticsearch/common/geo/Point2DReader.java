@@ -51,7 +51,7 @@ class Point2DReader implements ShapeTreeReader {
     }
 
     @Override
-    public boolean intersects(Extent extent) throws IOException {
+    public GeoRelation relate(Extent extent) throws IOException {
         Deque<Integer> stack = new ArrayDeque<>();
         stack.push(0);
         stack.push(size - 1);
@@ -67,7 +67,7 @@ class Point2DReader implements ShapeTreeReader {
                     int x = readX(i);
                     int y = readY(i);
                     if (x >= extent.minX() && x <= extent.maxX() && y >= extent.minY() && y <= extent.maxY()) {
-                        return true;
+                        return GeoRelation.QUERY_CROSSES;
                     }
                 }
                 continue;
@@ -77,7 +77,7 @@ class Point2DReader implements ShapeTreeReader {
             int x = readX(middle);
             int y = readY(middle);
             if (x >= extent.minX() && x <= extent.maxX() && y >= extent.minY() && y <= extent.maxY()) {
-                return true;
+                return GeoRelation.QUERY_CROSSES;
             }
             if ((axis == 0 && extent.minX() <= x) || (axis == 1 && extent.minY() <= y)) {
                 stack.push(left);
@@ -91,12 +91,7 @@ class Point2DReader implements ShapeTreeReader {
             }
         }
 
-        return false;
-    }
-
-    @Override
-    public boolean within(Extent extent) throws IOException {
-        return false; // within against extent is not defined for points, so it is always false
+        return GeoRelation.QUERY_DISJOINT;
     }
 
     private int readX(int pointIdx) throws IOException {

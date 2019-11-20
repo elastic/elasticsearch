@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoRelation;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
@@ -88,7 +89,8 @@ public interface GeoGridTiler {
             for (double i = geoHashCell.getMinX(); i < bounds.maxX(); i+= Geohash.lonWidthInDegrees(precision)) {
                 for (double j = geoHashCell.getMinY(); j < bounds.maxY(); j += Geohash.latHeightInDegrees(precision)) {
                     Rectangle rectangle = Geohash.toBoundingBox(Geohash.stringEncode(i, j, precision));
-                    if (geoValue.intersects(rectangle)) {
+                    GeoRelation relation = geoValue.relate(rectangle);
+                    if (relation != GeoRelation.QUERY_DISJOINT) {
                         values[idx++] = encode(i, j, precision);
                     }
                 }
@@ -125,22 +127,19 @@ public interface GeoGridTiler {
         }
 
         private int setValuesForCell(int[] tile, long[] values, int valuesIndex, int precision, MultiGeoValues.GeoValue geoValue) {
+            Rectangle rectangle = GeoTileUtils.toBoundingBox(tile[0], tile[1], tile[2]);
+            GeoRelation relation = geoValue.relate(rectangle);
             if (tile[2] == precision) {
-                Rectangle rectangle = GeoTileUtils.toBoundingBox(tile[0], tile[1], tile[2]);
-                if (geoValue.intersects(rectangle)) {
+                if (GeoRelation.QUERY_DISJOINT != relation) {
                     values[valuesIndex++] = GeoTileUtils.longEncodeTiles(tile[2], tile[0], tile[1]);
                 }
                 return valuesIndex;
             }
 
-            Rectangle rectangle = GeoTileUtils.toBoundingBox(tile[0], tile[1], tile[2]);
-            boolean within = geoValue.within(rectangle);
-            if (within) {
+            if (GeoRelation.QUERY_INSIDE == relation) {
                 return setValuesForFullyContainedTile(tile, values, valuesIndex, precision);
             }
-            boolean intersects = geoValue.intersects(rectangle);
-
-            if (intersects) {
+            if (GeoRelation.QUERY_CROSSES == relation) {
                 int[][] subTiles = GeoTileUtils.getSubTiles(tile[0], tile[1], tile[2]);
                 for (int[] subTile : subTiles) {
                     valuesIndex = setValuesForCell(subTile, values, valuesIndex, precision, geoValue);

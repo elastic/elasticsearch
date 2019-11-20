@@ -200,7 +200,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     private AnalyticsResultProcessor createResultProcessor(List<String> fieldNames) {
-        return new AnalyticsResultProcessor(analyticsConfig, dataFrameRowsJoiner, () -> false, progressTracker, trainedModelProvider,
-            auditor, fieldNames);
+        return new AnalyticsResultProcessor(
+            analyticsConfig, dataFrameRowsJoiner, progressTracker, trainedModelProvider, auditor, fieldNames);
     }
 }

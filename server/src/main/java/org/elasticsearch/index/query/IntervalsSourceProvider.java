@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.FilteredIntervalsSource;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -585,12 +586,12 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 }
                 BytesRef normalizedTerm = analyzer.normalize(useField, pattern);
                 // TODO Intervals.wildcard() should take BytesRef
-                source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
+                source = Intervals.fixField(useField, XIntervals.wildcard(normalizedTerm));
             }
             else {
                 checkPositions(fieldType);
                 BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
-                source = Intervals.wildcard(normalizedTerm);
+                source = XIntervals.wildcard(normalizedTerm);
             }
             return source;
         }

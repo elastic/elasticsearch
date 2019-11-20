@@ -39,28 +39,23 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
     public void testIndexPointsFilterRectangle() throws Exception {
         String mapping = Strings.toString(createMapping());
+        // where does the mapping ensure geo_shape type for the location field, a template?
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
-                .field("name", "Document 1")
-                .startObject("location")
-                .field("type", "point")
-                .startArray("coordinates").value(-30).value(-30).endArray()
-                .endObject()
-                .endObject()).setRefreshPolicy(IMMEDIATE).get();
+            .field("name", "Document 1")
+            .startArray("location").value(-30).value(-30).endArray()
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
-                .field("name", "Document 2")
-                .startObject("location")
-                .field("type", "point")
-                .startArray("coordinates").value(-45).value(-50).endArray()
-                .endObject()
-                .endObject()).setRefreshPolicy(IMMEDIATE).get();
+            .field("name", "Document 2")
+            .startArray("location").value(-45).value(-50).endArray()
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
 
-        // This is deprecated... go fix
+        // This is deprecated...? go fix
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("location", shape))
                 .get();

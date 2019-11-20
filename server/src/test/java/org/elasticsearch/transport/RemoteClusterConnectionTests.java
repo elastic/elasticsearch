@@ -490,8 +490,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 discoverableTransports.add(transportService);
             }
 
-            List<String> seedNodes = new CopyOnWriteArrayList<>(randomSubsetOf(discoverableNodes.stream()
-                .map(d -> d.getAddress().toString()).collect(Collectors.toList())));
+            List<String> seedNodes = new CopyOnWriteArrayList<>(randomSubsetOf(randomIntBetween(1, discoverableNodes.size()),
+                discoverableNodes.stream().map(d -> d.getAddress().toString()).collect(Collectors.toList())));
             Collections.shuffle(seedNodes, random());
 
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {

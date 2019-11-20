@@ -112,8 +112,8 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         Response response = ex.getResponse();
         String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(400, response.getStatusLine().getStatusCode());
-        assertTrue(body.contains("\"type\":\"illegal_argument_exception\""));
-        assertTrue(body.contains("\"reason\":\"Cannot start trial of type [basic]. Valid trial types are ["));
+        assertThat(body, containsString("\"type\":\"illegal_argument_exception\""));
+        assertThat(body, containsString("\"reason\":\"Cannot start trial of type [basic]. Valid trial types are ["));
     }
 
     private void ensureStartingWithBasic() throws Exception {

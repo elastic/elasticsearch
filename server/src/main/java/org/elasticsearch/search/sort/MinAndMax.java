@@ -70,7 +70,8 @@ public class MinAndMax implements Writeable {
      */
     public static Comparator<MinAndMax> getComparator(SortOrder order) {
         final Comparator<MinAndMax> cmp = (a, b) -> order == SortOrder.ASC  ?
-            a.getMin().compareTo(b.getMin()) :  a.getMax().compareTo(b.getMax());
+            final Comparator<MinAndMax> cmp = order == SortOrder.ASC  ?
+                  Comparator.comparing(MinAndMax::getMin) :  Comparator.comparing(MinAndMax::getMax);
         if  (order == SortOrder.DESC) {
             return cmp.reversed();
         }

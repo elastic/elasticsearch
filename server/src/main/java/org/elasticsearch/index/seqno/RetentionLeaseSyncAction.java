@@ -193,7 +193,7 @@ public class RetentionLeaseSyncAction extends
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new ReplicationTask(id, type, action, "retention_lease_sync", parentTaskId, headers);
+            return new ReplicationTask(id, type, action, "retention_lease_sync shardId=" + shardId, parentTaskId, headers);
         }
 
         @Override

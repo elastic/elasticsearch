@@ -193,7 +193,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new ReplicationTask(id, type, action, "retention_lease_background_sync", parentTaskId, headers);
+            return new ReplicationTask(id, type, action, "retention_lease_background_sync shardId=" + shardId, parentTaskId, headers);
         }
 
         @Override

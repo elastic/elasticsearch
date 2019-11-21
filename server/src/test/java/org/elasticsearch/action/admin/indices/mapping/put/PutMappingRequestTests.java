@@ -20,16 +20,9 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
-
-import java.io.IOException;
 
 public class PutMappingRequestTests extends ESTestCase {
 
@@ -65,40 +58,5 @@ public class PutMappingRequestTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> PutMappingRequest.buildFromSimplifiedDef("type", "only_field"));
         assertEquals("mapping source must be pairs of fieldnames and properties definition.", e.getMessage());
-    }
-
-    public void testFromXContent() throws IOException {
-        XContentBuilder mapping = randomMapping();
-        String mappingSource = BytesReference.bytes(shuffleXContent(mapping)).utf8ToString();
-
-        PutMappingRequest request = new PutMappingRequest();
-        request.source(mappingSource, mapping.contentType());
-        assertMappingsEqual(mappingSource, request.source());
-    }
-
-    private void assertMappingsEqual(String expected, String actual) throws IOException {
-
-        try (XContentParser expectedJson = createParser(XContentType.JSON.xContent(), expected);
-            XContentParser actualJson = createParser(XContentType.JSON.xContent(), actual)) {
-            assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
-        }
-    }
-
-    private static XContentBuilder randomMapping() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        RandomCreateIndexGenerator.randomMappingFields(builder, true);
-        builder.endObject();
-        return builder;
-    }
-
-    /**
-     * Returns a random {@link PutMappingRequest}.
-     */
-    private static PutMappingRequest createTestItem() throws IOException {
-        String index = randomAlphaOfLength(5);
-        PutMappingRequest request = new PutMappingRequest(index);
-        request.source(RandomCreateIndexGenerator.randomMapping("_doc"));
-        return request;
     }
 }

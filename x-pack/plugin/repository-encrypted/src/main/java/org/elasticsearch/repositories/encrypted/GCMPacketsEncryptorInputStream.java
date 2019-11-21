@@ -21,6 +21,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -183,9 +184,9 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
 
     public List<BlobEncryptionMetadata.PacketInfo> getEncryptionPacketMetadata() {
         if (false == closed) {
-            throw new IllegalStateException();
+            throw new IllegalStateException("Stream must be closed in order to completely assemble the metadata");
         }
-        return List.copyOf(packetInfoList);
+        return Collections.unmodifiableList(packetInfoList);
     }
 
     void ensureOpen() throws IOException {

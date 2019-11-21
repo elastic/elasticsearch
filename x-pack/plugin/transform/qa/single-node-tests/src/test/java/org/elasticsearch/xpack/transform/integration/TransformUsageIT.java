@@ -52,10 +52,14 @@ public class TransformUsageIT extends TransformRestTestCase {
         startAndWaitForTransform("test_usage", "pivot_reviews");
         stopTransform("test_usage", false);
 
-        Request statsExistsRequest = new Request("GET",
-            TransformInternalIndexConstants.LATEST_INDEX_NAME+"/_search?q=" +
-                INDEX_DOC_TYPE.getPreferredName() + ":" +
-                TransformStoredDoc.NAME);
+        Request statsExistsRequest = new Request(
+            "GET",
+            TransformInternalIndexConstants.LATEST_INDEX_NAME
+                + "/_search?q="
+                + INDEX_DOC_TYPE.getPreferredName()
+                + ":"
+                + TransformStoredDoc.NAME
+        );
         // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));
@@ -67,9 +71,9 @@ public class TransformUsageIT extends TransformRestTestCase {
         Request getRequest = new Request("GET", getTransformEndpoint() + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         Map<String, Integer> expectedStats = new HashMap<>();
-        for(String statName : PROVIDED_STATS) {
+        for (String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
-            List<Integer> specificStatistic = ((List<Integer>)XContentMapValues.extractValue("transforms.stats." + statName, stats));
+            List<Integer> specificStatistic = ((List<Integer>) XContentMapValues.extractValue("transforms.stats." + statName, stats));
             assertNotNull(specificStatistic);
             Integer statistic = (specificStatistic).get(0);
             expectedStats.put(statName, statistic);
@@ -85,19 +89,20 @@ public class TransformUsageIT extends TransformRestTestCase {
             assertEquals(3, XContentMapValues.extractValue("transform.transforms._all", statsMap));
             assertEquals(2, XContentMapValues.extractValue("transform.transforms.stopped", statsMap));
             assertEquals(1, XContentMapValues.extractValue("transform.transforms.started", statsMap));
-            for(String statName : PROVIDED_STATS) {
+            for (String statName : PROVIDED_STATS) {
                 if (statName.equals(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName())
-                    ||statName.equals(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())) {
+                    || statName.equals(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())) {
                     continue;
                 }
-                assertEquals("Incorrect stat " +  statName,
+                assertEquals(
+                    "Incorrect stat " + statName,
                     expectedStats.get(statName) * 2,
-                    XContentMapValues.extractValue("transform.stats." + statName, statsMap));
+                    XContentMapValues.extractValue("transform.stats." + statName, statsMap)
+                );
             }
             // Refresh the index so that statistics are searchable
             refreshIndex(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
         }, 60, TimeUnit.SECONDS);
-
 
         stopTransform("test_usage_continuous", false);
 

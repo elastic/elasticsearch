@@ -48,10 +48,12 @@ public class TransformFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        TransformFeatureSet featureSet = new TransformFeatureSet(Settings.EMPTY,
+        TransformFeatureSet featureSet = new TransformFeatureSet(
+            Settings.EMPTY,
             mock(ClusterService.class),
             mock(Client.class),
-            licenseState);
+            licenseState
+        );
         boolean available = randomBoolean();
         when(licenseState.isTransformAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -61,10 +63,12 @@ public class TransformFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.transform.enabled", enabled);
-        TransformFeatureSet featureSet = new TransformFeatureSet(settings.build(),
+        TransformFeatureSet featureSet = new TransformFeatureSet(
+            settings.build(),
             mock(ClusterService.class),
             mock(Client.class),
-            licenseState);
+            licenseState
+        );
         assertThat(featureSet.enabled(), is(enabled));
     }
 
@@ -73,13 +77,17 @@ public class TransformFeatureSetTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         // use the deprecated setting
         settings.put("xpack.data_frame.enabled", enabled);
-        TransformFeatureSet featureSet = new TransformFeatureSet(settings.build(),
+        TransformFeatureSet featureSet = new TransformFeatureSet(
+            settings.build(),
             mock(ClusterService.class),
             mock(Client.class),
-            licenseState);
+            licenseState
+        );
         assertThat(featureSet.enabled(), is(enabled));
-        assertWarnings("[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testEnabledSettingFallbackMix() {
@@ -87,20 +95,26 @@ public class TransformFeatureSetTests extends ESTestCase {
         // use the deprecated setting
         settings.put("xpack.data_frame.enabled", false);
         settings.put("xpack.transform.enabled", true);
-        TransformFeatureSet featureSet = new TransformFeatureSet(settings.build(),
+        TransformFeatureSet featureSet = new TransformFeatureSet(
+            settings.build(),
             mock(ClusterService.class),
             mock(Client.class),
-            licenseState);
+            licenseState
+        );
         assertThat(featureSet.enabled(), is(true));
-        assertWarnings("[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testEnabledDefault() {
-        TransformFeatureSet featureSet = new TransformFeatureSet(Settings.EMPTY,
+        TransformFeatureSet featureSet = new TransformFeatureSet(
+            Settings.EMPTY,
             mock(ClusterService.class),
             mock(Client.class),
-            licenseState);
+            licenseState
+        );
         assertTrue(featureSet.enabled());
     }
 
@@ -121,7 +135,8 @@ public class TransformFeatureSetTests extends ESTestCase {
             7,  // indexTotal
             8,  // searchTotal
             9,  // indexFailures
-            10); // searchFailures
+            10
+        ); // searchFailures
 
         int currentStat = 1;
         List<Aggregation> aggs = new ArrayList<>(PROVIDED_STATS.length);
@@ -146,10 +161,12 @@ public class TransformFeatureSetTests extends ESTestCase {
         when(licenseState.isTransformAllowed()).thenReturn(true);
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.transform.enabled", false);
-        TransformFeatureSet featureSet = new TransformFeatureSet(settings.build(),
+        TransformFeatureSet featureSet = new TransformFeatureSet(
+            settings.build(),
             mock(ClusterService.class),
             mock(Client.class),
-            licenseState);
+            licenseState
+        );
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage usage = future.get();

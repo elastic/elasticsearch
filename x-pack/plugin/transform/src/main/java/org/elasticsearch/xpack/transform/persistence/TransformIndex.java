@@ -35,38 +35,42 @@ public final class TransformIndex {
     private static final String TYPE = "type";
     private static final String META = "_meta";
 
-    private TransformIndex() {
-    }
+    private TransformIndex() {}
 
-    public static void createDestinationIndex(Client client,
-                                              Clock clock,
-                                              TransformConfig transformConfig,
-                                              Map<String, String> mappings,
-                                              ActionListener<Boolean> listener) {
+    public static void createDestinationIndex(
+        Client client,
+        Clock clock,
+        TransformConfig transformConfig,
+        Map<String, String> mappings,
+        ActionListener<Boolean> listener
+    ) {
         CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestination().getIndex());
 
         // TODO: revisit number of shards, number of replicas
-        request.settings(Settings.builder() // <1>
+        request.settings(
+            Settings.builder() // <1>
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"));
+                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+        );
 
-        request.mapping(
-            DOC_TYPE,
-            createMappingXContent(mappings, transformConfig.getId(), clock));
+        request.mapping(DOC_TYPE, createMappingXContent(mappings, transformConfig.getId(), clock));
 
-        client.execute(CreateIndexAction.INSTANCE, request, ActionListener.wrap(createIndexResponse -> {
-            listener.onResponse(true);
-        }, e -> {
-            String message = TransformMessages.getMessage(TransformMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
-                    transformConfig.getDestination().getIndex(), transformConfig.getId());
-            logger.error(message);
-            listener.onFailure(new RuntimeException(message, e));
-        }));
+        client.execute(
+            CreateIndexAction.INSTANCE,
+            request,
+            ActionListener.wrap(createIndexResponse -> { listener.onResponse(true); }, e -> {
+                String message = TransformMessages.getMessage(
+                    TransformMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
+                    transformConfig.getDestination().getIndex(),
+                    transformConfig.getId()
+                );
+                logger.error(message);
+                listener.onFailure(new RuntimeException(message, e));
+            })
+        );
     }
 
-    private static XContentBuilder createMappingXContent(Map<String, String> mappings,
-                                                         String id,
-                                                         Clock clock) {
+    private static XContentBuilder createMappingXContent(Map<String, String> mappings, String id, Clock clock) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
             builder.startObject(DOC_TYPE);
@@ -79,8 +83,7 @@ public final class TransformIndex {
         }
     }
 
-    private static XContentBuilder addProperties(XContentBuilder builder,
-                                                 Map<String, String> mappings) throws IOException {
+    private static XContentBuilder addProperties(XContentBuilder builder, Map<String, String> mappings) throws IOException {
         builder.startObject(PROPERTIES);
         for (Entry<String, String> field : mappings.entrySet()) {
             String fieldName = field.getKey();
@@ -99,12 +102,12 @@ public final class TransformIndex {
         return builder.startObject(META)
             .field(TransformField.CREATED_BY, TransformField.TRANSFORM_SIGNATURE)
             .startObject(TransformField.META_FIELDNAME)
-                .field(TransformField.CREATION_DATE_MILLIS, clock.millis())
-                .startObject(TransformField.VERSION.getPreferredName())
-                    .field(TransformField.CREATED, Version.CURRENT)
-                .endObject()
-                .field(TransformField.TRANSFORM, id)
+            .field(TransformField.CREATION_DATE_MILLIS, clock.millis())
+            .startObject(TransformField.VERSION.getPreferredName())
+            .field(TransformField.CREATED, Version.CURRENT)
+            .endObject()
+            .field(TransformField.TRANSFORM, id)
             .endObject() // META_FIELDNAME
-        .endObject(); // META
+            .endObject(); // META
     }
 }

@@ -1760,7 +1760,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
      * indexing operation, so we can flush the index.
      */
-    public void checkIdle(long inactiveTimeNS) {
+    public void flushOnIdle(long inactiveTimeNS) {
         Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);

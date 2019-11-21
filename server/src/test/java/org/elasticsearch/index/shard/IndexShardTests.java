@@ -3419,7 +3419,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         assertFalse(primary.scheduledRefresh());
         assertTrue(primary.isSearchIdle());
-        primary.checkIdle(0);
+        primary.flushOnIdle(0);
         assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
@@ -3629,7 +3629,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testFlushOnInactive() throws Exception {
+    public void testFlushOnIdle() throws Exception {
         IndexShard shard = newStartedShard();
         for (int i = 0; i < 3; i++) {
             indexDoc(shard, "_doc", Integer.toString(i));
@@ -3658,7 +3658,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertEquals(4, segments.size());
 
-        shard.checkIdle(0);
+        shard.flushOnIdle(0);
         assertFalse(shard.isActive());
 
         assertBusy(() -> { // flush happens in the background using the flush threadpool

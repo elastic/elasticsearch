@@ -252,7 +252,7 @@ public final class DateFieldMapper extends FieldMapper {
         protected DateMathParser dateMathParser;
         protected Resolution resolution;
 
-        DateFieldType() {
+        public DateFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);

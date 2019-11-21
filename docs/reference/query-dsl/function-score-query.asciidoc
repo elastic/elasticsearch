@@ -155,11 +155,10 @@ GET /_search
 
 [IMPORTANT]
 ====
-{es} stores scores produced by the `script_score` function as positive
-32-bit floating point numbers in the `_score` meta-field.
+In {es}, all document scores are positive 32-bit floating point numbers.
 
-As a result, scores are limited to 32-bits of precision. Larger numbers will
-lose precision during storage.
+If the `script_score` function produces a score with greater precision, it is
+converted to the nearest 32-bit float. 
 
 Similarly, scores must be non-negative. Otherwise, {es} returns an error.
 ====

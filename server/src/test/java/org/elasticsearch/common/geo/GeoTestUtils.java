@@ -50,6 +50,6 @@ public class GeoTestUtils {
     public static String toGeoJsonString(Geometry geometry) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);
-        return XContentHelper.convertToJson(BytesReference.bytes(builder), true, true, XContentType.JSON);
+        return XContentHelper.convertToJson(BytesReference.bytes(builder), true, false, XContentType.JSON);
     }
 }

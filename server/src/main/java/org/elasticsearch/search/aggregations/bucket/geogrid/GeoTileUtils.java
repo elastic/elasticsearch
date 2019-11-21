@@ -98,7 +98,7 @@ public final class GeoTileUtils {
      * @param tiles     the number of tiles per row for a pre-determined zoom-level
      */
     static int getXTile(double longitude, long tiles) {
-        // normalizeLon treats this as 180, which is not friendly for tile mappings
+        // normalizeLon treats this as 180, which is not friendly for tile mapping
         if (longitude == -180) {
             return 0;
         }

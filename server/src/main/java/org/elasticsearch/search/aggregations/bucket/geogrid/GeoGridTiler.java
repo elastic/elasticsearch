@@ -154,8 +154,14 @@ public interface GeoGridTiler {
             return idx;
         }
 
-        private int setValuesByRasterization(int xTile, int yTile, int zTile, long[] values, int valuesIndex, int targetPrecision, MultiGeoValues.GeoValue geoValue) {
+        private int setValuesByRasterization(int xTile, int yTile, int zTile, long[] values, int valuesIndex, int targetPrecision,
+                                             MultiGeoValues.GeoValue geoValue) {
             Rectangle rectangle = GeoTileUtils.toBoundingBox(xTile, yTile, zTile);
+            MultiGeoValues.BoundingBox shapeBounds = geoValue.boundingBox();
+            if (shapeBounds.minX() == rectangle.getMaxX() ||
+                shapeBounds.maxY() == rectangle.getMinY()) {
+                return valuesIndex;
+            }
             GeoRelation relation = geoValue.relate(rectangle);
             if (zTile == targetPrecision) {
                 if (GeoRelation.QUERY_DISJOINT != relation) {

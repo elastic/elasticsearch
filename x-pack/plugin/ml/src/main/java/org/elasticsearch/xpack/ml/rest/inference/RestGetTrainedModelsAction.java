@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
@@ -53,4 +55,10 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoResources()));
         return channel -> client.execute(GetTrainedModelsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Collections.singleton(TrainedModelConfig.DECOMPRESS_DEFINITION);
+    }
+
 }

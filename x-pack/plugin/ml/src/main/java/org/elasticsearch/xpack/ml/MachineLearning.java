@@ -609,6 +609,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             inferenceAuditor,
             threadPool,
             clusterService,
+            xContentRegistry,
             settings);
 
         // Data frame analytics components

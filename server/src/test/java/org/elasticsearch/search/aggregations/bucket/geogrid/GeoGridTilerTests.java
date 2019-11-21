@@ -18,18 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
-import org.elasticsearch.common.geo.GeoTestUtils;
-import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiLine;

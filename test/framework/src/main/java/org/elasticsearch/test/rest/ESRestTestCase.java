@@ -55,6 +55,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -1061,5 +1062,39 @@ public abstract class ESRestTestCase extends ESTestCase {
         default:
             return false;
         }
+    }
+
+    public void flush(String index, boolean force) throws IOException {
+        logger.info("flushing index {} force={}", index, force);
+        final Request flushRequest = new Request("POST", "/" + index + "/_flush");
+        flushRequest.addParameter("force", Boolean.toString(force));
+        flushRequest.addParameter("wait_if_ongoing", "true");
+        assertOK(client().performRequest(flushRequest));
+    }
+
+    public void assertNoFileBasedRecovery(String indexName, Predicate<String> targetNode) throws IOException {
+        Map<String, Object> recoveries = entityAsMap(client().performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
+        @SuppressWarnings("unchecked")
+        List<Map<String, ?>> shards = (List<Map<String, ?>>) XContentMapValues.extractValue(indexName + ".shards", recoveries);
+        assertNotNull(shards);
+        boolean foundReplica = false;
+        logger.info("index {} recovery stats {}", indexName, shards);
+        for (Map<String, ?> shard : shards) {
+            if (shard.get("primary") == Boolean.FALSE && targetNode.test((String) XContentMapValues.extractValue("target.name", shard))) {
+                List<?> details = (List<?>) XContentMapValues.extractValue("index.files.details", shard);
+                // once detailed recoveries works, remove this if.
+                if (details == null) {
+                    long totalFiles = ((Number) XContentMapValues.extractValue("index.files.total", shard)).longValue();
+                    long reusedFiles = ((Number) XContentMapValues.extractValue("index.files.reused", shard)).longValue();
+                    logger.info("total [{}] reused [{}]", totalFiles, reusedFiles);
+                    assertThat("must reuse all files, recoveries [" + recoveries + "]", totalFiles, equalTo(reusedFiles));
+                } else {
+                    assertNotNull(details);
+                    assertThat(details, Matchers.empty());
+                }
+                foundReplica = true;
+            }
+        }
+        assertTrue("must find replica", foundReplica);
     }
 }

@@ -487,10 +487,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 switch (CLUSTER_TYPE) {
                     case OLD: break;
                     case MIXED:
-                        assertNoFileBasedRecovery(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
+                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
                         break;
                     case UPGRADED:
-                        assertNoFileBasedRecovery(indexName, s -> s.startsWith(CLUSTER_NAME));
+                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
                         break;
                 }
             }
@@ -647,7 +647,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    private void assertNoFileBasedRecovery(String indexName, Predicate<String> targetNode) throws IOException {
+    private void assertNoopRecoveries(String indexName, Predicate<String> targetNode) throws IOException {
         Map<String, Object> recoveries = entityAsMap(client()
             .performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
 
@@ -677,5 +677,31 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         assertTrue("must find replica", foundReplica);
+    }
+
+    /**
+     * Tests that with or without soft-deletes, we should perform an operation-based recovery if there are some but not too many
+     * uncommitted documents during rolling upgrade. This is important when we move from translog based to retention leases
+     * based peer recoveries.
+     */
+    public void testOperationBasedRecovery() throws Exception {
+        final String index = "test_operation_based_recovery";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(index, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean()).build());
+            ensureGreen(index);
+            indexDocs(index, 0, randomIntBetween(50, 100));
+            flush(index, randomBoolean());
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 20));
+        } else {
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index, nodeName ->
+                CLUSTER_TYPE == ClusterType.UPGRADED
+                || nodeName.startsWith(CLUSTER_NAME + "-0")
+                || Booleans.parseBoolean(System.getProperty("tests.first_round")) == false && nodeName.startsWith(CLUSTER_NAME + "-1"));
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 20));
+        }
     }
 }

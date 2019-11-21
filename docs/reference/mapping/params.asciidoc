@@ -33,7 +33,7 @@ The following mapping parameters are common to some or all field datatypes:
 * <<similarity,`similarity`>>
 * <<mapping-store,`store`>>
 * <<term-vector,`term_vector`>>
-* <<meta,`meta`>>
+* <<mapping-field-meta,`meta`>>
 
 
 include::params/analyzer.asciidoc[]

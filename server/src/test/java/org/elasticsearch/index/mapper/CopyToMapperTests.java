@@ -41,6 +41,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -124,6 +125,74 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         docMapper = index.mapperService().documentMapper();
         fieldMapper = docMapper.mappers().getMapper("new_field");
         assertThat(fieldMapper.typeName(), equalTo("long"));
+    }
+
+    public void testCopyToDateRange() throws Exception {
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("_doc").startObject("properties")
+                .startObject("date_copy")
+                .field("type", "date_range")
+                .endObject()
+
+                .startObject("date")
+                .field("type", "date_range")
+                .array("copy_to", "date_copy")
+                .endObject()
+
+                .endObject().endObject().endObject());
+
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+                .parse("_doc", new CompressedXContent(mapping));
+
+        BytesReference json = BytesReference.bytes(jsonBuilder().startObject()
+                .startObject("date")
+                    .field("gte", "2019-11-10T01:00:00.000Z")
+                    .field("lt", "2019-11-11T01:00:00.000Z")
+                .endObject()
+                .endObject());
+
+        ParseContext.Document doc = docMapper.parse(new SourceToParse("test", "1", json,
+                XContentType.JSON)).rootDoc();
+
+        IndexableField[] fields = doc.getFields("date");
+        assertThat(fields.length, equalTo(2));
+        assertThat(fields[0], instanceOf(RangeFieldMapper.BinaryRangesDocValuesField.class));
+        assertThat(fields[1].toString(), equalTo("LongRange <date: [1573347600000 : 1573433999999]>"));
+
+        fields = doc.getFields("date_copy");
+        assertThat(fields.length, equalTo(2));
+        assertThat(fields[0], instanceOf(RangeFieldMapper.BinaryRangesDocValuesField.class));
+        assertThat(fields[1].toString(), equalTo("LongRange <date_copy: [1573347600000 : 1573433999999]>"));
+
+        // try multivalued input
+
+
+        json = BytesReference.bytes(jsonBuilder().startObject()
+                .startArray("date")
+                .startObject()
+                    .field("gte", "2019-11-10T01:00:00.000Z")
+                    .field("lt", "2019-11-11T01:00:00.000Z")
+                .endObject()
+                .startObject()
+                    .field("gte", "2019-12-10T01:00:00.000Z")
+                    .field("lt", "2019-12-11T01:00:00.000Z")
+                .endObject()
+                .endArray()
+                .endObject());
+
+        doc = docMapper.parse(new SourceToParse("test", "1", json,
+                XContentType.JSON)).rootDoc();
+
+        fields = doc.getFields("date");
+        assertThat(fields.length, equalTo(3));
+        assertThat(fields[0], instanceOf(RangeFieldMapper.BinaryRangesDocValuesField.class));
+        assertThat(fields[1].toString(), equalTo("LongRange <date: [1573347600000 : 1573433999999]>"));
+        assertThat(fields[2].toString(), equalTo("LongRange <date: [1575939600000 : 1576025999999]>"));
+
+        fields = doc.getFields("date_copy");
+        assertThat(fields.length, equalTo(3));
+        assertThat(fields[0], instanceOf(RangeFieldMapper.BinaryRangesDocValuesField.class));
+        assertThat(fields[1].toString(), equalTo("LongRange <date_copy: [1573347600000 : 1573433999999]>"));
+        assertThat(fields[2].toString(), equalTo("LongRange <date_copy: [1575939600000 : 1576025999999]>"));
     }
 
     public void testCopyToFieldsInnerObjectParsing() throws Exception {

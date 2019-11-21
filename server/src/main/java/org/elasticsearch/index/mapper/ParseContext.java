@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -299,6 +301,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         public Collection<String> getIgnoredFields() {
             return in.getIgnoredFields();
         }
+
+        @Override
+        public void setStoredValue(Object value, String fieldName) {
+            in.setStoredValue(value, fieldName);
+        }
+
+        @Override
+        public Object getStoredValue(String fieldName) {
+            return in.getStoredValue(fieldName);
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
@@ -332,6 +344,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         private boolean docsReversed = false;
 
         private final Set<String> ignoredFields = new HashSet<>();
+
+        private final HashMap<String, Object> storedValues = new HashMap<String, Object>();
 
         public InternalParseContext(IndexSettings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
                                     SourceToParse source, XContentParser parser) {
@@ -495,6 +509,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         @Override
         public Collection<String> getIgnoredFields() {
             return Collections.unmodifiableCollection(ignoredFields);
+        }
+
+        @Override
+        public void setStoredValue(Object value, String fieldName) {
+            this.storedValues.put(fieldName, value);
+        }
+
+        @Override
+        public Object getStoredValue(String fieldName) {
+            return this.storedValues.get(fieldName);
         }
     }
 
@@ -660,4 +684,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      * Get dynamic mappers created while parsing.
      */
     public abstract List<Mapper> getDynamicMappers();
+
+    public abstract void setStoredValue(Object value, String fieldName);
+
+    public abstract Object getStoredValue(String fieldName);
 }

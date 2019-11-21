@@ -45,10 +45,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
@@ -310,7 +310,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected abstract void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
 
     protected void createFieldNamesField(ParseContext context, List<IndexableField> fields) {
-        FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context.docMapper()
+        FieldNamesFieldType fieldNamesFieldType = context.docMapper()
                 .metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {

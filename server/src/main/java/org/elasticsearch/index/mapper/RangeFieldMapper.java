@@ -223,7 +223,9 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
+            if (!super.equals(o)) {
+                return false;
+            }
             RangeFieldType that = (RangeFieldType) o;
             return Objects.equals(rangeType, that.rangeType) &&
             (rangeType == RangeType.DATE) ?
@@ -340,6 +342,7 @@ public class RangeFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         Range range;
+        final String currentField = context.parser().currentName();
         if (context.externalValueSet()) {
             range = context.parseExternalValue(Range.class);
         } else {
@@ -387,13 +390,29 @@ public class RangeFieldMapper extends FieldMapper {
                     }
                 }
                 range = new Range(rangeType, from, to, includeFrom, includeTo);
+
             } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
                 range = parseIpRangeFromCidr(parser);
+                context.setStoredValue(range, parser.currentName());
+            } else if (start == XContentParser.Token.END_OBJECT) {
+                // we might have read past the range definition if copy_to is configured for a field
+                // which leads to another call to the parser which is then located already at the end
+                // position of the object. Try to restore the previously parsed Range in that case
+                String fieldName = parser.currentName();
+                Object storedValue = context.getStoredValue(fieldName);
+                if (storedValue != null && storedValue instanceof Range) {
+                    range = (Range) storedValue;
+                } else {
+                    throw new MapperParsingException("error parsing field ["
+                            + name() + "], expected an object but parser was at " + start);
+                }
             } else {
                 throw new MapperParsingException("error parsing field ["
                     + name() + "], expected an object but got " + parser.currentName());
             }
         }
+        // store the range value in the context case we need to copy it elsewhere
+        context.setStoredValue(range, currentField);
         boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType.hasDocValues();
         boolean stored = fieldType.stored();

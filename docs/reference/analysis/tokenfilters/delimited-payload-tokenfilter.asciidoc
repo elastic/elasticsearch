@@ -210,7 +210,7 @@ PUT text_payloads
     "properties": {
       "text": {
         "type": "text",
-        "term_vector": "with_positions_payloads"
+        "term_vector": "with_positions_payloads",
         "analyzer": "payload_delimiter"
       }
     }

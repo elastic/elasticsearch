@@ -104,7 +104,14 @@ public class IndexLifecycleRunner {
     public void runPeriodicStep(String policy, IndexMetaData indexMetaData) {
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        final Step currentStep;
+        try {
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        } catch (Exception e) {
+            markPolicyRetrievalError(policy, indexMetaData.getIndex(), lifecycleState, e);
+            return;
+        }
+
         if (currentStep == null) {
             if (stepRegistry.policyExists(policy) == false) {
                 markPolicyDoesNotExist(policy, indexMetaData.getIndex(), lifecycleState);
@@ -194,7 +201,13 @@ public class IndexLifecycleRunner {
     public void maybeRunAsyncAction(ClusterState currentState, IndexMetaData indexMetaData, String policy, StepKey expectedStepKey) {
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        final Step currentStep;
+        try {
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        } catch (Exception e) {
+            markPolicyRetrievalError(policy, indexMetaData.getIndex(), lifecycleState, e);
+            return;
+        }
         if (currentStep == null) {
             logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized",
                 getCurrentStepKey(lifecycleState), index, policy);
@@ -237,7 +250,13 @@ public class IndexLifecycleRunner {
     public void runPolicyAfterStateChange(String policy, IndexMetaData indexMetaData) {
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        final Step currentStep;
+        try {
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        } catch (Exception e) {
+            markPolicyRetrievalError(policy, indexMetaData.getIndex(), lifecycleState, e);
+            return;
+        }
         if (currentStep == null) {
             if (stepRegistry.policyExists(policy) == false) {
                 markPolicyDoesNotExist(policy, indexMetaData.getIndex(), lifecycleState);
@@ -596,10 +615,14 @@ public class IndexLifecycleRunner {
     }
 
     private void markPolicyDoesNotExist(String policyName, Index index, LifecycleExecutionState executionState) {
-        logger.debug("policy [{}] for index [{}] does not exist, recording this in step_info for this index",
-            policyName, index.getName());
-        setStepInfo(index, policyName, getCurrentStepKey(executionState),
-            new SetStepInfoUpdateTask.ExceptionWrapper(
-                new IllegalArgumentException("policy [" + policyName + "] does not exist")));
+        markPolicyRetrievalError(policyName, index, executionState,
+            new IllegalArgumentException("policy [" + policyName + "] does not exist"));
+    }
+
+    private void markPolicyRetrievalError(String policyName, Index index, LifecycleExecutionState executionState, Exception e) {
+        logger.debug(
+            new ParameterizedMessage("unable to retrieve policy [{}] for index [{}], recording this in step_info for this index",
+            policyName, index.getName()), e);
+        setStepInfo(index, policyName, getCurrentStepKey(executionState), new SetStepInfoUpdateTask.ExceptionWrapper(e));
     }
 }

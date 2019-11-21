@@ -61,7 +61,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         } else {
             this.analyticsUsage = Collections.emptyMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
             this.inferenceUsage = in.readMap();
         } else {
             this.inferenceUsage = Collections.emptyMap();
@@ -77,7 +77,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeMap(analyticsUsage);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeMap(inferenceUsage);
         }
         out.writeInt(nodeCount);

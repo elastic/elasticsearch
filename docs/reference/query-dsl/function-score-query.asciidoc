@@ -153,8 +153,15 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
-WARNING: Scores produced by the `script_score` function must be 
-non-negative, otherwise a deprecation warning will be issued.
+[IMPORTANT]
+====
+In {es}, all document scores are positive 32-bit floating point numbers.
+
+If the `script_score` function produces a score with greater precision, it is
+converted to the nearest 32-bit float. 
+
+Similarly, scores must be non-negative. Otherwise, {es} returns an error.
+====
 
 On top of the different scripting field values and expression, the
 `_score` script parameter can be used to retrieve the score based on the

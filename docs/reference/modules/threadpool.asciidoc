@@ -52,7 +52,7 @@ There are several thread pools, but the important ones include:
 
 `listener`::
     Mainly for java client executing of action when listener threaded is set to 
-    true. Thread pool type is `scaling` with a default max of 
+    `true`. Thread pool type is `scaling` with a default max of 
     `min(10, (# of available processors)/2)`.
 
 Changing a specific thread pool can be done by setting its type-specific

@@ -92,7 +92,7 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("PUT /" + container + "/*", request)) {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
-                final String ifNoneMatch = exchange.getResponseHeaders().getFirst("If-None-Match");
+                final String ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
                 if ("*".equals(ifNoneMatch)) {
                     if (blobs.putIfAbsent(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody())) != null) {
                         sendError(exchange, RestStatus.CONFLICT);
@@ -214,12 +214,10 @@ public class AzureHttpHandler implements HttpHandler {
         }
 
         final String errorCode = toAzureErrorCode(status);
-        if (errorCode != null) {
-            // see Constants.HeaderConstants.ERROR_CODE
-            headers.add("x-ms-error-code", errorCode);
-        }
+        // see Constants.HeaderConstants.ERROR_CODE
+        headers.add("x-ms-error-code", errorCode);
 
-        if (errorCode == null || "HEAD".equals(exchange.getRequestMethod())) {
+        if ("HEAD".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(status.getStatus(), -1L);
         } else {
             final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>" + errorCode + "</Code><Message>"

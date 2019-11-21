@@ -31,7 +31,7 @@ There are several thread pools, but the important ones include:
 
 `analyze`::
     For analyze requests. Thread pool type is `fixed` with a size of 1, queue 
-    size of 16.
+    size of `16`.
 
 `write`::
     For single-document index/delete/update and bulk requests. Thread pool type

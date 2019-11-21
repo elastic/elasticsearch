@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -230,28 +231,32 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
     GEO {
         @Override
         public ValuesSource getEmpty() {
-            return ValuesSource.GeoShape.EMPTY;
+            return ValuesSource.Geo.EMPTY;
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+            throw new UnsupportedOperationException("CoreValuesSourceType.GEO is still a special case");
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            if (!(fieldContext.indexFieldData() instanceof IndexGeoShapeFieldData)) {
-                // TODO: Is this the correct exception type here?
-                throw new IllegalArgumentException("Expected geo_shape type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
-            }
-
-            return new ValuesSource.GeoShape.Fielddata((IndexGeoShapeFieldData) fieldContext.indexFieldData());
+            throw new UnsupportedOperationException("CoreValuesSourceType.GEO is still a special case");
         }
 
         @Override
         public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
-            throw new UnsupportedOperationException("CoreValuesSourceType.GEO is still a special case");
+            // when missing value is present on aggregations that support both shapes and points, geo_point will be
+            // assumed first to preserve backwards compatibility with existing behavior. If a value is not a valid geo_point
+            // then it is parsed as a geo_shape
+            try {
+                final MultiGeoValues.GeoPointValue missing = new
+                    MultiGeoValues.GeoPointValue(new GeoPoint(rawMissing.toString()));
+                return MissingValues.replaceMissing(ValuesSource.GeoPoint.EMPTY, missing);
+            } catch (ElasticsearchParseException e) {
+                return MissingValues.replaceMissing(ValuesSource.GeoShape.EMPTY,
+                    MultiGeoValues.GeoShapeValue.missing(rawMissing.toString()));
+            }
         }
     }
     ;

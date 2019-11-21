@@ -105,7 +105,7 @@ public interface Repository extends LifecycleComponent {
      * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
      * if there was an error in reading the data.
      */
-    RepositoryData getRepositoryData();
+    void getRepositoryData(ActionListener<RepositoryData> listener);
 
     /**
      * Finalizes snapshotting process
@@ -211,9 +211,10 @@ public interface Repository extends LifecycleComponent {
      * @param indexId         id of the index in the repository from which the restore is occurring
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
+     * @param listener        listener to invoke once done
      */
-    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
-
+    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
+                      ActionListener<Void> listener);
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *

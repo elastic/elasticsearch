@@ -151,6 +151,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48440")
     public void testGetUsers() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         String[] usernames = new String[] {"user1", "user2", "user3"};
@@ -203,6 +204,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // 9 users are expected to be returned
             // test_users (3): user1, user2, user3
             // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
+            logger.info(users);
             assertThat(users.size(), equalTo(9));
         }
 

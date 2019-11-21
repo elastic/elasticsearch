@@ -13,7 +13,7 @@
           ],
           "parts":{
             "policy_id":{
-              "type":"string",
+              "type":"list",
               "description":"Comma-separated list of snapshot lifecycle policies to retrieve"
             }
           }

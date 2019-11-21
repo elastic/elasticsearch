@@ -345,7 +345,7 @@ public class JobResultsProvider {
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
             listener.onFailure(new IllegalArgumentException(message));
         } else {
-            updateIndexMappingWithTermFields(indexName, mapping.type(), termFields, listener);
+            updateIndexMappingWithTermFields(indexName, termFields, listener);
         }
     }
 
@@ -375,12 +375,11 @@ public class JobResultsProvider {
         return count;
     }
 
-    private void updateIndexMappingWithTermFields(String indexName, String mappingType, Collection<String> termFields,
+    private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields,
                                                   ActionListener<Boolean> listener) {
         // Put the whole mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(mappingType, termFields)) {
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName)
-                    .setType(mappingType)
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
                 @Override

@@ -7,18 +7,18 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'en/rest-api/watcher/put-watch.asciidoc',
-        'en/security/authentication/user-cache.asciidoc',
-        'en/security/authorization/run-as-privilege.asciidoc',
-        'en/security/ccs-clients-integrations/http.asciidoc',
-        'en/rest-api/watcher/stats.asciidoc',
-        'en/watcher/example-watches/watching-time-series-data.asciidoc',
+  'en/rest-api/watcher/put-watch.asciidoc',
+  'en/security/authentication/user-cache.asciidoc',
+  'en/security/authorization/run-as-privilege.asciidoc',
+  'en/security/ccs-clients-integrations/http.asciidoc',
+  'en/rest-api/watcher/stats.asciidoc',
+  'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
 // copy xpack rest api
@@ -28,50 +28,50 @@ project.copyRestSpec.from(xpackResources) {
 }
 
 testClusters.integTest {
-    extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
-    extraConfigFile 'idp-docs-metadata.xml', xpackProject('test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
-    extraConfigFile 'testClient.crt', xpackProject('plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.authc.api_key.enabled', 'true'
-    setting 'xpack.security.authc.token.enabled', 'true'
-    // Disable monitoring exporters for the docs tests
-    setting 'xpack.monitoring.exporters._local.type', 'local'
-    setting 'xpack.monitoring.exporters._local.enabled', 'false'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.authc.realms.file.file.order', '0'
-    setting 'xpack.security.authc.realms.native.native.order', '1'
-    setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
-    setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
-    setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
-    setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
-    setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
-    setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
-    setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
-    keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
-    setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
-    setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
-    setting 'xpack.security.authc.realms.pki.pki1.order', '3'
-    setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testClient.crt" ]'
-    setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
-    setting 'xpack.security.authc.realms.saml.saml1.order', '4'
-    setting 'xpack.security.authc.realms.saml.saml1.idp.entity_id', 'https://my-idp.org'
-    setting 'xpack.security.authc.realms.saml.saml1.idp.metadata.path', 'idp-docs-metadata.xml'
-    setting 'xpack.security.authc.realms.saml.saml1.sp.entity_id', 'https://kibana.org'
-    setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
-    setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
-    setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
-    user username: 'test_admin'
+  extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
+  extraConfigFile 'idp-docs-metadata.xml', xpackProject('test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
+  extraConfigFile 'testClient.crt', xpackProject('plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  // Disable monitoring exporters for the docs tests
+  setting 'xpack.monitoring.exporters._local.type', 'local'
+  setting 'xpack.monitoring.exporters._local.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
+  setting 'xpack.security.authc.realms.native.native.order', '1'
+  setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
+  keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
+  setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.pki.pki1.order', '3'
+  setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testClient.crt" ]'
+  setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
+  setting 'xpack.security.authc.realms.saml.saml1.order', '4'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.entity_id', 'https://my-idp.org'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.metadata.path', 'idp-docs-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.entity_id', 'https://kibana.org'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
+  user username: 'test_admin'
 }
 
 
 buildRestTests.docs = fileTree(projectDir) {
-    // No snippets in here!
-    exclude 'build.gradle'
-    // That is where the snippets go, not where they come from!
-    exclude 'build'
-    // These file simply doesn't pass yet. We should figure out how to fix them.
-    exclude 'en/watcher/reference/actions.asciidoc'
-    exclude 'en/rest-api/security/ssl.asciidoc'
+  // No snippets in here!
+  exclude 'build.gradle'
+  // That is where the snippets go, not where they come from!
+  exclude 'build'
+  // These file simply doesn't pass yet. We should figure out how to fix them.
+  exclude 'en/watcher/reference/actions.asciidoc'
+  exclude 'en/rest-api/security/ssl.asciidoc'
 }
 
 Map<String, String> setups = buildRestTests.setups
@@ -110,7 +110,7 @@ setups['my_inactive_watch'] = '''
   - match: { _id: "my_watch" }
 '''
 setups['my_active_watch'] = setups['my_inactive_watch'].replace(
-        'active: false', 'active: true')
+  'active: false', 'active: true')
 
 // Used by SQL because it looks SQL-ish
 setups['library'] = '''

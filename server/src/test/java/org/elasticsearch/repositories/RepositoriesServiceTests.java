@@ -149,8 +149,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public RepositoryData getRepositoryData() {
-            return null;
+        public void getRepositoryData(ActionListener<RepositoryData> listener) {
+            listener.onResponse(null);
         }
 
         @Override
@@ -205,7 +205,8 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
-                                 RecoveryState recoveryState) {
+                                 RecoveryState recoveryState, ActionListener<Void> listener) {
+
         }
 
         @Override

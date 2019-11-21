@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.NamedQuery;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -65,12 +66,8 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
     }
 
     private Query getQuery(SearchContext context) {
-        if (context.isNested()) {
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            for (Query q : context.parsedQuery().getNestedQueries()) {
-                builder.add(q, BooleanClause.Occur.SHOULD);
-            }
-            return builder.build();
+        if (context instanceof SubSearchContext) {
+            return context.query();
         }
         Query q = context.parsedQuery().query();
         // If the query has a named post filter then we need to include that as well

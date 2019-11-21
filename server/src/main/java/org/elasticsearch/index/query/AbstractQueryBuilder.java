@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -98,7 +97,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @Override
     public final Query toQuery(QueryShardContext context) throws IOException {
         Query query = doToQuery(context);
-        ESToParentBlockJoinQuery nested = query instanceof ESToParentBlockJoinQuery ? (ESToParentBlockJoinQuery) query : null;
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
                 if (query instanceof SpanQuery) {
@@ -115,9 +113,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                     query = new NamedQuery(queryName, query);
                 }
             }
-        }
-        if (nested != null) {
-            context.addNestedQuery(nested.getChildQuery());
         }
         return query;
     }

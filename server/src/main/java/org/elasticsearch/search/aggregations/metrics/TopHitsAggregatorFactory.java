@@ -19,7 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -119,18 +124,41 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         if (highlightBuilder != null) {
             subSearchContext.highlight(highlightBuilder.build(searchContext.getQueryShardContext()));
         }
-        subSearchContext.setNested(checkNested(parent));
+        if (isNested(parent)) {
+            Query childContextQuery = findChildQueries(searchContext.parsedQuery().query());
+            if (childContextQuery != null) {
+                subSearchContext.setQuery(childContextQuery);
+            }
+        }
         return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent,
                 pipelineAggregators, metaData);
     }
 
-    private static boolean checkNested(Aggregator parent) {
+    private static boolean isNested(Aggregator parent) {
         for (Aggregator a = parent; a != null; a = a.parent()) {
             if (a instanceof NestedAggregator) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static Query findChildQueries(Query parent) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        parent.visit(new QueryVisitor() {
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                if (parent instanceof ESToParentBlockJoinQuery) {
+                    builder.add(((ESToParentBlockJoinQuery)parent).getChildQuery(), BooleanClause.Occur.SHOULD);
+                }
+                return super.getSubVisitor(occur, parent);
+            }
+        });
+        BooleanQuery bq = builder.build();
+        if (bq.clauses().size() > 0) {
+            return bq;
+        }
+        return null;
     }
 
 }

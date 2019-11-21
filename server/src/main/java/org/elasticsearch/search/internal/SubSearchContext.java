@@ -205,6 +205,10 @@ public class SubSearchContext extends FilteredSearchContext {
         return query;
     }
 
+    public void setQuery(Query query) {
+        this.query = query;
+    }
+
     @Override
     public SearchContext trackScores(boolean trackScores) {
         this.trackScores = trackScores;

@@ -904,11 +904,8 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(highlightField.getFragments().length, equalTo(1));
         assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>comment</em>"));
 
-        // Can't explain nested hit with the main query, since both are in a different scopes, also the nested doc may not
-        // even have matched with the main query.
-        // If top_hits would have a query option then we can explain that query
         Explanation explanation = searchHit.getExplanation();
-        assertFalse(explanation.isMatch());
+        assertTrue(explanation.isMatch());
 
         // Returns the version of the root document. Nested docs don't have a separate version
         long version = searchHit.getVersion();

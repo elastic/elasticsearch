@@ -123,7 +123,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         String runtimeJavaVersionDetails = gradleJavaVersionDetails;
         JavaVersion runtimeJavaVersionEnum = JavaVersion.current();
         File gradleJavaHome = Jvm.current().getJavaHome();
-        boolean inFipsJvm = BuildParams.isInFipsJvm();
 
         try {
             if (Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
@@ -155,8 +154,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                 || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
                 writer.write("  Compiler JDK Version  : " + compilerJavaVersionEnum + " (" + compilerJavaVersionDetails + ")\n");
                 writer.write("  Compiler java.home    : " + compilerJavaHome + "\n");
-                writer.write("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" + runtimeJavaVersionDetails + ")");
-                writer.write(inFipsJvm ? " (in FIPS 140 mode)\n" : "\n");
+                writer.write("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" + runtimeJavaVersionDetails + ")\n");
                 writer.write("  Runtime java.home     : " + runtimeJavaHome + "\n");
                 writer.write("  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion)
                     + " (" + gradleJavaVersionDetails + ")\n");

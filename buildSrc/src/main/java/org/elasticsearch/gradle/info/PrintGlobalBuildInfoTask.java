@@ -50,6 +50,7 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
         getLogger().quiet("Elasticsearch Build Hamster says Hello!");
         getLogger().quiet(getFileText(getBuildInfoFile()).asString());
         getLogger().quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
+        getLogger().quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());
         getLogger().quiet("=======================================");
 
         setGlobalProperties();

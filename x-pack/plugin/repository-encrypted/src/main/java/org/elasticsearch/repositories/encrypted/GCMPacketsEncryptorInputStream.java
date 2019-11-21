@@ -35,7 +35,7 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
     private final byte[] packetTrailByteBuffer;
     private final SecretKey secretKey;
     private final IvRandomUniqueGenerator ivGenerator;
-    private final List<EncryptedBlobMetadata.PacketInfo> packetInfoList;
+    private final List<BlobEncryptionMetadata.PacketInfo> packetInfoList;
 
     private int bytesRemainingInPacket;
     private byte[] packetIv;
@@ -181,7 +181,7 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         packetCipher = getPacketEncryptionCipher(packetIv);
     }
 
-    public List<EncryptedBlobMetadata.PacketInfo> getEncryptionPacketMetadata() {
+    public List<BlobEncryptionMetadata.PacketInfo> getEncryptionPacketMetadata() {
         if (false == closed) {
             throw new IllegalStateException();
         }
@@ -194,9 +194,8 @@ public class GCMPacketsEncryptorInputStream extends FilterInputStream {
         }
     }
 
-    private void finishPacket(byte[] authenticationTag) throws IOException {
-        packetInfoList.add(new EncryptedBlobMetadata.PacketInfo(packetIv, authenticationTag,
-                maxPacketSizeInBytes - bytesRemainingInPacket));
+    private void finishPacket(byte[] authTag) throws IOException {
+        packetInfoList.add(new BlobEncryptionMetadata.PacketInfo(packetIv, authTag, maxPacketSizeInBytes - bytesRemainingInPacket));
         bytesRemainingInPacket = maxPacketSizeInBytes;
         packetIv = ivGenerator.newUniqueIv();
         packetCipher = getPacketEncryptionCipher(packetIv);

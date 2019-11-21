@@ -13,14 +13,14 @@ import java.io.InputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.util.List;
+import java.util.Iterator;
 
 public class GCMPacketsDecryptorInputStream extends FilterInputStream {
 
     private final int maxPacketSizeInBytes;
     private final int authenticationTagSizeInBytes;
     private final SecretKey secretKey;
-    private final List<EncryptedBlobMetadata.PacketInfo> packetInfoList;
+    private final Iterator<BlobEncryptionMetadata.PacketInfo> packetInfoIterator;
     private final byte[] packetBuffer;
 
     private int packetIndex;
@@ -29,14 +29,14 @@ public class GCMPacketsDecryptorInputStream extends FilterInputStream {
     private boolean closed;
 
     protected GCMPacketsDecryptorInputStream(InputStream in, SecretKey secretKey, int maxPacketSizeInBytes,
-                                             int authenticationTagSizeInBytes, List<EncryptedBlobMetadata.PacketInfo> packetInfoList) {
+                                             int authenticationTagSizeInBytes,
+                                             Iterator<BlobEncryptionMetadata.PacketInfo> packetInfoIterator) {
         super(in);
         this.secretKey = secretKey;
         this.maxPacketSizeInBytes = maxPacketSizeInBytes;
         this.authenticationTagSizeInBytes = authenticationTagSizeInBytes;
-        this.packetInfoList = packetInfoList;
+        this.packetInfoIterator = packetInfoIterator;
         this.packetBuffer = new byte[maxPacketSizeInBytes + authenticationTagSizeInBytes];
-        this.packetIndex = 0;
         this.bufferStartOffset = 0;
         this.bufferEndOffset = 0;
         this.closed = false;
@@ -127,10 +127,10 @@ public class GCMPacketsDecryptorInputStream extends FilterInputStream {
     }
 
     private int readAndDecryptNextPacket() throws IOException {
-        if (packetIndex == packetInfoList.size()) {
+        if (false == packetInfoIterator.hasNext()) {
             return -1;
         }
-        EncryptedBlobMetadata.PacketInfo currentPacketInfo = packetInfoList.get(packetIndex++);
+        BlobEncryptionMetadata.PacketInfo currentPacketInfo = packetInfoIterator.next();
         int packetSize = currentPacketInfo.getSizeInBytes();
         if (packetSize > maxPacketSizeInBytes) {
             throw new IllegalArgumentException();
@@ -140,10 +140,10 @@ public class GCMPacketsDecryptorInputStream extends FilterInputStream {
         if (bytesRead != packetSize) {
             throw new IllegalArgumentException();
         }
-        if (currentPacketInfo.getAuthenticationTag().length != authenticationTagSizeInBytes) {
+        if (currentPacketInfo.getAuthTag().length != authenticationTagSizeInBytes) {
             throw new IllegalArgumentException();
         }
-        System.arraycopy(currentPacketInfo.getAuthenticationTag(), 0, packetBuffer, packetSize, authenticationTagSizeInBytes);
+        System.arraycopy(currentPacketInfo.getAuthTag(), 0, packetBuffer, packetSize, authenticationTagSizeInBytes);
         Cipher packetCipher = getPacketDecryptionCipher(currentPacketInfo.getIv());
         final int bytesDecrypted;
         try {

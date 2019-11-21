@@ -38,7 +38,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -105,48 +104,44 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     final void backgroundSync(ShardId shardId, String primaryAllocationId, long primaryTerm, RetentionLeases retentionLeases) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
-            final Request request = new Request(shardId, retentionLeases);
-            final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_background_sync", request);
-            transportService.sendChildRequest(clusterService.localNode(), transportPrimaryAction,
-                new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
-                task,
-                transportOptions,
-                new TransportResponseHandler<ReplicationResponse>() {
-                    @Override
-                    public ReplicationResponse read(StreamInput in) throws IOException {
-                        return newResponseInstance(in);
-                    }
+        final Request request = new Request(shardId, retentionLeases);
+        final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_background_sync", request);
+        transportService.sendChildRequest(clusterService.localNode(), transportPrimaryAction,
+            new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
+            task,
+            transportOptions,
+            new TransportResponseHandler<ReplicationResponse>() {
+                @Override
+                public ReplicationResponse read(StreamInput in) throws IOException {
+                    return newResponseInstance(in);
+                }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
 
-                    @Override
-                    public void handleResponse(ReplicationResponse response) {
-                        task.setPhase("finished");
-                        taskManager.unregister(task);
-                    }
+                @Override
+                public void handleResponse(ReplicationResponse response) {
+                    task.setPhase("finished");
+                    taskManager.unregister(task);
+                }
 
-                    @Override
-                    public void handleException(TransportException e) {
-                        task.setPhase("finished");
-                        taskManager.unregister(task);
-                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
-                            // node shutting down
-                            return;
-                        }
-                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
-                            // the shard is closed
-                            return;
-                        }
-                        getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
+                @Override
+                public void handleException(TransportException e) {
+                    task.setPhase("finished");
+                    taskManager.unregister(task);
+                    if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
+                        // node shutting down
+                        return;
                     }
-                });
-        }
+                    if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
+                        // the shard is closed
+                        return;
+                    }
+                    getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
+                }
+            });
     }
 
     @Override

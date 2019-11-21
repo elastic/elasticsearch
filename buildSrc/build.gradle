@@ -221,7 +221,7 @@ if (project != rootProject) {
   task integTest(type: Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
-    onlyIf { Boolean.parseBoolean(System.getProperty("tests.fips.enabled")) == false }
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
     maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
   check.dependsOn(integTest)

@@ -26,6 +26,7 @@ public class BuildParams {
     private static JavaVersion gradleJavaVersion;
     private static JavaVersion compilerJavaVersion;
     private static JavaVersion runtimeJavaVersion;
+    private static Boolean inFipsJvm;
     private static String gitRevision;
     private static ZonedDateTime buildDate;
     private static String testSeed;
@@ -81,6 +82,11 @@ public class BuildParams {
     @ExecutionTime
     public static JavaVersion getRuntimeJavaVersion() {
         return value(runtimeJavaVersion);
+    }
+
+    @ExecutionTime
+    public static Boolean isInFipsJvm() {
+        return value(inFipsJvm);
     }
 
     public static String getGitRevision() {
@@ -190,6 +196,10 @@ public class BuildParams {
 
         public void setRuntimeJavaVersion(JavaVersion runtimeJavaVersion) {
             BuildParams.runtimeJavaVersion = requireNonNull(runtimeJavaVersion);
+        }
+
+        public void setInFipsJvm(boolean inFipsJvm) {
+            BuildParams.inFipsJvm = inFipsJvm;
         }
 
         public void setGitRevision(String gitRevision) {

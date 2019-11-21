@@ -101,6 +101,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setIsCi(System.getenv("JENKINS_URL") != null);
             params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
             params.setDefaultParallel(findDefaultParallel(project));
+            params.setInFipsJvm(isInFipsJvm());
         });
 
         project.allprojects(p -> {
@@ -149,6 +150,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static String getJavaHomeEnvVarName(String version) {
         return "JAVA" + version + "_HOME";
+    }
+
+    private static boolean isInFipsJvm() {
+        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 
     private static String getResourceContents(String resourcePath) {

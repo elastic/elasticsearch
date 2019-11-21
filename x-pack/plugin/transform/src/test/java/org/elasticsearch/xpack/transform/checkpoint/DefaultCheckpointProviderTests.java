@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor.AuditExpectation;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -32,13 +32,13 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     private Client client;
 
     private MockTransformAuditor transformAuditor;
-    private TransformConfigManager transformConfigManager;
+    private IndexBasedTransformConfigManager transformConfigManager;
     private Logger checkpointProviderlogger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
     @Before
     public void setUpMocks() throws IllegalAccessException {
         client = mock(Client.class);
-        transformConfigManager = mock(TransformConfigManager.class);
+        transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = new MockTransformAuditor();
     }
 

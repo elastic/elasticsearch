@@ -156,46 +156,39 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
     protected void getIndexCheckpoints(ActionListener<Map<String, long[]>> listener) {
         // 1st get index to see the indexes the user has access to
-        GetIndexRequest getIndexRequest = new GetIndexRequest()
-            .indices(transformConfig.getSource().getIndex())
+        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(transformConfig.getSource().getIndex())
             .features(new GetIndexRequest.Feature[0])
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
-        ClientHelper
-            .executeWithHeadersAsync(
-                transformConfig.getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
-                client,
-                GetIndexAction.INSTANCE,
-                getIndexRequest,
-                ActionListener.wrap(getIndexResponse -> {
-                    Set<String> userIndices = getIndexResponse.getIndices() != null
-                        ? new HashSet<>(Arrays.asList(getIndexResponse.getIndices()))
-                        : Collections.emptySet();
-                    // 2nd get stats request
-                    ClientHelper
-                        .executeAsyncWithOrigin(
-                            client,
-                            ClientHelper.TRANSFORM_ORIGIN,
-                            IndicesStatsAction.INSTANCE,
-                            new IndicesStatsRequest()
-                                .indices(transformConfig.getSource().getIndex())
-                                .clear()
-                                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN),
-                            ActionListener.wrap(response -> {
-                                if (response.getFailedShards() != 0) {
-                                    listener
-                                        .onFailure(
-                                            new CheckpointException("Source has [" + response.getFailedShards() + "] failed shards")
-                                        );
-                                    return;
-                                }
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            GetIndexAction.INSTANCE,
+            getIndexRequest,
+            ActionListener.wrap(getIndexResponse -> {
+                Set<String> userIndices = getIndexResponse.getIndices() != null
+                    ? new HashSet<>(Arrays.asList(getIndexResponse.getIndices()))
+                    : Collections.emptySet();
+                // 2nd get stats request
+                ClientHelper.executeAsyncWithOrigin(
+                    client,
+                    ClientHelper.TRANSFORM_ORIGIN,
+                    IndicesStatsAction.INSTANCE,
+                    new IndicesStatsRequest().indices(transformConfig.getSource().getIndex())
+                        .clear()
+                        .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN),
+                    ActionListener.wrap(response -> {
+                        if (response.getFailedShards() != 0) {
+                            listener.onFailure(new CheckpointException("Source has [" + response.getFailedShards() + "] failed shards"));
+                            return;
+                        }
 
-                                listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices));
-                            }, e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e)))
-                        );
-                }, e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e)))
-            );
+                        listener.onResponse(extractIndexCheckPoints(response.getShards(), userIndices));
+                    }, e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e)))
+                );
+            }, e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e)))
+        );
     }
 
     static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices) {
@@ -242,12 +235,11 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         // create the final structure
         Map<String, long[]> checkpointsByIndexReduced = new TreeMap<>();
 
-        checkpointsByIndex
-            .forEach(
-                (indexName, checkpoints) -> {
-                    checkpointsByIndexReduced.put(indexName, checkpoints.values().stream().mapToLong(l -> l).toArray());
-                }
-            );
+        checkpointsByIndex.forEach(
+            (indexName, checkpoints) -> {
+                checkpointsByIndexReduced.put(indexName, checkpoints.values().stream().mapToLong(l -> l).toArray());
+            }
+        );
 
         return checkpointsByIndexReduced;
     }
@@ -263,8 +255,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
         TransformCheckpointingInfoBuilder checkpointingInfoBuilder = new TransformCheckpointingInfoBuilder();
 
-        checkpointingInfoBuilder
-            .setLastCheckpoint(lastCheckpoint)
+        checkpointingInfoBuilder.setLastCheckpoint(lastCheckpoint)
             .setNextCheckpoint(nextCheckpoint)
             .setNextCheckpointPosition(nextCheckpointPosition)
             .setNextCheckpointProgress(nextCheckpointProgress);
@@ -272,8 +263,9 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
         long timestamp = System.currentTimeMillis();
 
         getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
-            checkpointingInfoBuilder
-                .setSourceCheckpoint(new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L));
+            checkpointingInfoBuilder.setSourceCheckpoint(
+                new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L)
+            );
             listener.onResponse(checkpointingInfoBuilder.build());
         }, listener::onFailure));
     }
@@ -294,18 +286,18 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
         // <3> got the source checkpoint, notify the user
         ActionListener<Map<String, long[]>> checkpointsByIndexListener = ActionListener.wrap(checkpointsByIndex -> {
-            checkpointingInfoBuilder
-                .setSourceCheckpoint(new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L));
+            checkpointingInfoBuilder.setSourceCheckpoint(
+                new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L)
+            );
             listener.onResponse(checkpointingInfoBuilder.build());
         }, e -> {
-            logger
-                .debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "[{}] failed to retrieve source checkpoint for transform",
-                        transformConfig.getId()
-                    ),
-                    e
-                );
+            logger.debug(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[{}] failed to retrieve source checkpoint for transform",
+                    transformConfig.getId()
+                ),
+                e
+            );
             listener.onFailure(new CheckpointException("Failure during source checkpoint info retrieval", e));
         });
 
@@ -314,16 +306,15 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             checkpointingInfoBuilder.setNextCheckpoint(nextCheckpointObj);
             getIndexCheckpoints(checkpointsByIndexListener);
         }, e -> {
-            logger
-                .debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "[{}] failed to retrieve next checkpoint [{}]",
-                        transformConfig.getId(),
-                        lastCheckpointNumber + 1
+            logger.debug(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[{}] failed to retrieve next checkpoint [{}]",
+                    transformConfig.getId(),
+                    lastCheckpointNumber + 1
 
-                    ),
-                    e
-                );
+                ),
+                e
+            );
             listener.onFailure(new CheckpointException("Failure during next checkpoint info retrieval", e));
         });
 
@@ -332,15 +323,14 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             checkpointingInfoBuilder.lastCheckpoint = lastCheckpointObj;
             transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1, nextCheckpointListener);
         }, e -> {
-            logger
-                .debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "[{}] failed to retrieve last checkpoint [{}]",
-                        transformConfig.getId(),
-                        lastCheckpointNumber
-                    ),
-                    e
-                );
+            logger.debug(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[{}] failed to retrieve last checkpoint [{}]",
+                    transformConfig.getId(),
+                    lastCheckpointNumber
+                ),
+                e
+            );
             listener.onFailure(new CheckpointException("Failure during last checkpoint info retrieval", e));
         });
 

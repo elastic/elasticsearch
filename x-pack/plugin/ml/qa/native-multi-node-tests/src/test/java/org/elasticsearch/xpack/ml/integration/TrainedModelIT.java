@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.License;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -193,6 +194,7 @@ public class TrainedModelIT extends ESRestTestCase {
                 .setVersion(Version.CURRENT)
                 .setCreateTime(Instant.now())
                 .setEstimatedOperations(0)
+                .setLicenseLevel(License.OperationMode.PLATINUM.description())
                 .setEstimatedHeapMemory(0)
                 .build()
                 .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));

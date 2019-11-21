@@ -66,7 +66,8 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomBoolean() ? null : TrainedModelInputTests.createRandomInput(),
             randomBoolean() ? null : randomNonNegativeLong(),
-            randomBoolean() ? null : randomNonNegativeLong());
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomFrom("platinum", "basic"));
 
     }
 

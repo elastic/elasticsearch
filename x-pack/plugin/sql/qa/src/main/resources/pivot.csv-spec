@@ -2,6 +2,7 @@
 
 averageWithOneValue
 schema::languages:bt|'F':d
+// tag::averageWithOneValue
 SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F'));
 
    languages   |       'F'        
@@ -12,6 +13,8 @@ null           |62140.666666666664
 3              |53660.0           
 4              |49291.5           
 5              |46705.555555555555
+
+// end::averageWithOneValue
 ;
 
 averageWithAliasAndOneValue
@@ -58,6 +61,7 @@ null           |48396.28571428572|62140.666666666664
 
 averageWithTwoValuesAndAlias
 schema::languages:bt|XY:d|XX:d
+// tag::averageWithTwoValuesAndAlias
 SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M' AS "XY", 'F' "XX"));
 
    languages   |        XY       |        XX        
@@ -68,6 +72,8 @@ null           |48396.28571428572|62140.666666666664
 3              |51741.90909090909|53660.0           
 4              |47058.90909090909|49291.5           
 5              |39052.875        |46705.555555555555
+
+// end::averageWithTwoValuesAndAlias
 ;
 
 averageWithThreeValuesIncludingNull
@@ -129,6 +135,7 @@ null           |48396.28571428572|62140.666666666664
 
 averageWithOneValueAndOrder
 schema::languages:bt|'F':d
+// tag::averageWithOneValueAndOrder
 SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F')) ORDER BY languages DESC LIMIT 4;
    languages   |       'F'
 ---------------+------------------
@@ -136,6 +143,8 @@ SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary
 4              |49291.5
 3              |53660.0
 2              |50684.4
+
+// end::averageWithOneValueAndOrder
 ;
 
 averageWithTwoValuesAndOrderDesc
@@ -178,6 +187,7 @@ null           |48396.28571428572|62140.666666666664
 
 sumWithoutSubquery
 schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|1:i|2:i
+// tag::sumWithoutSubquery
 SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (1, 2)) LIMIT 5;
 
      birth_date      |    emp_no     |  first_name   |    gender     |      hire_date      |   last_name   |       1       |       2
@@ -187,6 +197,8 @@ null                 |10043          |Yishay         |M              |1990-10-20
 null                 |10044          |Mingsen        |F              |1994-05-21 00:00:00.0|Casley         |39728          |null
 1952-04-19 00:00:00.0|10009          |Sumant         |F              |1985-02-18 00:00:00.0|Peac           |66174          |null
 1953-01-07 00:00:00.0|10067          |Claudi         |M              |1987-03-04 00:00:00.0|Stavenow       |null           |52044
+
+// end::sumWithoutSubquery
 ;
 
 averageWithOneValueAndMath

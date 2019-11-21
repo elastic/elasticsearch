@@ -29,9 +29,6 @@
   - do:
         indices.create:
           index: test3
-          body:
-              mappings:
-                properties:
 
   - do:
       field_caps:

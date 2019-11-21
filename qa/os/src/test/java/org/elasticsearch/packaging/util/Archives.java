@@ -263,6 +263,7 @@ public class Archives {
             "EXPECT\n" +
             ")\"";
 
+        sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
         return sh.runIgnoreExitCode(script);
     }
 

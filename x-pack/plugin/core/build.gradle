@@ -30,7 +30,6 @@ dependencies {
   compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
 
   compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile 'commons-io:commons-io:2.5'
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
 

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.apache.commons.io.input.BoundedInputStream;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.inference.utils.SimpleBoundedInputStream;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,7 +66,7 @@ public final class InferenceToXContentCompressor {
     static BytesReference inflate(String compressedString, long streamSize) throws IOException {
         byte[] compressedBytes = Base64.getDecoder().decode(compressedString.getBytes(StandardCharsets.UTF_8));
         InputStream gzipStream = new GZIPInputStream(new BytesArray(compressedBytes).streamInput(), BUFFER_SIZE);
-        InputStream inflateStream = new BoundedInputStream(gzipStream, streamSize);
+        InputStream inflateStream = new SimpleBoundedInputStream(gzipStream, streamSize);
         return Streams.readFully(inflateStream);
     }
 

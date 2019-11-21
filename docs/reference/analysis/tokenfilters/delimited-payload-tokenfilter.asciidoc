@@ -24,9 +24,7 @@ https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache
 .Payloads
 ====
 A payload is user-defined binary data associated with a token position and
-stored as base64-encoded bytes. Payloads are often used with the
-<<query-dsl-script-score-query,`script_score`>> query to calculate custom scores
-for documents during a search.
+stored as base64-encoded bytes.
 
 {es} does not store token payloads by default. To store payloads, you must:
 

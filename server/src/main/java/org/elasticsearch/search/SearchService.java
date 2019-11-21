@@ -1026,7 +1026,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 request::nowInMillis, request.getClusterAlias());
             Rewriteable.rewrite(request.getRewriteable(), context, false);
             FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-            MinAndMax minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+            MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
             if (canRewriteToMatchNone(request.source())) {
                 QueryBuilder queryBuilder = request.source().query();
                 return new CanMatchResponse(queryBuilder instanceof MatchNoneQueryBuilder == false, minMax);
@@ -1093,7 +1093,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final class CanMatchResponse extends SearchPhaseResult {
         private final boolean canMatch;
-        private final MinAndMax minAndMax;
+        private final MinAndMax<?> minAndMax;
 
         public CanMatchResponse(StreamInput in) throws IOException {
             super(in);
@@ -1105,7 +1105,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
 
-        public CanMatchResponse(boolean canMatch, MinAndMax minAndMax) {
+        public CanMatchResponse(boolean canMatch, MinAndMax<?> minAndMax) {
             this.canMatch = canMatch;
             this.minAndMax = minAndMax;
         }
@@ -1122,7 +1122,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return canMatch;
         }
 
-        public MinAndMax minAndMax() {
+        public MinAndMax<?> minAndMax() {
             return minAndMax;
         }
     }

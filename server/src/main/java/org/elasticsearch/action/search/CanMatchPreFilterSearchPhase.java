@@ -23,7 +23,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -36,6 +35,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -117,7 +117,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     private static List<SearchShardIterator> sortShards(GroupShardsIterator<SearchShardIterator> shardsIts,
-                                                        MinAndMax[] minAndMaxes,
+                                                        MinAndMax<?>[] minAndMaxes,
                                                         SortOrder order) {
         return IntStream.range(0, shardsIts.size())
             .boxed()
@@ -126,38 +126,20 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             .collect(Collectors.toList());
     }
 
-    private static boolean shouldSortShards(MinAndMax[] minAndMaxes) {
+    private static boolean shouldSortShards(MinAndMax<?>[] minAndMaxes) {
         return Arrays.stream(minAndMaxes).anyMatch(Objects::nonNull);
     }
 
     private static Comparator<Integer> shardComparator(GroupShardsIterator<SearchShardIterator> shardsIts,
-                                                       MinAndMax[] minAndMaxes,
+                                                       MinAndMax<?>[] minAndMaxes,
                                                        SortOrder order) {
-        final Comparator<MinAndMax> bestComparator = MinAndMax.getComparator(order);
-        return (a, b) -> compareShardSortValues(shardsIts.get(a).shardId(), shardsIts.get(b).shardId(),
-            minAndMaxes[a], minAndMaxes[b], bestComparator);
-    }
-
-    static int compareShardSortValues(ShardId s1, ShardId s2, MinAndMax m1, MinAndMax m2, Comparator<MinAndMax> minMaxCmp) {
-        final int cmp;
-        if (m1 == m2) {
-            cmp = 0;
-        } else if (m1 == null || m2 == null) {
-            // sort null values last
-            if (m1 == null) {
-                cmp = -1;
-            } else {
-                cmp = 1;
-            }
-        } else {
-            cmp = minMaxCmp.compare(m1, m2);
-        }
-        return cmp != 0 ? cmp : s1.compareTo(s2);
+        final Comparator<Integer> comparator = Comparator.comparing(index -> minAndMaxes[index],  MinAndMax.getComparator(order));
+        return comparator.thenComparing(index -> shardsIts.get(index).shardId());
     }
 
     private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {
         private final FixedBitSet possibleMatches;
-        private final MinAndMax[] minAndMaxes;
+        private final MinAndMax<?>[] minAndMaxes;
         private int numPossibleMatches;
 
         CanMatchSearchPhaseResults(int size) {
@@ -182,7 +164,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             consumeResult(shardIndex, true, null);
         }
 
-        synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax minAndMax) {
+        synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax) {
             if (canMatch) {
                 possibleMatches.set(shardIndex);
                 numPossibleMatches++;

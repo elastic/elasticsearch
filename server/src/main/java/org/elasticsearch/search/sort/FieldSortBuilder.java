@@ -396,22 +396,22 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     /**
      * Return a {@link Function} that converts a serialized point into a {@link Number} according to the provided
-     * {@link NumberFieldType}.
+     * {@link SortField}. This is needed for {@link SortField} that converts values from one type to another using
+     * {@link FieldSortBuilder#setNumericType(String)} )} (e.g.: long to double).
      */
     private static Function<byte[], Comparable> numericPointConverter(SortField sortField, NumberFieldType numberFieldType) {
-        Function<byte[], Number> converter = v -> numberFieldType.parsePoint(v);
         switch (IndexSortConfig.getSortFieldType(sortField)) {
             case LONG:
-                return v -> converter.apply(v).longValue();
+                return v -> numberFieldType.parsePoint(v).longValue();
 
             case INT:
-                return v -> converter.apply(v).intValue();
+                return v -> numberFieldType.parsePoint(v).intValue();
 
             case DOUBLE:
-                return v -> converter.apply(v).doubleValue();
+                return v -> numberFieldType.parsePoint(v).doubleValue();
 
             case FLOAT:
-                return v -> converter.apply(v).floatValue();
+                return v -> numberFieldType.parsePoint(v).floatValue();
 
             default:
                 return v -> null;
@@ -439,7 +439,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
      * and configurations return <code>null</code>.
      */
-    public static MinAndMax getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
+    public static MinAndMax<?> getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
         SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
         SortField sortField = sort.sort.getSort()[0];
         if (sortField.getField() == null) {
@@ -469,7 +469,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 }
                 final Comparable min = converter.apply(PointValues.getMinPackedValue(reader, fieldName));
                 final Comparable max = converter.apply(PointValues.getMaxPackedValue(reader, fieldName));
-                return new MinAndMax(min, max);
+                return MinAndMax.newMinMax(min, max);
 
             case STRING:
             case STRING_VAL:
@@ -478,7 +478,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     if (terms == null) {
                         return null;
                     }
-                    return terms.getMin() != null ? new MinAndMax(terms.getMin(), terms.getMax()) : null;
+                    return terms.getMin() != null ? MinAndMax.newMinMax(terms.getMin(), terms.getMax()) : null;
                 }
                 break;
         }

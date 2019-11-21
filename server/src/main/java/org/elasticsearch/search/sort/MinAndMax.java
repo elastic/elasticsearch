@@ -31,18 +31,18 @@ import java.util.Objects;
 /**
  * A class that encapsulates a minimum and a maximum {@link Comparable}.
  */
-public class MinAndMax implements Writeable {
-    private final Comparable minValue;
-    private final Comparable maxValue;
+public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
+    private final T minValue;
+    private final T maxValue;
 
-    public MinAndMax(Comparable minValue, Comparable maxValue) {
+    private MinAndMax(T minValue, T maxValue) {
         this.minValue = Objects.requireNonNull(minValue);
         this.maxValue = Objects.requireNonNull(maxValue);
     }
 
     public MinAndMax(StreamInput in) throws IOException {
-        this.minValue = Lucene.readSortValue(in);
-        this.maxValue = Lucene.readSortValue(in);
+        this.minValue = (T) Lucene.readSortValue(in);
+        this.maxValue = (T) Lucene.readSortValue(in);
     }
 
     @Override
@@ -54,27 +54,30 @@ public class MinAndMax implements Writeable {
     /**
      * Return the minimum value.
      */
-    public Comparable getMin() {
+    public T getMin() {
         return minValue;
     }
 
     /**
      * Return the maximum value.
      */
-    public Comparable getMax() {
+    public T getMax() {
         return maxValue;
+    }
+
+    public static <T extends Comparable<? super T>> MinAndMax<T> newMinMax(T min, T max) {
+        return new MinAndMax<>(min, max);
     }
 
     /**
      * Return a {@link Comparator} for {@link MinAndMax} values according to the provided {@link SortOrder}.
      */
-    public static Comparator<MinAndMax> getComparator(SortOrder order) {
-        final Comparator<MinAndMax> cmp = (a, b) -> order == SortOrder.ASC  ?
-            final Comparator<MinAndMax> cmp = order == SortOrder.ASC  ?
-                  Comparator.comparing(MinAndMax::getMin) :  Comparator.comparing(MinAndMax::getMax);
-        if  (order == SortOrder.DESC) {
-            return cmp.reversed();
+    public static Comparator<MinAndMax<?>> getComparator(SortOrder order) {
+        Comparator<MinAndMax> cmp = order == SortOrder.ASC  ?
+            Comparator.comparing(v -> (Comparable) v.getMin()) : Comparator.comparing(v -> (Comparable) v.getMax());
+        if (order == SortOrder.DESC) {
+            cmp = cmp.reversed();
         }
-        return cmp;
+        return Comparator.nullsLast(cmp);
     }
 }

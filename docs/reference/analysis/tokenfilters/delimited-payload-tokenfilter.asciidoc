@@ -28,13 +28,12 @@ stored as base64-encoded bytes.
 
 {es} does not store token payloads by default. To store payloads, you must:
 
+* Set the <<term-vector,`term_vector`>> mapping parameter to
+  `with_positions_payloads` or `with_positions_offsets_payloads` for any field
+  storing payloads.
+* Use an index analyzer that includes the `delimited_payload` filter
 
-* Set mapping parameters as follows for any field storing payloads:
-** <<mapping-store,`store`>> to `true`
-** <<term-vector,`term_vector`>> to `with_positions_payloads` or
-   `with_positions_offsets_payloads`
-
-* Use an index analyzer that includes the `delimted_payload` filter
+You can view stored payloads using the <<docs-termvectors,term vectors API>>.
 ====
 
 [[analysis-delimited-payload-tokenfilter-analyze-ex]]
@@ -200,7 +199,6 @@ PUT delimited_payload_example
 Use the <<indices-create-index,create index API>> to create an index that:
 
 * Includes a field that stores payloads. For this field, set the
-  <<mapping-store,`store`>> mapping parameter to `true` and the
   <<term-vector,`term_vector`>> mapping parameter to `with_positions_payloads`
   or `with_positions_offsets_payloads`.
 
@@ -215,8 +213,7 @@ PUT text_payloads
     "properties": {
       "text": {
         "type": "text",
-        "term_vector": "with_positions_payloads",
-        "store": true,
+        "term_vector": "with_positions_payloads"
         "analyzer": "payload_delimiter"
       }
     }

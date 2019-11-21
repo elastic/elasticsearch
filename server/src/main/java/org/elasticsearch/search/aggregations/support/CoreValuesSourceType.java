@@ -236,12 +236,22 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            // TODO (support scripts)
             throw new UnsupportedOperationException("CoreValuesSourceType.GEO is still a special case");
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            throw new UnsupportedOperationException("CoreValuesSourceType.GEO is still a special case");
+            boolean isGeoPoint = fieldContext.indexFieldData() instanceof IndexGeoPointFieldData;
+            boolean isGeoShape = fieldContext.indexFieldData() instanceof IndexGeoShapeFieldData;
+            if (isGeoPoint == false && isGeoShape == false) {
+                throw new IllegalArgumentException("Expected geo_point or geo_shape type on field [" + fieldContext.field() +
+                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+            }
+            if (isGeoPoint) {
+                return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
+            }
+            return new ValuesSource.GeoShape.Fielddata((IndexGeoShapeFieldData) fieldContext.indexFieldData());
         }
 
         @Override

@@ -32,7 +32,7 @@ public class Installation {
         ? System.getenv("username")
         : "elasticsearch";
 
-    private final Distribution distribution;
+    public final Distribution distribution;
     public final Path home;
     public final Path bin; // this isn't a first-class installation feature but we include it for convenience
     public final Path lib; // same

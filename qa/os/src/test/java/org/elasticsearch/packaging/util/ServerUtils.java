@@ -52,10 +52,17 @@ public class ServerUtils {
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
 
     public static void waitForElasticsearch(Installation installation) throws IOException {
-        Path configFilePath = installation.config("elasticsearch.yml");
-        // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
-        String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
-        if (configFile.contains(SECURITY_ENABLED)) {
+        boolean securityEnabled = false;
+
+        // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
+        if (installation.distribution.packaging != Distribution.Packaging.DOCKER) {
+            Path configFilePath = installation.config("elasticsearch.yml");
+            // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
+            String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
+            securityEnabled = configFile.contains(SECURITY_ENABLED);
+        }
+
+        if (securityEnabled) {
             // with security enabled, we may or may not have setup a user/pass, so we use a more generic port being available check.
             // this isn't as good as a health check, but long term all this waiting should go away when node startup does not
             // make the http port available until the system is really ready to serve requests

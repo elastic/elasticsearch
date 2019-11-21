@@ -141,6 +141,7 @@ import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
@@ -3347,19 +3348,26 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     "actual_class", // <2>
                     "predicted_class", // <3>
                     // Evaluation metrics // <4>
-                    new MulticlassConfusionMatrixMetric(3)); // <5>
+                    new AccuracyMetric(), // <5>
+                    new MulticlassConfusionMatrixMetric(3)); // <6>
             // end::evaluate-data-frame-evaluation-classification
 
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(indexName, null, evaluation);
             EvaluateDataFrameResponse response = client.machineLearning().evaluateDataFrame(request, RequestOptions.DEFAULT);
 
             // tag::evaluate-data-frame-results-classification
-            MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
-                response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <1>
+            AccuracyMetric.Result accuracyResult = response.getMetricByName(AccuracyMetric.NAME); // <1>
+            double accuracy = accuracyResult.getOverallAccuracy(); // <2>
 
-            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <2>
-            long otherActualClassCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <3>
+            MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
+                response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <3>
+
+            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <4>
+            long otherActualClassCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <5>
             // end::evaluate-data-frame-results-classification
+
+            assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
+            assertThat(accuracy, equalTo(0.6));
 
             assertThat(multiclassConfusionMatrix.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
             assertThat(

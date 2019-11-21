@@ -26,7 +26,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
@@ -42,7 +41,6 @@ import java.util.Objects;
 
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
-    protected final NamedXContentRegistry namedXContentRegistry;
     protected static final String DELIMITER = "------------------------------------------------------------------------\n";
 
     static final String STOP_WARNING_MSG =
@@ -61,7 +59,6 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
     public ElasticsearchNodeCommand(String description) {
         super(description);
-        namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
     }
 
     protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException {
@@ -80,7 +77,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
     protected Tuple<Manifest, MetaData> loadMetaData(Terminal terminal, Path[] dataPaths) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading manifest file");
-        final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
+        final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, dataPaths);
 
         if (manifest == null) {
             throw new ElasticsearchException(NO_MANIFEST_FILE_FOUND_MSG);
@@ -90,7 +87,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading global metadata file");
         final MetaData metaData = MetaData.FORMAT_PRESERVE_CUSTOMS.loadGeneration(
-            logger, namedXContentRegistry, manifest.getGlobalGeneration(), dataPaths);
+            logger, NamedXContentRegistry.EMPTY, manifest.getGlobalGeneration(), dataPaths);
         if (metaData == null) {
             throw new ElasticsearchException(NO_GLOBAL_METADATA_MSG + " [generation = " + manifest.getGlobalGeneration() + "]");
         }

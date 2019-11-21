@@ -55,6 +55,30 @@ There are several thread pools, but the important ones include:
     `true`. Thread pool type is `scaling` with a default max of 
     `min(10, (# of available processors)/2)`.
 
+`fetch_shard_started`::
+    For listing shard states.
+    Thread pool type is `scaling` with keep-alive of `5m` and a default maximum
+    size of `2 * # of available processors`.
+
+`fetch_shard_store`::
+    For listing shard stores.
+    Thread pool type is `scaling` with keep-alive of `5m` and a default maximum
+    size of `2 * # of available processors`.
+
+`flush`::
+    For <<indices-flush,flush>>, <<indices-synced-flush-api,synced flush>>, and <<index-modules-translog, translog>> `fsync` operations.
+    Thread pool type is `scaling` with a keep-alive of `5m` and a default
+    maximum size of `min(5, (# of available processors)/2)`.
+
+`force_merge`::
+    For <<indices-forcemerge,force merge>> operations.
+    Thread pool type is `fixed` with a size of 1 and an unbounded queue size.
+
+`management`::
+    For cluster management.
+    Thread pool type is `scaling` with a keep-alive of `5m` and a default
+    maximum size of `5`.
+
 Changing a specific thread pool can be done by setting its type-specific
 parameters; for example, changing the number of threads in the `write` thread
 pool:

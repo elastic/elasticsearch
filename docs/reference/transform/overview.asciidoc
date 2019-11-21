@@ -7,10 +7,9 @@
 
 beta[]
 
-{transforms-cap} turn your source data into a two-dimensional tabular data 
-structure. You can use {transforms} to _pivot_ your data into a new 
-entity-centric index. By transforming and summarizing your data, it becomes 
-possible to visualize and analyze it in alternative and interesting ways.
+You can use {transforms} to _pivot_ your data into a new entity-centric index. 
+By transforming and summarizing your data, it becomes possible to visualize and 
+analyze it in alternative and interesting ways.
 
 A lot of {es} indices are organized as a stream of events: each event is an 
 individual document, for example a single item purchase. {transforms-cap} enable

@@ -336,7 +336,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                     List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
                     patterns(elements);
                 } else {
-                    throw new IllegalArgumentException("Malformed [template] value, should be a string or a list of strings");
+                    throw new IllegalArgumentException("Malformed [index_patterns] value, should be a string or a list of strings");
                 }
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));

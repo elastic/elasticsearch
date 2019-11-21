@@ -198,7 +198,7 @@ PUT delimited_payload_example
 
 Use the <<indices-create-index,create index API>> to create an index that:
 
-* Includes a field that stores term vectors with payloads. payloads.
+* Includes a field that stores term vectors with payloads.
 * Uses a <<analysis-custom-analyzer,custom index analyzer>> with the
   `delimited_payload` filter.
 

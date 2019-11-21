@@ -120,8 +120,18 @@ public class Case extends ConditionalFunction {
      */
     @Override
     public boolean foldable() {
-        return (conditions.isEmpty() && elseResult.foldable()) ||
-            (conditions.size() == 1 && conditions.get(0).condition().foldable() && conditions.get(0).result().foldable());
+        if (conditions.isEmpty() && elseResult.foldable()) {
+            return true;
+        }
+        if (conditions.size() == 1 && conditions.get(0).condition().foldable()) {
+            // Need to prevent ConstantFolding rule to get applied before SimplifyCase rule
+            if (conditions.get(0).condition().fold() == Boolean.TRUE) {
+                return conditions().get(0).result().foldable();
+            } else {
+                return elseResult().foldable();
+            }
+        }
+        return false;
     }
 
     @Override

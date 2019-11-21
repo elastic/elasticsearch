@@ -1,6 +1,0 @@
-[2019-11-12T17:12:17,022][INFO ][o.e.r.a.a.i.RestCreateIndexActionTests] [%node_name] before test
-[2019-11-12T17:12:17,312][INFO ][o.e.r.a.a.i.RestCreateIndexActionTests] [%node_name] info
-[2019-11-12T17:12:17,345][INFO ][o.e.r.a.a.i.RestCreateIndexActionTests] [%node_name] after test
-[2019-11-12T11:12:49,160][INFO ][o.e.r.a.a.i.RestCreateIndexActionTests] [%node_name] before test
-[2019-11-12T11:12:49,428][INFO ][o.e.r.a.a.i.RestCreateIndexActionTests] [%node_name] info
-[2019-11-12T11:12:49,465][INFO ][o.e.r.a.a.i.RestCreateIndexActionTests] [%node_name] after test

@@ -1,2 +1,0 @@
-[2019-11-12T17:12:17,327][WARN ][o.e.d.r.a.a.i.RestCreateIndexAction] [%node_name] [types removal] Using include_type_name in create index requests is deprecated. The parameter will be removed in the next major version.
-[2019-11-12T11:12:49,446][WARN ][o.e.d.r.a.a.i.RestCreateIndexAction] [%node_name] [types removal] Using include_type_name in create index requests is deprecated. The parameter will be removed in the next major version.

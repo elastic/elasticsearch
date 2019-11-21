@@ -1,0 +1,2 @@
+This commit adds coverage to the docs for some missing built-in shard
+allocation attributes.

@@ -201,7 +201,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
     public void testResolveRequiredOrDefaultPipelineRequiredPipeline() {
         IndexMetaData.Builder builder = IndexMetaData.builder("idx")
-            .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"))
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "required-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetaData.builder("alias").writeIndex(true).build());
@@ -224,7 +224,7 @@ public class TransportBulkActionTests extends ESTestCase {
         // index name matches with ITMD:
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder("name1")
             .patterns(List.of("id*"))
-            .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"));
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "required-pipeline"));
         metaData = MetaData.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
         result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
@@ -236,7 +236,7 @@ public class TransportBulkActionTests extends ESTestCase {
     public void testResolveRequiredOrDefaultAndRequiredPipeline() {
         IndexTemplateMetaData.Builder builder1 = IndexTemplateMetaData.builder("name1")
             .patterns(List.of("i*"))
-            .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"));
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "required-pipeline"));
         IndexTemplateMetaData.Builder builder2 = IndexTemplateMetaData.builder("name2")
             .patterns(List.of("id*"))
             .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
@@ -287,7 +287,7 @@ public class TransportBulkActionTests extends ESTestCase {
         // request pipeline with required pipeline:
         {
             IndexMetaData.Builder builder = IndexMetaData.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"))
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "required-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             MetaData metaData = MetaData.builder().put(builder).build();
@@ -301,7 +301,7 @@ public class TransportBulkActionTests extends ESTestCase {
         // request pipeline set to required pipeline:
         {
             IndexMetaData.Builder builder = IndexMetaData.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"))
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "required-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             MetaData metaData = MetaData.builder().put(builder).build();

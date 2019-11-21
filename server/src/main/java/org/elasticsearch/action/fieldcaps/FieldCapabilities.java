@@ -97,7 +97,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      *                             or null if the field is searchable in all indices.
      * @param nonAggregatableIndices The list of indices where this field is not aggregatable,
      *                               or null if the field is aggregatable in all indices.
-     * @param meta Merged metadata across indicess.
+     * @param meta Merged metadata across indices.
      */
     public FieldCapabilities(String name, String type,
                       boolean isSearchable, boolean isAggregatable,
@@ -161,7 +161,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
         if (meta.isEmpty() == false) {
             builder.startObject("meta");
-            for (Map.Entry<String, Set<Object>> entry : meta.entrySet()) {
+            List<Map.Entry<String, Set<Object>>> entries = new ArrayList<>(meta.entrySet());
+            entries.sort(Comparator.comparing(Map.Entry::getKey)); // provide predictable order
+            for (Map.Entry<String, Set<Object>> entry : entries) {
                 List<Object> values = new ArrayList<>(entry.getValue());
                 Comparator<Object> comparator = Comparator.comparing(v -> v.getClass().getName());
                 comparator = comparator.thenComparing(Object::toString);

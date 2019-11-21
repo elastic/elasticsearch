@@ -15,6 +15,7 @@
                     type: long
                     meta:
                       unit: ms
+                      metric_type: gauge
 
   - do:
         indices.create:
@@ -26,6 +27,8 @@
                     type: long
                     meta:
                       unit: ns
+                      metric_type: gauge
+
   - do:
         indices.create:
           index: test3
@@ -43,6 +46,7 @@
         fields: [latency]
 
   - match: {fields.latency.long.meta.unit:              ["ms"]}
+  - match: {fields.latency.long.meta.metric_type:       ["gauge"]}
 
   - do:
       field_caps:
@@ -50,6 +54,7 @@
         fields: [latency]
 
   - match: {fields.latency.long.meta.unit:              ["ms"]}
+  - match: {fields.latency.long.meta.metric_type:       ["gauge"]}
 
   - do:
       field_caps:
@@ -57,3 +62,4 @@
         fields: [latency]
 
   - match: {fields.latency.long.meta.unit:              ["ms", "ns"]}
+  - match: {fields.latency.long.meta.metric_type:       ["gauge"]}

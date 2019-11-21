@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchModule;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,8 +88,8 @@ public final class QueryParserHelper {
             boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
             boolean multiField = Regex.isSimpleMatchPattern(fieldEntry.getKey());
             float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
-            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight,
-                !multiField, !allField, fieldSuffix);
+            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight, !multiField, !allField, fieldSuffix);
+
             for (Map.Entry<String, Float> field : fieldMap.entrySet()) {
                 float boost = field.getValue();
                 if (resolvedFields.containsKey(field.getKey())) {
@@ -97,7 +98,14 @@ public final class QueryParserHelper {
                 resolvedFields.put(field.getKey(), boost);
             }
         }
-        checkForTooManyFields(resolvedFields, context);
+
+        Set<String> unmappedFields = new HashSet<>();
+        resolvedFields.keySet().stream().forEach(k -> {
+            if (context.getMapperService().fullName(k) == null) {
+                unmappedFields.add(k);
+            }
+        });
+        checkForTooManyFields(resolvedFields, unmappedFields, context);
         return resolvedFields;
     }
 
@@ -133,6 +141,7 @@ public final class QueryParserHelper {
                                                          boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
         Set<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
+        Set<String> unmappedFields = new HashSet<>();
 
         for (String fieldName : allFields) {
             if (fieldSuffix != null && context.fieldMapper(fieldName + fieldSuffix) != null) {
@@ -143,6 +152,7 @@ public final class QueryParserHelper {
             if (fieldType == null) {
                 // Note that we don't ignore unmapped fields.
                 fields.put(fieldName, weight);
+                unmappedFields.add(fieldName);
                 continue;
             }
 
@@ -172,13 +182,13 @@ public final class QueryParserHelper {
             fields.put(fieldName, w * weight);
         }
 
-        checkForTooManyFields(fields, context);
+        checkForTooManyFields(fields, unmappedFields, context);
         return fields;
     }
 
-    private static void checkForTooManyFields(Map<String, Float> fields, QueryShardContext context) {
+    private static void checkForTooManyFields(Map<String, Float> fields, Set<String> unmappedFields, QueryShardContext context) {
         Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
-        if (fields.size() > limit) {
+        if (fields.size() - unmappedFields.size() > limit) {
             throw new IllegalArgumentException("field expansion matches too many fields, limit: " + limit + ", got: " + fields.size());
         }
     }

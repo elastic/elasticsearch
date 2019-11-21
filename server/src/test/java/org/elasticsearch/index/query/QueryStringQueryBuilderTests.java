@@ -50,6 +50,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -397,6 +398,14 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
                                        Query query, QueryShardContext context) throws IOException {
         // nothing yet, put additional assertions here.
+    }
+
+    @Override
+    protected Settings createTestIndexSettings() {
+        return Settings.builder()
+            .put(super.createTestIndexSettings())
+            .put("indices.query.bool.max_clause_count", "13")
+            .build();
     }
 
     // Tests fix for https://github.com/elastic/elasticsearch/issues/29403
@@ -1288,6 +1297,61 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                                 .build(), Occur.SHOULD))
                     .build();
         assertEquals(expectedQuery, query);
+    }
+
+    // The only expectation for this test is to not throw exception
+    public void testToQueryExceedingMaxClauseCountWithUnmappedFields() throws Exception {
+        QueryShardContext shardContext = createShardContext();
+
+        new QueryStringQueryBuilder("\"bar\"")
+                .field("*")
+                .field("unmappedField1")
+                .field("unmappedField2")
+                .field("unmappedField3")
+                .field("unmappedField4")
+                .toQuery(shardContext);
+    }
+
+    public void testToQueryExceedingMaxCaluseCountWithMappedFeilds() throws IOException {
+        QueryShardContext shardContext = createShardContext();
+        shardContext.getMapperService()
+            .merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+                "additionalMappedField1", "type=text",
+                "additionalMappedField2", "type=text",
+                "additionalMappedField3", "type=text",
+                "additionalMappedField4", "type=text"
+            ))), MapperService.MergeReason.MAPPING_UPDATE);
+
+        try {
+            new QueryStringQueryBuilder("\"bar\"")
+                .field("*")
+                .toQuery(shardContext);
+            fail();
+        }
+        catch (IllegalArgumentException e) {
+            assertEquals("field expansion matches too many fields, limit: 13, got: 17", e.getMessage());
+        }
+
+    }
+
+    public void testToQueryExceedingMaxCaluseCountWithMappedFeildsWithoutWeightAndBoost() throws IOException {
+        QueryShardContext shardContext = createShardContext();
+        shardContext.getMapperService()
+            .merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+                "additionalMappedField1", "type=text",
+                "additionalMappedField2", "type=text",
+                "additionalMappedField3", "type=text",
+                "additionalMappedField4", "type=text"
+            ))), MapperService.MergeReason.MAPPING_UPDATE);
+
+        try {
+            new QueryStringQueryBuilder("\"bar\"")
+                .toQuery(shardContext);
+            fail();
+        }
+        catch (IllegalArgumentException e) {
+            assertEquals("field expansion matches too many fields, limit: 13, got: 17", e.getMessage());
+        }
     }
 
     public void testQuoteFieldSuffix() throws IOException {

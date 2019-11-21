@@ -212,21 +212,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     @Before
     public void beforeTest() throws Exception {
-        if (serviceHolder == null) {
-            assert serviceHolderWithNoType == null;
-            // we initialize the serviceHolder and serviceHolderWithNoType just once, but need some
-            // calls to the randomness source during its setup. In order to not mix these calls with
-            // the randomness source that is later used in the test method, we use the master seed during
-            // this setup
-            long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
-            RandomizedTest.getContext().runWithPrivateRandomness(masterSeed, (Callable<Void>) () -> {
-                serviceHolder = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
-                        AbstractBuilderTestCase.this, true);
-                serviceHolderWithNoType = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
-                        AbstractBuilderTestCase.this, false);
-                return null;
-            });
-        }
+        long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
+        RandomizedTest.getContext().runWithPrivateRandomness(masterSeed, (Callable<Void>) () -> {
+            serviceHolder = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
+                    AbstractBuilderTestCase.this, true);
+            serviceHolderWithNoType = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
+                    AbstractBuilderTestCase.this, false);
+            return null;
+        });
 
         serviceHolder.clientInvocationHandler.delegate = this;
         serviceHolderWithNoType.clientInvocationHandler.delegate = this;
@@ -400,11 +393,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }
-                
+
         public static Predicate<String> indexNameMatcher() {
             // Simplistic index name matcher used for testing
             return pattern -> Regex.simpleMatch(pattern, index.getName());
-        }                 
+        }
 
         @Override
         public void close() throws IOException {

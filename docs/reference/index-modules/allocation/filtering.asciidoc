@@ -96,12 +96,12 @@ PUT test/_settings
 The index allocation settings support the following built-in attributes:
 
 [horizontal]
-`_name`::       Match nodes by node names
+`_name`::       Match nodes by node name
 `_host_ip`::    Match nodes by host IP address (IP associated with hostname)
 `_publish_ip`:: Match nodes by publish IP address
 `_ip`::         Match either `_host_ip` or `_publish_ip`
 `_host`::       Match nodes by hostname
-`_id`::         Match nodes by node ids
+`_id`::         Match nodes by node id
 
 You can use wildcards when specifying attribute values, for example:
 

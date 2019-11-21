@@ -1776,8 +1776,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     @Override
                     protected void doRun() {
-                        periodicFlushMetric.inc();
                         flush(new FlushRequest().waitIfOngoing(false).force(false));
+                        periodicFlushMetric.inc();
                     }
                 });
             }

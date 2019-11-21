@@ -124,7 +124,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         if (highlightBuilder != null) {
             subSearchContext.highlight(highlightBuilder.build(searchContext.getQueryShardContext()));
         }
-        if (isNested(parent)) {
+        if (isNested(parent) && searchContext.parsedQuery() != null) {
             Query childContextQuery = findChildQueries(searchContext.parsedQuery().query());
             if (childContextQuery != null) {
                 subSearchContext.setQuery(childContextQuery);

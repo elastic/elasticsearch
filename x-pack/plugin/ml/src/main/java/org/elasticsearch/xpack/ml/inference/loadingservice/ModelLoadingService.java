@@ -20,10 +20,10 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -57,8 +58,8 @@ public class ModelLoadingService implements ClusterStateListener {
      * Once the limit is reached, LRU models are evicted in favor of new models
      */
     public static final Setting<ByteSizeValue> INFERENCE_MODEL_CACHE_SIZE =
-        Setting.byteSizeSetting("xpack.ml.inference_model.cache_size",
-            new ByteSizeValue(1, ByteSizeUnit.GB),
+        Setting.memorySizeSetting("xpack.ml.inference_model.cache_size",
+            "40%",
             Setting.Property.NodeScope);
 
     /**
@@ -85,17 +86,20 @@ public class ModelLoadingService implements ClusterStateListener {
     private final ThreadPool threadPool;
     private final InferenceAuditor auditor;
     private final ByteSizeValue maxCacheSize;
+    private final NamedXContentRegistry namedXContentRegistry;
 
     public ModelLoadingService(TrainedModelProvider trainedModelProvider,
                                InferenceAuditor auditor,
                                ThreadPool threadPool,
                                ClusterService clusterService,
+                               NamedXContentRegistry namedXContentRegistry,
                                Settings settings) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
         this.maxCacheSize = INFERENCE_MODEL_CACHE_SIZE.get(settings);
         this.auditor = auditor;
         this.shouldNotAudit = new HashSet<>();
+        this.namedXContentRegistry = namedXContentRegistry;
         this.localModelCache = CacheBuilder.<String, LocalModel>builder()
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, localModel) -> localModel.ramBytesUsed())
@@ -135,7 +139,9 @@ public class ModelLoadingService implements ClusterStateListener {
             logger.trace("[{}] not actively loading, eager loading without cache", modelId);
             provider.getTrainedModel(modelId, true, ActionListener.wrap(
                 trainedModelConfig ->
-                    modelActionListener.onResponse(new LocalModel(trainedModelConfig.getModelId(), trainedModelConfig.getDefinition())),
+                    modelActionListener.onResponse(new LocalModel(
+                        trainedModelConfig.getModelId(),
+                        trainedModelConfig.ensureParsedDefinition(namedXContentRegistry).getModelDefinition())),
                 modelActionListener::onFailure
             ));
         } else {
@@ -188,9 +194,11 @@ public class ModelLoadingService implements ClusterStateListener {
         ));
     }
 
-    private void handleLoadSuccess(String modelId, TrainedModelConfig trainedModelConfig) {
+    private void handleLoadSuccess(String modelId, TrainedModelConfig trainedModelConfig) throws IOException {
         Queue<ActionListener<Model>> listeners;
-        LocalModel loadedModel = new LocalModel(trainedModelConfig.getModelId(), trainedModelConfig.getDefinition());
+        LocalModel loadedModel = new LocalModel(
+            trainedModelConfig.getModelId(),
+            trainedModelConfig.ensureParsedDefinition(namedXContentRegistry).getModelDefinition());
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such

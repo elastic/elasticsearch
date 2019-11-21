@@ -30,7 +30,7 @@ There are several thread pools, but the important ones include:
     queue_size of `1000`.
 
 `analyze`::
-    For analyze requests. Thread pool type is `fixed` with a size of 1, queue 
+    For analyze requests. Thread pool type is `fixed` with a size of `1`, queue 
     size of `16`.
 
 `write`::

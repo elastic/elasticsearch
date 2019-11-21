@@ -14,6 +14,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
@@ -143,7 +144,7 @@ public class AnalyticsResultProcessor {
     private TrainedModelConfig createTrainedModelConfig(TrainedModelDefinition.Builder inferenceModel) {
         Instant createTime = Instant.now();
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
-        TrainedModelDefinition definition = inferenceModel.setModelId(modelId).build();
+        TrainedModelDefinition definition = inferenceModel.build();
         return TrainedModelConfig.builder()
             .setModelId(modelId)
             .setCreatedBy("data-frame-analytics")
@@ -153,10 +154,11 @@ public class AnalyticsResultProcessor {
             .setDescription(analytics.getDescription())
             .setMetadata(Collections.singletonMap("analytics_config",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
-            .setDefinition(definition)
             .setEstimatedHeapMemory(definition.ramBytesUsed())
             .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
+            .setParsedDefinition(inferenceModel)
             .setInput(new TrainedModelInput(fieldNames))
+            .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .build();
     }
 

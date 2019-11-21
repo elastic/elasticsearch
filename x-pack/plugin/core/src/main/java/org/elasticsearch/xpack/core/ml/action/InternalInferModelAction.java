@@ -24,12 +24,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class InferModelAction extends ActionType<InferModelAction.Response> {
+public class InternalInferModelAction extends ActionType<InternalInferModelAction.Response> {
 
-    public static final InferModelAction INSTANCE = new InferModelAction();
-    public static final String NAME = "cluster:admin/xpack/ml/inference/infer";
+    public static final InternalInferModelAction INSTANCE = new InternalInferModelAction();
+    public static final String NAME = "cluster:internal/xpack/ml/inference/infer";
 
-    private InferModelAction() {
+    private InternalInferModelAction() {
         super(NAME, Response::new);
     }
 
@@ -38,21 +38,27 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         private final String modelId;
         private final List<Map<String, Object>> objectsToInfer;
         private final InferenceConfig config;
+        private final boolean previouslyLicensed;
 
-        public Request(String modelId) {
-            this(modelId, Collections.emptyList(), new RegressionConfig());
+        public Request(String modelId, boolean previouslyLicensed) {
+            this(modelId, Collections.emptyList(), new RegressionConfig(), previouslyLicensed);
         }
 
-        public Request(String modelId, List<Map<String, Object>> objectsToInfer, InferenceConfig inferenceConfig) {
+        public Request(String modelId,
+                       List<Map<String, Object>> objectsToInfer,
+                       InferenceConfig inferenceConfig,
+                       boolean previouslyLicensed) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
             this.config = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
+            this.previouslyLicensed = previouslyLicensed;
         }
 
-        public Request(String modelId, Map<String, Object> objectToInfer, InferenceConfig config) {
+        public Request(String modelId, Map<String, Object> objectToInfer, InferenceConfig config, boolean previouslyLicensed) {
             this(modelId,
                 Arrays.asList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
-                config);
+                config,
+                previouslyLicensed);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -60,6 +66,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.modelId = in.readString();
             this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
             this.config = in.readNamedWriteable(InferenceConfig.class);
+            this.previouslyLicensed = in.readBoolean();
         }
 
         public String getModelId() {
@@ -74,6 +81,10 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return config;
         }
 
+        public boolean isPreviouslyLicensed() {
+            return previouslyLicensed;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -85,21 +96,23 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeString(modelId);
             out.writeCollection(objectsToInfer, StreamOutput::writeMap);
             out.writeNamedWriteable(config);
+            out.writeBoolean(previouslyLicensed);
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            InferModelAction.Request that = (InferModelAction.Request) o;
+            InternalInferModelAction.Request that = (InternalInferModelAction.Request) o;
             return Objects.equals(modelId, that.modelId)
                 && Objects.equals(config, that.config)
+                && Objects.equals(previouslyLicensed, that.previouslyLicensed)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, objectsToInfer, config);
+            return Objects.hash(modelId, objectsToInfer, config, previouslyLicensed);
         }
 
     }
@@ -107,37 +120,68 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
     public static class Response extends ActionResponse {
 
         private final List<InferenceResults> inferenceResults;
+        private final boolean isLicensed;
 
-        public Response(List<InferenceResults> inferenceResults) {
+        public Response(List<InferenceResults> inferenceResults, boolean isLicensed) {
             super();
             this.inferenceResults = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(inferenceResults, "inferenceResults"));
+            this.isLicensed = isLicensed;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableList(InferenceResults.class));
+            this.isLicensed = in.readBoolean();
         }
 
         public List<InferenceResults> getInferenceResults() {
             return inferenceResults;
         }
 
+        public boolean isLicensed() {
+            return isLicensed;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeNamedWriteableList(inferenceResults);
+            out.writeBoolean(isLicensed);
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            InferModelAction.Response that = (InferModelAction.Response) o;
-            return Objects.equals(inferenceResults, that.inferenceResults);
+            InternalInferModelAction.Response that = (InternalInferModelAction.Response) o;
+            return isLicensed == that.isLicensed && Objects.equals(inferenceResults, that.inferenceResults);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceResults);
+            return Objects.hash(inferenceResults, isLicensed);
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+            private List<InferenceResults> inferenceResults;
+            private boolean isLicensed;
+
+            public Builder setInferenceResults(List<InferenceResults> inferenceResults) {
+                this.inferenceResults = inferenceResults;
+                return this;
+            }
+
+            public Builder setLicensed(boolean licensed) {
+                isLicensed = licensed;
+                return this;
+            }
+
+            public Response build() {
+                return new Response(inferenceResults, isLicensed);
+            }
         }
 
     }

@@ -273,8 +273,12 @@ public class HttpExporter extends Exporter {
                     (key) -> Setting.groupSetting(
                         key + ".",
                         settings -> {
+                            final String namespace = HttpExporter.SSL_SETTING.getNamespace(
+                                HttpExporter.SSL_SETTING.getConcreteSetting(key));
+                            final Setting<Settings> concreteSetting = HttpExporter.SSL_SETTING.getConcreteSettingForNamespace(namespace);
                             validateSslSettings(key, settings);
-                            configureSslStrategy(settings, null, XPackPlugin.getSharedSslService().createDynamicSSLService());
+                            final SSLService sslService = XPackPlugin.getSharedSslService().createDynamicSSLService();
+                            configureSslStrategy(settings, concreteSetting, sslService);
                         },
                         Property.Dynamic,
                         Property.NodeScope,

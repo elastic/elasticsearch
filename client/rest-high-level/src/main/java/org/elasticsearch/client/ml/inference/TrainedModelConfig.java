@@ -50,6 +50,7 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField INPUT = new ParseField("input");
     public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
     public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
+    public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
             true,
@@ -71,6 +72,7 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> TrainedModelInput.fromXContent(p), INPUT);
         PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
         PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
+        PARSER.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
     }
 
     public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
@@ -88,6 +90,7 @@ public class TrainedModelConfig implements ToXContentObject {
     private final TrainedModelInput input;
     private final Long estimatedHeapMemory;
     private final Long estimatedOperations;
+    private final String licenseLevel;
 
     TrainedModelConfig(String modelId,
                        String createdBy,
@@ -99,7 +102,8 @@ public class TrainedModelConfig implements ToXContentObject {
                        Map<String, Object> metadata,
                        TrainedModelInput input,
                        Long estimatedHeapMemory,
-                       Long estimatedOperations) {
+                       Long estimatedOperations,
+                       String licenseLevel) {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
@@ -111,6 +115,7 @@ public class TrainedModelConfig implements ToXContentObject {
         this.input = input;
         this.estimatedHeapMemory = estimatedHeapMemory;
         this.estimatedOperations = estimatedOperations;
+        this.licenseLevel = licenseLevel;
     }
 
     public String getModelId() {
@@ -161,6 +166,10 @@ public class TrainedModelConfig implements ToXContentObject {
         return estimatedOperations;
     }
 
+    public String getLicenseLevel() {
+        return licenseLevel;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -201,6 +210,9 @@ public class TrainedModelConfig implements ToXContentObject {
         if (estimatedOperations != null) {
             builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
         }
+        if (licenseLevel != null) {
+            builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel);
+        }
         builder.endObject();
         return builder;
     }
@@ -225,6 +237,7 @@ public class TrainedModelConfig implements ToXContentObject {
             Objects.equals(input, that.input) &&
             Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
             Objects.equals(estimatedOperations, that.estimatedOperations) &&
+            Objects.equals(licenseLevel, that.licenseLevel) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -240,6 +253,7 @@ public class TrainedModelConfig implements ToXContentObject {
             estimatedHeapMemory,
             estimatedOperations,
             metadata,
+            licenseLevel,
             input);
     }
 
@@ -257,6 +271,7 @@ public class TrainedModelConfig implements ToXContentObject {
         private TrainedModelInput input;
         private Long estimatedHeapMemory;
         private Long estimatedOperations;
+        private String licenseLevel;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -312,13 +327,18 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
+        private Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
             this.estimatedHeapMemory = estimatedHeapMemory;
             return this;
         }
 
-        public Builder setEstimatedOperations(Long estimatedOperations) {
+        private Builder setEstimatedOperations(Long estimatedOperations) {
             this.estimatedOperations = estimatedOperations;
+            return this;
+        }
+
+        private Builder setLicenseLevel(String licenseLevel) {
+            this.licenseLevel = licenseLevel;
             return this;
         }
 
@@ -334,7 +354,8 @@ public class TrainedModelConfig implements ToXContentObject {
                 metadata,
                 input,
                 estimatedHeapMemory,
-                estimatedOperations);
+                estimatedOperations,
+                licenseLevel);
         }
     }
 

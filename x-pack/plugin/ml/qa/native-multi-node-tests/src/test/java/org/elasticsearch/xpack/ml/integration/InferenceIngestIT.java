@@ -370,6 +370,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for regression\",\n" +
         "  \"version\": \"7.6.0\",\n" +
+        "  \"license_level\": \"platinum\",\n" +
         "  \"created_by\": \"ml_test\",\n" +
         "  \"estimated_heap_memory_usage_bytes\": 0," +
         "  \"estimated_operations\": 0," +
@@ -503,6 +504,7 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for classification\",\n" +
         "  \"version\": \"7.6.0\",\n" +
+        "  \"license_level\": \"platinum\",\n" +
         "  \"created_by\": \"benwtrent\",\n" +
         "  \"estimated_heap_memory_usage_bytes\": 0," +
         "  \"estimated_operations\": 0," +

@@ -132,7 +132,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -151,9 +150,9 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertEquals;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -1099,30 +1098,29 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
-        final Supplier<List<ClusterState>> stateSupplier = () -> nodes.values().stream()
-            .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
-            .map(ClusterService::state)
-            .collect(Collectors.toList());
-
         try {
             assertBusy(() -> {
-                final List<ClusterState> states = stateSupplier.get();
+                final List<ClusterState> states = nodes.values().stream()
+                    .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
+                    .map(ClusterService::state)
+                    .collect(Collectors.toList());
+                final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
                 // all nodes have a master
-                assertTrue(states.toString(), states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
+                assertTrue("Missing master" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
                 // all nodes have the same master (in same term)
-                assertEquals(states.toString(), 1, states.stream().mapToLong(ClusterState::term).distinct().count());
+                assertEquals("Not all masters in same term" + debugString, 1,
+                    states.stream().mapToLong(ClusterState::term).distinct().count());
                 // all nodes know about all other nodes
                 states.forEach(cs -> {
                     DiscoveryNodes discoveryNodes = cs.nodes();
-                    assertEquals(expectedNodes.size(), discoveryNodes.getSize());
+                    assertEquals("Node size mismatch" + debugString, expectedNodes.size(), discoveryNodes.getSize());
                     for (DiscoveryNode expectedNode : expectedNodes) {
-                        assertTrue("Expected node to exist: " + expectedNode, discoveryNodes.nodeExists(expectedNode));
+                        assertTrue("Expected node to exist: " + expectedNode + debugString, discoveryNodes.nodeExists(expectedNode));
                     }
                 });
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
-            throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual cluster states " +
-                stateSupplier.get(), ae);
+            throw new IllegalStateException("cluster failed to form", ae);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

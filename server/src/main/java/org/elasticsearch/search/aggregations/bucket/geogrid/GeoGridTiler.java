@@ -123,41 +123,75 @@ public interface GeoGridTiler {
 
         @Override
         public int setValues(long[] values, MultiGeoValues.GeoValue geoValue, int precision) {
-            return setValuesForCell(new int[] { 0, 0, 0 }, values, 0, precision, geoValue);
+            return setValuesByRasterization(0, 0, 0, values, 0, precision, geoValue);
         }
 
-        private int setValuesForCell(int[] tile, long[] values, int valuesIndex, int precision, MultiGeoValues.GeoValue geoValue) {
-            Rectangle rectangle = GeoTileUtils.toBoundingBox(tile[0], tile[1], tile[2]);
+        /**
+         *
+         * @param values the bucket values as longs
+         * @param geoValue the shape value
+         * @param precision the target precision to split the shape up into
+         * @return the number of buckets the geoValue is found in
+         */
+        public int setValuesByBruteForceScan(long[] values, MultiGeoValues.GeoValue geoValue, int precision) {
+            MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
+
+            final double tiles = 1 << precision;
+            int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
+            int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
+            int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
+            int maxYTile = GeoTileUtils.getYTile(bounds.minY(), (long) tiles);
+            int idx = 0;
+            for (int i = minXTile; i <= maxXTile; i++) {
+                for (int j = minYTile; j <= maxYTile; j++) {
+                    Rectangle rectangle = GeoTileUtils.toBoundingBox(i, j, precision);
+                    if (geoValue.relate(rectangle) != GeoRelation.QUERY_DISJOINT) {
+                        values[idx++] = GeoTileUtils.longEncodeTiles(precision, i, j);
+                    }
+                }
+            }
+
+            return idx;
+        }
+
+        private int setValuesByRasterization(int xTile, int yTile, int zTile, long[] values, int valuesIndex, int targetPrecision, MultiGeoValues.GeoValue geoValue) {
+            Rectangle rectangle = GeoTileUtils.toBoundingBox(xTile, yTile, zTile);
             GeoRelation relation = geoValue.relate(rectangle);
-            if (tile[2] == precision) {
+            if (zTile == targetPrecision) {
                 if (GeoRelation.QUERY_DISJOINT != relation) {
-                    values[valuesIndex++] = GeoTileUtils.longEncodeTiles(tile[2], tile[0], tile[1]);
+                    values[valuesIndex++] = GeoTileUtils.longEncodeTiles(zTile, xTile, yTile);
                 }
                 return valuesIndex;
             }
 
             if (GeoRelation.QUERY_INSIDE == relation) {
-                return setValuesForFullyContainedTile(tile, values, valuesIndex, precision);
+                return setValuesForFullyContainedTile(xTile, yTile, zTile, values, valuesIndex, targetPrecision);
             }
             if (GeoRelation.QUERY_CROSSES == relation) {
-                int[][] subTiles = GeoTileUtils.getSubTiles(tile[0], tile[1], tile[2]);
-                for (int[] subTile : subTiles) {
-                    valuesIndex = setValuesForCell(subTile, values, valuesIndex, precision, geoValue);
+                for (int i = 0; i < 2; i++) {
+                    for (int j = 0; j < 2; j++) {
+                        int nextX = 2 * xTile + i;
+                        int nextY = 2 * yTile + j;
+                        valuesIndex = setValuesByRasterization(nextX, nextY, zTile + 1, values, valuesIndex, targetPrecision, geoValue);
+                    }
                 }
             }
 
             return valuesIndex;
         }
 
-        private int setValuesForFullyContainedTile(int[] tile, long[] values, int valuesIndex, int precision) {
-            if (tile[2] == precision) {
-                values[valuesIndex] = GeoTileUtils.longEncodeTiles(tile[2], tile[0], tile[1]);
+        private int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, long[] values, int valuesIndex, int targetPrecision) {
+            if (zTile == targetPrecision) {
+                values[valuesIndex] = GeoTileUtils.longEncodeTiles(zTile, xTile, yTile);
                 return valuesIndex + 1;
             }
 
-            int[][] subTiles = GeoTileUtils.getSubTiles(tile[0], tile[1], tile[2]);
-            for (int[] subTile : subTiles) {
-                valuesIndex = setValuesForFullyContainedTile(subTile, values, valuesIndex, precision);
+            for (int i = 0; i < 2; i++) {
+                for (int j = 0; j < 2; j++) {
+                    int nextX = 2 * xTile + i;
+                    int nextY = 2 * yTile + j;
+                    valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile + 1, values, valuesIndex, targetPrecision);
+                }
             }
 
             return valuesIndex;

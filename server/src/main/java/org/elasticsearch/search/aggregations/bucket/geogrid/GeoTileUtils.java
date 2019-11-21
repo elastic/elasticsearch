@@ -98,6 +98,11 @@ public final class GeoTileUtils {
      * @param tiles     the number of tiles per row for a pre-determined zoom-level
      */
     static int getXTile(double longitude, long tiles) {
+        // normalizeLon treats this as 180, which is not friendly for tile mappings
+        if (longitude == -180) {
+            return 0;
+        }
+
         int xTile = (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
 
         // Edge values may generate invalid values, and need to be clipped.
@@ -255,18 +260,6 @@ public final class GeoTileUtils {
         final double maxX = ((xTile + 1) / tiles * 360.0) - 180;
 
         return new Rectangle(minX, maxX, maxY, minY);
-    }
-
-    static int[][] getSubTiles(int xTile, int yTile, int precision) {
-        int xTile2 = xTile * 2;
-        int yTile2 = yTile * 2;
-        int nextPrecision = precision + 1;
-        return new int[][] {
-            new int[] { xTile2, yTile2, nextPrecision },
-            new int[] { xTile2 + 1, yTile2, nextPrecision },
-            new int[] { xTile2, yTile2 + 1, nextPrecision },
-            new int[] { xTile2 + 1, yTile2 + 1, nextPrecision }
-        };
     }
 
     /**

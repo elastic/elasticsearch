@@ -16,11 +16,8 @@ if (buildNumber) {
           Set<File> fileSet = fileTree(projectDir) {
             include("**/*.hprof")
             include("**/reaper.log")
-            include("**/build/testclusters/**")
-            exclude("**/build/testclusters/**/data/**")
-            exclude("**/build/testclusters/**/distro/**")
-            exclude("**/build/testclusters/**/repo/**")
-            exclude("**/build/testclusters/**/extract/**")
+            include("**/build/testclusters/**/config/**")
+            include("**/build/testclusters/**/logs/**")
           }
             .files
             .findAll { Files.isRegularFile(it.toPath()) }

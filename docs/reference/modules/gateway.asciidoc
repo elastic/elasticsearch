@@ -52,22 +52,9 @@ NOTE: These settings only take effect on a full cluster restart.
 [[modules-gateway-dangling-indices]]
 === Dangling indices
 
-When a node joins the cluster, it will search for any shards that are
-stored in its local data directory and do not already exist in the
-cluster. If the static setting `gateway.auto_import_dangling_indices` is
-`true` (the default is `false`), then those shards will be imported into
-the cluster. This functionality is intended as a best effort to help users
-who lose all master nodes. If a new master node is started which is unaware
-of the other indices in the cluster, adding the old nodes will cause the
-old indices to be imported, instead of being deleted.
-
-Enabling `gateway.auto_import_dangling_indices` should only be done if
-absolutely necessary, after understanding the possible consequences (this is not an exhaustive list):
-
-* A deleted index might suddenly reappear when a node joins the cluster.
-* You might delete an index and see the immediate creation of another index
-  with the same name, containing stale mappings and old data.
-* New documents could be written to the index before anyone realises that
-  it has been recovered
-* {es} may not be able to find copies of all of the shards of the index,
-  resulting in a red cluster state.
+When a node joins the cluster, any shards stored in its local data
+directory which do not already exist in the cluster will be imported into the 
+cluster. This functionality is intended as a best effort to help users who 
+lose all master nodes. If a new master node is started which is unaware of 
+the other indices in the cluster, adding the old nodes will cause the old 
+indices to be imported, instead of being deleted.

@@ -58,7 +58,7 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     public static final Setting<Boolean> AUTO_IMPORT_DANGLING_INDICES_SETTING = Setting.boolSetting(
         "gateway.auto_import_dangling_indices",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 
@@ -76,9 +76,11 @@ public class DanglingIndicesState implements ClusterStateListener {
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
-        clusterService.addListener(this);
-
         this.allocateDanglingIndices = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
+
+        if (this.allocateDanglingIndices) {
+            clusterService.addListener(this);
+        }
     }
 
     public void setAllocateDanglingIndicesSetting(boolean allocateDanglingIndices) {

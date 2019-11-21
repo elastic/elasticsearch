@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -397,13 +396,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
             }
         });
 
-        final Settings settingsWithAutoImport = Settings.builder()
-            .put(dataNodeDataPathSettings)
-            .put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), true)
-            .build();
-
         logger.info("--> start data-only only node and ensure 2 nodes stable cluster");
-        internalCluster().startDataOnlyNode(settingsWithAutoImport);
+        internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
         ensureStableCluster(2);
 
         logger.info("--> verify that the dangling index exists and has green status");

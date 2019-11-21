@@ -20,3 +20,10 @@ The `index.force_memory_term_dictionary` setting was introduced in 7.0 as a
 temporary measure to allow users to opt-out of the optimization that leaves the
 term dictionary on disk when appropriate. This optimization is now mandatory
 and the setting is removed.
+
+[float]
+==== Remove support for `template` in put index template requests
+
+In 6.0, we deprecated the `template` field in put index template requests
+in favor of using `index_patterns`. Support for the `template` field is now
+removed in 8.0.

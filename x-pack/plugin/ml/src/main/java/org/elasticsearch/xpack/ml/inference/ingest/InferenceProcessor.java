@@ -142,7 +142,7 @@ public class InferenceProcessor extends AbstractProcessor {
     }
 
     void auditWarningAboutLicenseIfNecessary() {
-        if (shouldAudit.get() && shouldAudit.compareAndSet(true, false)) {
+        if (shouldAudit.compareAndSet(true, false)) {
             auditor.warning(
                 modelId,
                 "This cluster is no longer licensed to use this model in the inference ingest processor. " +

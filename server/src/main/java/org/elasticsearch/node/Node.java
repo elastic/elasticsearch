@@ -396,7 +396,14 @@ public class Node implements Closeable {
                 ClusterModule.getNamedWriteables().stream())
                 .flatMap(Function.identity()).collect(Collectors.toList());
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
-            final NamedXContentRegistry xContentRegistry = createNamedXContentRegistry(searchModule, pluginsService);
+            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
+                NetworkModule.getNamedXContents().stream(),
+                IndicesModule.getNamedXContents().stream(),
+                searchModule.getNamedXContents().stream(),
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .flatMap(p -> p.getNamedXContent().stream()),
+                ClusterModule.getNamedXWriteables().stream())
+                .flatMap(Function.identity()).collect(toList()));
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
 
             // collect engine factory providers from server and from plugins
@@ -596,17 +603,6 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
-    }
-
-    public static NamedXContentRegistry createNamedXContentRegistry(SearchModule searchModule, PluginsService pluginsService) {
-        return new NamedXContentRegistry(Stream.of(
-                    NetworkModule.getNamedXContents().stream(),
-                    IndicesModule.getNamedXContents().stream(),
-                    searchModule.getNamedXContents().stream(),
-                    pluginsService.filterPlugins(Plugin.class).stream()
-                        .flatMap(p -> p.getNamedXContent().stream()),
-                    ClusterModule.getNamedXWriteables().stream())
-                    .flatMap(Function.identity()).collect(toList()));
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

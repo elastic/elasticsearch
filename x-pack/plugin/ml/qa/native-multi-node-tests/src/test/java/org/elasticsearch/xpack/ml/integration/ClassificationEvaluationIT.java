@@ -60,6 +60,15 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
+        assertThat(
+            accuracyResult.getActualClasses(),
+            equalTo(
+                List.of(
+                    new Accuracy.ActualClass("ant", 15, 1.0 / 15),
+                    new Accuracy.ActualClass("cat", 15, 1.0 / 15),
+                    new Accuracy.ActualClass("dog", 15, 1.0 / 15),
+                    new Accuracy.ActualClass("fox", 15, 1.0 / 15),
+                    new Accuracy.ActualClass("mouse", 15, 1.0 / 15))));
         assertThat(accuracyResult.getOverallAccuracy(), equalTo(5.0 / 75));
     }
 

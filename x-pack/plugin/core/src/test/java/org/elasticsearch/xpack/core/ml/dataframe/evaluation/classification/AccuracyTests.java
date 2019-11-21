@@ -14,9 +14,8 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -49,38 +48,53 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
 
     public void testProcess() {
         Aggregations aggs = new Aggregations(Arrays.asList(
-            createSingleMetricAgg("classification_accuracy", 0.8123),
-            createSingleMetricAgg("some_other_single_metric_agg", 0.2377),
-            createTermsAgg("some_terms_agg")
+            createTermsAgg("classification_classes"),
+            createSingleMetricAgg("classification_overall_accuracy", 0.8123),
+            createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
         ));
 
         Accuracy accuracy = new Accuracy();
         accuracy.process(aggs);
 
-        assertThat(accuracy.getResult().get(), equalTo(new Accuracy.Result(0.8123)));
+        assertThat(accuracy.getResult().get(), equalTo(new Accuracy.Result(List.of(), 0.8123)));
     }
 
     public void testProcess_GivenMissingAgg() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            createSingleMetricAgg("some_other_single_metric_agg", 0.2377),
-            createTermsAgg("some_terms_agg")
-        ));
-
-        Accuracy accuracy = new Accuracy();
-        accuracy.process(aggs);
-
-        assertThat(accuracy.getResult(), isEmpty());
+        {
+            Aggregations aggs = new Aggregations(Arrays.asList(
+                createTermsAgg("classification_classes"),
+                createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
+            ));
+            Accuracy accuracy = new Accuracy();
+            expectThrows(NullPointerException.class, () -> accuracy.process(aggs));
+        }
+        {
+            Aggregations aggs = new Aggregations(Arrays.asList(
+                createSingleMetricAgg("classification_overall_accuracy", 0.8123),
+                createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
+            ));
+            Accuracy accuracy = new Accuracy();
+            expectThrows(NullPointerException.class, () -> accuracy.process(aggs));
+        }
     }
 
     public void testProcess_GivenAggOfWrongType() {
-        Aggregations aggs = new Aggregations(Collections.singletonList(
-            createTermsAgg("classification_accuracy")
-        ));
-
-        Accuracy accuracy = new Accuracy();
-        accuracy.process(aggs);
-
-        assertThat(accuracy.getResult(), isEmpty());
+        {
+            Aggregations aggs = new Aggregations(Arrays.asList(
+                createTermsAgg("classification_classes"),
+                createTermsAgg("classification_overall_accuracy")
+            ));
+            Accuracy accuracy = new Accuracy();
+            expectThrows(ClassCastException.class, () -> accuracy.process(aggs));
+        }
+        {
+            Aggregations aggs = new Aggregations(Arrays.asList(
+                createSingleMetricAgg("classification_classes", 1.0),
+                createSingleMetricAgg("classification_overall_accuracy", 0.8123)
+            ));
+            Accuracy accuracy = new Accuracy();
+            expectThrows(ClassCastException.class, () -> accuracy.process(aggs));
+        }
     }
 
     private static NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, double value) {

@@ -1796,6 +1796,13 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
             AccuracyMetric.Result accuracyResult = evaluateDataFrameResponse.getMetricByName(AccuracyMetric.NAME);
             assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
+            assertThat(
+                accuracyResult.getActualClasses(),
+                equalTo(
+                    List.of(
+                        new AccuracyMetric.ActualClass("cat", 5, 0.6),  // 3 out of 5 examples labeled as "cat" were classified correctly
+                        new AccuracyMetric.ActualClass("dog", 4, 0.75),  // 3 out of 4 examples labeled as "dog" were classified correctly
+                        new AccuracyMetric.ActualClass("ant", 1, 0.0))));  // no examples labeled as "ant" were classified correctly
             assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
         }
         {  // No size provided for MulticlassConfusionMatrixMetric, default used instead

@@ -26,10 +26,13 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -68,7 +71,10 @@ public class PasswordToolsTests extends PackagingTestCase {
     public void test30AddBootstrapPassword() throws Exception {
         installation.executables().elasticsearchKeystore.run(sh, "add --stdin bootstrap.password", BOOTSTRAP_PASSWORD);
 
-        FileUtils.rm(installation.data); // wipe auto generated passwords from previous test
+        try (Stream<Path> dataFiles = Files.list(installation.data)) {
+            dataFiles.forEach(FileUtils::rm); // delete each dir under data, not data itself
+        }
+        FileUtils.rm(); // wipe auto generated passwords from previous test
         assertWhileRunning(() -> {
             String response = ServerUtils.makeRequest(
                 Request.Get("http://localhost:9200/_cluster/health?wait_for_status=green&timeout=180s"),

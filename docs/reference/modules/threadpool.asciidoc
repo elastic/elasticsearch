@@ -63,7 +63,7 @@ There are several thread pools, but the important ones include:
     size of `2 * # of available processors`.
 
 `flush`::
-    For <<indices-flush,flush>> operations.
+    For <<indices-flush,flush>>, <<indices-synced-flush-api,synced flush>>, and <<index-modules-translog, translog>> `fsync` operations.
     Thread pool type is `scaling` with a keep-alive of `5m` and a default
     maximum size of `min(5, (# of available processors)/2)`.
 

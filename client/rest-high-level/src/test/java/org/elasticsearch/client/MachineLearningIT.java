@@ -1829,7 +1829,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             assertThat(
                 accuracyResult.getActualClasses(),
                 equalTo(
-                    List.of(
+                    Arrays.asList(
                         new AccuracyMetric.ActualClass("cat", 5, 0.6),  // 3 out of 5 examples labeled as "cat" were classified correctly
                         new AccuracyMetric.ActualClass("dog", 4, 0.75),  // 3 out of 4 examples labeled as "dog" were classified correctly
                         new AccuracyMetric.ActualClass("ant", 1, 0.0))));  // no examples labeled as "ant" were classified correctly

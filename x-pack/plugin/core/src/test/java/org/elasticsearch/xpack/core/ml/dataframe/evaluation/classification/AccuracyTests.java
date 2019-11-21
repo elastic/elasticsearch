@@ -14,7 +14,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -56,7 +56,7 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
         Accuracy accuracy = new Accuracy();
         accuracy.process(aggs);
 
-        assertThat(accuracy.getResult().get(), equalTo(new Accuracy.Result(List.of(), 0.8123)));
+        assertThat(accuracy.getResult().get(), equalTo(new Accuracy.Result(Collections.emptyList(), 0.8123)));
     }
 
     public void testProcess_GivenMissingAgg() {

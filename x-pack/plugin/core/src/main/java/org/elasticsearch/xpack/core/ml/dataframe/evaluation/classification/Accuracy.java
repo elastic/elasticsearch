@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -78,10 +79,10 @@ public class Accuracy implements ClassificationMetric {
     @Override
     public final List<AggregationBuilder> aggs(String actualField, String predictedField) {
         if (result != null) {
-            return List.of();
+            return Collections.emptyList();
         }
         Script accuracyScript = new Script(buildScript(actualField, predictedField));
-        return List.of(
+        return Arrays.asList(
             AggregationBuilders.terms(CLASSES_AGG_NAME)
                 .field(actualField)
                 .subAggregation(AggregationBuilders.avg(PER_CLASS_ACCURACY_AGG_NAME).script(accuracyScript)),

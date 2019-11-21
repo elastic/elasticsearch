@@ -54,7 +54,8 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_MulticlassClassification_Accuracy() {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new Accuracy())));
+            evaluateDataFrame(
+                ANIMALS_DATA_INDEX, new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new Accuracy())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));

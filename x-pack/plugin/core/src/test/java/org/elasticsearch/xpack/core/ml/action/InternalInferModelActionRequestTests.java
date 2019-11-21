@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -22,19 +22,21 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-public class InferModelActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class InternalInferModelActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
         return randomBoolean() ?
             new Request(
                 randomAlphaOfLength(10),
-                Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
-                randomInferenceConfig()) :
+                Stream.generate(InternalInferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
+                randomInferenceConfig(),
+                randomBoolean()) :
             new Request(
                 randomAlphaOfLength(10),
                 randomMap(),
-                randomInferenceConfig());
+                randomInferenceConfig(),
+                randomBoolean());
     }
 
     private static InferenceConfig randomInferenceConfig() {

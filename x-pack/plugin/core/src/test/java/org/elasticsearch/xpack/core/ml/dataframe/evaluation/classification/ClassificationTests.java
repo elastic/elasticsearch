@@ -51,10 +51,9 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public static Classification createRandom() {
-        return new Classification(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomBoolean() ? null : Arrays.asList(MulticlassConfusionMatrixTests.createRandom()));
+        List<ClassificationMetric> metrics =
+            randomSubsetOf(Arrays.asList(AccuracyTests.createRandom(), MulticlassConfusionMatrixTests.createRandom()));
+        return new Classification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
 
     @Override

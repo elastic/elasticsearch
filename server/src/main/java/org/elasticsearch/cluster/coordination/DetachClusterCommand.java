@@ -22,7 +22,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -49,9 +48,8 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
 
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env, NamedXContentRegistry namedXContentRegistry)
-        throws IOException {
-        final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths, namedXContentRegistry);
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+        final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths);
         final Manifest manifest = manifestMetaDataTuple.v1();
         final MetaData metaData = manifestMetaDataTuple.v2();
 

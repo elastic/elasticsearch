@@ -34,12 +34,13 @@ public class ReadAndWriteMetaDataCommand extends ElasticsearchNodeCommand {
         super("reads the metadata on disk and writes it back");
     }
 
-    @Override protected void processNodePaths(
+    @Override
+    protected void processNodePaths(
         Terminal terminal,
         Path[] dataPaths,
-        Environment env, NamedXContentRegistry namedXContentRegistry) throws IOException {
+        Environment env) throws IOException {
 
-        final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths, namedXContentRegistry);
+        final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths);
         final Manifest manifest = manifestMetaDataTuple.v1();
         final MetaData metaData = manifestMetaDataTuple.v2();
 

@@ -754,7 +754,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public static MetaData fromXContent(XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser);
+        return Builder.fromXContent(parser, false);
     }
 
     @Override
@@ -1276,7 +1276,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.endObject();
         }
 
-        public static MetaData fromXContent(XContentParser parser) throws IOException {
+        public static MetaData fromXContent(XContentParser parser, boolean preserveUnknownCustoms) throws IOException {
             Builder builder = new Builder();
 
             // we might get here after the meta-data element, or on a fresh parser
@@ -1326,8 +1326,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                             Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
                             builder.putCustom(custom.getWriteableName(), custom);
                         } catch (NamedObjectNotFoundException ex) {
-                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                            parser.skipChildren();
+                            if (preserveUnknownCustoms) {
+                                logger.warn("Adding unknown custom object with type {}", currentFieldName);
+                                builder.putCustom(currentFieldName, new UnknownGatewayOnlyCustom(parser.mapOrdered()));
+                            } else {
+                                logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                                parser.skipChildren();
+                            }
                         }
                     }
                 } else if (token.isValue()) {
@@ -1348,6 +1353,45 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
     }
 
+    public static class UnknownGatewayOnlyCustom implements Custom {
+
+        private final Map<String, Object> contents;
+
+        UnknownGatewayOnlyCustom(Map<String, Object> contents) {
+            this.contents = contents;
+        }
+
+        @Override
+        public EnumSet<XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.GATEWAY);
+        }
+
+        @Override
+        public Diff<Custom> diff(Custom previousState) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.mapContents(contents);
+        }
+    }
+
     private static final ToXContent.Params FORMAT_PARAMS;
     static {
         Map<String, String> params = new HashMap<>(2);
@@ -1359,16 +1403,25 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     /**
      * State format for {@link MetaData} to write to and load from disk
      */
-    public static final MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(GLOBAL_STATE_FILE_PREFIX) {
+    public static final MetaDataStateFormat<MetaData> FORMAT = createMetaDataStateFormat(false);
 
-        @Override
-        public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
-            Builder.toXContent(state, builder, FORMAT_PARAMS);
-        }
+    /**
+     * Special state format for {@link MetaData} to write to and load from disk, preserving unknown customs
+     */
+    public static final MetaDataStateFormat<MetaData> FORMAT_PRESERVE_CUSTOMS = createMetaDataStateFormat(true);
 
-        @Override
-        public MetaData fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
-        }
-    };
+    private static MetaDataStateFormat<MetaData> createMetaDataStateFormat(boolean preserveUnknownCustoms) {
+        return new MetaDataStateFormat<MetaData>(GLOBAL_STATE_FILE_PREFIX) {
+
+            @Override
+            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+                Builder.toXContent(state, builder, FORMAT_PARAMS);
+            }
+
+            @Override
+            public MetaData fromXContent(XContentParser parser) throws IOException {
+                return Builder.fromXContent(parser, preserveUnknownCustoms);
+            }
+        };
+    }
 }

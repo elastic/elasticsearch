@@ -25,7 +25,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -72,8 +71,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env, NamedXContentRegistry namedXContentRegistry)
-        throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
         final NodeMetaData nodeMetaData
             = new NodeMetaData.NodeMetaDataStateFormat(true).loadLatestState(logger, namedXContentRegistry, nodePaths);

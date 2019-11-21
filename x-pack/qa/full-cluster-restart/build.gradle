@@ -58,72 +58,8 @@ processTestResources {
 }
 
 for (Version bwcVersion : bwcVersions.indexCompatible) {
-<<<<<<< HEAD
-    String baseName = "v${bwcVersion}"
-    String bwcVersionString = "${bwcVersion}"
-
-    testClusters {
-        "${baseName}" {
-            testDistribution = "DEFAULT"
-            versions = [bwcVersion.toString(), project.version]
-            numberOfNodes = 2
-            setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-            javaHome = project.file(project.ext.runtimeJavaHome)
-            user username: "test_user", password: "x-pack-test-password"
-
-            setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-            // some tests rely on the translog not being flushed
-            setting 'indices.memory.shard_inactive_time', '20m'
-            setting 'xpack.security.enabled', 'true'
-            setting 'xpack.security.transport.ssl.enabled', 'true'
-            setting 'xpack.license.self_generated.type', 'trial'
-
-            extraConfigFile 'testnode.pem', file("${outputDir}/testnode.pem")
-            extraConfigFile 'testnode.crt', file("${outputDir}/testnode.crt")
-
-            keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
-            setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-
-            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-            keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-        }
-    }
-
-    tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
-        mustRunAfter(precommit)
-        useCluster testClusters."${baseName}"
-        dependsOn copyTestNodeKeyMaterial
-        doFirst {
-            project.delete("${buildDir}/cluster/shared/repo/${baseName}")
-        }
-        systemProperty 'tests.is_old_cluster', 'true'
-        systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
-        exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
-    }
-
-
-    tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
-        mustRunAfter(precommit)
-        useCluster testClusters."${baseName}"
-        dependsOn "${baseName}#oldClusterTest"
-        doFirst {
-            testClusters."${baseName}".goToNextVersion({ ->
-                if (Version.fromString(bwcVersionString).onOrAfter("8.0.0")) {
-                    // verify that on-disk metadata can be read using command-line tools
-                    testClusters."${baseName}".runElasticsearchBinScriptWithInput("y", "elasticsearch-node", "read-and-write-metadata")
-                }
-            })
-        }
-        systemProperty 'tests.is_old_cluster', 'false'
-        systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
-        exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
-=======
   String baseName = "v${bwcVersion}"
+  String bwcVersionString = "${bwcVersion}"
 
   testClusters {
     "${baseName}" {
@@ -159,7 +95,6 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     dependsOn copyTestNodeKeyMaterial
     doFirst {
       project.delete("${buildDir}/cluster/shared/repo/${baseName}")
->>>>>>> elastic/master
     }
     systemProperty 'tests.is_old_cluster', 'true'
     systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
@@ -174,7 +109,12 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     useCluster testClusters."${baseName}"
     dependsOn "${baseName}#oldClusterTest"
     doFirst {
-      testClusters."${baseName}".goToNextVersion()
+      testClusters."${baseName}".goToNextVersion({ ->
+        if (Version.fromString(bwcVersionString).onOrAfter("8.0.0")) {
+          // verify that on-disk metadata can be read using command-line tools
+          testClusters."${baseName}".runElasticsearchBinScriptWithInput("y", "elasticsearch-node", "read-and-write-metadata")
+        }
+      })
     }
     systemProperty 'tests.is_old_cluster', 'false'
     systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")

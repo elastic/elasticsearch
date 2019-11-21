@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.node.Node;
@@ -83,8 +82,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         return true;
     }
 
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env, NamedXContentRegistry namedXContentRegistry)
-        throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading node metadata");
         final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
         if (nodeMetaData == null) {
@@ -94,7 +92,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         String nodeId = nodeMetaData.nodeId();
         terminal.println(Terminal.Verbosity.VERBOSE, "Current nodeId is " + nodeId);
 
-        final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths, namedXContentRegistry);
+        final Tuple<Manifest, MetaData> manifestMetaDataTuple = loadMetaData(terminal, dataPaths);
         final Manifest manifest = manifestMetaDataTuple.v1();
         final MetaData metaData = manifestMetaDataTuple.v2();
         final CoordinationMetaData coordinationMetaData = metaData.coordinationMetaData();

@@ -323,6 +323,40 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         transportService.clearAllRules();
     }
 
+    public void testPeerRecoveryForClosedIndices() throws Exception {
+        String indexName = "peer_recovery_closed_indices";
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(1, 100))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(Collectors.toList()));
+        ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
+        assertAcked(client().admin().indices().prepareClose(indexName));
+        int numberOfReplicas = randomIntBetween(1, 2);
+        internalCluster().ensureAtLeastNumDataNodes(2 + numberOfReplicas);
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)));
+        ensureGreen(indexName);
+        ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build()));
+        internalCluster().fullRestart();
+        ensureYellow(indexName);
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareOpen(indexName));
+            client().admin().indices().prepareForceMerge(indexName).get();
+        }
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build()));
+        ensureGreen(indexName);
+        assertNoOpRecoveries(indexName);
+    }
+
     private void ensureActivePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {
         assertBusy(() -> {
             Index index = resolveIndex(indexName);

@@ -144,8 +144,9 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
-import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
-import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -1137,22 +1138,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         shardStateAction,
                         actionFilters),
-                    new RetentionLeaseSyncAction(
-                        settings,
-                        transportService,
-                        clusterService,
-                        indicesService,
-                        threadPool,
-                        shardStateAction,
-                        actionFilters),
-                    new RetentionLeaseBackgroundSyncAction(
-                        settings,
-                        transportService,
-                        clusterService,
-                        indicesService,
-                        threadPool,
-                        shardStateAction,
-                        actionFilters));
+                    RetentionLeaseSyncer.EMPTY);
             Map<ActionType, TransportAction> actions = new HashMap<>();
                 final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                     indicesService,

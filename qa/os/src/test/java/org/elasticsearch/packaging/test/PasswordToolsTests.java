@@ -21,6 +21,7 @@ package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
@@ -32,11 +33,13 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.junit.Assume.assumeTrue;
 
-public class SetupPasswordsToolTests extends PackagingTestCase {
+public class PasswordToolsTests extends PackagingTestCase {
 
     private static final Pattern USERPASS_REGEX = Pattern.compile("PASSWORD (\\w+) = ([^\\s]+)");
+    private static final String BOOTSTRAP_PASSWORD = "myS3curepass";
 
     @Before
     public void filterDistros() {
@@ -51,16 +54,40 @@ public class SetupPasswordsToolTests extends PackagingTestCase {
             "xpack.security.enabled: true");
     }
 
-    public void test020GeneratePasswords() throws Exception {
+    public void test20GeneratePasswords() throws Exception {
         assertWhileRunning(() -> {
-            Shell.Result result = runTool("elasticsearch-setup-passwords", "auto --batch");
+            Shell.Result result = installation.executables().elasticsearchSetupPasswords.run(sh, "auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue());
                 assertThat(response, containsString("You Know, for Search"));
             }
         });
+    }
 
+    public void test30AddBootstrapPassword() throws Exception {
+        installation.executables().elasticsearchKeystore.run(sh, "add --stdin bootstrap.password", BOOTSTRAP_PASSWORD);
+
+        FileUtils.rm(installation.data); // wipe auto generated passwords from previous test
+        assertWhileRunning(() -> {
+            String response = ServerUtils.makeRequest(
+                Request.Get("http://localhost:9200/_cluster/health?wait_for_status=green&timeout=180s"),
+                "elastic", BOOTSTRAP_PASSWORD);
+            assertThat(response, containsString("\"status\":\"green\""));
+        });
+    }
+
+    public void test40GeneratePasswordsBootstrapAlreadySet() throws Exception {
+        assertWhileRunning(() -> {
+
+            Shell.Result result = installation.executables().elasticsearchSetupPasswords.run(sh, "auto --batch", null);
+            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
+            assertThat(userpasses, hasKey("elastic"));
+            for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
+                String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue());
+                assertThat(response, containsString("You Know, for Search"));
+            }
+        });
     }
 
     private Map<String, String> parseUsersAndPasswords(String output) {

@@ -45,7 +45,6 @@ import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
@@ -143,14 +142,6 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
-    protected Shell.Result runTool(String tool, String args) throws Exception {
-        if (Platforms.WINDOWS) {
-            tool += ".bat";
-        }
-        Path path = installation.bin(tool);
-        return sh.run(path.toString() + " " + args);
-    }
-
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
             switch (distribution.packaging) {
@@ -172,10 +163,20 @@ public abstract class PackagingTestCase extends Assert {
                 logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
                 sh.runIgnoreExitCode("jstack " + pid);
             }
+            if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
+                logger.warn("Elasticsearch log:\n" +
+                    FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+            }
             throw e;
         }
 
-        assertions.run();
+        try {
+            assertions.run();
+        } catch (Exception e) {
+            logger.warn("Elasticsearch log:\n" +
+                FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+            throw e;
+        }
 
         switch (distribution.packaging) {
             case TAR:

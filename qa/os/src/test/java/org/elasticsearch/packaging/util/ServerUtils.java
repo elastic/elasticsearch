@@ -56,13 +56,11 @@ public class ServerUtils {
         // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
         String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
         if (configFile.contains(SECURITY_ENABLED)) {
-            logger.warn("Waiting for XPACK");
             // with security enabled, we may or may not have setup a user/pass, so we use a more generic port being available check.
             // this isn't as good as a health check, but long term all this waiting should go away when node startup does not
             // make the http port available until the system is really ready to serve requests
             waitForXpack();
         } else {
-            logger.warn("Waiting for Elasticsearch");
             waitForElasticsearch("green", null, installation, null, null);
         }
     }
@@ -95,13 +93,13 @@ public class ServerUtils {
             try (Socket s = new Socket(InetAddress.getLoopbackAddress(), 9200)) {
                 return;
             } catch (IOException e) {
-                try {
-                    // ignore, only want to establish a connection
-                    Thread.sleep(1000);
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
+                // ignore, only want to establish a connection
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
             }
         }
         throw new RuntimeException("Elasticsearch (with x-pack) did not start");

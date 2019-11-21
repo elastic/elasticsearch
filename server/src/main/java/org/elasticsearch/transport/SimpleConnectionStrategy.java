@@ -55,7 +55,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                 // validate address
                 parsePort(s);
                 return s;
-            }, new StrategyValidator<>(ns, key, ConnectionStrategy.SIMPLE, Collections.emptyList()),
+            }, new StrategyValidator<>(ns, key, ConnectionStrategy.SIMPLE),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     /**
@@ -64,7 +64,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     public static final Setting.AffixSetting<Integer> REMOTE_SOCKET_CONNECTIONS = Setting.affixKeySetting(
         "cluster.remote.",
         "simple.socket_connections",
-        (ns, key) -> intSetting(key, 18, 1, new StrategyValidator<>(ns, key, ConnectionStrategy.SIMPLE, 18),
+        (ns, key) -> intSetting(key, 18, 1, new StrategyValidator<>(ns, key, ConnectionStrategy.SIMPLE),
             Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     static final int CHANNELS_PER_CONNECTION = 1;

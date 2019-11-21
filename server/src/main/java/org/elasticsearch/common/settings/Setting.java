@@ -446,6 +446,7 @@ public class Setting<T> implements ToXContentObject {
                 }
                 validator.validate(parsed);
                 validator.validate(parsed, map);
+                validator.validate(parsed, map, exists(settings));
             }
             return parsed;
         } catch (ElasticsearchParseException ex) {
@@ -856,9 +857,9 @@ public class Setting<T> implements ToXContentObject {
 
     /**
      * Represents a validator for a setting. The {@link #validate(Object)} method is invoked early in the update setting process with the
-     * value of this setting for a fail-fast validation. Later on, the {@link #validate(Object, Map)} method is invoked with the value of
-     * this setting and a map from the settings specified by {@link #settings()}} to their values. All these values come from the same
-     * {@link Settings} instance.
+     * value of this setting for a fail-fast validation. Later on, the {@link #validate(Object, Map)} and
+     * {@link #validate(Object, Map, boolean)} methods are invoked with the value of this setting and a map from the settings specified by
+     * {@link #settings()}} to their values. All these values come from the same {@link Settings} instance.
      *
      * @param <T> the type of the {@link Setting}
      */
@@ -880,6 +881,18 @@ public class Setting<T> implements ToXContentObject {
          * @param settings a map from the settings specified by {@link #settings()}} to their values
          */
         default void validate(T value, Map<Setting<?>, Object> settings) {
+        }
+
+        /**
+         * Validate this setting against its dependencies, specified by {@link #settings()}. This method allows validation logic
+         * to evaluate whether the setting will be present in the {@link Settings} after the update. The default implementation
+         * does nothing, accepting any value as valid as long as it passes the validation in {@link #validate(Object)}.
+         *
+         * @param value     the value of this setting
+         * @param settings  a map from the settings specified by {@link #settings()}} to their values
+         * @param isPresent boolean indicating if this setting is present
+         */
+        default void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
         }
 
         /**

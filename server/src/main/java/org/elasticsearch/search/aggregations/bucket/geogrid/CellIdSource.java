@@ -24,7 +24,9 @@ import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
@@ -82,29 +84,26 @@ public class CellIdSource extends ValuesSource.Numeric {
         @Override
         public boolean advanceExact(int docId) throws IOException {
             if (geoValues.advanceExact(docId)) {
-                switch (geoValues.valuesSourceType()) {
-                    case GEOPOINT:
-                        resize(geoValues.docValueCount());
-                        for (int i = 0; i < docValueCount(); ++i) {
-                            MultiGeoValues.GeoValue target = geoValues.nextValue();
-                            values[i] = tiler.encode(target.lon(), target.lat(), precision);
-                        }
-                        break;
-                    case GEOSHAPE:
-                    case GEO:
+                ValuesSourceType vs = geoValues.valuesSourceType();
+                if (CoreValuesSourceType.GEOPOINT == vs) {
+                    resize(geoValues.docValueCount());
+                    for (int i = 0; i < docValueCount(); ++i) {
                         MultiGeoValues.GeoValue target = geoValues.nextValue();
-                        // TODO(talevy): determine reasonable circuit-breaker here
-                        // must resize array to contain the upper-bound of matching cells, which
-                        // is the number of tiles that overlap the shape's bounding-box. No need
-                        // to be concerned with original docValueCount since shape doc-values are
-                        // single-valued.
-                        resize((int) tiler.getBoundingTileCount(target, precision));
-                        int matched = tiler.setValues(values, target, precision);
-                        // must truncate array to only contain cells that actually intersected shape
-                        resize(matched);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("unsupported geo type");
+                        values[i] = tiler.encode(target.lon(), target.lat(), precision);
+                    }
+                } else if (CoreValuesSourceType.GEOSHAPE == vs || CoreValuesSourceType.GEO == vs) {
+                    MultiGeoValues.GeoValue target = geoValues.nextValue();
+                    // TODO(talevy): determine reasonable circuit-breaker here
+                    // must resize array to contain the upper-bound of matching cells, which
+                    // is the number of tiles that overlap the shape's bounding-box. No need
+                    // to be concerned with original docValueCount since shape doc-values are
+                    // single-valued.
+                    resize((int) tiler.getBoundingTileCount(target, precision));
+                    int matched = tiler.setValues(values, target, precision);
+                    // must truncate array to only contain cells that actually intersected shape
+                    resize(matched);
+                } else {
+                    throw new IllegalArgumentException("unsupported geo type");
                 }
                 sort();
                 return true;

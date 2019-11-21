@@ -11,11 +11,9 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -24,15 +22,16 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,19 +52,20 @@ public class ExtractedFieldsDetector {
 
     private final String[] index;
     private final DataFrameAnalyticsConfig config;
-    private final String resultsField;
     private final boolean isTaskRestarting;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
+    private final Map<String, Long> fieldCardinalities;
 
-    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, String resultsField, boolean isTaskRestarting,
-                            int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, boolean isTaskRestarting,
+                            int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse,
+                            Map<String, Long> fieldCardinalities) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
-        this.resultsField = resultsField;
         this.isTaskRestarting = isTaskRestarting;
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
+        this.fieldCardinalities = Objects.requireNonNull(fieldCardinalities);
     }
 
     public ExtractedFields detect() {
@@ -80,11 +80,13 @@ public class ExtractedFieldsDetector {
         checkNoIgnoredFields(fields);
         checkFieldsHaveCompatibleTypes(fields);
         checkRequiredFields(fields);
+        checkFieldsWithCardinalityLimit();
         return detectExtractedFields(fields);
     }
 
     private Set<String> getIncludedFields() {
         Set<String> fields = new HashSet<>(fieldCapabilitiesResponse.get().keySet());
+        checkResultsFieldIsNotPresent();
         removeFieldsUnderResultsField(fields);
         FetchSourceContext analyzedFields = config.getAnalyzedFields();
 
@@ -97,21 +99,13 @@ public class ExtractedFieldsDetector {
         return fields;
     }
 
-    private void removeFieldsUnderResultsField(Set<String> fields) {
-        if (resultsField == null) {
-            return;
-        }
-        checkResultsFieldIsNotPresent();
-        // Ignore fields under the results object
-        fields.removeIf(field -> field.startsWith(resultsField + "."));
-    }
-
     private void checkResultsFieldIsNotPresent() {
         // If the task is restarting we do not mind the index containing the results field, we will overwrite all docs
         if (isTaskRestarting) {
             return;
         }
 
+        String resultsField = config.getDest().getResultsField();
         Map<String, FieldCapabilities> indexToFieldCaps = fieldCapabilitiesResponse.getField(resultsField);
         if (indexToFieldCaps != null && indexToFieldCaps.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException(
@@ -121,6 +115,11 @@ public class ExtractedFieldsDetector {
                 resultsField,
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
         }
+    }
+
+    private void removeFieldsUnderResultsField(Set<String> fields) {
+        // Ignore fields under the results object
+        fields.removeIf(field -> field.startsWith(config.getDest().getResultsField() + "."));
     }
 
     private void removeFieldsWithIncompatibleTypes(Set<String> fields) {
@@ -235,12 +234,27 @@ public class ExtractedFieldsDetector {
         }
     }
 
+    private void checkFieldsWithCardinalityLimit() {
+        for (Map.Entry<String, Long> entry : config.getAnalysis().getFieldCardinalityLimits().entrySet()) {
+            String fieldName = entry.getKey();
+            long limit = entry.getValue();
+            long cardinality = fieldCardinalities.get(fieldName);
+            if (cardinality > limit) {
+                throw ExceptionsHelper.badRequestException(
+                        "Field [{}] must have at most [{}] distinct values but there were at least [{}]",
+                        fieldName, limit, cardinality);
+            }
+        }
+    }
+
     private ExtractedFields detectExtractedFields(Set<String> fields) {
         List<String> sortedFields = new ArrayList<>(fields);
         // We sort the fields to ensure the checksum for each document is deterministic
         Collections.sort(sortedFields);
         ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse);
-        if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
+        boolean preferSource = extractedFields.getDocValueFields().size() > docValueFieldsLimit;
+        extractedFields = deduplicateMultiFields(extractedFields, preferSource);
+        if (preferSource) {
             extractedFields = fetchFromSourceIfSupported(extractedFields);
             if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
                 throw ExceptionsHelper.badRequestException("[{}] fields must be retrieved from doc_values but the limit is [{}]; " +
@@ -252,9 +266,59 @@ public class ExtractedFieldsDetector {
         return extractedFields;
     }
 
+    private ExtractedFields deduplicateMultiFields(ExtractedFields extractedFields, boolean preferSource) {
+        Set<String> requiredFields = config.getAnalysis().getRequiredFields().stream().map(RequiredField::getName)
+            .collect(Collectors.toSet());
+        Map<String, ExtractedField> nameOrParentToField = new LinkedHashMap<>();
+        for (ExtractedField currentField : extractedFields.getAllFields()) {
+            String nameOrParent = currentField.isMultiField() ? currentField.getParentField() : currentField.getName();
+            ExtractedField existingField = nameOrParentToField.putIfAbsent(nameOrParent, currentField);
+            if (existingField != null) {
+                ExtractedField parent = currentField.isMultiField() ? existingField : currentField;
+                ExtractedField multiField = currentField.isMultiField() ? currentField : existingField;
+                nameOrParentToField.put(nameOrParent, chooseMultiFieldOrParent(preferSource, requiredFields, parent, multiField));
+            }
+        }
+        return new ExtractedFields(new ArrayList<>(nameOrParentToField.values()));
+    }
+
+    private ExtractedField chooseMultiFieldOrParent(boolean preferSource, Set<String> requiredFields,
+                                                    ExtractedField parent, ExtractedField multiField) {
+        // Check requirements first
+        if (requiredFields.contains(parent.getName())) {
+            return parent;
+        }
+        if (requiredFields.contains(multiField.getName())) {
+            return multiField;
+        }
+
+        // If both are multi-fields it means there are several. In this case parent is the previous multi-field
+        // we selected. We'll just keep that.
+        if (parent.isMultiField() && multiField.isMultiField()) {
+            return parent;
+        }
+
+        // If we prefer source only the parent may support it. If it does we pick it immediately.
+        if (preferSource && parent.supportsFromSource()) {
+            return parent;
+        }
+
+        // If any of the two is a doc_value field let's prefer it as it'd support aggregations.
+        // We check the parent first as it'd be a shorter field name.
+        if (parent.getMethod() == ExtractedField.Method.DOC_VALUE) {
+            return parent;
+        }
+        if (multiField.getMethod() == ExtractedField.Method.DOC_VALUE) {
+            return multiField;
+        }
+
+        // None is aggregatable. Let's pick the parent for its shorter name.
+        return parent;
+    }
+
     private ExtractedFields fetchFromSourceIfSupported(ExtractedFields extractedFields) {
         List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
-        for (ExtractedField field : extractedFields.getDocValueFields()) {
+        for (ExtractedField field : extractedFields.getAllFields()) {
             adjusted.add(field.supportsFromSource() ? field.newFromSource() : field);
         }
         return new ExtractedFields(adjusted);
@@ -264,13 +328,13 @@ public class ExtractedFieldsDetector {
         List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
         for (ExtractedField field : extractedFields.getAllFields()) {
             if (isBoolean(field.getTypes())) {
-                if (config.getAnalysis().getAllowedCategoricalTypes(field.getAlias()).contains(BooleanFieldMapper.CONTENT_TYPE)) {
+                if (config.getAnalysis().getAllowedCategoricalTypes(field.getName()).contains(BooleanFieldMapper.CONTENT_TYPE)) {
                     // We convert boolean field to string if it is a categorical dependent variable
-                    adjusted.add(new BooleanMapper<>(field, Boolean.TRUE.toString(), Boolean.FALSE.toString()));
+                    adjusted.add(ExtractedFields.applyBooleanMapping(field, Boolean.TRUE.toString(), Boolean.FALSE.toString()));
                 } else {
                     // We convert boolean fields to integers with values 0, 1 as this is the preferred
                     // way to consume such features in the analytics process.
-                    adjusted.add(new BooleanMapper<>(field, 1, 0));
+                    adjusted.add(ExtractedFields.applyBooleanMapping(field, 1, 0));
                 }
             } else {
                 adjusted.add(field);
@@ -281,34 +345,5 @@ public class ExtractedFieldsDetector {
 
     private static boolean isBoolean(Set<String> types) {
         return types.size() == 1 && types.contains(BooleanFieldMapper.CONTENT_TYPE);
-    }
-
-    /**
-     * {@link BooleanMapper} makes boolean field behave as a field of different type.
-     */
-    private static final class BooleanMapper<T> extends ExtractedField {
-
-        private final T trueValue;
-        private final T falseValue;
-
-        BooleanMapper(ExtractedField field, T trueValue, T falseValue) {
-            super(field.getAlias(), field.getName(), Collections.singleton(BooleanFieldMapper.CONTENT_TYPE), ExtractionMethod.DOC_VALUE);
-            this.trueValue = trueValue;
-            this.falseValue = falseValue;
-        }
-
-        @Override
-        public Object[] value(SearchHit hit) {
-            DocumentField keyValue = hit.field(name);
-            if (keyValue != null) {
-                return keyValue.getValues().stream().map(v -> Boolean.TRUE.equals(v) ? trueValue : falseValue).toArray();
-            }
-            return new Object[0];
-        }
-
-        @Override
-        public boolean supportsFromSource() {
-            return false;
-        }
     }
 }

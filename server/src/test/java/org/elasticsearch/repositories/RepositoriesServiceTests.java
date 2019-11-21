@@ -149,20 +149,20 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public RepositoryData getRepositoryData() {
-            return null;
-        }
-
-        @Override
-        public void finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
-                                     int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                     boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                     ActionListener<SnapshotInfo> listener) {
+        public void getRepositoryData(ActionListener<RepositoryData> listener) {
             listener.onResponse(null);
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
+        public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
+                                     int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                     boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
+                                     boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 
@@ -198,13 +198,15 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit
-            snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
+                                  snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
+                                  ActionListener<String> listener) {
 
         }
 
         @Override
         public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
-                                 RecoveryState recoveryState) {
+                                 RecoveryState recoveryState, ActionListener<Void> listener) {
+
         }
 
         @Override

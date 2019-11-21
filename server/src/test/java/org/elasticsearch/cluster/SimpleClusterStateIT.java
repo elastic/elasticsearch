@@ -83,9 +83,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
     @Before
     public void indexData() throws Exception {
-        index("foo", "bar", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
-        index("fuu", "buu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
-        index("baz", "baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
+        index("foo", "1", XContentFactory.jsonBuilder().startObject().field("foo", "foo").endObject());
+        index("fuu", "1", XContentFactory.jsonBuilder().startObject().field("fuu", "fuu").endObject());
+        index("baz", "1", XContentFactory.jsonBuilder().startObject().field("baz", "baz").endObject());
         refresh();
     }
 

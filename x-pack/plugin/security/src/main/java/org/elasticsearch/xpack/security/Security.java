@@ -57,6 +57,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -263,6 +264,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.license.XPackLicenseState.FIPS_ALLOWED_LICENSE_OPERATION_MODES;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -311,11 +313,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ApiKeySSLBootstrapCheck(),
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
-                new TLSLicenseBootstrapCheck(),
-                new FIPS140SecureSettingsBootstrapCheck(settings, env),
-                new FIPS140JKSKeystoreBootstrapCheck(),
-                new FIPS140PasswordHashingAlgorithmBootstrapCheck(),
-                new FIPS140LicenseBootstrapCheck()));
+                new TLSLicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
             Automatons.updateConfiguration(settings);
@@ -328,6 +326,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     private static void runStartupChecks(Settings settings) {
         validateRealmSettings(settings);
+        if (XPackSettings.FIPS_MODE_ENABLED.get(settings)) {
+            validateForFips(settings);
+        }
     }
 
     // overridable by tests
@@ -587,6 +588,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // The following just apply in node mode
         settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
 
+        SSLService.registerSettings(settingsList);
         // IP Filter settings
         IPFilter.addSettings(settingsList);
 
@@ -621,14 +623,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     @Override
-    public Collection<String> getRestHeaders() {
-        Set<String> headers = new HashSet<>();
-        headers.add(UsernamePasswordToken.BASIC_AUTH_HEADER);
+    public Collection<RestHeaderDefinition> getRestHeaders() {
+        Set<RestHeaderDefinition> headers = new HashSet<>();
+        headers.add(new RestHeaderDefinition(UsernamePasswordToken.BASIC_AUTH_HEADER, false));
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
-            headers.add(AuditTrail.X_FORWARDED_FOR_HEADER);
+            headers.add(new RestHeaderDefinition(AuditTrail.X_FORWARDED_FOR_HEADER, true));
         }
         if (AuthenticationServiceField.RUN_AS_ENABLED.get(settings)) {
-            headers.add(AuthenticationServiceField.RUN_AS_USER_HEADER);
+            headers.add(new RestHeaderDefinition(AuthenticationServiceField.RUN_AS_USER_HEADER, false));
         }
         return headers;
     }
@@ -830,6 +832,37 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
     }
 
+    static void validateForFips(Settings settings) {
+        final List<String> validationErrors = new ArrayList<>();
+        Settings keystoreTypeSettings = settings.filter(k -> k.endsWith("keystore.type"))
+            .filter(k -> settings.get(k).equalsIgnoreCase("jks"));
+        if (keystoreTypeSettings.isEmpty() == false) {
+            validationErrors.add("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
+                "revisit [" + keystoreTypeSettings.toDelimitedString(',') + "] settings");
+        }
+        Settings keystorePathSettings = settings.filter(k -> k.endsWith("keystore.path"))
+            .filter(k -> settings.hasValue(k.replace(".path", ".type")) == false);
+        if (keystorePathSettings.isEmpty() == false && SSLConfigurationSettings.inferKeyStoreType(null).equals("jks")) {
+            validationErrors.add("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
+                "revisit [" + keystorePathSettings.toDelimitedString(',') + "] settings");
+        }
+        final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings);
+        if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+            validationErrors.add("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the " +
+                "appropriate value for [ " + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey() + " ] setting.");
+        }
+
+        if (validationErrors.isEmpty() == false) {
+            final StringBuilder sb = new StringBuilder();
+            sb.append("Validation for FIPS 140 mode failed: \n");
+            int index = 0;
+            for (String error : validationErrors) {
+                sb.append(++index).append(": ").append(error).append(";\n");
+            }
+            throw new IllegalArgumentException(sb.toString());
+        }
+    }
+
     @Override
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
         if (enabled == false) { // don't register anything if we are not enabled
@@ -998,7 +1031,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             if (inFipsMode) {
                 License license = LicenseService.getLicense(state.metaData());
                 if (license != null &&
-                    FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+                    FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
                     throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
                         "] license. It is only allowed with a Platinum or Trial license.");
 

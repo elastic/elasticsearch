@@ -81,6 +81,7 @@ public class TransportEstimateMemoryUsageAction
         DataFrameDataExtractorFactory.createForSourceIndices(
             client,
             taskId,
+            true, // We are not interested in first-time run validations here
             request.getConfig(),
             ActionListener.wrap(
                 dataExtractorFactory -> {

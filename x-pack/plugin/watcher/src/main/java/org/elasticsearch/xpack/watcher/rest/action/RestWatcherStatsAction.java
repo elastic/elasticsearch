@@ -28,13 +28,8 @@ public class RestWatcherStatsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public RestWatcherStatsAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_watcher/stats", this,
-            GET, "/_xpack/watcher/stats", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, "/_watcher/stats/{metric}", this,
-            GET, "/_xpack/watcher/stats/{metric}", deprecationLogger);
+        controller.registerHandler(GET, "/_watcher/stats", this);
+        controller.registerHandler(GET, "/_watcher/stats/{metric}", this);
     }
 
     @Override

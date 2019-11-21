@@ -35,6 +35,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -60,6 +61,7 @@ import java.util.stream.LongStream;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
@@ -142,8 +144,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toList());
         Randomness.shuffle(seqNos);
         for (long seqNo : seqNos) {
-            shard.applyIndexOperationOnReplica(seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, new SourceToParse(
-                shard.shardId().getIndexName(), UUIDs.randomBase64UUID(), new BytesArray("{}"), XContentType.JSON));
+            shard.applyIndexOperationOnReplica(seqNo, 1, shard.getOperationPrimaryTerm(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false, new SourceToParse(shard.shardId().getIndexName(), UUIDs.randomBase64UUID(),
+                    new BytesArray("{}"), XContentType.JSON));
             if (randomInt(100) < 5) {
                 shard.flush(new FlushRequest().waitIfOngoing(true));
             }
@@ -282,6 +285,34 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(logger, rNode, recoveryTarget, startingSeqNo);
         assertThat(request.startingSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(request.metadataSnapshot().size(), equalTo(0));
+        recoveryTarget.decRef();
+        closeShards(shard);
+    }
+
+    public void testResetStartRequestIfTranslogIsCorrupted() throws Exception {
+        DiscoveryNode pNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        DiscoveryNode rNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        IndexShard shard = newStartedShard(false);
+        final SeqNoStats seqNoStats = populateRandomData(shard);
+        shard.close("test", false);
+        if (randomBoolean()) {
+            shard.store().associateIndexWithNewTranslog(UUIDs.randomBase64UUID());
+        } else if (randomBoolean()) {
+            Translog.createEmptyTranslog(
+                shard.shardPath().resolveTranslog(), seqNoStats.getGlobalCheckpoint(), shard.shardId(), shard.getOperationPrimaryTerm());
+        } else {
+            IOUtils.rm(shard.shardPath().resolveTranslog());
+        }
+        shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
+        shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
+        shard.prepareForIndexRecovery();
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null);
+        StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
+            logger, rNode, recoveryTarget, randomNonNegativeLong());
+        assertThat(request.startingSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(request.metadataSnapshot(), sameInstance(Store.MetadataSnapshot.EMPTY));
         recoveryTarget.decRef();
         closeShards(shard);
     }

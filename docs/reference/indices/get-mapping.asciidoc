@@ -12,11 +12,6 @@ GET /twitter/_mapping
 --------------------------------------------------
 // TEST[setup:twitter]
 
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings
-in responses no longer contain a type name by default, you can still request the old format
-through the parameter `include_type_name`. For more details, please see <<removal-of-types>>.
-
-
 [[get-mapping-api-request]]
 ==== {api-request-title}
 
@@ -39,8 +34,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

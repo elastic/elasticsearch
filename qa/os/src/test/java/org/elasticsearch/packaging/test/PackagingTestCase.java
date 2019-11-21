@@ -142,6 +142,9 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
+    /**
+     * Starts and stops elasticsearch, and performs assertions while it is running.
+     */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
             switch (distribution.packaging) {

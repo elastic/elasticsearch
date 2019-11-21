@@ -17,6 +17,7 @@
  * under the License.
  */
 
+import org.gradle.internal.jvm.Jvm
 import org.gradle.util.GradleVersion
 
 plugins {
@@ -215,25 +216,18 @@ if (project != rootProject) {
     }
   }
 
-
-  test {
-    // build-tools tests are not compatible with JDKs > 12 until we upgrade to Gradle 6.0+. Our current bundled JDK is always newer
-    // than 12 so unless runtime java home is set, we cannot run the build-tools tests
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.getIsRuntimeJavaHomeSet() }
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_12 }
-  }
-
   task integTest(type: Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
     onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
-    // build-tools tests are not compatible with JDKs > 12 until we upgrade to Gradle 6.0+. Our current bundled JDK is always newer
-    // than 12 so unless runtime java home is set, we cannot run the build-tools tests
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.getIsRuntimeJavaHomeSet() }
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_12 }
     maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
   check.dependsOn(integTest)
+
+  // for now we hardcode the tests for our build to use the gradle jvm.
+  tasks.withType(Test).configureEach {
+    it.executable = Jvm.current().getJavaHome().toPath().resolve("bin").resolve("java").toAbsolutePath()
+  }
 
   /*
    * We already configure publication and we don't need or want this one that

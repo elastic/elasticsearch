@@ -120,7 +120,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             timer.start();
             final Weight weight;
             try {
-                weight = super.createWeight(query, scoreMode, boost);
+                weight = query.createWeight(this, scoreMode, boost);
             } finally {
                 timer.stop();
                 profiler.pollLastElement();

@@ -20,7 +20,6 @@ import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -59,8 +58,8 @@ public class ModelLoadingService implements ClusterStateListener {
      * Once the limit is reached, LRU models are evicted in favor of new models
      */
     public static final Setting<ByteSizeValue> INFERENCE_MODEL_CACHE_SIZE =
-        Setting.byteSizeSetting("xpack.ml.inference_model.cache_size",
-            new ByteSizeValue(1, ByteSizeUnit.GB),
+        Setting.memorySizeSetting("xpack.ml.inference_model.cache_size",
+            "40%",
             Setting.Property.NodeScope);
 
     /**

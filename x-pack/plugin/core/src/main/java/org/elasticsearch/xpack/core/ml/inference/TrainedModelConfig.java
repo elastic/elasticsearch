@@ -19,6 +19,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -54,6 +56,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField INPUT = new ParseField("input");
     public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
     public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
+    public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -83,6 +86,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             (p, c) -> TrainedModelDefinition.fromXContent(p, ignoreUnknownFields),
             DEFINITION);
         parser.declareString(TrainedModelConfig.Builder::setLazyDefinition, COMPRESSED_DEFINITION);
+        parser.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
         return parser;
     }
 
@@ -100,6 +104,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final TrainedModelInput input;
     private final long estimatedHeapMemory;
     private final long estimatedOperations;
+    private final License.OperationMode licenseLevel;
 
     private final LazyModelDefinition definition;
 
@@ -113,7 +118,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        Map<String, Object> metadata,
                        TrainedModelInput input,
                        Long estimatedHeapMemory,
-                       Long estimatedOperations) {
+                       Long estimatedOperations,
+                       String licenseLevel) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
@@ -132,6 +138,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("[" + ESTIMATED_OPERATIONS.getPreferredName() + "] must be greater than or equal to 0");
         }
         this.estimatedOperations = estimatedOperations;
+        this.licenseLevel = License.OperationMode.resolve(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -146,6 +153,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         input = new TrainedModelInput(in);
         estimatedHeapMemory = in.readVLong();
         estimatedOperations = in.readVLong();
+        licenseLevel = License.OperationMode.resolve(in.readString());
     }
 
     public String getModelId() {
@@ -216,6 +224,25 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return estimatedOperations;
     }
 
+    public License.OperationMode getLicenseLevel() {
+        return licenseLevel;
+    }
+
+    public boolean isAvailableWithLicense(XPackLicenseState licenseState) {
+        // Basic is always true
+        if (licenseLevel.equals(License.OperationMode.BASIC)) {
+            return true;
+        }
+
+        // The model license does not matter, this is the highest licensed level
+        if (licenseState.isActive() && XPackLicenseState.isPlatinumOrTrialOperationMode(licenseState.getOperationMode())) {
+            return true;
+        }
+
+        // catch the rest, if the license is active and is at least the required model license
+        return licenseState.isActive() && License.OperationMode.compare(licenseState.getOperationMode(), licenseLevel) >= 0;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
@@ -229,6 +256,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         input.writeTo(out);
         out.writeVLong(estimatedHeapMemory);
         out.writeVLong(estimatedOperations);
+        out.writeString(licenseLevel.description());
     }
 
     @Override
@@ -262,6 +290,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
             new ByteSizeValue(estimatedHeapMemory));
         builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
+        builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
         builder.endObject();
         return builder;
     }
@@ -286,6 +315,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             Objects.equals(input, that.input) &&
             Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
             Objects.equals(estimatedOperations, that.estimatedOperations) &&
+            Objects.equals(licenseLevel, that.licenseLevel) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -301,7 +331,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             metadata,
             estimatedHeapMemory,
             estimatedOperations,
-            input);
+            input,
+            licenseLevel);
     }
 
     public static class Builder {
@@ -317,6 +348,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Long estimatedHeapMemory;
         private Long estimatedOperations;
         private LazyModelDefinition definition;
+        private String licenseLevel = License.OperationMode.PLATINUM.description();
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -420,6 +452,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setLicenseLevel(String licenseLevel) {
+            this.licenseLevel = licenseLevel;
+            return this;
+        }
+
         // TODO move to REST level instead of here in the builder
         public void validate() {
             // We require a definition to be available here even though it will be stored in a different doc
@@ -437,28 +474,17 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     MlStrings.ID_LENGTH_LIMIT));
             }
 
-            if (version != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", VERSION.getPreferredName());
-            }
+            checkIllegalSetting(version, VERSION.getPreferredName());
+            checkIllegalSetting(createdBy, CREATED_BY.getPreferredName());
+            checkIllegalSetting(createTime, CREATE_TIME.getPreferredName());
+            checkIllegalSetting(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName());
+            checkIllegalSetting(estimatedOperations, ESTIMATED_OPERATIONS.getPreferredName());
+            checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName());
+        }
 
-            if (createdBy != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
-                    CREATED_BY.getPreferredName());
-            }
-
-            if (createTime != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
-                    CREATE_TIME.getPreferredName());
-            }
-
-            if (estimatedHeapMemory != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
-                    ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName());
-            }
-
-            if (estimatedOperations != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
-                    ESTIMATED_OPERATIONS.getPreferredName());
+        private static void checkIllegalSetting(Object value, String setting) {
+            if (value != null) {
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", setting);
             }
         }
 
@@ -474,7 +500,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 metadata,
                 input,
                 estimatedHeapMemory,
-                estimatedOperations);
+                estimatedOperations,
+                licenseLevel);
         }
     }
 

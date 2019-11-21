@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -202,6 +203,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setVersion(Version.CURRENT)
+            .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setEstimatedHeapMemory(0)
             .setEstimatedOperations(0)
             .setInput(TrainedModelInputTests.createRandomInput());

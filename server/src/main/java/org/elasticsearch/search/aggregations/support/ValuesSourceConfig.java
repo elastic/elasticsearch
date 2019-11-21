@@ -288,14 +288,4 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
         return (VS) valueSourceType().replaceMissing(vs, missing, format, context::nowInMillis);
     }
-
-    private ValuesSource.GeoShape geoShapeField() {
-
-        if (!(fieldContext().indexFieldData() instanceof IndexGeoShapeFieldData)) {
-            throw new IllegalArgumentException("Expected geo_shape type on field [" + fieldContext().field() +
-                "], but got [" + fieldContext().fieldType().typeName() + "]");
-        }
-
-        return new ValuesSource.GeoShape.Fielddata((IndexGeoShapeFieldData) fieldContext().indexFieldData());
-    }
 }

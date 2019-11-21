@@ -38,7 +38,6 @@ import java.util.Arrays;
 import static org.elasticsearch.common.geo.GeoTestUtils.geometryTreeReader;
 import static org.hamcrest.Matchers.equalTo;
 
-// TODO(talevy): more tests
 public class GeoGridTilerTests extends ESTestCase {
     private static final GeoGridTiler.GeoTileGridTiler GEOTILE = GeoGridTiler.GeoTileGridTiler.INSTANCE;
     private static final GeoGridTiler.GeoHashGridTiler GEOHASH = GeoGridTiler.GeoHashGridTiler.INSTANCE;
@@ -107,6 +106,24 @@ public class GeoGridTilerTests extends ESTestCase {
         if (geometry.type() == ShapeType.MULTIPOLYGON) {
             geometry = ((MultiPolygon) geometry).get(0);
         }
+        GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+        MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
+        int upperBound = (int) GEOTILE.getBoundingTileCount(value, precision);
+        long[] recursiveValues = new long[upperBound];
+        long[] bruteForceValues = new long[upperBound];
+        int recursiveCount = GEOTILE.setValues(recursiveValues, value, precision);
+        int bruteForceCount = GEOTILE.setValuesByBruteForceScan(bruteForceValues, value, precision);
+        Arrays.sort(recursiveValues);
+        Arrays.sort(bruteForceValues);
+        assertThat(recursiveCount, equalTo(bruteForceCount));
+        assertArrayEquals(recursiveValues, bruteForceValues);
+    }
+
+    public void testGeoTileSetValuesBruteAndRecursivePoints() throws Exception {
+        int precision = randomIntBetween(0, 10);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
+        Geometry geometry = randomBoolean() ? GeometryTestUtils.randomPoint(false) : GeometryTestUtils.randomMultiPoint(false);
+        geometry = indexer.prepareForIndexing(geometry);
         GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
         int upperBound = (int) GEOTILE.getBoundingTileCount(value, precision);

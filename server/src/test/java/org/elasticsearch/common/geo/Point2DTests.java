@@ -42,11 +42,15 @@ public class Point2DTests extends ESTestCase {
         assertThat(reader.getExtent(), equalTo(Extent.fromPoint(x, y)));
         assertThat(reader.getExtent(), equalTo(reader.getExtent()));
         assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoint(x, y));
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(x, y, x + randomIntBetween(1, 10), y + randomIntBetween(1, 10)));
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10), x, y));
-        assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10),
+        assertRelation(GeoRelation.QUERY_CROSSES, reader,
+            Extent.fromPoints(x, y, x + randomIntBetween(1, 10), y + randomIntBetween(1, 10)));
+        assertRelation(GeoRelation.QUERY_CROSSES, reader,
+            Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10), x, y));
+        assertRelation(GeoRelation.QUERY_CROSSES, reader,
+            Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10),
             x + randomIntBetween(1, 10), y + randomIntBetween(1, 10)));
-        assertRelation(GeoRelation.QUERY_DISJOINT, reader, Extent.fromPoints(x - randomIntBetween(10, 100), y - randomIntBetween(10, 100),
+        assertRelation(GeoRelation.QUERY_DISJOINT, reader,
+            Extent.fromPoints(x - randomIntBetween(10, 100), y - randomIntBetween(10, 100),
             x - randomIntBetween(1, 10), y - randomIntBetween(1, 10)));
     }
 

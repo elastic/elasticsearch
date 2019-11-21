@@ -34,6 +34,10 @@ setup:
                           leaf1:
                             type: text
                             index: false
+                  latency:
+                    type: long
+                    meta:
+                      unit: ms
 
   - do:
         indices.create:
@@ -69,6 +73,10 @@ setup:
                           leaf1:
                             type: text
                             index: false
+                  latency:
+                    type: long
+                    meta:
+                      unit: ns
   - do:
         indices.create:
           index: test3
@@ -318,3 +326,37 @@ setup:
   - match: {fields.misc.unmapped.aggregatable:          false}
   - match: {fields.misc.unmapped.indices:               ["test2", "test3"]}
 
+---
+"Meta":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: Metadata support was added in 7.6
+
+  - do:
+      field_caps:
+        index: test3
+        fields: [latency]
+
+  - is_false: fields.latency.long.meta.unit
+
+  - do:
+      field_caps:
+        index: test1
+        fields: [latency]
+
+  - match: {fields.latency.long.meta.unit:              ["ms"]}
+
+  - do:
+      field_caps:
+        index: test1,test3
+        fields: [latency]
+
+  - match: {fields.latency.long.meta.unit:              ["ms"]}
+
+  - do:
+      field_caps:
+        index: test1,test2,test3
+        fields: [latency]
+
+  - match: {fields.latency.long.meta.unit:              ["ms", "ns"]}

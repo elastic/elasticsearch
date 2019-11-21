@@ -213,6 +213,36 @@ public class TypeParsers {
                     parseCopyFields(propNode, builder);
                 }
                 iterator.remove();
+            } else if (propName.equals("meta")) {
+                if (propNode instanceof Map == false) {
+                    throw new MapperParsingException("[meta] must be an object, got " + propNode.getClass().getSimpleName() +
+                            "[" + propNode + "] for field [" + name +"]");
+                }
+                Map<String, ?> meta = (Map<String, ?>) propNode;
+                if (meta.size() > 5) {
+                    throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" +
+                            name + "]");
+                }
+                for (String key : meta.keySet()) {
+                    if (key.codePointCount(0, key.length()) > 20) {
+                        throw new MapperParsingException("[meta] keys can't be longer than 20 chars, but got [" + key +
+                                "] for field [" + name + "]");
+                    }
+                }
+                for (Object value : meta.values()) {
+                    if (value instanceof String) {
+                        String sValue = (String) value;
+                        if (sValue.codePointCount(0, sValue.length()) > 50) {
+                            throw new MapperParsingException("[meta] values can't be longer than 50 chars, but got [" + value +
+                                    "] for field [" + name + "]");
+                        }
+                    } else if (value instanceof Number == false) {
+                        throw new MapperParsingException("[meta] values can only be numbers or strings, but got " +
+                                value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
+                    }
+                }
+                builder.meta(meta);
+                iterator.remove();
             }
         }
     }

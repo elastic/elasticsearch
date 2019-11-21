@@ -87,7 +87,12 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
 
     protected void assertEqualInstances(T expectedInstance, T newInstance) {
         assertNotSame(newInstance, expectedInstance);
+        try {
         assertEquals(expectedInstance, newInstance);
+        } catch (AssertionError e) {
+            expectedInstance.equals(newInstance);
+            throw e;
+        }
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
     }
 

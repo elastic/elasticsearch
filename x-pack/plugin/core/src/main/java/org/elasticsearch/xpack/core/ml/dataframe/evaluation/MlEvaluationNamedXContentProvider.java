@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.ClassificationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
@@ -48,6 +49,7 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         // Classification metrics
         namedXContent.add(new NamedXContentRegistry.Entry(ClassificationMetric.class, MulticlassConfusionMatrix.NAME,
             MulticlassConfusionMatrix::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(ClassificationMetric.class, Accuracy.NAME, Accuracy::fromXContent));
 
         // Regression metrics
         namedXContent.add(new NamedXContentRegistry.Entry(RegressionMetric.class, MeanSquaredError.NAME, MeanSquaredError::fromXContent));
@@ -78,6 +80,7 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         namedWriteables.add(new NamedWriteableRegistry.Entry(ClassificationMetric.class,
             MulticlassConfusionMatrix.NAME.getPreferredName(),
             MulticlassConfusionMatrix::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(ClassificationMetric.class, Accuracy.NAME.getPreferredName(), Accuracy::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RegressionMetric.class,
             MeanSquaredError.NAME.getPreferredName(),
             MeanSquaredError::new));
@@ -95,6 +98,9 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
             MulticlassConfusionMatrix.NAME.getPreferredName(),
             MulticlassConfusionMatrix.Result::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
+            Accuracy.NAME.getPreferredName(),
+            Accuracy.Result::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
             MeanSquaredError.NAME.getPreferredName(),
             MeanSquaredError.Result::new));

@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -75,7 +76,7 @@ final class LatLonShapeDVAtomicFieldData extends AbstractAtomicGeoShapeFieldData
 
                 @Override
                 public ValuesSourceType valuesSourceType() {
-                    return ValuesSourceType.GEOSHAPE;
+                    return CoreValuesSourceType.GEOSHAPE;
                 }
 
                 @Override

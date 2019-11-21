@@ -26,6 +26,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
@@ -377,11 +378,64 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public ValuesSourceType valuesSourceType() {
-                return ValuesSourceType.GEOPOINT;
+                return CoreValuesSourceType.GEOPOINT;
             }
         };
         final MultiGeoValues.GeoPointValue missing = new MultiGeoValues.GeoPointValue(
             new GeoPoint(randomDouble() * 90, randomDouble() * 180));
+        MultiGeoValues withMissingReplaced = MissingValues.replaceMissing(asGeoValues, missing);
+        for (int i = 0; i < numDocs; ++i) {
+            assertTrue(withMissingReplaced.advanceExact(i));
+            if (values[i].length > 0) {
+                assertEquals(values[i].length, withMissingReplaced.docValueCount());
+                for (int j = 0; j < values[i].length; ++j) {
+                    assertEquals(values[i][j], withMissingReplaced.nextValue());
+                }
+            } else {
+                assertEquals(1, withMissingReplaced.docValueCount());
+                assertEquals(missing, withMissingReplaced.nextValue());
+            }
+        }
+    }
+
+    public void testMissingGeoShapes() throws IOException {
+        final int numDocs = TestUtil.nextInt(random(), 1, 100);
+        final MultiGeoValues.GeoShapeValue[][] values = new MultiGeoValues.GeoShapeValue[numDocs][];
+        for (int i = 0; i < numDocs; ++i) {
+            values[i] = new MultiGeoValues.GeoShapeValue[random().nextInt(4)];
+            for (int j = 0; j < values[i].length; ++j) {
+                values[i][j] = new MultiGeoValues.GeoShapeValue(Extent.fromPoint(randomInt(), randomInt()));
+            }
+        }
+        MultiGeoValues asGeoValues = new MultiGeoValues() {
+
+            int doc = -1;
+            int i;
+
+            @Override
+            public GeoValue nextValue() {
+                return values[doc][i++];
+            }
+
+            @Override
+            public boolean advanceExact(int docId) {
+                doc = docId;
+                i = 0;
+                return values[doc].length > 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return values[doc].length;
+            }
+
+            @Override
+            public ValuesSourceType valuesSourceType() {
+                return CoreValuesSourceType.GEOSHAPE;
+            }
+        };
+        final MultiGeoValues.GeoShapeValue missing = new MultiGeoValues.GeoShapeValue(
+            Extent.fromPoint(randomInt(), randomInt()));
         MultiGeoValues withMissingReplaced = MissingValues.replaceMissing(asGeoValues, missing);
         for (int i = 0; i < numDocs; ++i) {
             assertTrue(withMissingReplaced.advanceExact(i));

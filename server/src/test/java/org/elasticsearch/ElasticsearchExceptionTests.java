@@ -577,7 +577,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         ElasticsearchException parsed;
         try (XContentParser parser = createParser(builder)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = ElasticsearchException.fromXContent(parser, true);
+            parsed = ElasticsearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -595,30 +595,39 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertEquals(cause.getMessage(),
             "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]");
 
+        assertExceptionAsJson(parsed, "{\"reason\":\"foo\", \"type\":\"exception\", \"caused_by\":" +
+            "{\"reason\":\"bar\", \"type\":\"exception\", \"caused_by\":" +
+            "{\"reason\":\"baz\", \"type\":\"exception\", \"caused_by\":" +
+            "{\"reason\":\"routing is required for [_test]/[_id]\", \"type\":\"routing_missing_exception\", " +
+            "\"index_uuid\":\"_na_\", \"index\":\"_test\"}}}}}}");
+
         final XContent xContent2 = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder2 = XContentBuilder.builder(xContent2).startObject().value(parsed).endObject();
         builder2 = shuffleXContent(builder2);
 
-        ElasticsearchException parsed2;
         try (XContentParser parser = createParser(builder2)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed2 = ElasticsearchException.fromXContent(parser);
+            parsed = ElasticsearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
 
-        assertNotNull(parsed2);
-        assertEquals(parsed2.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+        assertNotNull(parsed);
+        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+        assertEquals(parsed.getExceptionName(), "exception");
 
         cause = (ElasticsearchException) parsed.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
+        assertEquals(cause.getExceptionName(), "exception");
 
         cause = (ElasticsearchException) cause.getCause();
         assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
+        assertEquals(cause.getExceptionName(), "exception");
 
         cause = (ElasticsearchException) cause.getCause();
         assertEquals(cause.getMessage(),
             "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]");
+        assertEquals(cause.getExceptionName(), "routing_missing_exception");
     }
 
     /**

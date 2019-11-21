@@ -420,32 +420,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-        return innerFromXContent(parser, true);
-    }
-
-    /**
-     * Generate a {@link ElasticsearchException} from a {@link XContentParser}. This does not
-     * return the original exception type (ie NodeClosedException for example) but just wraps
-     * the type, the reason and the cause of the exception. It also recursively parses the
-     * tree structure of the cause, returning it as a tree structure of {@link ElasticsearchException}
-     * instances.
-     *
-     * @param parser the parser
-     * @param retainXContentFields if true, then the exception reason and type will be retained for
-     *                             re-serialization to XContent.
-     */
-    public static ElasticsearchException fromXContent(XContentParser parser, boolean retainXContentFields) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-        return innerFromXContent(parser, false, retainXContentFields);
+        return innerFromXContent(parser, false);
     }
 
     public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
-        return innerFromXContent(parser, parseRootCauses, false);
-    }
-
-    public static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses, boolean retainXContentFields)
-        throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
@@ -531,12 +509,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
         }
 
-        final ElasticsearchException e;
-        if (retainXContentFields) {
-            e = new XContentRetainingException(buildMessage(type, reason, stack), type, reason, stack, cause);
-        } else {
-            e = new ElasticsearchException(buildMessage(type, reason, stack), cause);
-        }
+        final ElasticsearchException e = new XContentRetainingException(buildMessage(type, reason, stack), type, reason, stack, cause);
 
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             //subclasses can print out additional metadata through the metadataToXContent method. Simple key-value pairs will be
@@ -701,6 +674,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Returns a underscore case name for the given exception. This method strips {@code Elasticsearch} prefixes from exception names.
      */
     public static String getExceptionName(Throwable ex) {
+        if (ex instanceof XContentRetainingException) {
+            return ((XContentRetainingException) ex).fromXContentExceptionType;
+        }
         String simpleName = ex.getClass().getSimpleName();
         if (simpleName.startsWith("Elasticsearch")) {
             simpleName = simpleName.substring("Elasticsearch".length());

@@ -34,6 +34,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -49,6 +50,7 @@ final class FetchSearchPhase extends SearchPhase {
     private final SearchPhaseContext context;
     private final Logger logger;
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
+    private final SearchProgressListener progressListener;
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
@@ -72,6 +74,7 @@ final class FetchSearchPhase extends SearchPhase {
         this.context = context;
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
+        this.progressListener = context.getTask().getProgressListener();
     }
 
     @Override
@@ -136,6 +139,8 @@ final class FetchSearchPhase extends SearchPhase {
                         }
                         // in any case we count down this result since we don't talk to this shard anymore
                         counter.countDown();
+                        // empty result
+                        progressListener.onFetchResult(queryResult.fetchResult());
                     } else {
                         SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
                         Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
@@ -164,10 +169,15 @@ final class FetchSearchPhase extends SearchPhase {
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
+                    boolean success = false;
                     try {
                         counter.onResult(result);
+                        success = true;
                     } catch (Exception e) {
                         context.onPhaseFailure(FetchSearchPhase.this, "", e);
+                    }
+                    if (success) {
+                        progressListener.onFetchResult(result);
                     }
                 }
 
@@ -182,6 +192,7 @@ final class FetchSearchPhase extends SearchPhase {
                         // request to clear the search context.
                         releaseIrrelevantSearchContext(querySearchResult);
                     }
+                    progressListener.onFetchFailure(shardIndex, e);
                 }
             });
     }

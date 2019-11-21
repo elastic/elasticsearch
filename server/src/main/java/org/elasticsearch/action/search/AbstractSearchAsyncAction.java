@@ -87,7 +87,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchResponse.Clusters clusters;
 
     private final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
-    private final GroupShardsIterator<SearchShardIterator> shardsIts;
+    protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
@@ -443,7 +443,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
         }
-        results.consumeShardFailure(shardIndex);
+        results.consumeShardFailure(shardIndex, e);
     }
 
     /**

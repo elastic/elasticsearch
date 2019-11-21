@@ -31,7 +31,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -157,12 +156,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Gets the {@link RepositoryData} for the given repository.
      *
      * @param repositoryName repository name
-     * @return repository data
+     * @param listener       listener to pass {@link RepositoryData} to
      */
-    public RepositoryData getRepositoryData(final String repositoryName) {
-        Repository repository = repositoriesService.repository(repositoryName);
-        assert repository != null; // should only be called once we've validated the repository exists
-        return PlainActionFuture.get(repository::getRepositoryData);
+    public void getRepositoryData(final String repositoryName, final ActionListener<RepositoryData> listener) {
+        try {
+            Repository repository = repositoriesService.repository(repositoryName);
+            assert repository != null; // should only be called once we've validated the repository exists
+            repository.getRepositoryData(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**

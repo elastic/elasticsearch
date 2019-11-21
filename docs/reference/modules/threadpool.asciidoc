@@ -58,7 +58,7 @@ There are several thread pools, but the important ones include:
     size of `2 * # of available processors`.
 
 `fetch_shard_store`::
-    For storing shard states.
+    For listing shard stores.
     Thread pool type is `scaling` with keep-alive of `5m` and a default maximum
     size of `2 * # of available processors`.
 

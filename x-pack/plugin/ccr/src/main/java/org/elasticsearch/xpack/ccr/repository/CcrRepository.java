@@ -221,26 +221,28 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public RepositoryData getRepositoryData() {
-        Client remoteClient = getRemoteClusterClient();
-        ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true)
-            .get(ccrSettings.getRecoveryActionTimeout());
-        MetaData remoteMetaData = response.getState().getMetaData();
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        ActionListener.completeWith(listener, () -> {
+            Client remoteClient = getRemoteClusterClient();
+            ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetaData(true)
+                .get(ccrSettings.getRecoveryActionTimeout());
+            MetaData remoteMetaData = response.getState().getMetaData();
 
-        Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-        Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
-        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
+            Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
+            Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
 
-        ImmutableOpenMap<String, IndexMetaData> remoteIndices = remoteMetaData.getIndices();
-        for (String indexName : remoteMetaData.getConcreteAllIndices()) {
-            // Both the Snapshot name and UUID are set to _latest_
-            SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
-            copiedSnapshotIds.put(indexName, snapshotId);
-            snapshotStates.put(indexName, SnapshotState.SUCCESS);
-            Index index = remoteIndices.get(indexName).getIndex();
-            indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singleton(snapshotId));
-        }
-        return new RepositoryData(1, copiedSnapshotIds, snapshotStates, indexSnapshots, ShardGenerations.EMPTY);
+            ImmutableOpenMap<String, IndexMetaData> remoteIndices = remoteMetaData.getIndices();
+            for (String indexName : remoteMetaData.getConcreteAllIndices()) {
+                // Both the Snapshot name and UUID are set to _latest_
+                SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
+                copiedSnapshotIds.put(indexName, snapshotId);
+                snapshotStates.put(indexName, SnapshotState.SUCCESS);
+                Index index = remoteIndices.get(indexName).getIndex();
+                indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singleton(snapshotId));
+            }
+            return new RepositoryData(1, copiedSnapshotIds, snapshotStates, indexSnapshots, ShardGenerations.EMPTY);
+        });
     }
 
     @Override

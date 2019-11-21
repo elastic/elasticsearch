@@ -300,18 +300,11 @@ public class MetaDataCreateIndexService {
                         MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index());
 
                 // add the request mapping
-                Map<String, Map<String, Object>> mappings = new HashMap<>();
+                Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, request.mappings());
 
                 Map<String, AliasMetaData> templatesAliases = new HashMap<>();
 
                 List<String> templateNames = new ArrayList<>();
-
-                for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-                    Map<String, Object> mapping = MapperService.parseMapping(xContentRegistry, entry.getValue());
-                    assert mapping.size() == 1 : mapping;
-                    assert entry.getKey().equals(mapping.keySet().iterator().next()) : entry.getKey() + " != " + mapping;
-                    mappings.put(entry.getKey(), mapping);
-                }
 
                 final Index recoverFromIndex = request.recoverFrom();
 
@@ -321,34 +314,20 @@ public class MetaDataCreateIndexService {
                         templateNames.add(template.getName());
                         for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
                             String mappingString = cursor.value.string();
-                            if (mappings.containsKey(cursor.key)) {
-                                XContentHelper.mergeDefaults(mappings.get(cursor.key),
-                                    MapperService.parseMapping(xContentRegistry, mappingString));
-                            } else if (mappings.size() == 1 && cursor.key.equals(MapperService.SINGLE_MAPPING_NAME)) {
-                                // Typeless template with typed mapping
-                                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
-                                assert templateMapping.size() == 1 : templateMapping;
-                                assert cursor.key.equals(templateMapping.keySet().iterator().next()) :
-                                    cursor.key + " != " + templateMapping;
-                                Map.Entry<String, Map<String, Object>> mappingEntry = mappings.entrySet().iterator().next();
-                                templateMapping = Collections.singletonMap(
-                                        mappingEntry.getKey(),                       // reuse type name from the mapping
-                                        templateMapping.values().iterator().next()); // but actual mappings from the template
-                                XContentHelper.mergeDefaults(mappingEntry.getValue(), templateMapping);
-                            } else if (template.mappings().size() == 1 && mappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
-                                // Typed template with typeless mapping
-                                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
-                                assert templateMapping.size() == 1 : templateMapping;
-                                assert cursor.key.equals(templateMapping.keySet().iterator().next()) :
-                                    cursor.key + " != " + templateMapping;
-                                Map<String, Object> mapping = mappings.get(MapperService.SINGLE_MAPPING_NAME);
-                                templateMapping = Collections.singletonMap(
-                                        MapperService.SINGLE_MAPPING_NAME,           // make template mapping typeless
-                                        templateMapping.values().iterator().next());
-                                XContentHelper.mergeDefaults(mapping, templateMapping);
-                            } else {
-                                mappings.put(cursor.key,
-                                    MapperService.parseMapping(xContentRegistry, mappingString));
+                            // Templates are wrapped with their _type names, which for pre-8x templates may not
+                            // be _doc.  For now, we unwrap them based on the _type name, and then re-wrap with
+                            // _doc
+                            // TODO in 9x these will all have a _type of _doc so no re-wrapping will be necessary
+                            Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
+                            assert templateMapping.size() == 1 : templateMapping;
+                            assert cursor.key.equals(templateMapping.keySet().iterator().next()) : cursor.key + " != " + templateMapping;
+                            templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME,
+                                templateMapping.values().iterator().next());
+                            if (mappings.isEmpty()) {
+                               mappings = templateMapping;
+                            }
+                            else {
+                                XContentHelper.mergeDefaults(mappings, templateMapping);
                             }
                         }
                         //handle aliases
@@ -486,12 +465,11 @@ public class MetaDataCreateIndexService {
 
                 MapperService mapperService = indexService.mapperService();
                 if (mappings.isEmpty() == false) {
-                    assert mappings.size() == 1;
-                    String type = mappings.keySet().iterator().next();
+                    assert mappings.size() == 1 : mappings;
                     try {
-                        mapperService.merge(type, mappings.get(type), MergeReason.MAPPING_UPDATE);
+                        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
                     } catch (Exception e) {
-                        removalExtraInfo = "failed on parsing default mapping/mappings on index creation";
+                        removalExtraInfo = "failed on parsing mappings on index creation";
                         throw e;
                     }
                 }

@@ -52,19 +52,20 @@ public class ExtractedFieldsDetector {
 
     private final String[] index;
     private final DataFrameAnalyticsConfig config;
-    private final String resultsField;
     private final boolean isTaskRestarting;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
+    private final Map<String, Long> fieldCardinalities;
 
-    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, String resultsField, boolean isTaskRestarting,
-                            int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, boolean isTaskRestarting,
+                            int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse,
+                            Map<String, Long> fieldCardinalities) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
-        this.resultsField = resultsField;
         this.isTaskRestarting = isTaskRestarting;
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
+        this.fieldCardinalities = Objects.requireNonNull(fieldCardinalities);
     }
 
     public ExtractedFields detect() {
@@ -79,11 +80,13 @@ public class ExtractedFieldsDetector {
         checkNoIgnoredFields(fields);
         checkFieldsHaveCompatibleTypes(fields);
         checkRequiredFields(fields);
+        checkFieldsWithCardinalityLimit();
         return detectExtractedFields(fields);
     }
 
     private Set<String> getIncludedFields() {
         Set<String> fields = new HashSet<>(fieldCapabilitiesResponse.get().keySet());
+        checkResultsFieldIsNotPresent();
         removeFieldsUnderResultsField(fields);
         FetchSourceContext analyzedFields = config.getAnalyzedFields();
 
@@ -96,21 +99,13 @@ public class ExtractedFieldsDetector {
         return fields;
     }
 
-    private void removeFieldsUnderResultsField(Set<String> fields) {
-        if (resultsField == null) {
-            return;
-        }
-        checkResultsFieldIsNotPresent();
-        // Ignore fields under the results object
-        fields.removeIf(field -> field.startsWith(resultsField + "."));
-    }
-
     private void checkResultsFieldIsNotPresent() {
         // If the task is restarting we do not mind the index containing the results field, we will overwrite all docs
         if (isTaskRestarting) {
             return;
         }
 
+        String resultsField = config.getDest().getResultsField();
         Map<String, FieldCapabilities> indexToFieldCaps = fieldCapabilitiesResponse.getField(resultsField);
         if (indexToFieldCaps != null && indexToFieldCaps.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException(
@@ -120,6 +115,11 @@ public class ExtractedFieldsDetector {
                 resultsField,
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
         }
+    }
+
+    private void removeFieldsUnderResultsField(Set<String> fields) {
+        // Ignore fields under the results object
+        fields.removeIf(field -> field.startsWith(config.getDest().getResultsField() + "."));
     }
 
     private void removeFieldsWithIncompatibleTypes(Set<String> fields) {
@@ -230,6 +230,19 @@ public class ExtractedFieldsDetector {
             if (requiredField.getTypes().containsAll(fieldTypes) == false) {
                 throw ExceptionsHelper.badRequestException("invalid types {} for required field [{}]; expected types are {}",
                     fieldTypes, requiredField.getName(), requiredField.getTypes());
+            }
+        }
+    }
+
+    private void checkFieldsWithCardinalityLimit() {
+        for (Map.Entry<String, Long> entry : config.getAnalysis().getFieldCardinalityLimits().entrySet()) {
+            String fieldName = entry.getKey();
+            long limit = entry.getValue();
+            long cardinality = fieldCardinalities.get(fieldName);
+            if (cardinality > limit) {
+                throw ExceptionsHelper.badRequestException(
+                        "Field [{}] must have at most [{}] distinct values but there were at least [{}]",
+                        fieldName, limit, cardinality);
             }
         }
     }

@@ -90,9 +90,8 @@ public class TransportLoggerTests extends ESTestCase {
     private BytesReference buildRequest() throws IOException {
         try (BytesStreamOutput messageOutput = new BytesStreamOutput()) {
             messageOutput.setVersion(Version.CURRENT);
-            try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
-                context.writeTo(messageOutput);
-            }
+            ThreadContext context = new ThreadContext(Settings.EMPTY);
+            context.writeTo(messageOutput);
             messageOutput.writeString(ClusterStatsAction.NAME);
             new ClusterStatsRequest().writeTo(messageOutput);
             BytesReference messageBody = messageOutput.bytes();

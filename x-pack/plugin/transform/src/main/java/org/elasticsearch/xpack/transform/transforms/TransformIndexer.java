@@ -13,10 +13,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -24,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -45,6 +44,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
+import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -66,7 +66,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * which query filters to run and which index requests to send
      */
     private enum RunState {
-        // do a complete query/index, this is used for batch data frames and for bootstraping (1st run)
+        // do a complete query/index, this is used for batch transforms and for bootstrapping (1st run)
         FULL_RUN,
 
         // Partial run modes in 2 stages:
@@ -184,42 +184,32 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * Request a checkpoint
      */
     protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
-        checkpointProvider
-            .createNextCheckpoint(
-                getLastCheckpoint(),
-                ActionListener
-                    .wrap(
-                        checkpoint -> transformsConfigManager
-                            .putTransformCheckpoint(
-                                checkpoint,
-                                ActionListener.wrap(putCheckPointResponse -> listener.onResponse(checkpoint), createCheckpointException -> {
-                                    logger
-                                        .warn(
-                                            new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()),
-                                            createCheckpointException
-                                        );
-                                    listener
-                                        .onFailure(
-                                            new RuntimeException(
-                                                "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
-                                                createCheckpointException
-                                            )
-                                        );
-                                })
-                            ),
-                        getCheckPointException -> {
-                            logger
-                                .warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
-                            listener
-                                .onFailure(
-                                    new RuntimeException(
-                                        "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
-                                        getCheckPointException
-                                    )
-                                );
-                        }
-                    )
-            );
+        checkpointProvider.createNextCheckpoint(
+            getLastCheckpoint(),
+            ActionListener.wrap(
+                checkpoint -> transformsConfigManager.putTransformCheckpoint(
+                    checkpoint,
+                    ActionListener.wrap(putCheckPointResponse -> listener.onResponse(checkpoint), createCheckpointException -> {
+                        logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()), createCheckpointException);
+                        listener.onFailure(
+                            new RuntimeException(
+                                "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
+                                createCheckpointException
+                            )
+                        );
+                    })
+                ),
+                getCheckPointException -> {
+                    logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
+                    listener.onFailure(
+                        new RuntimeException(
+                            "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
+                            getCheckPointException
+                        )
+                    );
+                }
+            )
+        );
     }
 
     @Override
@@ -397,16 +387,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // Treat this as a "we reached the end".
         // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
         if (aggregations == null) {
-            logger
-                .info("[{}] unexpected null aggregations in search response. " + "Source indices have been deleted or closed.", getJobId());
-            auditor
-                .info(
-                    getJobId(),
-                    "Source indices have been deleted or closed. "
-                        + "Please verify that these indices exist and are open ["
-                        + Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex())
-                        + "]."
-                );
+            logger.info(
+                "[{}] unexpected null aggregations in search response. " + "Source indices have been deleted or closed.",
+                getJobId()
+            );
+            auditor.info(
+                getJobId(),
+                "Source indices have been deleted or closed. "
+                    + "Please verify that these indices exist and are open ["
+                    + Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex())
+                    + "]."
+            );
             return new IterationResult<>(Collections.emptyList(), null, true);
         }
         final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
@@ -422,7 +413,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             default:
                 // Any other state is a bug, should not happen
                 logger.warn("[{}] Encountered unexpected run state [{}]", getJobId(), runState);
-                throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
+                throw new IllegalStateException("Transform indexer job encountered an illegal state [" + runState + "]");
         }
     }
 
@@ -468,25 +459,35 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     synchronized void handleFailure(Exception e) {
         logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
-        if (handleCircuitBreakingException(e)) {
-            return;
-        }
+        Throwable unwrappedException = ExceptionRootCauseFinder.getRootCauseException(e);
 
-        if (isIrrecoverableFailure(e) || context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
-            String failureMessage = isIrrecoverableFailure(e)
-                ? "task encountered irrecoverable failure: " + e.getMessage()
-                : "task encountered more than " + context.getNumFailureRetries() + " failures; latest failure: " + e.getMessage();
-            failIndexer(failureMessage);
+        if (unwrappedException instanceof CircuitBreakingException) {
+            handleCircuitBreakingException((CircuitBreakingException) unwrappedException);
+        } else if (unwrappedException instanceof ScriptException) {
+            handleScriptException((ScriptException) unwrappedException);
+            // irrecoverable error without special handling
+        } else if (unwrappedException instanceof IndexNotFoundException
+            || unwrappedException instanceof AggregationResultUtils.AggregationExtractionException
+            || unwrappedException instanceof TransformConfigReloadingException) {
+            failIndexer("task encountered irrecoverable failure: " + e.getMessage());
+        } else if (context.getAndIncrementFailureCount() > context.getNumFailureRetries()) {
+            failIndexer(
+                "task encountered more than "
+                    + context.getNumFailureRetries()
+                    + " failures; latest failure: "
+                    + ExceptionRootCauseFinder.getDetailedMessage(unwrappedException)
+            );
         } else {
             // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
             // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
             if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                auditor
-                    .warning(
-                        getJobId(),
-                        "Transform encountered an exception: " + e.getMessage() + " Will attempt again at next scheduled trigger."
-                    );
-                lastAuditedExceptionMessage = e.getMessage();
+                String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
+
+                auditor.warning(
+                    getJobId(),
+                    "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
+                );
+                lastAuditedExceptionMessage = message;
             }
         }
     }
@@ -496,24 +497,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             logger.trace("[{}] change detected [{}].", getJobId(), hasChanged);
             hasChangedListener.onResponse(hasChanged);
         }, e -> {
-            logger
-                .warn(
-                    new ParameterizedMessage("[{}] failed to detect changes for transform. Skipping update till next check.", getJobId()),
-                    e
-                );
-            auditor
-                .warning(
-                    getJobId(),
-                    "Failed to detect changes for transform, skipping update till next check. Exception: " + e.getMessage()
-                );
+            logger.warn(
+                new ParameterizedMessage("[{}] failed to detect changes for transform. Skipping update till next check.", getJobId()),
+                e
+            );
+            auditor.warning(
+                getJobId(),
+                "Failed to detect changes for transform, skipping update till next check. Exception: " + e.getMessage()
+            );
             hasChangedListener.onResponse(false);
         }));
-    }
-
-    private boolean isIrrecoverableFailure(Exception e) {
-        return e instanceof IndexNotFoundException
-            || e instanceof AggregationResultUtils.AggregationExtractionException
-            || e instanceof TransformConfigReloadingException;
     }
 
     private IterationResult<TransformIndexerPosition> processBuckets(final CompositeAggregation agg) {
@@ -536,7 +529,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             agg.getBuckets().isEmpty()
         );
 
-        // NOTE: progress is also mutated in ClientDataFrameIndexer#onFinished
+        // NOTE: progress is also mutated in onFinish
         if (progress != null) {
             progress.incrementDocsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
             progress.incrementDocsIndexed(result.getToIndex().size());
@@ -653,8 +646,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected SearchRequest buildSearchRequest() {
         assert nextCheckpoint != null;
 
-        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex())
-            .allowPartialSearchResults(false)
+        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
 
@@ -671,7 +663,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             default:
                 // Any other state is a bug, should not happen
                 logger.warn("Encountered unexpected run state [" + runState + "]");
-                throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
+                throw new IllegalStateException("Transform indexer job encountered an illegal state [" + runState + "]");
         }
 
         searchRequest.source(sourceBuilder);
@@ -686,8 +678,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
         if (isContinuous()) {
-            BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-                .filter(pivotQueryBuilder)
+            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
                 .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
             sourceBuilder.query(filteredQuery);
         } else {
@@ -711,8 +702,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
         TransformConfig config = getConfig();
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-            .filter(pivotQueryBuilder)
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
 
         sourceBuilder.query(filteredQuery);
@@ -731,8 +721,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
 
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-            .filter(pivotQueryBuilder)
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
         if (changedBuckets != null && changedBuckets.isEmpty() == false) {
@@ -756,36 +745,41 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * Implementation details: We take the values from the circuit breaker as a hint, but
      * note that it breaks early, that's why we also reduce using
      *
-     * @param e Exception thrown, only {@link CircuitBreakingException} are handled
-     * @return true if exception was handled, false if not
+     * @param circuitBreakingException CircuitBreakingException thrown
      */
-    protected boolean handleCircuitBreakingException(Exception e) {
-        CircuitBreakingException circuitBreakingException = getCircuitBreakingException(e);
-
-        if (circuitBreakingException == null) {
-            return false;
-        }
-
-        double reducingFactor = Math
-            .min(
-                (double) circuitBreakingException.getByteLimit() / circuitBreakingException.getBytesWanted(),
-                1 - (Math.log10(pageSize) * 0.1)
-            );
+    private void handleCircuitBreakingException(CircuitBreakingException circuitBreakingException) {
+        double reducingFactor = Math.min(
+            (double) circuitBreakingException.getByteLimit() / circuitBreakingException.getBytesWanted(),
+            1 - (Math.log10(pageSize) * 0.1)
+        );
 
         int newPageSize = (int) Math.round(reducingFactor * pageSize);
 
         if (newPageSize < MINIMUM_PAGE_SIZE) {
             String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
             failIndexer(message);
-            return true;
+            return;
         }
 
         String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize, newPageSize);
         auditor.info(getJobId(), message);
-        logger.info("Data frame transform [" + getJobId() + "]:" + message);
-
+        logger.info("[{}] {}", getJobId(), message);
         pageSize = newPageSize;
-        return true;
+        return;
+    }
+
+    /**
+     * Handle script exception case. This is error is irrecoverable.
+     *
+     * @param scriptException ScriptException thrown
+     */
+    private void handleScriptException(ScriptException scriptException) {
+        String message = TransformMessages.getMessage(
+            TransformMessages.LOG_TRANSFORM_PIVOT_SCRIPT_ERROR,
+            scriptException.getDetailedMessage(),
+            scriptException.getScriptStack()
+        );
+        failIndexer(message);
     }
 
     protected void failIndexer(String failureMessage) {
@@ -818,7 +812,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private RunState determineRunStateAtStart() {
-        // either 1st run or not a continuous data frame
+        // either 1st run or not a continuous transform
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
             return RunState.FULL_RUN;
         }
@@ -830,32 +824,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // continuous mode: we need to get the changed buckets first
         return RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
-    }
-
-    /**
-     * Inspect exception for circuit breaking exception and return the first one it can find.
-     *
-     * @param e Exception
-     * @return CircuitBreakingException instance if found, null otherwise
-     */
-    private static CircuitBreakingException getCircuitBreakingException(Exception e) {
-        // circuit breaking exceptions are at the bottom
-        Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(e);
-
-        if (unwrappedThrowable instanceof CircuitBreakingException) {
-            return (CircuitBreakingException) unwrappedThrowable;
-        } else if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
-            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) e;
-            for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
-                Throwable unwrappedShardFailure = org.elasticsearch.ExceptionsHelper.unwrapCause(shardFailure.getCause());
-
-                if (unwrappedShardFailure instanceof CircuitBreakingException) {
-                    return (CircuitBreakingException) unwrappedShardFailure;
-                }
-            }
-        }
-
-        return null;
     }
 
     static class TransformConfigReloadingException extends ElasticsearchException {

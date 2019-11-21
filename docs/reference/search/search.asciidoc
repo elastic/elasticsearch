@@ -309,7 +309,7 @@ Returned values are:
 (Float)
 Highest returned document `_score`.
 +
-The `_score` parameter is a floating point number
+The `_score` parameter is a 32-bit floating point number
 used to determine the relevance of the returned document.
 +
 This parameter value is `null` for requests
@@ -325,8 +325,8 @@ Returned parameters include:
   deprecated:[7.0.0, Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.]
 * `_id`: Unique identifier for the returned document.
   This ID is only unique within the returned index.
-* `_score`: Floating point number
-  used to determine the relevance of the returned document.
+* `_score`: Positive 32-bit floating point number used to determine the
+  relevance of the returned document.
 * `_source`: Object containing the original JSON body
   passed for the document at index time.
 --

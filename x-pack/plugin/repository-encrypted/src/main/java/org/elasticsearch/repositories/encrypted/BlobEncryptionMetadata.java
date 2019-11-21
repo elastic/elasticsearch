@@ -1,22 +1,15 @@
 package org.elasticsearch.repositories.encrypted;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.SequenceInputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Enumeration;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
 public class BlobEncryptionMetadata {
-
-    private static final int FIELDS_BUFFER_SIZE = 5 * Integer.SIZE / Byte.SIZE;
 
     private final int maxPacketSizeInBytes;
     private final int authTagSizeInBytes;
@@ -46,19 +39,14 @@ public class BlobEncryptionMetadata {
     }
 
     public BlobEncryptionMetadata(InputStream inputStream) throws IOException {
-        ByteBuffer fieldsByteBuffer = ByteBuffer.allocate(FIELDS_BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
-        if (FIELDS_BUFFER_SIZE != inputStream.readNBytes(fieldsByteBuffer.array(), 0, FIELDS_BUFFER_SIZE)) {
-            throw new IllegalArgumentException();
-        }
-        this.maxPacketSizeInBytes = fieldsByteBuffer.getInt();
-        this.authTagSizeInBytes = fieldsByteBuffer.getInt();
-        this.ivSizeInBytes = fieldsByteBuffer.getInt();
-        int dataEncryptionKeySizeInBytes = fieldsByteBuffer.getInt();
-        int packetsInfoListSize = fieldsByteBuffer.getInt();
-        this.dataEncryptionKeyMaterial = new byte[dataEncryptionKeySizeInBytes];
-        if (dataEncryptionKeySizeInBytes != inputStream.readNBytes(dataEncryptionKeyMaterial, 0, dataEncryptionKeySizeInBytes)) {
-            throw new IllegalArgumentException();
-        }
+        this.maxPacketSizeInBytes = readInt(inputStream);
+        this.authTagSizeInBytes = readInt(inputStream);
+        this.ivSizeInBytes = readInt(inputStream);
+
+        int dataEncryptionKeySizeInBytes = readInt(inputStream);
+        this.dataEncryptionKeyMaterial = readExactlyNBytes(inputStream, dataEncryptionKeySizeInBytes);
+
+        int packetsInfoListSize = readInt(inputStream);
         List<PacketInfo> packetsInfo = new ArrayList<>(packetsInfoListSize);
         for (int i = 0; i < packetsInfoListSize; i++) {
             PacketInfo packetInfo = new PacketInfo(inputStream, ivSizeInBytes, authTagSizeInBytes);
@@ -97,31 +85,40 @@ public class BlobEncryptionMetadata {
         return packetsInfoList;
     }
 
-    public InputStream toInputStream() {
+    public void write(OutputStream out) throws IOException {
+        writeInt(out, maxPacketSizeInBytes);
+        writeInt(out, authTagSizeInBytes);
+        writeInt(out, ivSizeInBytes);
 
-        final ByteBuffer fieldsByteBuffer = ByteBuffer.allocate(FIELDS_BUFFER_SIZE).order(ByteOrder.BIG_ENDIAN);
-        fieldsByteBuffer.putInt(maxPacketSizeInBytes);
-        fieldsByteBuffer.putInt(authTagSizeInBytes);
-        fieldsByteBuffer.putInt(ivSizeInBytes);
-        fieldsByteBuffer.putInt(dataEncryptionKeyMaterial.length);
-        fieldsByteBuffer.putInt(packetsInfoList.size());
+        writeInt(out, dataEncryptionKeyMaterial.length);
+        out.write(dataEncryptionKeyMaterial);
 
-        return new SequenceInputStream(new ByteArrayInputStream(fieldsByteBuffer.array()),
-                new SequenceInputStream(new ByteArrayInputStream(dataEncryptionKeyMaterial),
-                        new SequenceInputStream(new Enumeration<InputStream>() {
+        writeInt(out, packetsInfoList.size());
+        for (PacketInfo packetInfo : packetsInfoList) {
+            packetInfo.write(out);
+        }
+    }
 
-                            private final Iterator<PacketInfo> packetInfoIterator = packetsInfoList.iterator();
+    private static int readInt(InputStream inputStream) throws IOException {
+        return ((inputStream.read() & 0xFF) << 24) |
+               ((inputStream.read() & 0xFF) << 16) |
+               ((inputStream.read() & 0xFF) << 8 ) |
+               ((inputStream.read() & 0xFF) << 0 );
+    }
 
-                            @Override
-                            public boolean hasMoreElements() {
-                                return packetInfoIterator.hasNext();
-                            }
+    private static void writeInt(OutputStream out, int val) throws IOException {
+        out.write(val >>> 24);
+        out.write(val >>> 16);
+        out.write(val >>> 8);
+        out.write(val);
+    }
 
-                            @Override
-                            public InputStream nextElement() {
-                                return packetInfoIterator.next().toInputStream();
-                            }
-                        })));
+    private static byte[] readExactlyNBytes(InputStream inputStream, int nBytes) throws IOException {
+        byte[] ans = new byte[nBytes];
+        if (nBytes != inputStream.readNBytes(ans, 0, nBytes)) {
+            throw new IOException("Fewer than [" + nBytes + "] read");
+        }
+        return ans;
     }
 
     static class PacketInfo {
@@ -137,18 +134,9 @@ public class BlobEncryptionMetadata {
         }
 
         PacketInfo(InputStream inputStream, int ivSizeInBytes, int authTagSizeInBytes) throws IOException {
-            this.iv = new byte[ivSizeInBytes];
-            if (ivSizeInBytes != inputStream.readNBytes(iv, 0, ivSizeInBytes)) {
-                throw new IllegalArgumentException();
-            }
-            this.authTag = new byte[authTagSizeInBytes];
-            if (authTagSizeInBytes != inputStream.readNBytes(authTag, 0, authTagSizeInBytes)) {
-                throw new IllegalArgumentException();
-            }
-            this.sizeInBytes = ((inputStream.read() & 0xFF) << 24) |
-                    ((inputStream.read() & 0xFF) << 16) |
-                    ((inputStream.read() & 0xFF) << 8 ) |
-                    ((inputStream.read() & 0xFF) << 0 );
+            this.iv = readExactlyNBytes(inputStream, ivSizeInBytes);
+            this.authTag = readExactlyNBytes(inputStream, authTagSizeInBytes);
+            this.sizeInBytes = readInt(inputStream);
         }
 
         byte[] getIv() {
@@ -181,33 +169,10 @@ public class BlobEncryptionMetadata {
             return result;
         }
 
-        InputStream toInputStream() {
-            return new InputStream() {
-
-                private int idx = 0;
-
-                @Override
-                public int read() throws IOException {
-                    if (idx < iv.length) {
-                        return iv[idx++];
-                    } else if (idx < iv.length + authTag.length) {
-                        return authTag[idx++ - iv.length];
-                    } else if (idx < iv.length + authTag.length + 4) {
-                        idx++;
-                        if (idx == iv.length + authTag.length + 1) {
-                            return (byte) (sizeInBytes >>> 24);
-                        } else if (idx == iv.length + authTag.length + 2) {
-                            return (byte) (sizeInBytes >>> 16);
-                        } else if (idx == iv.length + authTag.length + 3) {
-                            return (byte) (sizeInBytes >>> 8);
-                        } else {
-                            return (byte) sizeInBytes;
-                        }
-                    } else {
-                        return -1;
-                    }
-                }
-            };
+        public void write(OutputStream out) throws IOException {
+            out.write(iv);
+            out.write(authTag);
+            writeInt(out, sizeInBytes);
         }
 
     }

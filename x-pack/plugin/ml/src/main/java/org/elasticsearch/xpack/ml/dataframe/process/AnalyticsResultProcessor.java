@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 public class AnalyticsResultProcessor {
 
@@ -39,21 +38,19 @@ public class AnalyticsResultProcessor {
 
     private final DataFrameAnalyticsConfig analytics;
     private final DataFrameRowsJoiner dataFrameRowsJoiner;
-    private final Supplier<Boolean> isProcessKilled;
     private final ProgressTracker progressTracker;
     private final TrainedModelProvider trainedModelProvider;
     private final DataFrameAnalyticsAuditor auditor;
     private final List<String> fieldNames;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
     private volatile String failure;
+    private volatile boolean isCancelled;
 
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
-                                    Supplier<Boolean> isProcessKilled, ProgressTracker progressTracker,
-                                    TrainedModelProvider trainedModelProvider, DataFrameAnalyticsAuditor auditor,
-                                    List<String> fieldNames) {
+                                    ProgressTracker progressTracker, TrainedModelProvider trainedModelProvider,
+                                    DataFrameAnalyticsAuditor auditor, List<String> fieldNames) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
-        this.isProcessKilled = Objects.requireNonNull(isProcessKilled);
         this.progressTracker = Objects.requireNonNull(progressTracker);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.auditor = Objects.requireNonNull(auditor);
@@ -74,6 +71,10 @@ public class AnalyticsResultProcessor {
         }
     }
 
+    public void cancel() {
+        isCancelled = true;
+    }
+
     public void process(AnalyticsProcess<AnalyticsResult> process) {
         long totalRows = process.getConfig().rows();
         long processedRows = 0;
@@ -82,6 +83,9 @@ public class AnalyticsResultProcessor {
         try (DataFrameRowsJoiner resultsJoiner = dataFrameRowsJoiner) {
             Iterator<AnalyticsResult> iterator = process.readAnalyticsResults();
             while (iterator.hasNext()) {
+                if (isCancelled) {
+                    break;
+                }
                 AnalyticsResult result = iterator.next();
                 processResult(result, resultsJoiner);
                 if (result.getRowResults() != null) {
@@ -89,13 +93,13 @@ public class AnalyticsResultProcessor {
                     progressTracker.writingResultsPercent.set(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
                 }
             }
-            if (isProcessKilled.get() == false) {
+            if (isCancelled == false) {
                 // This means we completed successfully so we need to set the progress to 100.
                 // This is because due to skipped rows, it is possible the processed rows will not reach the total rows.
                 progressTracker.writingResultsPercent.set(100);
             }
         } catch (Exception e) {
-            if (isProcessKilled.get()) {
+            if (isCancelled) {
                 // No need to log error as it's due to stopping
             } else {
                 LOGGER.error(new ParameterizedMessage("[{}] Error parsing data frame analytics output", analytics.getId()), e);
@@ -150,6 +154,8 @@ public class AnalyticsResultProcessor {
             .setMetadata(Collections.singletonMap("analytics_config",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
             .setDefinition(definition)
+            .setEstimatedHeapMemory(definition.ramBytesUsed())
+            .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
             .setInput(new TrainedModelInput(fieldNames))
             .build();
     }

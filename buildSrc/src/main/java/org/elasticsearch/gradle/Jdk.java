@@ -115,7 +115,9 @@ public class Jdk implements Buildable, Iterable<File> {
         return new Object() {
             @Override
             public String toString() {
-                return getPath() + "/bin/java";
+                final String platform = getPlatform();
+                final boolean isOSX = "mac".equals(platform) || "darwin".equals(platform);
+                return getPath() + (isOSX ? "/Contents/Home" : "") + "/bin/java";
             }
         };
     }

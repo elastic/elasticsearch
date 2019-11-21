@@ -37,7 +37,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
@@ -224,7 +224,7 @@ public class QueryPhase implements SearchPhase {
 
             final Runnable cancellationRunnable;
             if (searchContext.lowLevelCancellation()) {
-                SearchTask task = searchContext.getTask();
+                SearchShardTask task = searchContext.getTask();
                 cancellationRunnable = () -> { if (task.isCancelled()) throw new TaskCancelledException("cancelled"); };
             } else {
                 cancellationRunnable = null;

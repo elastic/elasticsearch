@@ -43,7 +43,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  */
 public final class GeoTileUtils {
 
-    private static final Double DIV_PI_2 = Math.PI / 2;
+    private static final Double PI_DIV_2 = Math.PI / 2;
 
     private GeoTileUtils() {}
 
@@ -123,7 +123,7 @@ public final class GeoTileUtils {
      * @param tiles     the number of tiles per column for a pre-determined zoom-level
      */
     static int getYTile(double latitude, long tiles) {
-        double latSin = SloppyMath.cos(DIV_PI_2 - Math.toRadians(normalizeLat(latitude)));
+        double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(normalizeLat(latitude)));
         int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
 
         if (yTile < 0) {
@@ -149,7 +149,7 @@ public final class GeoTileUtils {
 
         long xTile = (long) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
 
-        double latSin = SloppyMath.cos(DIV_PI_2 - (Math.toRadians(normalizeLat(latitude))));
+        double latSin = SloppyMath.cos(PI_DIV_2 - (Math.toRadians(normalizeLat(latitude))));
         long yTile = (long) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
 
         // Edge values may generate invalid values, and need to be clipped.

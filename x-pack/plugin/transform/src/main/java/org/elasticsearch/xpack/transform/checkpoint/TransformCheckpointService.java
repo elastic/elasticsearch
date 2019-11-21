@@ -10,11 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
-import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
@@ -34,8 +34,11 @@ public class TransformCheckpointService {
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor transformAuditor;
 
-    public TransformCheckpointService(final Client client,
-            final TransformConfigManager transformConfigManager, TransformAuditor transformAuditor) {
+    public TransformCheckpointService(
+        final Client client,
+        final TransformConfigManager transformConfigManager,
+        TransformAuditor transformAuditor
+    ) {
         this.client = client;
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
@@ -58,23 +61,26 @@ public class TransformCheckpointService {
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
-    public void getCheckpointingInfo(final String transformId,
-                                     final long lastCheckpointNumber,
-                                     final TransformIndexerPosition nextCheckpointPosition,
-                                     final TransformProgress nextCheckpointProgress,
-                                     final ActionListener<TransformCheckpointingInfo> listener) {
+    public void getCheckpointingInfo(
+        final String transformId,
+        final long lastCheckpointNumber,
+        final TransformIndexerPosition nextCheckpointPosition,
+        final TransformProgress nextCheckpointProgress,
+        final ActionListener<TransformCheckpointingInfo> listener
+    ) {
 
         // we need to retrieve the config first before we can defer the rest to the corresponding provider
-        transformConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(
-            transformConfig -> {
-                getCheckpointProvider(transformConfig).getCheckpointingInfo(lastCheckpointNumber,
-                            nextCheckpointPosition, nextCheckpointProgress, listener);
-                },
-            transformError -> {
-                logger.warn("Failed to retrieve configuration for transform [" + transformId + "]", transformError);
-                listener.onFailure(new CheckpointException("Failed to retrieve configuration", transformError));
-            })
-        );
+        transformConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(transformConfig -> {
+            getCheckpointProvider(transformConfig).getCheckpointingInfo(
+                lastCheckpointNumber,
+                nextCheckpointPosition,
+                nextCheckpointProgress,
+                listener
+            );
+        }, transformError -> {
+            logger.warn("Failed to retrieve configuration for transform [" + transformId + "]", transformError);
+            listener.onFailure(new CheckpointException("Failed to retrieve configuration", transformError));
+        }));
     }
 
 }

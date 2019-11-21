@@ -215,28 +215,22 @@ if (project != rootProject) {
     }
   }
 
-  // use an object to lazy initialize the executable to avoid accessing the runtime java
-  // version during configuration
-  Object testExecutableEvaluator = new Object() {
-    @Override
-    public String toString() {
-      return org.elasticsearch.gradle.info.BuildParams.runtimeJavaVersion > JavaVersion.VERSION_12 ?
-        org.elasticsearch.gradle.info.BuildParams.compilerJavaHome.toString() + "/bin/java" :
-        org.elasticsearch.gradle.info.BuildParams.runtimeJavaHome.toString() + "/bin/java"
-    }
-  }
 
   test {
-    // run build-tools tests with the compiler Java to workaround issues with JDK13+ and Groovy pre 2.5.7
-    executable = testExecutableEvaluator
+    // build-tools tests are not compatible with JDKs > 12 until we upgrade to Gradle 6.0+. Our current bundled JDK is always newer
+    // than 12 so unless runtime java home is set, we cannot run the build-tools tests
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.getIsRuntimeJavaHomeSet() }
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_12 }
   }
 
   task integTest(type: Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
     onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
-    // run build-tools tests with the compiler Java to workaround issues with JDK13+ and Groovy pre 2.5.7
-    executable = testExecutableEvaluator
+    // build-tools tests are not compatible with JDKs > 12 until we upgrade to Gradle 6.0+. Our current bundled JDK is always newer
+    // than 12 so unless runtime java home is set, we cannot run the build-tools tests
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.getIsRuntimeJavaHomeSet() }
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_12 }
     maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
   check.dependsOn(integTest)

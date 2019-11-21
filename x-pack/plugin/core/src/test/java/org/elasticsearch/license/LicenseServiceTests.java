@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.LocalDate;
@@ -22,8 +21,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class LicenseServiceTests extends ESTestCase {
 
     public void testLogExpirationWarning() {
-        assumeTrue("this is for JDK8 only", JavaVersion.current().equals(JavaVersion.parse("8")));
-
         long time = LocalDate.of(2018, 11, 15).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final boolean expired = randomBoolean();
         final String message = LicenseService.buildExpirationMessage(time, expired).toString();

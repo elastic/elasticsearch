@@ -1568,6 +1568,15 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), is("4"));
     }
 
+    /**
+     * Test range with a custom locale, e.g. "de" in this case. Documents here mention the day of week
+     * as "Mi" for "Mittwoch (Wednesday" and "Do" for "Donnerstag (Thursday)" and the month in the query
+     * as "Dez" for "Dezember (December)".
+     * Note: this test currently needs the JVM arg `-Djava.locale.providers=SPI,COMPAT` to be set.
+     * When running with gradle this is done implicitely through the BuildPlugin, but when running from
+     * an IDE this might need to be set manually in the run configuration. See also CONTRIBUTING.md section
+     * on "Configuring IDEs And Running Tests".
+     */
     public void testRangeQueryWithLocaleMapping() throws Exception {
         assumeTrue("need java 9 for testing ",JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
 

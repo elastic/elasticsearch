@@ -151,6 +151,10 @@ For IntelliJ, go to
 For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 `VM Arguments`.
 
+Some tests related to locale testing also require the flag 
+`-Djava.locale.providers` to be set. Set the VM options/VM arguments for
+IntelliJ or Eclipse like describe above to use 
+`-Djava.locale.providers=SPI,COMPAT`.
 
 ### Java Language Formatting Guidelines
 

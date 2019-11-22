@@ -12,16 +12,13 @@ jdks {
   }
 }
 
-allprojects {
-  if (project.path != ":build-tools") {
-    //  Build tools doesn't support java 8 still used in CI
-    project.tasks.withType(Test).configureEach { Test test ->
-      if (BuildParams.getIsRuntimeJavaHomeSet()) {
-        test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
-      } else {
-        test.dependsOn(rootProject.jdks.provisioned_runtime)
-        test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
-      }
+configure(allprojects - project(':build-tools')) {
+  project.tasks.withType(Test).configureEach { Test test ->
+    if (BuildParams.getIsRuntimeJavaHomeSet()) {
+      test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
+    } else {
+      test.dependsOn(rootProject.jdks.provisioned_runtime)
+      test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
     }
   }
 }

@@ -1,48 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
-
-package org.elasticsearch.client.ml;
+package org.elasticsearch.xpack.core.ml.dataframe.explain;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class EstimateMemoryUsageResponse implements ToXContentObject {
-    
+public class MemoryEstimation implements ToXContentObject, Writeable {
+
     public static final ParseField EXPECTED_MEMORY_WITHOUT_DISK = new ParseField("expected_memory_without_disk");
     public static final ParseField EXPECTED_MEMORY_WITH_DISK = new ParseField("expected_memory_with_disk");
 
-    static final ConstructingObjectParser<EstimateMemoryUsageResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "estimate_memory_usage_response",
-            true,
-            args -> new EstimateMemoryUsageResponse((ByteSizeValue) args[0], (ByteSizeValue) args[1]));
+    public static final ConstructingObjectParser<MemoryEstimation, Void> PARSER = new ConstructingObjectParser<>("memory_estimation",
+            a -> new MemoryEstimation((ByteSizeValue) a[0], (ByteSizeValue) a[1]));
 
     static {
         PARSER.declareField(
@@ -57,16 +42,17 @@ public class EstimateMemoryUsageResponse implements ToXContentObject {
             ObjectParser.ValueType.VALUE);
     }
 
-    public static EstimateMemoryUsageResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
     private final ByteSizeValue expectedMemoryWithoutDisk;
     private final ByteSizeValue expectedMemoryWithDisk;
 
-    public EstimateMemoryUsageResponse(@Nullable ByteSizeValue expectedMemoryWithoutDisk, @Nullable ByteSizeValue expectedMemoryWithDisk) {
+    public MemoryEstimation(@Nullable ByteSizeValue expectedMemoryWithoutDisk, @Nullable ByteSizeValue expectedMemoryWithDisk) {
         this.expectedMemoryWithoutDisk = expectedMemoryWithoutDisk;
         this.expectedMemoryWithDisk = expectedMemoryWithDisk;
+    }
+
+    public MemoryEstimation(StreamInput in) throws IOException {
+        this.expectedMemoryWithoutDisk = in.readOptionalWriteable(ByteSizeValue::new);
+        this.expectedMemoryWithDisk = in.readOptionalWriteable(ByteSizeValue::new);
     }
 
     public ByteSizeValue getExpectedMemoryWithoutDisk() {
@@ -75,6 +61,12 @@ public class EstimateMemoryUsageResponse implements ToXContentObject {
 
     public ByteSizeValue getExpectedMemoryWithDisk() {
         return expectedMemoryWithDisk;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(expectedMemoryWithoutDisk);
+        out.writeOptionalWriteable(expectedMemoryWithDisk);
     }
 
     @Override
@@ -99,7 +91,7 @@ public class EstimateMemoryUsageResponse implements ToXContentObject {
             return false;
         }
 
-        EstimateMemoryUsageResponse that = (EstimateMemoryUsageResponse) other;
+        MemoryEstimation that = (MemoryEstimation) other;
         return Objects.equals(expectedMemoryWithoutDisk, that.expectedMemoryWithoutDisk)
             && Objects.equals(expectedMemoryWithDisk, that.expectedMemoryWithDisk);
     }

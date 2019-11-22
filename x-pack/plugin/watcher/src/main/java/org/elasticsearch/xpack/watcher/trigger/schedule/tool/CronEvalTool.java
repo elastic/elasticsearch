@@ -7,11 +7,12 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.time.Instant;
@@ -22,7 +23,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-public class CronEvalTool extends LoggingAwareCommand {
+/*
+ * This class extends EnvironmentAwareCommand so that -E options are accepted,
+ * even though they are unused. This makes the CLI interface the same as the
+ * other CLI tools.
+ */
+public class CronEvalTool extends EnvironmentAwareCommand {
 
     public static void main(String[] args) throws Exception {
         exit(new CronEvalTool().main(args, Terminal.DEFAULT));
@@ -46,8 +52,11 @@ public class CronEvalTool extends LoggingAwareCommand {
         this.arguments = parser.nonOptions("expression");
     }
 
+    /*
+     * env is not used here, but is part of the EnvironmentAwareCommand contract.
+     */
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         int count = countOption.value(options);
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
@@ -56,7 +65,7 @@ public class CronEvalTool extends LoggingAwareCommand {
         execute(terminal, args.get(0), count);
     }
 
-    void execute(Terminal terminal, String expression, int count) throws Exception {
+    private void execute(Terminal terminal, String expression, int count) throws Exception {
         Cron.validate(expression);
         terminal.println("Valid!");
 

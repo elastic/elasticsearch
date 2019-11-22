@@ -264,7 +264,7 @@ public class Lucene {
     }
 
     public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {
-        new SegmentInfos.FindSegmentsFile(directory) {
+        new SegmentInfos.FindSegmentsFile<>(directory) {
 
             @Override
             protected Object doBody(String segmentFileName) throws IOException {
@@ -345,7 +345,7 @@ public class Lucene {
     }
 
     public static FieldDoc readFieldDoc(StreamInput in) throws IOException {
-        Comparable[] cFields = new Comparable[in.readVInt()];
+        Comparable<?>[] cFields = new Comparable<?>[in.readVInt()];
         for (int j = 0; j < cFields.length; j++) {
             byte type = in.readByte();
             if (type == 0) {
@@ -375,7 +375,7 @@ public class Lucene {
         return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
     }
 
-    public static Comparable readSortValue(StreamInput in) throws IOException {
+    public static Comparable<?> readSortValue(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
             return null;
@@ -484,7 +484,7 @@ public class Lucene {
         if (field == null) {
             out.writeByte((byte) 0);
         } else {
-            Class type = field.getClass();
+            Class<?> type = field.getClass();
             if (type == String.class) {
                 out.writeByte((byte) 1);
                 out.writeString((String) field);

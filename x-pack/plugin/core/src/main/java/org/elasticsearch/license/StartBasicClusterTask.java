@@ -51,7 +51,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         if (acknowledgeMessages.isEmpty() == false) {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages,
                     ACKNOWLEDGEMENT_HEADER));
-        } else if (oldLicense != null && oldLicense.type().equals("basic")) {
+        } else if (oldLicense != null && License.LicenseType.isBasic(oldLicense.type())) {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.ALREADY_USING_BASIC));
         }  else {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.GENERATED_BASIC));
@@ -63,7 +63,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
         LicensesMetaData licensesMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
         License currentLicense = LicensesMetaData.extractLicense(licensesMetaData);
-        if (currentLicense == null || currentLicense.type().equals("basic") == false) {
+        if (currentLicense == null || License.LicenseType.isBasic(currentLicense.type()) == false) {
             long issueDate = clock.millis();
             MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
             License.Builder specBuilder = License.builder()
@@ -71,7 +71,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
                     .issuedTo(clusterName)
                     .maxNodes(LicenseService.SELF_GENERATED_LICENSE_MAX_NODES)
                     .issueDate(issueDate)
-                    .type("basic")
+                    .type(License.LicenseType.BASIC)
                     .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
             License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
             if (request.isAcknowledged() == false && currentLicense != null) {

@@ -233,17 +233,15 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
         // All these are different ways of specifying a limit that is lower than the minimum
         assertTooSmall(expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(1048575, ByteSizeUnit.BYTES)).build()));
-        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.BYTES)).build()));
-        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
             () -> builder.setModelMemoryLimit(new ByteSizeValue(-1, ByteSizeUnit.BYTES)).build()));
         assertTooSmall(expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(1023, ByteSizeUnit.KB)).build()));
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.BYTES)).build()));
         assertTooSmall(expectThrows(ElasticsearchStatusException.class,
             () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.KB)).build()));
         assertTooSmall(expectThrows(ElasticsearchStatusException.class,
             () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.MB)).build()));
+        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setModelMemoryLimit(new ByteSizeValue(1023, ByteSizeUnit.BYTES)).build()));
     }
 
     public void testNoMemoryCapping() {
@@ -342,6 +340,6 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
     }
 
     private static void assertTooSmall(ElasticsearchStatusException e) {
-        assertThat(e.getMessage(), startsWith("model_memory_limit must be at least 1 MiB."));
+        assertThat(e.getMessage(), startsWith("model_memory_limit must be at least 1kb."));
     }
 }

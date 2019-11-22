@@ -23,7 +23,7 @@ dependencies {
 }
 
 ext.expansions = { oss, ubi, local ->
-  final String classifier = 'linux-x86_64'            
+  final String classifier = 'linux-x86_64'
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
     'base_image'          : ubi ? 'registry.access.redhat.com/ubi7/ubi-minimal:7.7' : 'centos:7',
@@ -38,11 +38,11 @@ ext.expansions = { oss, ubi, local ->
 }
 
 private static String buildPath(final boolean oss, final boolean ubi) {
-  return "build/${ oss ? 'oss-' : ''}${ ubi ? 'ubi-' : ''}docker"
+  return "build/${oss ? 'oss-' : ''}${ubi ? 'ubi-' : ''}docker"
 }
 
 private static String taskName(final String prefix, final boolean oss, final boolean ubi, final String suffix) {
-  return "${prefix}${oss ? 'Oss' : ''}${ubi ? 'Ubi': ''}${suffix}"
+  return "${prefix}${oss ? 'Oss' : ''}${ubi ? 'Ubi' : ''}${suffix}"
 }
 
 project.ext {
@@ -55,7 +55,7 @@ project.ext {
       into('config') {
         /*
          * Oss and default distribution can have different configuration, therefore we want to allow overriding the default configuration
-         * by creating config files in oss or default build-context sub-modules. 
+         * by creating config files in oss or default build-context sub-modules.
          */
         from project.projectDir.toPath().resolve("src/docker/config")
         if (oss) {
@@ -89,7 +89,7 @@ void addCopyDockerContextTask(final boolean oss, final boolean ubi) {
   }
 }
 
-def createAndSetWritable (Object... locations) {
+def createAndSetWritable(Object... locations) {
   locations.each { location ->
     File file = file(location)
     file.mkdirs()
@@ -99,7 +99,7 @@ def createAndSetWritable (Object... locations) {
 
 task copyKeystore(type: Sync) {
   from project(':x-pack:plugin:core')
-          .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
   into "${buildDir}/certs"
   doLast {
     file("${buildDir}/certs").setReadable(true, false)
@@ -115,26 +115,26 @@ preProcessFixture {
   doLast {
     // tests expect to have an empty repo
     project.delete(
-            "${buildDir}/repo",
-            "${buildDir}/oss-repo"
+      "${buildDir}/repo",
+      "${buildDir}/oss-repo"
     )
     createAndSetWritable(
-            "${buildDir}/repo",
-            "${buildDir}/oss-repo",
-            "${buildDir}/logs/default-1",
-            "${buildDir}/logs/default-2",
-            "${buildDir}/logs/oss-1",
-            "${buildDir}/logs/oss-2"
+      "${buildDir}/repo",
+      "${buildDir}/oss-repo",
+      "${buildDir}/logs/default-1",
+      "${buildDir}/logs/default-2",
+      "${buildDir}/logs/oss-1",
+      "${buildDir}/logs/oss-2"
     )
   }
 }
 
 processTestResources {
-  from ({ zipTree(configurations.restSpec.singleFile) }) {
+  from({ zipTree(configurations.restSpec.singleFile) }) {
     include 'rest-api-spec/api/**'
   }
   from project(':x-pack:plugin:core')
-          .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
   dependsOn configurations.restSpec
 }
 
@@ -154,7 +154,7 @@ void addBuildDockerImage(final boolean oss, final boolean ubi) {
     dependsOn taskName("copy", oss, ubi, "DockerContext")
     List<String> tags
     if (oss) {
-      tags = [ 
+      tags = [
         "docker.elastic.co/elasticsearch/elasticsearch-oss${ubi ? '-ubi7' : ''}:${VersionProperties.elasticsearch}",
         "elasticsearch-oss${ubi ? '-ubi7' : ''}:test"
       ]
@@ -186,10 +186,10 @@ for (final boolean oss : [false, true]) {
 }
 
 // We build the images used in compose locally, but the pull command insists on using a repository
-// thus we must disable it to prevent it from doing so. 
+// thus we must disable it to prevent it from doing so.
 // Everything will still be pulled since we will build the local images on a pull
 if (tasks.findByName("composePull")) {
-    tasks.composePull.enabled = false 
+  tasks.composePull.enabled = false
 }
 
 /*
@@ -218,9 +218,9 @@ subprojects { Project subProject ->
     exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
 
     artifacts.add('default', file(tarFile)) {
-        type 'tar'
-        name "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}"
-        builtBy exportTaskName
+      type 'tar'
+      name "elasticsearch${oss ? '-oss' : ''}${ubi ? '-ubi7' : ''}"
+      builtBy exportTaskName
     }
 
     assemble.dependsOn exportTaskName

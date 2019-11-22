@@ -23,7 +23,7 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.elasticsearch.script.ScriptContext;
 
 /**
- * Base class for scripts used as interval filters, see {@link IntervalsSourceProvider.IntervalFilter}
+ * Base class for scripts used as interval filters, see {@link IntervalFilter}
  */
 public abstract class IntervalFilterScript {
 

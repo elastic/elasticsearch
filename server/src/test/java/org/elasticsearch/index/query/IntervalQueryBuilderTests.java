@@ -22,17 +22,36 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.intervals.AfterIntervalFilter;
+import org.elasticsearch.index.query.intervals.BeforeIntervalFilter;
+import org.elasticsearch.index.query.intervals.ContainedByIntervalFilter;
+import org.elasticsearch.index.query.intervals.ContainingIntervalFilter;
+import org.elasticsearch.index.query.intervals.NotContainedByIntervalFilter;
+import org.elasticsearch.index.query.intervals.NotContainingIntervalFilter;
+import org.elasticsearch.index.query.intervals.NotOverlappingIntervalFilter;
+import org.elasticsearch.index.query.intervals.OverlappingIntervalFilter;
+import org.elasticsearch.index.query.intervals.SourceProviderIntervalFilter;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -40,24 +59,153 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQueryBuilder> {
+
+    /**
+     * To test pluggability of {@link IntervalFilter}'s.
+     */
+    private static class UnorderedNoOverlapsIntervalFilter extends SourceProviderIntervalFilter {
+        public static final String NAME = "unordered_no_overlaps";
+
+        UnorderedNoOverlapsIntervalFilter(final IntervalsSourceProvider filter) {
+            super(NAME, filter);
+        }
+
+        UnorderedNoOverlapsIntervalFilter(final StreamInput in) throws IOException {
+            super(NAME, in);
+        }
+
+        @Override
+        public IntervalsSource getIntervalsSource(final IntervalsSource input, final IntervalsSource filterSource) throws IOException {
+            return Intervals.unorderedNoOverlaps(input, filterSource);
+        }
+
+        public static UnorderedNoOverlapsIntervalFilter fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(parser, UnorderedNoOverlapsIntervalFilter::new);
+        }
+    }
+
+    /**
+     * To test pluggability of {@link IntervalsSourceProvider}'s.
+     */
+    private static class TermIntervalsSource extends IntervalsSourceProvider {
+        public static final String NAME = "term";
+
+        private final String term;
+
+        TermIntervalsSource(String term) {
+            this.term = term;
+        }
+
+        TermIntervalsSource(StreamInput in) throws IOException {
+            this.term = in.readString();
+        }
+
+        @Override
+        public IntervalsSource getSource(final QueryShardContext context, final MappedFieldType fieldType) throws IOException {
+            return Intervals.term(term);
+        }
+
+        @Override
+        public void extractFields(final Set<String> fields) {
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(term);
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TermIntervalsSource other = (TermIntervalsSource) o;
+            return Objects.equals(term, other.term);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(final StreamOutput out) throws IOException {
+            out.writeString(term);
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.field(NAME);
+            builder.startObject();
+            builder.field("term", term);
+            return builder.endObject();
+        }
+
+        private static final ConstructingObjectParser<TermIntervalsSource, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+            String term = (String) args[0];
+            return new TermIntervalsSource(term);
+        });
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("term"));
+        }
+
+        public static TermIntervalsSource fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+    }
+
+    /**
+     * Plugin to inject our custom interval source and filter.
+     */
+    public static class IntervalPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<IntervalsSourceSpec<?>> getIntervalsSources() {
+            return Collections.singletonList(new IntervalsSourceSpec<>(TermIntervalsSource.NAME, TermIntervalsSource::new,
+                TermIntervalsSource::fromXContent));
+        }
+
+        @Override
+        public List<IntervalFilterSpec<?>> getIntervalFilters() {
+            return Collections.singletonList(new IntervalFilterSpec<>(UnorderedNoOverlapsIntervalFilter.NAME,
+                UnorderedNoOverlapsIntervalFilter::new, UnorderedNoOverlapsIntervalFilter::fromXContent));
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singletonList(IntervalPlugin.class);
+    }
 
     @Override
     protected IntervalQueryBuilder doCreateTestQueryBuilder() {
         return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0));
     }
 
-    private static final String[] filters = new String[]{
-        "containing", "contained_by", "not_containing", "not_contained_by",
-        "overlapping", "not_overlapping", "before", "after"
-    };
+    private static final List<Function<IntervalsSourceProvider, IntervalFilter>> filters = Arrays.asList(
+        ContainingIntervalFilter::new,
+        ContainedByIntervalFilter::new,
+        NotContainingIntervalFilter::new,
+        NotContainedByIntervalFilter::new,
+        OverlappingIntervalFilter::new,
+        NotOverlappingIntervalFilter::new,
+        BeforeIntervalFilter::new,
+        AfterIntervalFilter::new,
+        UnorderedNoOverlapsIntervalFilter::new
+    );
 
     private static final String MASKED_FIELD = "masked_field";
     private static final String NO_POSITIONS_FIELD = "no_positions_field";
@@ -105,16 +253,20 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                 }
                 boolean ordered = randomBoolean();
                 int maxGaps = randomInt(5) - 1;
-                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1);
+                IntervalFilter filter = createRandomFilter(depth + 1);
                 return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
+            case 4:
+            case 5:
+                return new TermIntervalsSource(randomRealisticUnicodeOfLengthBetween(4, 20));
             default:
                 return createRandomMatch(depth + 1);
         }
     }
 
-    private IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth) {
+    private IntervalFilter createRandomFilter(int depth) {
         if (depth < 3 && randomInt(20) > 18) {
-            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1), randomFrom(filters));
+            IntervalsSourceProvider provider = createRandomSource(depth + 1);
+            return randomFrom(filters).apply(provider);
         }
         return null;
     }
@@ -136,6 +288,53 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     @Override
     protected void doAssertLuceneQuery(IntervalQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(IntervalQuery.class));
+    }
+
+    public void testUnknownIntervalsSource() throws IOException {
+        String json = "{ \"intervals\" : " +
+            "{ \"" + STRING_FIELD_NAME + "\" : { \"unknown_source\" : { \"query\" : \"blah\" } } } }";
+
+        Exception e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), equalTo("Unknown interval type [unknown_source]"));
+    }
+
+    public void testUnknownIntervalFilter() throws IOException {
+        String json = "{ \"intervals\" : " +
+            "{ \"" + STRING_FIELD_NAME + "\" : { " +
+            "       \"match\" : { " +
+            "           \"query\" : \"blah\"," +
+            "           \"filter\" : {" +
+            "               \"unknown_filter\" : {" +
+            "                   \"match\" : { \"query\" : \"blah\" } } } } } } }";
+        Exception e = expectThrows(XContentParseException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), containsString("failed to parse field [filter]"));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause().getMessage(), equalTo("Unknown interval filter [unknown_filter]"));
+    }
+
+    public void testIntervalsSourceFromPlugin() throws IOException {
+        String json = "{ \"intervals\" : " +
+            "{ \"" + STRING_FIELD_NAME + "\" : { \"term\" : { \"term\" : \"NOT_ANALYZED\" } } } }";
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.term("NOT_ANALYZED"));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+    }
+
+    public void testIntervalFilterFromPlugin() throws IOException {
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": {" +
+            "       \"any_of\" : { " +
+            "           \"intervals\" : [" +
+            "               { \"match\" : { \"query\" : \"one\" } }," +
+            "               { \"match\" : { \"query\" : \"two\" } } ]," +
+            "           \"filter\" : {" +
+            "               \"unordered_no_overlaps\" : { \"match\" : { \"query\" : \"three\" } } } } } } }";
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.unorderedNoOverlaps(
+                Intervals.or(Intervals.term("one"), Intervals.term("two")),
+                Intervals.term("three")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
     }
 
     public void testMatchInterval() throws IOException {

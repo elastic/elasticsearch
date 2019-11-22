@@ -44,6 +44,7 @@ import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.GeoPolygonQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.IntervalFilter;
 import org.elasticsearch.index.query.IntervalQueryBuilder;
 import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -85,9 +86,20 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
+import org.elasticsearch.index.query.intervals.AfterIntervalFilter;
+import org.elasticsearch.index.query.intervals.BeforeIntervalFilter;
+import org.elasticsearch.index.query.intervals.ContainedByIntervalFilter;
+import org.elasticsearch.index.query.intervals.ContainingIntervalFilter;
+import org.elasticsearch.index.query.intervals.NotContainedByIntervalFilter;
+import org.elasticsearch.index.query.intervals.NotContainingIntervalFilter;
+import org.elasticsearch.index.query.intervals.NotOverlappingIntervalFilter;
+import org.elasticsearch.index.query.intervals.OverlappingIntervalFilter;
+import org.elasticsearch.index.query.intervals.ScriptIntervalFilter;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
+import org.elasticsearch.plugins.SearchPlugin.IntervalFilterSpec;
+import org.elasticsearch.plugins.SearchPlugin.IntervalsSourceSpec;
 import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
@@ -315,7 +327,8 @@ public class SearchModule {
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         registerShapes();
-        registerIntervalsSourceProviders();
+        registerIntervalsSourceProviders(plugins);
+        registerIntervalFilters(plugins);
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -793,23 +806,59 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
     }
 
-    private void registerIntervalsSourceProviders() {
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Match.NAME, IntervalsSourceProvider.Match::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Combine.NAME, IntervalsSourceProvider.Combine::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Disjunction.NAME, IntervalsSourceProvider.Disjunction::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Prefix.NAME, IntervalsSourceProvider.Prefix::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class,
-            IntervalsSourceProvider.Wildcard.NAME, IntervalsSourceProvider.Wildcard::new));
-    }
-
     private void registerQuery(QuerySpec<?> spec) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
                 (p, c) -> spec.getParser().fromXContent(p)));
+    }
+
+    private void registerIntervalsSourceProviders(List<SearchPlugin> plugins) {
+        registerIntervalsSource(new IntervalsSourceSpec<>(IntervalsSourceProvider.Match.NAME, IntervalsSourceProvider.Match::new,
+            IntervalsSourceProvider.Match::fromXContent));
+        registerIntervalsSource(new IntervalsSourceSpec<>(IntervalsSourceProvider.Combine.NAME, IntervalsSourceProvider.Combine::new,
+            IntervalsSourceProvider.Combine::fromXContent));
+        registerIntervalsSource(new IntervalsSourceSpec<>(IntervalsSourceProvider.Disjunction.NAME,
+            IntervalsSourceProvider.Disjunction::new, IntervalsSourceProvider.Disjunction::fromXContent));
+        registerIntervalsSource(new IntervalsSourceSpec<>(IntervalsSourceProvider.Prefix.NAME, IntervalsSourceProvider.Prefix::new,
+            IntervalsSourceProvider.Prefix::fromXContent));
+        registerIntervalsSource(new IntervalsSourceSpec<>(IntervalsSourceProvider.Wildcard.NAME, IntervalsSourceProvider.Wildcard::new,
+            IntervalsSourceProvider.Wildcard::fromXContent));
+
+        registerFromPlugin(plugins, SearchPlugin::getIntervalsSources, this::registerIntervalsSource);
+    }
+
+    private void registerIntervalsSource(IntervalsSourceSpec<?> spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, spec.getName().getPreferredName(),
+            spec.getReader()));
+        namedXContents.add(new NamedXContentRegistry.Entry(IntervalsSourceProvider.class, spec.getName(), spec.getParser()));
+    }
+
+    private void registerIntervalFilters(List<SearchPlugin> plugins) {
+        registerIntervalFilter(new IntervalFilterSpec<>(AfterIntervalFilter.NAME, AfterIntervalFilter::new,
+            AfterIntervalFilter::fromXContent));
+        registerIntervalFilter(new IntervalFilterSpec<>(BeforeIntervalFilter.NAME, BeforeIntervalFilter::new,
+            BeforeIntervalFilter::fromXContent));
+        registerIntervalFilter(new IntervalFilterSpec<>(ContainedByIntervalFilter.NAME, ContainedByIntervalFilter::new,
+            ContainedByIntervalFilter::fromXContent));
+        registerIntervalFilter(new IntervalFilterSpec<>(ContainingIntervalFilter.NAME, ContainingIntervalFilter::new,
+            ContainingIntervalFilter::fromXContent));
+        registerIntervalFilter(new IntervalFilterSpec<>(NotContainedByIntervalFilter.NAME, NotContainedByIntervalFilter::new,
+            NotContainedByIntervalFilter::fromXContent));
+        registerIntervalFilter(new IntervalFilterSpec<>(NotContainingIntervalFilter.NAME, NotContainingIntervalFilter::new,
+            NotContainingIntervalFilter::fromXContent));
+        registerIntervalFilter(new IntervalFilterSpec<>(NotOverlappingIntervalFilter.NAME, NotOverlappingIntervalFilter::new,
+            NotOverlappingIntervalFilter::fromXContent));
+        registerIntervalFilter(new IntervalFilterSpec<>(OverlappingIntervalFilter.NAME, OverlappingIntervalFilter::new,
+            OverlappingIntervalFilter::fromXContent));
+        registerIntervalFilter(new IntervalFilterSpec<>(ScriptIntervalFilter.NAME, ScriptIntervalFilter::new,
+            ScriptIntervalFilter::fromXContent));
+
+        registerFromPlugin(plugins, SearchPlugin::getIntervalFilters, this::registerIntervalFilter);
+    }
+
+    private void registerIntervalFilter(IntervalFilterSpec<?> spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(IntervalFilter.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedXContents.add(new NamedXContentRegistry.Entry(IntervalFilter.class, spec.getName(), spec.getParser()));
     }
 
     public FetchPhase getFetchPhase() {

@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.IntervalFilter;
+import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -103,6 +105,18 @@ public interface SearchPlugin {
      * The new {@link Query}s defined by this plugin.
      */
     default List<QuerySpec<?>> getQueries() {
+        return emptyList();
+    }
+    /**
+     * The new {@link IntervalsSourceProvider}s defined by this plugin.
+     */
+    default List<IntervalsSourceSpec<?>> getIntervalsSources() {
+        return emptyList();
+    }
+    /**
+     * The new {@link IntervalFilter}s defined by this plugin.
+     */
+    default List<IntervalFilterSpec<?>> getIntervalFilters() {
         return emptyList();
     }
     /**
@@ -196,6 +210,77 @@ public interface SearchPlugin {
          */
         public Writeable.Reader<? extends Suggest.Suggestion> getSuggestionReader() {
             return this.suggestionReader;
+        }
+    }
+
+    /**
+     * Specification for a {@link IntervalsSourceProvider}.
+     */
+    class IntervalsSourceSpec<T extends IntervalsSourceProvider>
+        extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
+
+        /**
+         * Specification of custom {@link IntervalsSourceProvider}.
+         *
+         * @param name holds the names by which this interval source might be parsed. The {@link ParseField#getPreferredName()} is special
+         *             as it is the name by under which the reader is registered. So it is the name that the interval source should use as
+         *             its {@link NamedWriteable#getWriteableName()} too.
+         * @param reader the reader registered for this interval source's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the interval source from xcontent
+         */
+        public IntervalsSourceSpec(final ParseField name, final Writeable.Reader<? extends T> reader,
+                                   final CheckedFunction<XContentParser, T, IOException> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link IntervalsSourceProvider}.
+         *
+         * @param name the name by which this interval source might be parsed or deserialized. Make sure that the interval source returns
+         *             this name for {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this interval source. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the interval source from xcontent
+         */
+        public IntervalsSourceSpec(final String name, final Writeable.Reader<? extends T> reader,
+                                   final CheckedFunction<XContentParser, T, IOException> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    /**
+     * Specification for a {@link IntervalFilter}.
+     */
+    class IntervalFilterSpec<T extends IntervalFilter> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
+
+        /**
+         * Specification of custom {@link IntervalFilter}.
+         *
+         * @param name holds the names by which this interval filter might be parsed. The {@link ParseField#getPreferredName()} is special
+         *             as it is the name by under which the reader is registered. So it is the name that the interval filter should use as
+         *             its {@link NamedWriteable#getWriteableName()} too.
+         * @param reader the reader registered for this interval filter's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the interval filter from xcontent
+         */
+        public IntervalFilterSpec(final ParseField name, final Writeable.Reader<? extends T> reader,
+                                  final CheckedFunction<XContentParser, T, IOException> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link IntervalFilter}.
+         *
+         * @param name the name by which this interval filter might be parsed or deserialized. Make sure that the interval filter returns
+         *             this name for {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this interval filter. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the interval filter from xcontent
+         */
+        public IntervalFilterSpec(final String name, final Writeable.Reader<? extends T> reader,
+                                  final CheckedFunction<XContentParser, T, IOException> parser) {
+            super(name, reader, parser);
         }
     }
 

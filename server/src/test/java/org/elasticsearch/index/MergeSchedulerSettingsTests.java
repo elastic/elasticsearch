@@ -144,6 +144,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         return newIndexMeta("index", builder.build());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/49490")
     public void testMaxThreadAndMergeCount() {
         IllegalArgumentException exc =
             expectThrows(IllegalArgumentException.class,

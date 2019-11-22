@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authc;
 
 import com.google.common.collect.Sets;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -55,7 +54,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -126,6 +124,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47958")
     public void testCreateApiKey() {
         final Instant start = Instant.now();
         final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
@@ -175,43 +174,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
     }
 
-    public void testCreateApiKeyFailsWhenApiKeyWithSameNameAlreadyExists() throws InterruptedException, ExecutionException {
+    public void testMultipleApiKeysCanHaveSameName() {
         String keyName = randomAlphaOfLength(5);
+        int noOfApiKeys = randomIntBetween(2, 5);
         List<CreateApiKeyResponse> responses = new ArrayList<>();
-        {
-            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
+        for (int i = 0; i < noOfApiKeys; i++) {
+            final RoleDescriptor descriptor = new RoleDescriptor("role", new String[]{"monitor"}, null, null);
             Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
-                    .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
             final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(keyName).setExpiration(null)
-                    .setRoleDescriptors(Collections.singletonList(descriptor)).get();
+                .setRoleDescriptors(Collections.singletonList(descriptor)).get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
             responses.add(response);
         }
-
-        final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
-                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> new CreateApiKeyRequestBuilder(client)
-            .setName(keyName)
-            .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-            .setRoleDescriptors(Collections.singletonList(descriptor))
-            .get());
-        assertThat(e.getMessage(), equalTo("Error creating api key as api key with name ["+keyName+"] already exists"));
-
-        // Now invalidate the API key
-        PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyName(keyName, false), listener);
-        InvalidateApiKeyResponse invalidateResponse = listener.get();
-        verifyInvalidateResponse(1, responses, invalidateResponse);
-
-        // try to create API key with same name, should succeed now
-        CreateApiKeyResponse createResponse = new CreateApiKeyRequestBuilder(client).setName(keyName)
-                .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
-                .setRoleDescriptors(Collections.singletonList(descriptor)).get();
-        assertNotNull(createResponse.getId());
-        assertNotNull(createResponse.getKey());
+        assertThat(responses.size(), is(noOfApiKeys));
+        for (int i = 0; i < noOfApiKeys; i++) {
+            assertThat(responses.get(i).getName(), is(keyName));
+        }
     }
 
     public void testInvalidateApiKeysForRealm() throws InterruptedException, ExecutionException {
@@ -383,7 +363,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
         UpdateResponse expirationDateUpdatedResponse = client
-                .prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(0).getId())
+                .prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(0).getId())
                 .setDoc("expiration_time", dayBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -393,7 +373,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(weekBefore));
-        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(1).getId())
+        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(1).getId())
                 .setDoc("expiration_time", weekBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();

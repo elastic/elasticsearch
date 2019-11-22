@@ -65,6 +65,15 @@ A {dfeed} resource has the following properties:
   `{"enabled": true, "check_window": "1h"}` See
   <<ml-datafeed-delayed-data-check-config>>.
 
+`max_empty_searches`::
+  (integer) If a real-time {dfeed} has never seen any data (including during
+  any initial training period) then it will automatically stop itself and
+  close its associated job after this many real-time searches that return no
+  documents. In other words, it will stop after `frequency` times
+  `max_empty_searches` of real-time operation. If not set
+  then a {dfeed} with no end time that sees no data will remain started until
+  it is explicitly stopped. By default this setting is not set.
+
 [[ml-datafeed-chunking-config]]
 ==== Chunking configuration objects
 

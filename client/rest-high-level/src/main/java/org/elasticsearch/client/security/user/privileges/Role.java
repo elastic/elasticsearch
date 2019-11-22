@@ -322,10 +322,12 @@ public final class Role {
         public static final String READ_CCR = "read_ccr";
         public static final String MANAGE_ILM = "manage_ilm";
         public static final String READ_ILM = "read_ilm";
+        public static final String MANAGE_ENRICH = "manage_enrich";
         public static final String[] ALL_ARRAY = new String[] { NONE, ALL, MONITOR, MONITOR_TRANSFORM_DEPRECATED, MONITOR_TRANSFORM,
             MONITOR_ML, MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE, MANAGE_TRANSFORM_DEPRECATED, MANAGE_TRANSFORM,
             MANAGE_ML, MANAGE_WATCHER, MANAGE_ROLLUP, MANAGE_INDEX_TEMPLATES, MANAGE_INGEST_PIPELINES, TRANSPORT_CLIENT,
-            MANAGE_SECURITY, MANAGE_SAML, MANAGE_OIDC, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_CCR, READ_CCR, MANAGE_ILM, READ_ILM};
+                MANAGE_SECURITY, MANAGE_SAML, MANAGE_OIDC, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_CCR, READ_CCR, MANAGE_ILM, READ_ILM,
+                MANAGE_ENRICH };
     }
 
     /**

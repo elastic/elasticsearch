@@ -114,7 +114,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     final Configuration configuration;
     private final Extracted extracted;
 
-    private final Property<Version> version;
+    private final Property<String> version;
     private final Property<Type> type;
     private final Property<Platform> platform;
     private final Property<Flavor> flavor;
@@ -124,8 +124,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                               Configuration extractedConfiguration) {
         this.name = name;
         this.configuration = fileConfiguration;
-        this.version = objectFactory.property(Version.class);
-        this.version.convention(Version.fromString(VersionProperties.getElasticsearch()));
+        this.version = objectFactory.property(String.class).convention(VersionProperties.getElasticsearch());
         this.type = objectFactory.property(Type.class);
         this.type.convention(Type.ARCHIVE);
         this.platform = objectFactory.property(Platform.class);
@@ -138,12 +137,13 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return name;
     }
 
-    public Version getVersion() {
+    public String getVersion() {
         return version.get();
     }
 
     public void setVersion(String version) {
-        this.version.set(Version.fromString(version));
+        Version.fromString(version); // ensure the version parses, but don't store as Version since that removes -SNAPSHOT
+        this.version.set(version);
     }
 
     public Platform getPlatform() {

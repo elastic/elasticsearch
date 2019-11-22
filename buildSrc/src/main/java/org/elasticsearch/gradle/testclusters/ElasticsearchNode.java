@@ -128,6 +128,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
+    private final LazyPropertyList<File> extraJarFiles = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
@@ -180,7 +181,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Internal
     public Version getVersion() {
-        return distributions.get(currentDistro).getVersion();
+        return Version.fromString(distributions.get(currentDistro).getVersion());
     }
 
     @Internal
@@ -414,6 +415,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }
+
+        copyExtraJars();
+
+        copyExtraConfigFiles();
+
         createConfiguration();
 
         if (plugins.isEmpty() == false) {
@@ -437,7 +443,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             runElaticsearchBinScript("elasticsearch-keystore", "create");
 
             keystoreSettings.forEach((key, value) ->
-                runElaticsearchBinScriptWithInput(value.toString(), "elasticsearch-keystore", "add", "-x", key)
+                runElasticsearchBinScriptWithInput(value.toString(), "elasticsearch-keystore", "add", "-x", key)
             );
 
             for (Map.Entry<String, File> entry : keystoreFiles.entrySet()) {
@@ -451,8 +457,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
 
         installModules();
-
-        copyExtraConfigFiles();
 
         if (isSettingTrue("xpack.security.enabled")) {
             if (credentials.isEmpty()) {
@@ -530,6 +534,25 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         });
     }
 
+    /**
+     * Copies extra jars to the `/lib` directory.
+     * //TODO: Remove this when system modules are available
+     */
+    private void copyExtraJars() {
+        if (extraJarFiles.isEmpty() == false){
+            logToProcessStdout("Setting up " + extraJarFiles.size() + " additional jar dependencies");
+        }
+        extraJarFiles.forEach(from -> {
+            Path destination = getDistroDir().resolve("lib").resolve(from.getName());
+            try {
+                Files.copy(from.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.info("Added extra jar {} to {}", from.getName(), destination);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't copy extra jar dependency " + from.getName() + " to " + destination.toString(), e);
+            }
+        });
+    }
+
     private void installModules() {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             logToProcessStdout("Installing " + modules.size() + "modules");
@@ -577,6 +600,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    public void extraJarFile(File from) {
+        if (from.toString().endsWith(".jar") == false) {
+            throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
+        }
+        extraJarFiles.add(from);
+    }
+
+    @Override
     public void user(Map<String, String> userSpec) {
         Set<String> keys = new HashSet<>(userSpec.keySet());
         keys.remove("username");
@@ -592,7 +623,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         credentials.add(cred);
     }
 
-    private void runElaticsearchBinScriptWithInput(String input, String tool, String... args) {
+    private void runElasticsearchBinScriptWithInput(String input, String tool, String... args) {
         if (
             Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false &&
                 Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false
@@ -633,7 +664,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void runElaticsearchBinScript(String tool, String... args) {
-        runElaticsearchBinScriptWithInput("", tool, args);
+        runElasticsearchBinScriptWithInput("", tool, args);
     }
 
     private Map<String, String> getESEnvironment() {
@@ -646,6 +677,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (systemProperties.isEmpty() == false) {
             systemPropertiesString = " " + systemProperties.entrySet().stream()
                 .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
+                // ES_PATH_CONF is also set as an environment variable and for a reference to ${ES_PATH_CONF}
+                // to work ES_JAVA_OPTS, we need to make sure that ES_PATH_CONF before ES_JAVA_OPTS. Instead,
+                // we replace the reference with the actual value in other environment variables
+                .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
                 .collect(Collectors.joining(" "));
         }
         String jvmArgsString = "";

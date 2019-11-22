@@ -51,8 +51,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]

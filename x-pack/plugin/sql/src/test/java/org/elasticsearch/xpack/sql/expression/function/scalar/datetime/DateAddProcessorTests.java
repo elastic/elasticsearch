@@ -67,7 +67,7 @@ public class DateAddProcessorTests extends AbstractSqlWireSerializingTestCase<Da
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateAdd(Source.EMPTY,
                 l("days"), l("foo"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
-        assertEquals("An integer is required; received [foo]", siae.getMessage());
+        assertEquals("A number is required; received [foo]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateAdd(Source.EMPTY,

@@ -11,6 +11,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
@@ -103,13 +104,21 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
     }
 
     public void testFailuresDeletedIfExpired() {
+        assertUnsuccessfulDeletedIfExpired(true);
+    }
+
+    public void testPartialsDeletedIfExpired() {
+        assertUnsuccessfulDeletedIfExpired(false);
+    }
+
+    private void assertUnsuccessfulDeletedIfExpired(boolean failure) {
         SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(
             () -> TimeValue.timeValueDays(1).millis() + 1,
             TimeValue.timeValueDays(1), null, null);
-        SnapshotInfo oldInfo = makeFailureInfo(0);
+        SnapshotInfo oldInfo = makeFailureOrPartial(0, failure);
         assertThat(conf.getSnapshotDeletionPredicate(Collections.singletonList(oldInfo)).test(oldInfo), equalTo(true));
 
-        SnapshotInfo newInfo = makeFailureInfo(1);
+        SnapshotInfo newInfo = makeFailureOrPartial(1, failure);
         assertThat(conf.getSnapshotDeletionPredicate(Collections.singletonList(newInfo)).test(newInfo), equalTo(false));
 
         List<SnapshotInfo> infos = new ArrayList<>();
@@ -120,10 +129,18 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
     }
 
     public void testFailuresDeletedIfNoExpiryAndMoreRecentSuccessExists() {
+        assertUnsuccessfulDeletedIfNoExpiryAndMoreRecentSuccessExists(true);
+    }
+
+    public void testPartialsDeletedIfNoExpiryAndMoreRecentSuccessExists() {
+        assertUnsuccessfulDeletedIfNoExpiryAndMoreRecentSuccessExists(false);
+    }
+
+    private void assertUnsuccessfulDeletedIfNoExpiryAndMoreRecentSuccessExists(boolean failure) {
         SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 1, null, 2, 5);
         SnapshotInfo s1 = makeInfo(1);
         SnapshotInfo s2 = makeInfo(2);
-        SnapshotInfo s3 = makeFailureInfo(3);
+        SnapshotInfo s3 = makeFailureOrPartial(3, failure);
         SnapshotInfo s4 = makeInfo(4);
 
         List<SnapshotInfo> infos = Arrays.asList(s1 , s2, s3, s4);
@@ -134,12 +151,20 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
     }
 
     public void testFailuresKeptIfNoExpiryAndNoMoreRecentSuccess() {
+        assertUnsuccessfulKeptIfNoExpiryAndNoMoreRecentSuccess(true);
+    }
+
+    public void testPartialsKeptIfNoExpiryAndNoMoreRecentSuccess() {
+        assertUnsuccessfulKeptIfNoExpiryAndNoMoreRecentSuccess(false);
+    }
+
+    private void assertUnsuccessfulKeptIfNoExpiryAndNoMoreRecentSuccess(boolean failure) {
         // Also tests that failures are not counted towards the maximum
         SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 1, null, 2, 3);
         SnapshotInfo s1 = makeInfo(1);
         SnapshotInfo s2 = makeInfo(2);
         SnapshotInfo s3 = makeInfo(3);
-        SnapshotInfo s4 = makeFailureInfo(4);
+        SnapshotInfo s4 = makeFailureOrPartial(4, failure);
 
         List<SnapshotInfo> infos = Arrays.asList(s1 , s2, s3, s4);
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));
@@ -149,11 +174,19 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
     }
 
     public void testFailuresNotCountedTowardsMaximum() {
+        assertUnsuccessfulNotCountedTowardsMaximum(true);
+    }
+
+    public void testPartialsNotCountedTowardsMaximum() {
+        assertUnsuccessfulNotCountedTowardsMaximum(false);
+    }
+
+    private void assertUnsuccessfulNotCountedTowardsMaximum(boolean failure) {
         SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 1, TimeValue.timeValueDays(1), 2, 2);
         SnapshotInfo s1 = makeInfo(1);
-        SnapshotInfo s2 = makeFailureInfo(2);
-        SnapshotInfo s3 = makeFailureInfo(3);
-        SnapshotInfo s4 = makeFailureInfo(4);
+        SnapshotInfo s2 = makeFailureOrPartial(2, failure);
+        SnapshotInfo s3 = makeFailureOrPartial(3, failure);
+        SnapshotInfo s4 = makeFailureOrPartial(4, failure);
         SnapshotInfo s5 = makeInfo(5);
 
         List<SnapshotInfo> infos = Arrays.asList(s1 , s2, s3, s4, s5);
@@ -165,10 +198,18 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
     }
 
     public void testFailuresNotCountedTowardsMinimum() {
+        assertUnsuccessfulNotCountedTowardsMinimum(true);
+    }
+
+    public void testPartialsNotCountedTowardsMinimum() {
+        assertUnsuccessfulNotCountedTowardsMinimum(false);
+    }
+
+    private void assertUnsuccessfulNotCountedTowardsMinimum(boolean failure) {
         SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> TimeValue.timeValueDays(1).millis() + 1,
             TimeValue.timeValueDays(1), 2, null);
         SnapshotInfo oldInfo = makeInfo(0);
-        SnapshotInfo failureInfo = makeFailureInfo( 1);
+        SnapshotInfo failureInfo = makeFailureOrPartial(1, failure);
         SnapshotInfo newInfo = makeInfo(2);
 
         List<SnapshotInfo> infos = new ArrayList<>();
@@ -186,12 +227,14 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(true));
     }
 
+
     public void testMostRecentSuccessfulTimestampIsUsed() {
+        boolean failureBeforePartial = randomBoolean();
         SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 1, null, 2, 2);
         SnapshotInfo s1 = makeInfo(1);
         SnapshotInfo s2 = makeInfo(2);
-        SnapshotInfo s3 = makeFailureInfo(3);
-        SnapshotInfo s4 = makeFailureInfo(4);
+        SnapshotInfo s3 = makeFailureOrPartial(3, failureBeforePartial);
+        SnapshotInfo s4 = makeFailureOrPartial(4, failureBeforePartial == false);
 
         List<SnapshotInfo> infos = Arrays.asList(s1 , s2, s3, s4);
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));
@@ -204,15 +247,25 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         final Map<String, Object> meta = new HashMap<>();
         meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);
         final int totalShards = between(1,20);
-        return new SnapshotInfo(new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid"),
+        SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid"),
             Collections.singletonList("foo"),
             startTime,
             null,
-            startTime + between(1,10000),
+            startTime + between(1, 10000),
             totalShards,
             new ArrayList<>(),
             false,
             meta);
+        assertThat(snapInfo.state(), equalTo(SnapshotState.SUCCESS));
+        return snapInfo;
+    }
+
+    private SnapshotInfo makeFailureOrPartial(long startTime, boolean failure) {
+        if (failure) {
+            return makeFailureInfo(startTime);
+        } else {
+            return makePartialInfo(startTime);
+        }
     }
 
     private SnapshotInfo makeFailureInfo(long startTime) {
@@ -225,14 +278,39 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
             failures.add(new SnapshotShardFailure("nodeId", new ShardId("index-name", "index-uuid", i), "failed"));
         }
         assert failureCount == failures.size();
-        return new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
+        SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
             Collections.singletonList("foo-fail"),
             startTime,
             "forced-failure",
-            startTime + between(1,10000),
+            startTime + between(1, 10000),
             totalShards,
             failures,
             randomBoolean(),
             meta);
+        assertThat(snapInfo.state(), equalTo(SnapshotState.FAILED));
+        return snapInfo;
+    }
+
+    private SnapshotInfo makePartialInfo(long startTime) {
+        final Map<String, Object> meta = new HashMap<>();
+        meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);
+        final int totalShards = between(2,20);
+        final List<SnapshotShardFailure> failures = new ArrayList<>();
+        final int failureCount = between(1,totalShards - 1);
+        for (int i = 0; i < failureCount; i++) {
+            failures.add(new SnapshotShardFailure("nodeId", new ShardId("index-name", "index-uuid", i), "failed"));
+        }
+        assert failureCount == failures.size();
+        SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
+            Collections.singletonList("foo-fail"),
+            startTime,
+            null,
+            startTime + between(1, 10000),
+            totalShards,
+            failures,
+            randomBoolean(),
+            meta);
+        assertThat(snapInfo.state(), equalTo(SnapshotState.PARTIAL));
+        return snapInfo;
     }
 }

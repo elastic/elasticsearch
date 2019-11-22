@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,11 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
@@ -61,10 +56,7 @@ final class RemoteClusterConnection implements Closeable {
     private final RemoteConnectionManager remoteConnectionManager;
     private final RemoteConnectionStrategy connectionStrategy;
     private final String clusterAlias;
-    private final int maxNumRemoteConnections;
     private final ThreadPool threadPool;
-    private final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes;
-    private final String proxyAddress;
     private volatile boolean skipUnavailable;
     private final TimeValue initialConnectionTimeout;
 
@@ -72,35 +64,21 @@ final class RemoteClusterConnection implements Closeable {
      * Creates a new {@link RemoteClusterConnection}
      * @param settings the nodes settings object
      * @param clusterAlias the configured alias of the cluster to connect to
-     * @param seedNodes a list of seed nodes to discover eligible nodes from
      * @param transportService the local nodes transport service
-     * @param maxNumRemoteConnections the maximum number of connections to the remote cluster
-     * @param nodePredicate a predicate to filter eligible remote nodes to connect to
-     * @param proxyAddress the proxy address
-     * @param connectionProfile the connection profile to use
      */
-    RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
-                            TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
-                            String proxyAddress, ConnectionProfile connectionProfile) {
-        this(settings, clusterAlias, seedNodes, transportService, maxNumRemoteConnections, nodePredicate, proxyAddress,
-            createConnectionManager(connectionProfile, transportService));
+    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService) {
+        this(settings, clusterAlias, transportService,
+            createConnectionManager(RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, settings), transportService));
     }
 
-    // Public for tests to pass a StubbableConnectionManager
-    RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
-                            TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
-                            String proxyAddress, ConnectionManager connectionManager) {
+    RemoteClusterConnection(Settings settings, String clusterAlias, TransportService transportService,
+                            ConnectionManager connectionManager) {
         this.transportService = transportService;
-        this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.clusterAlias = clusterAlias;
         this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
-        this.connectionStrategy = new SniffConnectionStrategy(clusterAlias, transportService, remoteConnectionManager,
-            proxyAddress, maxNumRemoteConnections, nodePredicate,
-            Collections.unmodifiableList(seedNodes));
+        this.connectionStrategy = RemoteConnectionStrategy.buildStrategy(clusterAlias, transportService, remoteConnectionManager, settings);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         connectionManager.addListener(transportService);
-        this.seedNodes = Collections.unmodifiableList(seedNodes);
-        this.proxyAddress = proxyAddress;
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
             .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.threadPool = transportService.threadPool;
@@ -125,11 +103,11 @@ final class RemoteClusterConnection implements Closeable {
      * Ensures that this cluster is connected. If the cluster is connected this operation
      * will invoke the listener immediately.
      */
-    void ensureConnected(ActionListener<Void> voidActionListener) {
+    void ensureConnected(ActionListener<Void> listener) {
         if (remoteConnectionManager.size() == 0) {
-            connectionStrategy.connect(voidActionListener);
+            connectionStrategy.connect(listener);
         } else {
-            voidActionListener.onResponse(null);
+            listener.onResponse(null);
         }
     }
 
@@ -215,14 +193,6 @@ final class RemoteClusterConnection implements Closeable {
         return connectionStrategy.isClosed();
     }
 
-    List<Tuple<String, Supplier<DiscoveryNode>>> getSeedNodes() {
-        return seedNodes;
-    }
-
-    String getProxyAddress() {
-        return proxyAddress;
-    }
-
     // for testing only
     boolean assertNoRunningConnections() {
         return connectionStrategy.assertNoRunningConnections();
@@ -236,13 +206,24 @@ final class RemoteClusterConnection implements Closeable {
      * Get the information about remote nodes to be rendered on {@code _remote/info} requests.
      */
     public RemoteConnectionInfo getConnectionInfo() {
-        return new RemoteConnectionInfo(
+        if (connectionStrategy instanceof SniffConnectionStrategy) {
+            SniffConnectionStrategy sniffStrategy = (SniffConnectionStrategy) this.connectionStrategy;
+            return new RemoteConnectionInfo(
                 clusterAlias,
-                seedNodes.stream().map(Tuple::v1).collect(Collectors.toList()),
-                maxNumRemoteConnections,
+                sniffStrategy.getSeedNodes(),
+                sniffStrategy.getMaxConnections(),
                 getNumNodesConnected(),
                 initialConnectionTimeout,
                 skipUnavailable);
+        } else {
+            return new RemoteConnectionInfo(
+                clusterAlias,
+                Collections.emptyList(),
+                0,
+                getNumNodesConnected(),
+                initialConnectionTimeout,
+                skipUnavailable);
+        }
     }
 
     int getNumNodesConnected() {
@@ -255,5 +236,9 @@ final class RemoteClusterConnection implements Closeable {
 
     ConnectionManager getConnectionManager() {
         return remoteConnectionManager.getConnectionManager();
+    }
+
+    public boolean shouldRebuildConnection(Settings newSettings) {
+        return connectionStrategy.shouldRebuildConnection(newSettings);
     }
 }

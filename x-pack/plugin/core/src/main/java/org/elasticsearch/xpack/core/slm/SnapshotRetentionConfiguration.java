@@ -127,14 +127,15 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             .mapToLong(SnapshotInfo::startTime)
             .max()
             .orElse(Long.MIN_VALUE);
+        final Set<SnapshotState> unsuccessfulStates = Set.of(SnapshotState.FAILED, SnapshotState.PARTIAL);
 
         return si -> {
             final String snapName = si.snapshotId().getName();
 
             // First, if there's no expire_after and a more recent successful snapshot, we can delete all the failed ones
-            if (this.expireAfter == null && SnapshotState.FAILED.equals(si.state()) && newestSuccessfulTimestamp > si.startTime()) {
+            if (this.expireAfter == null && unsuccessfulStates.contains(si.state()) && newestSuccessfulTimestamp > si.startTime()) {
                 // There's no expire_after and there's a more recent successful snapshot, delete this failed one
-                logger.trace("[{}]: ELIGIBLE as it is FAILED and there is a more recent successful snapshot", snapName);
+                logger.trace("[{}]: ELIGIBLE as it is {} and there is a more recent successful snapshot", snapName, si.state());
                 return true;
             }
 
@@ -167,13 +168,13 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             // expiration time
             if (this.minimumSnapshotCount != null) {
                 if (successfulSnapshotCount <= this.minimumSnapshotCount)
-                    if (SnapshotState.FAILED.equals(si.state()) == false) {
+                    if (unsuccessfulStates.contains(si.state()) == false) {
                         logger.trace("[{}]: INELIGIBLE as there are {} non-failed snapshots ({} total) and {} minimum snapshots needed",
                             snapName, successfulSnapshotCount, totalSnapshotCount, this.minimumSnapshotCount);
                         return false;
                     } else {
                         logger.trace("[{}]: SKIPPING minimum snapshot count check as this snapshot is {} and not counted " +
-                            "towards the minimum snapshot count.", snapName, SnapshotState.FAILED);
+                            "towards the minimum snapshot count.", snapName, si.state());
                     }
             }
 
@@ -190,10 +191,11 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                     final Stream<SnapshotInfo> successfulSnapsEligibleForExpiration = sortedSnapshots.stream()
                         .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
                         .limit(eligibleForExpiration);
-                    final Stream<SnapshotInfo> failedSnaps = sortedSnapshots.stream()
-                        .filter(snap -> SnapshotState.FAILED.equals(snap.state()));
+                    final Stream<SnapshotInfo> unsucessfulSnaps = sortedSnapshots.stream()
+                        .filter(snap -> unsuccessfulStates.contains(snap.state()));
 
-                    final Set<SnapshotInfo> snapsEligibleForExpiration = Stream.concat(successfulSnapsEligibleForExpiration, failedSnaps)
+                    final Set<SnapshotInfo> snapsEligibleForExpiration = Stream
+                        .concat(successfulSnapsEligibleForExpiration, unsucessfulSnaps)
                         .collect(Collectors.toSet());
 
                     if (snapsEligibleForExpiration.contains(si) == false) {

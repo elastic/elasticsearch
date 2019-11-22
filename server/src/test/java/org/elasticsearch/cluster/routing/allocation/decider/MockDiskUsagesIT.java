@@ -179,7 +179,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             assertThat("node2 has 2 shards", shardCountByNodeId.get(nodeIds.get(2)), equalTo(2));
         }
 
-        client().prepareIndex("test", "doc", "1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertSearchHits(client().prepareSearch("test").get(), "1");
 
         // Move all nodes above the low watermark so no shard movement can occur, and at least one node above the flood stage watermark so
@@ -188,13 +188,13 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 4) : between(0, 9));
 
         assertBusy(() -> assertBlocked(
-            client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar"),
+            client().prepareIndex().setIndex("test").setId("1").setSource("foo", "bar"),
             IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK));
 
         assertFalse(client().admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         // Cannot add further documents
-        assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
+        assertBlocked(client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
             IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
         assertSearchHits(client().prepareSearch("test").get(), "1");
 
@@ -206,7 +206,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Attempt to create a new document until DiskUsageMonitor unblocks the index
         assertBusy(() -> {
             try {
-                client().prepareIndex("test", "doc", "3").setSource("foo", "bar")
+                client().prepareIndex("test").setId("3").setSource("foo", "bar")
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             } catch (ClusterBlockException e) {
                 throw new AssertionError("retrying", e);

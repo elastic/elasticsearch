@@ -79,6 +79,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     public void setReindexingTaskId(Long reindexingTaskId) {
+        LOGGER.debug("[{}] Setting reindexing task id to [{}] from [{}]", taskParams.getId(), reindexingTaskId, this.reindexingTaskId);
         this.reindexingTaskId = reindexingTaskId;
     }
 

@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.MappingsMerger;
 import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -166,7 +167,8 @@ public class TransportStartDataFrameAnalyticsAction
         ActionListener<StartContext> memoryUsageHandledListener = ActionListener.wrap(
             startContext -> {
                 StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
-                    request.getId(), startContext.config.getVersion(), startContext.progressOnStart);
+                    request.getId(), startContext.config.getVersion(), startContext.progressOnStart,
+                    startContext.config.isAllowLazyStart());
                 persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                     MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, taskParams, waitForAnalyticsToStart);
             },
@@ -228,31 +230,7 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Step 6. Validate that there are analyzable data in the source index
         ActionListener<StartContext> validateMappingsMergeListener = ActionListener.wrap(
-            startContext -> DataFrameDataExtractorFactory.createForSourceIndices(client,
-                "validate_source_index_has_rows-" + id,
-                startContext.config,
-                ActionListener.wrap(
-                    dataFrameDataExtractorFactory ->
-                        dataFrameDataExtractorFactory
-                            .newExtractor(false)
-                            .collectDataSummaryAsync(ActionListener.wrap(
-                                dataSummary -> {
-                                    if (dataSummary.rows == 0) {
-                                        finalListener.onFailure(new ElasticsearchStatusException(
-                                            "Unable to start {} as there are no analyzable data in source indices [{}].",
-                                            RestStatus.BAD_REQUEST,
-                                            id,
-                                            Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
-                                        ));
-                                    } else {
-                                        finalListener.onResponse(startContext);
-                                    }
-                                },
-                                finalListener::onFailure
-                            )),
-                    finalListener::onFailure
-                ))
-            ,
+            startContext -> validateSourceIndexHasRows(startContext, finalListener),
             finalListener::onFailure
         );
 
@@ -267,9 +245,7 @@ public class TransportStartDataFrameAnalyticsAction
         // Step 4. Validate dest index is empty if task is starting for first time
         ActionListener<StartContext> toValidateDestEmptyListener = ActionListener.wrap(
             startContext -> {
-                DataFrameAnalyticsTask.StartingState startingState = DataFrameAnalyticsTask.determineStartingState(
-                    startContext.config.getId(), startContext.progressOnStart);
-                switch (startingState) {
+                switch (startContext.startingState) {
                     case FIRST_TIME:
                         checkDestIndexIsEmptyIfExists(startContext, toValidateMappingsListener);
                         break;
@@ -283,7 +259,7 @@ public class TransportStartDataFrameAnalyticsAction
                             "Cannot start because the job has already finished"));
                         break;
                     default:
-                        finalListener.onFailure(ExceptionsHelper.serverError("Unexpected starting state " + startingState));
+                        finalListener.onFailure(ExceptionsHelper.serverError("Unexpected starting state " + startContext.startingState));
                         break;
                 }
             },
@@ -293,9 +269,16 @@ public class TransportStartDataFrameAnalyticsAction
         // Step 3. Validate source and dest; check data extraction is possible
         ActionListener<StartContext> startContextListener = ActionListener.wrap(
             startContext -> {
+                // Validate the query parses
+                startContext.config.getSource().getParsedQuery();
+
+                // Validate source/dest are valid
                 new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(startContext.config);
-                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, startContext.config, ActionListener.wrap(
-                    config -> toValidateDestEmptyListener.onResponse(startContext), finalListener::onFailure));
+
+                // Validate extraction is possible
+                boolean isTaskRestarting = startContext.startingState != DataFrameAnalyticsTask.StartingState.FIRST_TIME;
+                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, isTaskRestarting, ActionListener.wrap(
+                    extractedFieldsDetector -> toValidateDestEmptyListener.onResponse(startContext), finalListener::onFailure));
             },
             finalListener::onFailure
         );
@@ -309,6 +292,38 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Step 1. Get the config
         configProvider.get(id, getConfigListener);
+    }
+
+    private void validateSourceIndexHasRows(StartContext startContext, ActionListener<StartContext> listener) {
+        boolean isTaskRestarting = startContext.startingState != DataFrameAnalyticsTask.StartingState.FIRST_TIME;
+        DataFrameDataExtractorFactory.createForSourceIndices(client,
+            "validate_source_index_has_rows-" + startContext.config.getId(),
+            isTaskRestarting,
+            startContext.config,
+            ActionListener.wrap(
+                dataFrameDataExtractorFactory ->
+                    dataFrameDataExtractorFactory
+                        .newExtractor(false)
+                        .collectDataSummaryAsync(ActionListener.wrap(
+                            dataSummary -> {
+                                if (dataSummary.rows == 0) {
+                                    listener.onFailure(ExceptionsHelper.badRequestException(
+                                        "Unable to start {} as no documents in the source indices [{}] contained all the fields "
+                                            + "selected for analysis. If you are relying on automatic field selection then there are "
+                                            + "currently mapped fields that do not exist in any indexed documents, and you will have "
+                                            + "to switch to explicit field selection and include only fields that exist in indexed "
+                                            + "documents.",
+                                        startContext.config.getId(),
+                                        Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
+                                    ));
+                                } else {
+                                    listener.onResponse(startContext);
+                                }
+                            },
+                            listener::onFailure
+                        )),
+                listener::onFailure
+            ));
     }
 
     private void getProgress(DataFrameAnalyticsConfig config, ActionListener<List<PhaseProgress>> listener) {
@@ -387,10 +402,12 @@ public class TransportStartDataFrameAnalyticsAction
     private static class StartContext {
         private final DataFrameAnalyticsConfig config;
         private final List<PhaseProgress> progressOnStart;
+        private final DataFrameAnalyticsTask.StartingState startingState;
 
         private StartContext(DataFrameAnalyticsConfig config, List<PhaseProgress> progressOnStart) {
             this.config = config;
             this.progressOnStart = progressOnStart;
+            this.startingState = DataFrameAnalyticsTask.determineStartingState(config.getId(), progressOnStart);
         }
     }
 
@@ -432,6 +449,12 @@ public class TransportStartDataFrameAnalyticsAction
                 case STOPPING:
                     exception = ExceptionsHelper.conflictStatusException("the task has been stopped while waiting to be started");
                     return true;
+                // The STARTING case here is expected to be incredibly short-lived, just occurring during the
+                // time period when a job has successfully been assigned to a node but the request to update
+                // its task state is still in-flight.  (The long-lived STARTING case when a lazy node needs to
+                // be added to the cluster to accommodate the job was dealt with higher up this method when the
+                // magic AWAITING_LAZY_ASSIGNMENT assignment was checked for.)
+                case STARTING:
                 case STOPPED:
                     return false;
                 case FAILED:
@@ -548,7 +571,7 @@ public class TransportStartDataFrameAnalyticsAction
             }
 
             JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, id, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker,
-                maxLazyMLNodes, node -> nodeFilter(node, id));
+                params.isAllowLazyStart() ? Integer.MAX_VALUE : maxLazyMLNodes, node -> nodeFilter(node, id));
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
             return jobNodeSelector.selectNode(

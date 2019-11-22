@@ -80,7 +80,6 @@ public class DatafeedManager {
         clusterService.addListener(taskRunner);
     }
 
-
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
         String datafeedId = task.getDatafeedId();
 
@@ -233,7 +232,7 @@ public class DatafeedManager {
                     long nextDelayInMsSinceEpoch;
                     try {
                         nextDelayInMsSinceEpoch = holder.executeRealTime();
-                        holder.problemTracker.reportNoneEmptyCount();
+                        holder.problemTracker.reportNonEmptyDataCount();
                     } catch (DatafeedJob.ExtractionProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
                         holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
@@ -245,8 +244,15 @@ public class DatafeedManager {
                             return;
                         }
                     } catch (DatafeedJob.EmptyDataCountException e) {
+                        int emptyDataCount = holder.problemTracker.reportEmptyDataCount();
+                        if (e.haveEverSeenData == false && holder.shouldStopAfterEmptyData(emptyDataCount)) {
+                            logger.warn("Datafeed for [" + jobId + "] has seen no data in [" + emptyDataCount
+                                + "] attempts, and never seen any data previously, so stopping...");
+                            // In this case we auto-close the job, as though a lookback-only datafeed stopped
+                            holder.stop("no_data", TimeValue.timeValueSeconds(20), e, true);
+                            return;
+                        }
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportEmptyDataCount();
                     } catch (Exception e) {
                         logger.error("Unexpected datafeed failure for job [" + jobId + "] stopping...", e);
                         holder.stop("general_realtime_error", TimeValue.timeValueSeconds(20), e);
@@ -303,7 +309,7 @@ public class DatafeedManager {
         // To ensure that we wait until lookback / realtime search has completed before we stop the datafeed
         private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
         private final DatafeedJob datafeedJob;
-        private final boolean autoCloseJob;
+        private final boolean defaultAutoCloseJob;
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> finishHandler;
         volatile Scheduler.Cancellable cancellable;
@@ -315,9 +321,14 @@ public class DatafeedManager {
             this.allocationId = task.getAllocationId();
             this.datafeedId = datafeedId;
             this.datafeedJob = datafeedJob;
-            this.autoCloseJob = task.isLookbackOnly();
+            this.defaultAutoCloseJob = task.isLookbackOnly();
             this.problemTracker = problemTracker;
             this.finishHandler = finishHandler;
+        }
+
+        boolean shouldStopAfterEmptyData(int emptyDataCount) {
+            Integer emptyDataCountToStopAt = datafeedJob.getMaxEmptySearches();
+            return emptyDataCountToStopAt != null && emptyDataCount >= emptyDataCountToStopAt;
         }
 
         String getJobId() {
@@ -333,6 +344,10 @@ public class DatafeedManager {
         }
 
         public void stop(String source, TimeValue timeout, Exception e) {
+            stop(source, timeout, e, defaultAutoCloseJob);
+        }
+
+        public void stop(String source, TimeValue timeout, Exception e, boolean autoCloseJob) {
             if (isNodeShuttingDown) {
                 return;
             }
@@ -346,7 +361,7 @@ public class DatafeedManager {
                     acquired = datafeedJobLock.tryLock(timeout.millis(), TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e1) {
                     Thread.currentThread().interrupt();
-                } finally {
+                } finally {  // It is crucial that none of the calls this "finally" block makes throws an exception for minor problems.
                     logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeedId,
                             datafeedJob.getJobId(), acquired);
                     runningDatafeedsOnThisNode.remove(allocationId);

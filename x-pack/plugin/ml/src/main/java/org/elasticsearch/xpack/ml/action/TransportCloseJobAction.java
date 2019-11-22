@@ -116,30 +116,43 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                                         return;
                                     }
 
-                                    if (request.isForce() == false) {
-                                        Set<String> executorNodes = new HashSet<>();
-                                        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-                                        for (String resolvedJobId : request.getOpenJobIds()) {
-                                            PersistentTasksCustomMetaData.PersistentTask<?> jobTask =
-                                                    MlTasks.getJobTask(resolvedJobId, tasks);
-
-                                            if (jobTask == null || jobTask.isAssigned() == false) {
-                                                String message = "Cannot close job [" + resolvedJobId + "] because the job does not have "
-                                                        + "an assigned node. Use force close to close the job";
-                                                listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-                                                return;
-                                            } else {
-                                                executorNodes.add(jobTask.getExecutorNode());
-                                            }
-                                        }
-                                        request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
-                                    }
-
                                     if (request.isForce()) {
                                         List<String> jobIdsToForceClose = new ArrayList<>(response.openJobIds);
                                         jobIdsToForceClose.addAll(response.closingJobIds);
                                         forceCloseJob(state, request, jobIdsToForceClose, listener);
                                     } else {
+                                        Set<String> executorNodes = new HashSet<>();
+                                        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                                        for (String resolvedJobId : request.getOpenJobIds()) {
+                                            PersistentTasksCustomMetaData.PersistentTask<?> jobTask =
+                                                MlTasks.getJobTask(resolvedJobId, tasks);
+
+                                            if (jobTask == null) {
+                                                // This should not happen, because openJobIds was
+                                                // derived from the same tasks metadata as jobTask
+                                                String msg = "Requested job [" + resolvedJobId
+                                                    + "] be stopped, but job's task could not be found.";
+                                                assert jobTask != null : msg;
+                                                logger.error(msg);
+                                            } else if (jobTask.isAssigned()) {
+                                                executorNodes.add(jobTask.getExecutorNode());
+                                            } else {
+                                                // This is the easy case - the job is not currently assigned to a node, so can
+                                                // be gracefully stopped simply by removing its persistent task.  (Usually a
+                                                // graceful stop cannot be achieved by simply removing the persistent task, but
+                                                // if the job has no running code then graceful/forceful are basically the same.)
+                                                // The listener here can be a no-op, as waitForJobClosed() already waits for
+                                                // these persistent tasks to disappear.
+                                                persistentTasksService.sendRemoveRequest(jobTask.getId(),
+                                                    ActionListener.wrap(
+                                                        r -> logger.trace("[{}] removed task to close unassigned job", resolvedJobId),
+                                                        e -> logger.error("[" + resolvedJobId
+                                                            + "] failed to remove task to close unassigned job", e)
+                                                    ));
+                                            }
+                                        }
+                                        request.setNodes(executorNodes.toArray(new String[0]));
+
                                         normalCloseJob(state, task, request, response.openJobIds, response.closingJobIds, listener);
                                     }
                                 },
@@ -148,7 +161,6 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                     },
                     listener::onFailure
             ));
-
         }
     }
 
@@ -353,21 +365,20 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                             private void sendResponseOrFailure(String jobId,
                                                                ActionListener<CloseJobAction.Response> listener,
                                                                AtomicArray<Exception> failures) {
-                                List<Exception> catchedExceptions = failures.asList();
-                                if (catchedExceptions.size() == 0) {
+                                List<Exception> caughtExceptions = failures.asList();
+                                if (caughtExceptions.size() == 0) {
                                     listener.onResponse(new CloseJobAction.Response(true));
                                     return;
                                 }
 
                                 String msg = "Failed to force close job [" + jobId + "] with ["
-                                        + catchedExceptions.size()
+                                        + caughtExceptions.size()
                                         + "] failures, rethrowing last, all Exceptions: ["
-                                        + catchedExceptions.stream().map(Exception::getMessage)
+                                        + caughtExceptions.stream().map(Exception::getMessage)
                                         .collect(Collectors.joining(", "))
                                         + "]";
 
-                                ElasticsearchException e = new ElasticsearchException(msg,
-                                        catchedExceptions.get(0));
+                                ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
                                 listener.onFailure(e);
                             }
                         });

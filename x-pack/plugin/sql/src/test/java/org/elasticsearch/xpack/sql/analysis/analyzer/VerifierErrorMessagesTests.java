@@ -11,6 +11,10 @@ import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
@@ -23,7 +27,9 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -220,14 +226,69 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DATE_TRUNC('yyyz', keyword) FROM test"));
     }
 
+    public void testDateAddValidArgs() {
+        accept("SELECT DATE_ADD('weekday', 0, date) FROM test");
+        accept("SELECT DATEADD('dw', 20, date) FROM test");
+        accept("SELECT TIMESTAMP_ADD('years', -10, date) FROM test");
+        accept("SELECT TIMESTAMPADD('dayofyear', 123, date) FROM test");
+        accept("SELECT DATE_ADD('dy', 30, date) FROM test");
+        accept("SELECT DATE_ADD('ms', 1, date::date) FROM test");
+    }
+
+    public void testDateAddInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_ADD(int, int, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_ADD(int, int, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_ADD(keyword, 1.2, date)] must be [integer], found value [1.2] " +
+            "type [double]", error("SELECT DATE_ADD(keyword, 1.2, date) FROM test"));
+        assertEquals("1:8: third argument of [DATE_ADD(keyword, int, keyword)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_ADD(keyword, int, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_ADD('invalid', int, date)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
+                "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
+                "or their aliases; found value ['invalid']",
+            error("SELECT DATE_ADD('invalid', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['sacinds'] for first argument of [DATE_ADD('sacinds', int, date)]; " +
+                "did you mean [seconds, second]?",
+            error("SELECT DATE_ADD('sacinds', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_ADD('dz', int, date)]; " +
+                "did you mean [dd, dw, dy, d]?",
+            error("SELECT DATE_ADD('dz', int, date) FROM test"));
+    }
+
+    public void testDateDiffValidArgs() {
+        accept("SELECT DATE_DIFF('weekday', date, date) FROM test");
+        accept("SELECT DATEDIFF('dw', date::date, date) FROM test");
+        accept("SELECT TIMESTAMP_DIFF('years', date, date) FROM test");
+        accept("SELECT TIMESTAMPDIFF('dayofyear', date, date::date) FROM test");
+        accept("SELECT DATE_DIFF('dy', date, date) FROM test");
+        accept("SELECT DATE_DIFF('ms', date::date, date::date) FROM test");
+    }
+
+    public void testDateDiffInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_DIFF(int, date, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_DIFF(int, date, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_DIFF(keyword, keyword, date)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_DIFF(keyword, keyword, date) FROM test"));
+        assertEquals("1:8: third argument of [DATE_DIFF(keyword, date, keyword)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_DIFF(keyword, date, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_DIFF('invalid', int, date)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
+                "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
+                "or their aliases; found value ['invalid']",
+            error("SELECT DATE_DIFF('invalid', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['sacinds'] for first argument of [DATE_DIFF('sacinds', int, date)]; " +
+                "did you mean [seconds, second]?",
+            error("SELECT DATE_DIFF('sacinds', int, date) FROM test"));
+        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_DIFF('dz', int, date)]; " +
+                "did you mean [dd, dw, dy, d]?",
+            error("SELECT DATE_DIFF('dz', int, date) FROM test"));
+    }
+
     public void testDateTruncValidArgs() {
         accept("SELECT DATE_TRUNC('decade', date) FROM test");
         accept("SELECT DATE_TRUNC('decades', date) FROM test");
-        accept("SELECT DATE_TRUNC('day', date) FROM test");
-        accept("SELECT DATE_TRUNC('days', date) FROM test");
+        accept("SELECT DATETRUNC('day', date) FROM test");
+        accept("SELECT DATETRUNC('days', date) FROM test");
         accept("SELECT DATE_TRUNC('dd', date) FROM test");
         accept("SELECT DATE_TRUNC('d', date) FROM test");
-
     }
 
     public void testDatePartInvalidArgs() {
@@ -249,39 +310,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testDatePartValidArgs() {
         accept("SELECT DATE_PART('weekday', date) FROM test");
-        accept("SELECT DATE_PART('dw', date) FROM test");
-        accept("SELECT DATE_PART('tz', date) FROM test");
+        accept("SELECT DATEPART('dw', date) FROM test");
+        accept("SELECT DATEPART('tz', date) FROM test");
         accept("SELECT DATE_PART('dayofyear', date) FROM test");
         accept("SELECT DATE_PART('dy', date) FROM test");
         accept("SELECT DATE_PART('ms', date) FROM test");
-    }
-
-    public void testDateAddInvalidArgs() {
-        assertEquals("1:8: first argument of [DATE_ADD(int, int, date)] must be [string], found value [int] type [integer]",
-            error("SELECT DATE_ADD(int, int, date) FROM test"));
-        assertEquals("1:8: second argument of [DATE_ADD(keyword, keyword, date)] must be [integer], found value [keyword] " +
-            "type [keyword]", error("SELECT DATE_ADD(keyword, keyword, date) FROM test"));
-        assertEquals("1:8: third argument of [DATE_ADD(keyword, int, keyword)] must be [date or datetime], found value [keyword] " +
-            "type [keyword]", error("SELECT DATE_ADD(keyword, int, keyword) FROM test"));
-        assertEquals("1:8: first argument of [DATE_ADD('invalid', int, date)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
-                "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
-                "or their aliases; found value ['invalid']",
-            error("SELECT DATE_ADD('invalid', int, date) FROM test"));
-        assertEquals("1:8: Unknown value ['sacinds'] for first argument of [DATE_ADD('sacinds', int, date)]; " +
-                "did you mean [seconds, second]?",
-            error("SELECT DATE_ADD('sacinds', int, date) FROM test"));
-        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_ADD('dz', int, date)]; " +
-                "did you mean [dd, dw, dy, d]?",
-            error("SELECT DATE_ADD('dz', int, date) FROM test"));
-    }
-
-    public void testDateAddValidArgs() {
-        accept("SELECT DATE_ADD('weekday', 0, date) FROM test");
-        accept("SELECT DATE_ADD('dw', 20, date) FROM test");
-        accept("SELECT DATE_ADD('years', -10, date) FROM test");
-        accept("SELECT DATE_ADD('dayofyear', 123, date) FROM test");
-        accept("SELECT DATE_ADD('dy', 30, date) FROM test");
-        accept("SELECT DATE_ADD('ms', 1, date::date) FROM test");
     }
 
     public void testValidDateTimeFunctionsOnTime() {
@@ -344,7 +377,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultipleColumns() {
-        assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
+        // We get only one message back because the messages are grouped by the node that caused the issue
+        assertEquals("1:43: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
     }
 
@@ -554,13 +588,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInvalidTypeForStringFunction_WithOneArgNumeric() {
-        assertEquals("1:8: argument of [CHAR('foo')] must be [integer], found value ['foo'] type [keyword]",
-            error("SELECT CHAR('foo')"));
+        String functionName = randomFrom(Arrays.asList(Char.class, Space.class)).getSimpleName().toUpperCase(Locale.ROOT);
+        assertEquals("1:8: argument of [" + functionName + "('foo')] must be [integer], found value ['foo'] type [keyword]",
+            error("SELECT " + functionName + "('foo')"));
+        assertEquals("1:8: argument of [" + functionName + "(1.2)] must be [integer], found value [1.2] type [double]",
+            error("SELECT " + functionName + "(1.2)"));
     }
 
     public void testInvalidTypeForNestedStringFunctions_WithOneArg() {
-        assertEquals("1:14: argument of [CHAR('foo')] must be [integer], found value ['foo'] type [keyword]",
-            error("SELECT ASCII(CHAR('foo'))"));
+        assertEquals("1:15: argument of [SPACE('foo')] must be [integer], found value ['foo'] type [keyword]",
+            error("SELECT LENGTH(SPACE('foo'))"));
+        assertEquals("1:15: argument of [SPACE(1.2)] must be [integer], found value [1.2] type [double]",
+            error("SELECT LENGTH(SPACE(1.2))"));
     }
 
     public void testInvalidTypeForNumericFunction_WithOneArg() {
@@ -581,10 +620,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInvalidTypeForNumericFunction_WithTwoArgs() {
-        assertEquals("1:8: first argument of [TRUNCATE('foo', 2)] must be [numeric], found value ['foo'] type [keyword]",
-            error("SELECT TRUNCATE('foo', 2)"));
-        assertEquals("1:8: second argument of [TRUNCATE(1.2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
-            error("SELECT TRUNCATE(1.2, 'bar')"));
+        String functionName = randomFrom(Arrays.asList(Round.class, Truncate.class)).getSimpleName().toUpperCase(Locale.ROOT);
+        assertEquals("1:8: first argument of [" + functionName + "('foo', 2)] must be [numeric], found value ['foo'] type [keyword]",
+            error("SELECT " + functionName + "('foo', 2)"));
+        assertEquals("1:8: second argument of [" + functionName + "(1.2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
+            error("SELECT " + functionName + "(1.2, 'bar')"));
+        assertEquals("1:8: second argument of [" + functionName + "(1.2, 3.4)] must be [integer], found value [3.4] type [double]",
+            error("SELECT " + functionName + "(1.2, 3.4)"));
     }
 
     public void testInvalidTypeForBooleanFuntion_WithTwoArgs() {
@@ -623,9 +665,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
         assertEquals("1:8: second argument of [SUBSTRING('foo', 'bar', 3)] must be [integer], found value ['bar'] type [keyword]",
             error("SELECT SUBSTRING('foo', 'bar', 3)"));
+        assertEquals("1:8: second argument of [SUBSTRING('foo', 1.2, 3)] must be [integer], found value [1.2] type [double]",
+            error("SELECT SUBSTRING('foo', 1.2, 3)"));
 
         assertEquals("1:8: third argument of [SUBSTRING('foo', 2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
             error("SELECT SUBSTRING('foo', 2, 'bar')"));
+        assertEquals("1:8: third argument of [SUBSTRING('foo', 2, 3.4)] must be [integer], found value [3.4] type [double]",
+            error("SELECT SUBSTRING('foo', 2, 3.4)"));
     }
 
     public void testInvalidTypeForFunction_WithFourArgs() {

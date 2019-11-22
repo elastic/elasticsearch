@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -151,11 +150,6 @@ public class DateTrunc extends BinaryDateTimeFunction {
     }
 
     @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
-    }
-
-    @Override
     protected String scriptMethodName() {
         return "dateTrunc";
     }
@@ -166,8 +160,8 @@ public class DateTrunc extends BinaryDateTimeFunction {
     }
 
     @Override
-    protected Pipe createPipe(Pipe left, Pipe right, ZoneId zoneId) {
-        return new DateTruncPipe(source(), this, left, right, zoneId);
+    protected Pipe createPipe(Pipe truncateTo, Pipe timestamp, ZoneId zoneId) {
+        return new DateTruncPipe(source(), this, truncateTo, timestamp, zoneId);
     }
 
     @Override

@@ -122,7 +122,8 @@ The API returns the following results:
         "time_format": "epoch_ms"
       },
       "model_snapshot_retention_days": 1,
-      "results_index_name": "shared"
+      "results_index_name": "shared",
+      "allow_lazy_open": false
     }
   ]
 }

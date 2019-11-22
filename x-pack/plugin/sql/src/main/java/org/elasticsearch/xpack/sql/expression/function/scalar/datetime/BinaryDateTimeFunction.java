@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -78,11 +77,6 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     }
 
     protected abstract Pipe createPipe(Pipe left, Pipe right, ZoneId zoneId);
-
-    @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
-    }
 
     @Override
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {

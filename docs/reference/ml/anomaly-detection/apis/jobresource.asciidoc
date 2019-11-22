@@ -95,6 +95,19 @@ so do not set the `background_persist_interval` value too low.
   deleted from Elasticsearch. The default value is null, which means results
   are retained.
 
+`allow_lazy_open`::
+  (boolean) Advanced configuration option.
+  Whether this job should be allowed to open when there is insufficient
+  {ml} node capacity for it to be immediately assigned to a node.
+  The default is `false`, which means that the <<ml-open-job>>
+  will return an error if a {ml} node with capacity to run the
+  job cannot immediately be found. (However, this is also subject to
+  the cluster-wide `xpack.ml.max_lazy_ml_nodes` setting - see
+  <<advanced-ml-settings>>.) If this option is set to `true` then
+  the <<ml-open-job>> will not return an error, and the job will
+  wait in the `opening` state until sufficient {ml} node capacity
+  is available.
+
 [[ml-analysisconfig]]
 ==== Analysis Configuration Objects
 

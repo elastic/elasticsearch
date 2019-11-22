@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.rankeval.PrecisionAtK.Detail;
@@ -61,21 +60,21 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         createIndex(TEST_INDEX);
         ensureGreen();
 
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("1")
+        client().prepareIndex(TEST_INDEX).setId("1")
                 .setSource("text", "berlin", "title", "Berlin, Germany", "population", 3670622).get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("2").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("2").setSource("text", "amsterdam", "population", 851573)
                 .get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("3").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("3").setSource("text", "amsterdam", "population", 851573)
                 .get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("4").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("4").setSource("text", "amsterdam", "population", 851573)
                 .get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("5").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("5").setSource("text", "amsterdam", "population", 851573)
                 .get();
-        client().prepareIndex(TEST_INDEX, MapperService.SINGLE_MAPPING_NAME).setId("6").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex(TEST_INDEX).setId("6").setSource("text", "amsterdam", "population", 851573)
                 .get();
 
         // add another index for testing closed indices etc...
-        client().prepareIndex("test2", MapperService.SINGLE_MAPPING_NAME).setId("7").setSource("text", "amsterdam", "population", 851573)
+        client().prepareIndex("test2").setId("7").setSource("text", "amsterdam", "population", 851573)
                 .get();
         refresh();
 

@@ -74,7 +74,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .put("index.number_of_routing_shards", currentShards)
                 .put("index.number_of_replicas", numberOfReplicas())
                 .put("index.routing_partition_size", partitionSize))
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+            .addMapping("_doc", "{\"_doc\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
             .execute().actionGet();
         ensureGreen();
 
@@ -190,7 +190,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 String id = routingValue + "_" + String.valueOf(k);
                 routingToDocumentIds.get(routingValue).add(id);
 
-                client().prepareIndex(index, "type", id)
+                client().prepareIndex(index).setId(id)
                     .setRouting(routingValue)
                     .setSource("foo", "bar")
                     .get();

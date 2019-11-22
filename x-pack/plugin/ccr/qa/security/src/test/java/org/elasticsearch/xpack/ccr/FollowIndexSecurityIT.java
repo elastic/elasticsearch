@@ -202,7 +202,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             assertOK(client().performRequest(new Request("POST", "/" + forgetFollower + "/_ccr/pause_follow")));
 
-            try (RestClient leaderClient = buildLeaderClient(restClientSettings())) {
+            try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
                 final String requestBody = "{" +
                         "\"follower_cluster\":\"follow-cluster\"," +

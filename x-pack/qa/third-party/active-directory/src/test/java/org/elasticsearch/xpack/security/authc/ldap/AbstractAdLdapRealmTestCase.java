@@ -209,7 +209,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     protected void assertAccessAllowed(String user, String index) throws IOException {
         Client client = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, userHeader(user, PASSWORD)));
-        IndexResponse indexResponse = client.prepareIndex(index, "type").
+        IndexResponse indexResponse = client.prepareIndex(index).
                 setSource(jsonBuilder()
                         .startObject()
                         .field("name", "value")
@@ -230,7 +230,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     protected void assertAccessDenied(String user, String index) throws IOException {
         try {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, userHeader(user, PASSWORD)))
-                    .prepareIndex(index, "type").
+                    .prepareIndex(index).
                     setSource(jsonBuilder()
                             .startObject()
                             .field("name", "value")

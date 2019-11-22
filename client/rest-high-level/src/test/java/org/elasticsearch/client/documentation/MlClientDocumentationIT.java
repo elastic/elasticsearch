@@ -141,7 +141,10 @@ import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -2951,6 +2954,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureBagFraction(0.4) // <6>
                 .setPredictionFieldName("my_prediction_field_name") // <7>
                 .setTrainingPercent(50.0) // <8>
+                .setNumTopClasses(1) // <9>
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -3344,28 +3348,47 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     "actual_class", // <2>
                     "predicted_class", // <3>
                     // Evaluation metrics // <4>
-                    new MulticlassConfusionMatrixMetric(3)); // <5>
+                    new AccuracyMetric(), // <5>
+                    new MulticlassConfusionMatrixMetric(3)); // <6>
             // end::evaluate-data-frame-evaluation-classification
 
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(indexName, null, evaluation);
             EvaluateDataFrameResponse response = client.machineLearning().evaluateDataFrame(request, RequestOptions.DEFAULT);
 
             // tag::evaluate-data-frame-results-classification
-            MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
-                response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <1>
+            AccuracyMetric.Result accuracyResult = response.getMetricByName(AccuracyMetric.NAME); // <1>
+            double accuracy = accuracyResult.getOverallAccuracy(); // <2>
 
-            Map<String, Map<String, Long>> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <2>
-            long otherClassesCount = multiclassConfusionMatrix.getOtherClassesCount(); // <3>
+            MulticlassConfusionMatrixMetric.Result multiclassConfusionMatrix =
+                response.getMetricByName(MulticlassConfusionMatrixMetric.NAME); // <3>
+
+            List<ActualClass> confusionMatrix = multiclassConfusionMatrix.getConfusionMatrix(); // <4>
+            long otherClassesCount = multiclassConfusionMatrix.getOtherActualClassCount(); // <5>
             // end::evaluate-data-frame-results-classification
+
+            assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
+            assertThat(accuracy, equalTo(0.6));
 
             assertThat(multiclassConfusionMatrix.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
             assertThat(
                 confusionMatrix,
                 equalTo(
-                    Map.of(
-                        "cat", Map.of("cat", 3L, "dog", 1L, "ant", 0L, "_other_", 1L),
-                        "dog", Map.of("cat", 1L, "dog", 3L, "ant", 0L),
-                        "ant", Map.of("cat", 1L, "dog", 0L, "ant", 0L))));
+                    List.of(
+                        new ActualClass(
+                            "ant",
+                            1L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 0L)),
+                            0L),
+                        new ActualClass(
+                            "cat",
+                            5L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 3L), new PredictedClass("dog", 1L)),
+                            1L),
+                        new ActualClass(
+                            "dog",
+                            4L,
+                            List.of(new PredictedClass("ant", 0L), new PredictedClass("cat", 1L), new PredictedClass("dog", 3L)),
+                            0L))));
             assertThat(otherClassesCount, equalTo(0L));
         }
     }

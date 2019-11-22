@@ -264,6 +264,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 .privileges("view_index_metadata")
                                 .allowRestrictedIndices(true)
                                 .build() }, null, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                .put("enrich_user", new RoleDescriptor("enrich_user", new String[]{ "manage_enrich", "manage_ingest_pipelines", "monitor" },
+                        new RoleDescriptor.IndicesPrivileges[]{  RoleDescriptor.IndicesPrivileges.builder()
+                            .indices(".enrich-*")
+                            .privileges("manage", "read", "write")
+                            .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .immutableMap();
     }
 

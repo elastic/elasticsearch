@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -68,8 +67,8 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
             return DateTimeField.findSimilar(NAME_TO_PART.keySet(), match);
         }
 
-        public static Part resolve(String truncateTo) {
-            return DateTimeField.resolveMatch(NAME_TO_PART, truncateTo);
+        public static Part resolve(String dateTimeUnit) {
+            return DateTimeField.resolveMatch(NAME_TO_PART, dateTimeUnit);
         }
 
         public ZonedDateTime add(ZonedDateTime dateTime, Integer numberOfUnits) {
@@ -135,13 +134,8 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
     }
 
     @Override
-    public Nullability nullable() {
-        return Nullability.UNKNOWN;
-    }
-
-    @Override
-    protected Pipe createPipe(Pipe first, Pipe second, Pipe third, ZoneId zoneId) {
-        return new DateAddPipe(source(), this, first, second, third, zoneId);
+    protected Pipe createPipe(Pipe unit, Pipe numberOfUnits, Pipe timestamp, ZoneId zoneId) {
+        return new DateAddPipe(source(), this, unit, numberOfUnits, timestamp, zoneId);
     }
 
     @Override

@@ -233,7 +233,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
                 this.active = in.readBoolean();
             } else {
                 this.active = true;
@@ -270,7 +270,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 out.writeBoolean(active);
             }
         }

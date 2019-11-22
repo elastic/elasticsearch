@@ -27,6 +27,7 @@ import org.objectweb.asm.util.Printer;
 import org.objectweb.asm.util.TraceClassVisitor;
 
 import java.io.Closeable;
+import java.lang.reflect.Modifier;
 import java.util.BitSet;
 
 /**
@@ -34,6 +35,30 @@ import java.util.BitSet;
  * clinit if necessary.
  */
 public class ClassWriter implements Closeable  {
+
+    /**
+     * Converts Java reflection modifiers to ASM access constants.
+     * @param modifiers Java reflection {@code Modifiers}
+     * @param synthetic {@code true} if the item is synthetically generated
+     * @return ASM access constants
+     */
+    public static int buildAccess(int modifiers, boolean synthetic) {
+        int access = synthetic ? Opcodes.ACC_SYNTHETIC : 0;
+
+        if (Modifier.isFinal(modifiers))        access |= Opcodes.ACC_FINAL;
+        if (Modifier.isInterface(modifiers))    access |= Opcodes.ACC_INTERFACE;
+        if (Modifier.isNative(modifiers))       access |= Opcodes.ACC_NATIVE;
+        if (Modifier.isPrivate(modifiers))      access |= Opcodes.ACC_PRIVATE;
+        if (Modifier.isProtected(modifiers))    access |= Opcodes.ACC_PROTECTED;
+        if (Modifier.isPublic(modifiers))       access |= Opcodes.ACC_PUBLIC;
+        if (Modifier.isStatic(modifiers))       access |= Opcodes.ACC_STATIC;
+        if (Modifier.isStrict(modifiers))       access |= Opcodes.ACC_STRICT;
+        if (Modifier.isSynchronized(modifiers)) access |= Opcodes.ACC_SYNCHRONIZED;
+        if (Modifier.isTransient(modifiers))    access |= Opcodes.ACC_TRANSIENT;
+        if (Modifier.isVolatile(modifiers))     access |= Opcodes.ACC_VOLATILE;
+
+        return access;
+    }
 
     protected final CompilerSettings compilerSettings;
     protected final BitSet statements;

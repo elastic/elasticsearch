@@ -33,7 +33,7 @@ import java.util.Map;
 
 public class ReindexTaskParams implements PersistentTaskParams {
 
-    public static final String NAME = "reindex_task_params";
+    public static final String NAME = ReindexTask.NAME;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ReindexTaskParams, Void> PARSER

@@ -33,7 +33,7 @@ import java.io.IOException;
 
 public class ReindexPersistentTaskState implements Task.Status, PersistentTaskState {
 
-    public static final String NAME = "reindex_persistent_task_state";
+    public static final String NAME = ReindexTask.NAME;
 
     public static final ConstructingObjectParser<ReindexPersistentTaskState, Void> PARSER =
         new ConstructingObjectParser<>(NAME, a -> new ReindexPersistentTaskState((String) a[0], (String) a[1]));

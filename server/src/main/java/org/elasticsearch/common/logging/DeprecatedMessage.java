@@ -36,6 +36,6 @@ public class DeprecatedMessage  {
         }
 
         return new ESLogMessage(messagePattern, args)
-                           .with(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
+                           .field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
     }
 }

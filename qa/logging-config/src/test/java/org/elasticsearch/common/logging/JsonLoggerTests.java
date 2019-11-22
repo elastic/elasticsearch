@@ -503,7 +503,7 @@ public class JsonLoggerTests extends ESTestCase {
 
     private Matcher<JsonLogLine> stacktraceWith(String... lines) {
         return new FeatureMatcher<JsonLogLine, List<String>>(Matchers.hasItems(lines),
-            "stacktrace", "stacktrace") {
+            "error.stack_trace", "error.stack_trace") {
 
             @Override
             protected List<String> featureValueOf(JsonLogLine actual) {

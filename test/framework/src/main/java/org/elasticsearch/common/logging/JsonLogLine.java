@@ -143,15 +143,15 @@ public class JsonLogLine {
     private static ObjectParser<JsonLogLine, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("search_template", ignoreUnknownFields, JsonLogLine::new);
         parser.declareString(JsonLogLine::setType, new ParseField("type"));
-        parser.declareString(JsonLogLine::setTimestamp, new ParseField("timestamp"));
-        parser.declareString(JsonLogLine::setLevel, new ParseField("level"));
-        parser.declareString(JsonLogLine::setComponent, new ParseField("component"));
+        parser.declareString(JsonLogLine::setTimestamp, new ParseField("@timestamp"));
+        parser.declareString(JsonLogLine::setLevel, new ParseField("log.level"));
+        parser.declareString(JsonLogLine::setComponent, new ParseField("log.logger"));
         parser.declareString(JsonLogLine::setClusterName, new ParseField("cluster.name"));
         parser.declareString(JsonLogLine::setNodeName, new ParseField("node.name"));
         parser.declareString(JsonLogLine::setClusterUuid, new ParseField("cluster.uuid"));
         parser.declareString(JsonLogLine::setNodeId, new ParseField("node.id"));
         parser.declareString(JsonLogLine::setMessage, new ParseField("message"));
-        parser.declareStringArray(JsonLogLine::setStacktrace, new ParseField("stacktrace"));
+        parser.declareStringArray(JsonLogLine::setStacktrace, new ParseField("error.stack_trace"));
 
         return parser;
     }

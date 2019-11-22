@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -127,7 +128,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
         List<String> expectedFieldNames = Arrays.asList("foo", "bar", "baz");
-        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder(JOB_ID);
+        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor(expectedFieldNames);
 
@@ -138,12 +139,13 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         verify(trainedModelProvider).storeTrainedModel(storedModelCaptor.capture(), any(ActionListener.class));
 
         TrainedModelConfig storedModel = storedModelCaptor.getValue();
+        assertThat(storedModel.getLicenseLevel(), equalTo(License.OperationMode.PLATINUM));
         assertThat(storedModel.getModelId(), containsString(JOB_ID));
         assertThat(storedModel.getVersion(), equalTo(Version.CURRENT));
         assertThat(storedModel.getCreatedBy(), equalTo("data-frame-analytics"));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
-        assertThat(storedModel.getDefinition(), equalTo(inferenceModel.build()));
+        assertThat(storedModel.getModelDefinition(), equalTo(inferenceModel.build()));
         assertThat(storedModel.getInput().getFieldNames(), equalTo(expectedFieldNames));
         assertThat(storedModel.getEstimatedHeapMemory(), equalTo(inferenceModel.build().ramBytesUsed()));
         assertThat(storedModel.getEstimatedOperations(), equalTo(inferenceModel.build().getTrainedModel().estimatedNumOperations()));
@@ -170,7 +172,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
             return null;
         }).when(trainedModelProvider).storeTrainedModel(any(TrainedModelConfig.class), any(ActionListener.class));
 
-        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder("failed_model");
+        TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 

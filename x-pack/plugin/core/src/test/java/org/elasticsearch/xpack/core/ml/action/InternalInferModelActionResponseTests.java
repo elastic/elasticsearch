@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction.Response;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResultsTests;
@@ -16,12 +16,10 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResultsTests;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferModelActionResponseTests extends AbstractWireSerializingTestCase<Response> {
+public class InternalInferModelActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -29,7 +27,8 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
         return new Response(
             Stream.generate(() -> randomInferenceResult(resultType))
             .limit(randomIntBetween(0, 10))
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList()),
+            randomBoolean());
     }
 
     private static InferenceResults randomInferenceResult(String resultType) {
@@ -50,9 +49,7 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
+        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 
 }

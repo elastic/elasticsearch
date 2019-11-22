@@ -21,7 +21,7 @@ setup:
 ---
 "Test both job id and body":
   - do:
-      catch: /Please either provide a job \[id\] or the config object but not both/
+      catch: /Please provide either a job \[id\] or the config object but not both/
       ml.explain_data_frame_analytics:
         id: "foo"
         body:

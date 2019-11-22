@@ -49,7 +49,7 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
         }
 
         if (Strings.isNullOrEmpty(jobId) == false && restRequest.hasContentOrSourceParam()) {
-            throw ExceptionsHelper.badRequestException("Please either provide a job [{}] or the config object but not both",
+            throw ExceptionsHelper.badRequestException("Please provide either a job [{}] or the config object but not both",
                 DataFrameAnalyticsConfig.ID.getPreferredName());
         }
 

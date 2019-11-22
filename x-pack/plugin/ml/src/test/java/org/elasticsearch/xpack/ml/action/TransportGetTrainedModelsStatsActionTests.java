@@ -12,7 +12,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -87,8 +90,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
                     Settings.EMPTY,
-                    parameters.ingestService,
-                    licenseState));
+                    parameters.ingestService));
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
 
@@ -105,9 +107,14 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         ThreadPool tp = mock(ThreadPool.class);
         client = mock(Client.class);
         clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            Collections.singleton(InferenceProcessor.MAX_INFERENCE_PROCESSORS));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings,
+            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                ClusterService.USER_DEFINED_META_DATA,
+                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        clusterService = new ClusterService(settings, clusterSettings, tp);
         ingestService = new IngestService(clusterService, tp, null, null,
             null, Collections.singletonList(SKINNY_INGEST_PLUGIN), client);
     }

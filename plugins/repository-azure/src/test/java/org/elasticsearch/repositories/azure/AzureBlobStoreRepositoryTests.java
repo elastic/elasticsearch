@@ -138,9 +138,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         @Override
         protected void handleAsError(final HttpExchange exchange) throws IOException {
-            drainInputStream(exchange.getRequestBody());
-            AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
-            exchange.close();
+            try {
+                drainInputStream(exchange.getRequestBody());
+                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+            } finally {
+                exchange.close();
+            }
         }
 
         @Override

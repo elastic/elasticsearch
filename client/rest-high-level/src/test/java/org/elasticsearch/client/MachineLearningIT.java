@@ -32,6 +32,8 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -44,7 +46,6 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
-import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
@@ -140,6 +141,8 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Binar
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
@@ -1966,8 +1969,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
     }
 
-    public void testEstimateMemoryUsage() throws IOException {
-        String indexName = "estimate-test-index";
+    public void testExplainDataFrameAnalytics() throws IOException {
+        String indexName = "explain-df-test-index";
         createIndex(indexName, mappingForSoftClassification());
         BulkRequest bulk1 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1977,8 +1980,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().bulk(bulk1, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        PutDataFrameAnalyticsRequest estimateMemoryUsageRequest =
-            new PutDataFrameAnalyticsRequest(
+        ExplainDataFrameAnalyticsRequest explainRequest =
+            new ExplainDataFrameAnalyticsRequest(
                 DataFrameAnalyticsConfig.builder()
                     .setSource(DataFrameAnalyticsSource.builder().setIndex(indexName).build())
                     .setAnalysis(OutlierDetection.createDefault())
@@ -1989,11 +1992,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         ByteSizeValue upperBound = new ByteSizeValue(1, ByteSizeUnit.GB);
 
         // Data Frame has 10 rows, expect that the returned estimates fall within (1kB, 1GB) range.
-        EstimateMemoryUsageResponse response1 =
-            execute(
-                estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
-        assertThat(response1.getExpectedMemoryWithoutDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
-        assertThat(response1.getExpectedMemoryWithDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
+        ExplainDataFrameAnalyticsResponse response1 = execute(explainRequest, machineLearningClient::explainDataFrameAnalytics,
+            machineLearningClient::explainDataFrameAnalyticsAsync);
+
+        MemoryEstimation memoryEstimation1 = response1.getMemoryEstimation();
+        assertThat(memoryEstimation1.getExpectedMemoryWithoutDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
+        assertThat(memoryEstimation1.getExpectedMemoryWithDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
+
+        List<FieldSelection> fieldSelection = response1.getFieldSelection();
+        assertThat(fieldSelection.size(), equalTo(3));
+        assertThat(fieldSelection.stream().map(FieldSelection::getName).collect(Collectors.toList()), contains("dataset", "label", "p"));
 
         BulkRequest bulk2 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -2003,15 +2011,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().bulk(bulk2, RequestOptions.DEFAULT);
 
         // Data Frame now has 100 rows, expect that the returned estimates will be greater than or equal to the previous ones.
-        EstimateMemoryUsageResponse response2 =
+        ExplainDataFrameAnalyticsResponse response2 =
             execute(
-                estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
+                explainRequest, machineLearningClient::explainDataFrameAnalytics, machineLearningClient::explainDataFrameAnalyticsAsync);
+        MemoryEstimation memoryEstimation2 = response2.getMemoryEstimation();
         assertThat(
-            response2.getExpectedMemoryWithoutDisk(),
-            allOf(greaterThanOrEqualTo(response1.getExpectedMemoryWithoutDisk()), lessThan(upperBound)));
+            memoryEstimation2.getExpectedMemoryWithoutDisk(),
+            allOf(greaterThanOrEqualTo(memoryEstimation1.getExpectedMemoryWithoutDisk()), lessThan(upperBound)));
         assertThat(
-            response2.getExpectedMemoryWithDisk(),
-            allOf(greaterThanOrEqualTo(response1.getExpectedMemoryWithDisk()), lessThan(upperBound)));
+            memoryEstimation2.getExpectedMemoryWithDisk(),
+            allOf(greaterThanOrEqualTo(memoryEstimation1.getExpectedMemoryWithDisk()), lessThan(upperBound)));
     }
 
     public void testGetTrainedModels() throws Exception {

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ESSloppyMath;
@@ -41,6 +42,8 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  *   bits  0..28 -- Y tile index (0..2^zoom)
  */
 public final class GeoTileUtils {
+
+    private static final Double PI_DIV_2 = Math.PI / 2;
 
     private GeoTileUtils() {}
 
@@ -125,7 +128,7 @@ public final class GeoTileUtils {
      * @param tiles     the number of tiles per column for a pre-determined zoom-level
      */
     static int getYTile(double latitude, long tiles) {
-        double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
+        double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(normalizeLat(latitude)));
         int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
 
         if (yTile < 0) {
@@ -151,7 +154,7 @@ public final class GeoTileUtils {
 
         long xTile = (long) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
 
-        double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
+        double latSin = SloppyMath.cos(PI_DIV_2 - (Math.toRadians(normalizeLat(latitude))));
         long yTile = (long) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
 
         // Edge values may generate invalid values, and need to be clipped.
@@ -253,10 +256,9 @@ public final class GeoTileUtils {
         final double tiles = validateZXY(precision, xTile, yTile);
         final double minN = Math.PI - (2.0 * Math.PI * (yTile + 1)) / tiles;
         final double maxN = Math.PI - (2.0 * Math.PI * (yTile)) / tiles;
-        final double minY = Math.toDegrees(Math.atan(Math.sinh(minN)));
+        final double minY = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(minN)));
         final double minX = ((xTile) / tiles * 360.0) - 180;
-
-        final double maxY = Math.toDegrees(Math.atan(Math.sinh(maxN)));
+        final double maxY = Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(maxN)));
         final double maxX = ((xTile + 1) / tiles * 360.0) - 180;
 
         return new Rectangle(minX, maxX, maxY, minY);

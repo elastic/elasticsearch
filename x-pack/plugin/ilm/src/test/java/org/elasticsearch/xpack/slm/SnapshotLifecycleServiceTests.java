@@ -151,7 +151,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
      * Test new policies getting scheduled correctly, updated policies also being scheduled,
      * and deleted policies having their schedules cancelled.
      */
-    @TestIssueLogging(value = "org.elasticsearch.xpack.slm:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/44997")
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/44997")
     public void testPolicyCRUD() throws Exception {
         ClockMock clock = new ClockMock();
         final AtomicInteger triggerCount = new AtomicInteger(0);

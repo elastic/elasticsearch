@@ -76,154 +76,6 @@ In order to start a node with a trial license execute the following command:
 This enables security and other paid features and adds a superuser with the username: `elastic-admin` and
 password: `elastic-password`.
 
-==== Other useful arguments
-
-In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
-In order to disable assertions add: `-Dtests.asserts=false`
-In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
-
-=== Test case filtering.
-
-You can run a single test, provided that you specify the Gradle project.  See the documentation on
-https://docs.gradle.org/current/userguide/userguide_single.html#simple_name_pattern[simple name pattern filtering].
-
-Run a single test case in the `server` project:
-
-----------------------------------------------------------
-./gradlew :server:test --tests org.elasticsearch.package.ClassName
-----------------------------------------------------------
-
-Run all tests in a package and its sub-packages:
-
-----------------------------------------------------
-./gradlew :server:test --tests 'org.elasticsearch.package.*'
-----------------------------------------------------
-
-Run all tests that are waiting for a bugfix (disabled by default)
-
-------------------------------------------------
-./gradlew test -Dtests.filter=@awaitsfix
-------------------------------------------------
-
-=== Seed and repetitions.
-
-Run with a given seed (seed is a hex-encoded long).
-
-------------------------------
-./gradlew test -Dtests.seed=DEADBEEF
-------------------------------
-
-=== Repeats _all_ tests of ClassName N times.
-
-Every test repetition will have a different method seed
-(derived from a single random master seed).
-
---------------------------------------------------
-./gradlew :server:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName
---------------------------------------------------
-
-=== Repeats _all_ tests of ClassName N times.
-
-Every test repetition will have exactly the same master (0xdead) and
-method-level (0xbeef) seed.
-
-------------------------------------------------------------------------
-./gradlew :server:test -Dtests.iters=N -Dtests.seed=DEAD:BEEF --tests org.elasticsearch.package.ClassName
-------------------------------------------------------------------------
-
-=== Repeats a given test N times
-
-(note the filters - individual test repetitions are given suffixes,
-ie: testFoo[0], testFoo[1], etc... so using testmethod or tests.method
-ending in a glob is necessary to ensure iterations are run).
-
--------------------------------------------------------------------------
-./gradlew :server:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName.methodName
--------------------------------------------------------------------------
-
-Repeats N times but skips any tests after the first failure or M initial failures.
-
--------------------------------------------------------------
-./gradlew test -Dtests.iters=N -Dtests.failfast=true ...
-./gradlew test -Dtests.iters=N -Dtests.maxfailures=M ...
--------------------------------------------------------------
-
-=== Test groups.
-
-Test groups can be enabled or disabled (true/false).
-
-Default value provided below in [brackets].
-
-------------------------------------------------------------------
-./gradlew test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
-------------------------------------------------------------------
-
-=== Load balancing and caches.
-
-By default the tests run on multiple processes using all the available cores on all
-available CPUs. Not including hyper-threading.
-If you want to explicitly specify the number of JVMs you can do so on the command
-line:
-
-----------------------------
-./gradlew test -Dtests.jvms=8
-----------------------------
-
-Or in `~/.gradle/gradle.properties`:
-
-----------------------------
-systemProp.tests.jvms=8
-----------------------------
-
-Its difficult to pick the "right" number here. Hypercores don't count for CPU
-intensive tests and you should leave some slack for JVM-internal threads like
-the garbage collector. And you have to have enough RAM to handle each JVM.
-
-=== Miscellaneous.
-
-Run all tests without stopping on errors (inspect log files).
-
------------------------------------------
-./gradlew --continue test 
------------------------------------------
-
-
-Change the default suite timeout to 5 seconds for all
-tests (note the exclamation mark).
-
----------------------------------------
-./gradlew test -Dtests.timeoutSuite=5000! ...
----------------------------------------
-
-Change the logging level of ES (not Gradle)
-
---------------------------------
-./gradlew test -Dtests.es.logger.level=DEBUG
---------------------------------
-
-Print all the logging output from the test runs to the commandline
-even if tests are passing.
-
-------------------------------
-./gradlew test -Dtests.output=always
-------------------------------
-
-Configure the heap size.
-
-------------------------------
-./gradlew test -Dtests.heap.size=512m
-------------------------------
-
-Pass arbitrary jvm arguments.
-
-------------------------------
-# specify heap dump path
-./gradlew test -Dtests.jvm.argline="-XX:HeapDumpPath=/path/to/heapdumps"
-# enable gc logging
-./gradlew test -Dtests.jvm.argline="-verbose:gc"
-# enable security debugging
-./gradlew test -Dtests.jvm.argline="-Djava.security.debug=access,failure"
-------------------------------
 
 == Running verification tasks
 
@@ -393,6 +245,156 @@ Multi-threaded tests are often not reproducible due to the fact that there is
 no guarantee on the order in which operations occur across threads. Adding
 randomization to the mix usually makes things worse and should be done with
 care.
+
+== Useful arguments
+
+In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
+In order to disable assertions add: `-Dtests.asserts=false`
+In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
+
+=== Test case filtering.
+
+You can run a single test, provided that you specify the Gradle project.  See the documentation on
+https://docs.gradle.org/current/userguide/userguide_single.html#simple_name_pattern[simple name pattern filtering].
+
+Run a single test case in the `server` project:
+
+----------------------------------------------------------
+./gradlew :server:test --tests org.elasticsearch.package.ClassName
+----------------------------------------------------------
+
+Run all tests in a package and its sub-packages:
+
+----------------------------------------------------
+./gradlew :server:test --tests 'org.elasticsearch.package.*'
+----------------------------------------------------
+
+Run all tests that are waiting for a bugfix (disabled by default)
+
+------------------------------------------------
+./gradlew test -Dtests.filter=@awaitsfix
+------------------------------------------------
+
+=== Seed and repetitions.
+
+Run with a given seed (seed is a hex-encoded long).
+
+------------------------------
+./gradlew test -Dtests.seed=DEADBEEF
+------------------------------
+
+=== Repeats _all_ tests of ClassName N times.
+
+Every test repetition will have a different method seed
+(derived from a single random master seed).
+
+--------------------------------------------------
+./gradlew :server:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName
+--------------------------------------------------
+
+=== Repeats _all_ tests of ClassName N times.
+
+Every test repetition will have exactly the same master (0xdead) and
+method-level (0xbeef) seed.
+
+------------------------------------------------------------------------
+./gradlew :server:test -Dtests.iters=N -Dtests.seed=DEAD:BEEF --tests org.elasticsearch.package.ClassName
+------------------------------------------------------------------------
+
+=== Repeats a given test N times
+
+(note the filters - individual test repetitions are given suffixes,
+ie: testFoo[0], testFoo[1], etc... so using testmethod or tests.method
+ending in a glob is necessary to ensure iterations are run).
+
+-------------------------------------------------------------------------
+./gradlew :server:test -Dtests.iters=N --tests org.elasticsearch.package.ClassName.methodName
+-------------------------------------------------------------------------
+
+Repeats N times but skips any tests after the first failure or M initial failures.
+
+-------------------------------------------------------------
+./gradlew test -Dtests.iters=N -Dtests.failfast=true ...
+./gradlew test -Dtests.iters=N -Dtests.maxfailures=M ...
+-------------------------------------------------------------
+
+=== Test groups.
+
+Test groups can be enabled or disabled (true/false).
+
+Default value provided below in [brackets].
+
+------------------------------------------------------------------
+./gradlew test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
+------------------------------------------------------------------
+
+=== Load balancing and caches.
+
+By default the tests run on multiple processes using all the available cores on all
+available CPUs. Not including hyper-threading.
+If you want to explicitly specify the number of JVMs you can do so on the command
+line:
+
+----------------------------
+./gradlew test -Dtests.jvms=8
+----------------------------
+
+Or in `~/.gradle/gradle.properties`:
+
+----------------------------
+systemProp.tests.jvms=8
+----------------------------
+
+Its difficult to pick the "right" number here. Hypercores don't count for CPU
+intensive tests and you should leave some slack for JVM-internal threads like
+the garbage collector. And you have to have enough RAM to handle each JVM.
+
+=== Miscellaneous.
+
+Run all tests without stopping on errors (inspect log files).
+
+-----------------------------------------
+./gradlew --continue test 
+-----------------------------------------
+
+
+Change the default suite timeout to 5 seconds for all
+tests (note the exclamation mark).
+
+---------------------------------------
+./gradlew test -Dtests.timeoutSuite=5000! ...
+---------------------------------------
+
+Change the logging level of ES (not Gradle)
+
+--------------------------------
+./gradlew test -Dtests.es.logger.level=DEBUG
+--------------------------------
+
+Print all the logging output from the test runs to the commandline
+even if tests are passing.
+
+------------------------------
+./gradlew test -Dtests.output=always
+------------------------------
+
+Configure the heap size.
+
+------------------------------
+./gradlew test -Dtests.heap.size=512m
+------------------------------
+
+Pass arbitrary jvm arguments.
+
+------------------------------
+# specify heap dump path
+./gradlew test -Dtests.jvm.argline="-XX:HeapDumpPath=/path/to/heapdumps"
+# enable gc logging
+./gradlew test -Dtests.jvm.argline="-verbose:gc"
+# enable security debugging
+./gradlew test -Dtests.jvm.argline="-Djava.security.debug=access,failure"
+------------------------------
+
 
 == Testing the REST layer
 

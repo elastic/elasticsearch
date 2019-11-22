@@ -3493,7 +3493,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::data-frame-analytics-info-response
             List<FieldSelection> fieldSelection = response.getFieldSelection(); // <1>
-            MemoryEstimation memoryEstimation = response.getMemoryEstimation();// <2>
+            MemoryEstimation memoryEstimation = response.getMemoryEstimation(); // <2>
             // end::data-frame-analytics-info-response
 
             assertThat(fieldSelection.size(), equalTo(2));

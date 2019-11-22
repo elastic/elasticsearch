@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.search.aggregations.support.BreakingPriorityQueueWrapper;
+import org.elasticsearch.search.aggregations.support.BreakingPriorityQueue;
 
 import java.util.Comparator;
 import java.util.function.Consumer;
 
-public class BucketPriorityQueue<B extends Terms.Bucket> extends BreakingPriorityQueueWrapper<B> {
+public class BucketPriorityQueue<B extends Terms.Bucket> extends BreakingPriorityQueue<B> {
 
     private final Comparator<? super B> comparator;
 

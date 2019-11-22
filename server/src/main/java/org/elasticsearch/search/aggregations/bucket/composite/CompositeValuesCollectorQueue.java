@@ -26,7 +26,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.BreakingPriorityQueueWrapper;
+import org.elasticsearch.search.aggregations.support.BreakingPriorityQueue;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -36,7 +36,7 @@ import java.util.function.Consumer;
 /**
  * A specialized {@link PriorityQueue} implementation for composite buckets.
  */
-final class CompositeValuesCollectorQueue extends BreakingPriorityQueueWrapper<Integer> implements Releasable {
+final class CompositeValuesCollectorQueue extends BreakingPriorityQueue<Integer> implements Releasable {
     private class Slot {
         int value;
 

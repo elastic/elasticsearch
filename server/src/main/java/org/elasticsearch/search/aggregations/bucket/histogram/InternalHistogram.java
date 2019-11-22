@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +32,7 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.BreakingPriorityQueueWrapper;
+import org.elasticsearch.search.aggregations.support.BreakingPriorityQueue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -292,8 +291,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         List<Bucket> reducedBuckets = new ArrayList<>();
         List<Bucket> currentBuckets = new ArrayList<>();
 
-        try (BreakingPriorityQueueWrapper<IteratorAndCurrent> pq
-                 = new BreakingPriorityQueueWrapper<>(aggregations.size(), reduceContext::addRequestCircuitBreakerBytes) {
+        try (BreakingPriorityQueue<IteratorAndCurrent> pq
+                 = new BreakingPriorityQueue<>(aggregations.size(), reduceContext::addRequestCircuitBreakerBytes) {
             @Override
             protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
                 return Double.compare(a.current.key, b.current.key) < 0;

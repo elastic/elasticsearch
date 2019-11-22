@@ -37,11 +37,11 @@ import java.util.function.Consumer;
  * again on deallocation
  *
  */
-public abstract class BreakingPriorityQueueWrapper<T> extends PriorityQueue<T> implements Releasable {
+public abstract class BreakingPriorityQueue<T> extends PriorityQueue<T> implements Releasable {
     private final int size;
     private final Consumer<Long> circuitBreaker;
 
-    public BreakingPriorityQueueWrapper(int size, Consumer<Long> circuitBreaker) {
+    public BreakingPriorityQueue(int size, Consumer<Long> circuitBreaker) {
         super(applyBreaker(size, circuitBreaker));
         this.size = size;
         this.circuitBreaker = circuitBreaker;

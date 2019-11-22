@@ -162,7 +162,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
-                boolean indexRequestHasPipeline = resolveRequiredOrDefaultPipeline(actionRequest, indexRequest, metaData);
+                boolean indexRequestHasPipeline = resolvePipelines(actionRequest, indexRequest, metaData);
                 hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
             }
 
@@ -268,10 +268,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    static boolean resolveRequiredOrDefaultPipeline(DocWriteRequest<?> originalRequest,
-                                                    IndexRequest indexRequest,
-                                                    MetaData metaData) {
-
+    static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest, final MetaData metaData) {
         if (indexRequest.isPipelineResolved() == false) {
             final String requestPipeline = indexRequest.getPipeline();
             indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);

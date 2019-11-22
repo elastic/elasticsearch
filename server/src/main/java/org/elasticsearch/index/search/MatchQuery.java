@@ -658,8 +658,7 @@ public class MatchQuery {
         }
 
         private float getTokenTypeBoost(TypeAttribute typeAtt) {
-                String tokenType = typeAtt.type();
-                return tokenType.contentEquals(SynonymGraphFilter.TYPE_SYNONYM) ? DEFAULT_SYNONYM_BOOST : 1.0f;
+            return typeAtt.type().contentEquals(SynonymGraphFilter.TYPE_SYNONYM) ? DEFAULT_SYNONYM_BOOST : 1.0f;
         }
 
         @Override

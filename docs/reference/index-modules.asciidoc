@@ -152,6 +152,7 @@ specific index module:
     The maximum number of `script_fields` that are allowed in a query.
     Defaults to `32`.
 
+[[index-max-ngram-diff]]
 `index.max_ngram_diff`::
 
     The maximum allowed difference between min_gram and max_gram for NGramTokenizer and NGramTokenFilter.
@@ -243,12 +244,12 @@ specific index module:
     overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
     no ingest pipeline should be run.
 
- `index.required_pipeline`::
-    The required <<ingest,ingest node>> pipeline for this index. Index requests
-    will fail if the required pipeline is set and the pipeline does not exist.
-    The required pipeline can not be overridden with the `pipeline` parameter. A
-    default pipeline and a required pipeline can not both be set. The special
-    pipeline name `_none` indicates no ingest pipeline will run.
+ `index.final_pipeline`::
+    The final <<ingest,ingest node>> pipeline for this index. Index requests
+    will fail if the final pipeline is set and the pipeline does not exist.
+    The final pipeline always runs after the request pipeline (if specified) and
+    the default pipeline (if it exists). The special pipeline name `_none`
+    indicates no ingest pipeline will run.
 
 [float]
 === Settings in other index modules

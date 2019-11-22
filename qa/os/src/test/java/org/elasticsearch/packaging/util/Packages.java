@@ -49,6 +49,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class Packages {
 
@@ -298,8 +299,22 @@ public class Packages {
      */
     public static void clearJournal(Shell sh) {
         if (isSystemd()) {
-            sh.run("rm -rf /run/log/journal/");
-            sh.run("systemctl restart systemd-journald");
+            sh.run("rm -rf /run/log/journal/*");
+            final Result result = sh.runIgnoreExitCode("systemctl restart systemd-journald");
+
+            // Sometimes the restart fails on Debian 10 with:
+            //    Job for systemd-journald.service failed because the control process exited with error code.
+            //    See "systemctl status systemd-journald.service" and "journalctl -xe" for details.]
+            //
+            // ...so run these commands in an attempt to figure out what's going on.
+            if (result.isSuccess() == false) {
+                logger.error("Failed to restart systemd-journald: " + result);
+
+                logger.error(sh.runIgnoreExitCode("systemctl status systemd-journald.service"));
+                logger.error(sh.runIgnoreExitCode("journalctl -xe"));
+
+                fail("Couldn't clear the systemd journal as restarting systemd-journald failed");
+            }
         }
     }
 

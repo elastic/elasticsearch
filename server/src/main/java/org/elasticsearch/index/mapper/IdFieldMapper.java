@@ -61,7 +61,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IdFieldMapper.class));
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
         "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "
-            + "If you require sorting or aggregating on this field you should use concrete copy field with docvalues enabled.";
+            + "If you require sorting or aggregating on this field you should also include the id in the "
+            + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
     public static final String NAME = "_id";
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
@@ -134,7 +135,8 @@ public class RestrictedTrustManagerTests extends ESTestCase {
             if (cert.endsWith("/ca")) {
                 assertTrusted(trustManager, cert);
             } else {
-                assertNotValid(trustManager, cert, inFipsJvm() ? "unable to process certificates: Unable to find certificate chain.":
+                assertNotValid(trustManager, cert, inFipsJvm() && JavaVersion.current().compareTo(JavaVersion.parse("8")) > 0 ?
+                    "unable to process certificates: Unable to find certificate chain.":
                     "PKIX path building failed.*");
             }
         }

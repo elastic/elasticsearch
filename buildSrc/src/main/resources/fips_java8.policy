@@ -1,0 +1,16 @@
+grant codeBase "file:${java.home}/lib/ext/localedata.jar" {
+          // Allow resource bundles to be loaded for non root locales. See
+          // https://github.com/elastic/elasticsearch/issues/39981
+          permission java.lang.RuntimePermission "accessClassInPackage.sun.util.*";
+};
+grant {
+          permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
+          permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
+          permission java.lang.RuntimePermission "getProtectionDomain";
+          permission java.util.PropertyPermission "java.runtime.name", "read";
+          permission org.bouncycastle.crypto.CryptoServicesPermission "tlsAlgorithmsEnabled";
+          //io.netty.handler.codec.DecoderException
+          permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
+          //java.security.InvalidAlgorithmParameterException: Cannot process GCMParameterSpec
+          permission java.lang.RuntimePermission "accessDeclaredMembers";
+};

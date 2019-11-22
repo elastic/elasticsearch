@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -235,7 +236,15 @@ public class DataCountsReporter {
         totalRecordStats.setLastDataTimeStamp(now);
         diagnostics.flush();
         retrieveDiagnosticsIntermediateResults();
-        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats(), listener);
+        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats(), ActionListener.wrap(
+            listener::onResponse,
+            e -> {
+                // Recording data counts should not cause the job processing to fail.
+                // Log the failure and move on.
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to record data counts", job.getId()), e);
+                listener.onResponse(true);
+            }
+        ));
     }
 
     /**

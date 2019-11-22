@@ -53,7 +53,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * the OutputStream. No transformation is applied to the data the timestamp
      * is expected in seconds from the epoch. If any of the fields in
      * <code>analysisFields</code> or the <code>DataDescription</code>s
-     * timeField is missing from the JOSN inputIndex an exception is thrown
+     * timeField is missing from the JSON inputIndex an exception is thrown
      */
     @Override
     public void write(InputStream inputStream, CategorizationAnalyzer categorizationAnalyzer, XContentType xContentType,

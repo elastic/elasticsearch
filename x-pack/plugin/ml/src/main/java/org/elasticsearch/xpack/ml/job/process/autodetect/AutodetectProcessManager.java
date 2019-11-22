@@ -112,6 +112,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private final AnomalyDetectionAuditor auditor;
 
     private volatile boolean upgradeInProgress;
+    private volatile int maximumBulkFailureRetries;
 
     public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
                                     NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor, ClusterService clusterService,
@@ -131,13 +132,20 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.jobDataCountsPersister = jobDataCountsPersister;
         this.auditor = auditor;
         this.nativeStorageProvider = Objects.requireNonNull(nativeStorageProvider);
+        this.maximumBulkFailureRetries = AutodetectResultProcessor.PERSIST_RESULTS_MAX_RETRIES.get(settings);
         clusterService.addListener(this);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxAllowedRunningJobs);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AutodetectResultProcessor.PERSIST_RESULTS_MAX_RETRIES, this::setMaximumBulkFailureRetries);
     }
 
     void setMaxAllowedRunningJobs(int maxAllowedRunningJobs) {
         this.maxAllowedRunningJobs = maxAllowedRunningJobs;
+    }
+
+    void setMaximumBulkFailureRetries(int maximumBulkFailureRetries) {
+        this.maximumBulkFailureRetries = maximumBulkFailureRetries;
     }
 
     public synchronized void closeAllJobsOnThisNode(String reason) {
@@ -519,7 +527,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 jobResultsPersister,
                 process,
                 autodetectParams.modelSizeStats(),
-                autodetectParams.timingStats());
+                autodetectParams.timingStats(),
+                maximumBulkFailureRetries);
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autodetectExecutorService);

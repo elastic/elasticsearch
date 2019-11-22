@@ -97,7 +97,7 @@ public class JobResultsPersister {
          * @param bucket The bucket to persist
          * @return this
          */
-        public Builder persistBucket(Bucket bucket) {
+        public Builder persistBucket(Bucket bucket) throws BulkIndexException {
             // If the supplied bucket has records then create a copy with records
             // removed, because we never persist nested records in buckets
             Bucket bucketWithoutRecords = bucket;
@@ -114,7 +114,7 @@ public class JobResultsPersister {
             return this;
         }
 
-        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) {
+        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) throws BulkIndexException {
             if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                     String id = bucketInfluencer.getId();
@@ -130,7 +130,7 @@ public class JobResultsPersister {
          * @param timingStats timing stats to persist
          * @return this
          */
-        public Builder persistTimingStats(TimingStats timingStats) {
+        public Builder persistTimingStats(TimingStats timingStats) throws BulkIndexException {
             indexResult(
                 TimingStats.documentId(timingStats.getJobId()),
                 timingStats,
@@ -145,7 +145,7 @@ public class JobResultsPersister {
          * @param records the records to persist
          * @return this
          */
-        public Builder persistRecords(List<AnomalyRecord> records) {
+        public Builder persistRecords(List<AnomalyRecord> records)  throws BulkIndexException {
             for (AnomalyRecord record : records) {
                 logger.trace("[{}] ES BULK ACTION: index record to index [{}] with ID [{}]", jobId, indexName, record.getId());
                 indexResult(record.getId(), record, "record");
@@ -161,7 +161,7 @@ public class JobResultsPersister {
          * @param influencers the influencers to persist
          * @return this
          */
-        public Builder persistInfluencers(List<Influencer> influencers) {
+        public Builder persistInfluencers(List<Influencer> influencers) throws BulkIndexException {
             for (Influencer influencer : influencers) {
                 logger.trace("[{}] ES BULK ACTION: index influencer to index [{}] with ID [{}]", jobId, indexName, influencer.getId());
                 indexResult(influencer.getId(), influencer, "influencer");
@@ -170,30 +170,30 @@ public class JobResultsPersister {
             return this;
         }
 
-        public Builder persistModelPlot(ModelPlot modelPlot) {
+        public Builder persistModelPlot(ModelPlot modelPlot) throws BulkIndexException {
             logger.trace("[{}] ES BULK ACTION: index model plot to index [{}] with ID [{}]", jobId, indexName, modelPlot.getId());
             indexResult(modelPlot.getId(), modelPlot, "model plot");
             return this;
         }
 
-        public Builder persistForecast(Forecast forecast) {
+        public Builder persistForecast(Forecast forecast) throws BulkIndexException  {
             logger.trace("[{}] ES BULK ACTION: index forecast to index [{}] with ID [{}]", jobId, indexName, forecast.getId());
             indexResult(forecast.getId(), forecast, Forecast.RESULT_TYPE_VALUE);
             return this;
         }
 
-        public Builder persistForecastRequestStats(ForecastRequestStats forecastRequestStats) {
+        public Builder persistForecastRequestStats(ForecastRequestStats forecastRequestStats) throws BulkIndexException  {
             logger.trace("[{}] ES BULK ACTION: index forecast request stats to index [{}] with ID [{}]", jobId, indexName,
                     forecastRequestStats.getId());
             indexResult(forecastRequestStats.getId(), forecastRequestStats, Forecast.RESULT_TYPE_VALUE);
             return this;
         }
 
-        private void indexResult(String id, ToXContent resultDoc, String resultType) {
+        private void indexResult(String id, ToXContent resultDoc, String resultType) throws BulkIndexException {
             indexResult(id, resultDoc, ToXContent.EMPTY_PARAMS, resultType);
         }
 
-        private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) {
+        private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) throws BulkIndexException {
             try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
                 bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
@@ -208,7 +208,7 @@ public class JobResultsPersister {
         /**
          * Execute the bulk action
          */
-        public void executeRequest() {
+        public void executeRequest() throws BulkIndexException {
             if (bulkRequest.numberOfActions() == 0) {
                 return;
             }
@@ -218,6 +218,7 @@ public class JobResultsPersister {
                 BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
                 if (addRecordsResponse.hasFailures()) {
                     logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+                    throw new BulkIndexException(addRecordsResponse);
                 }
             }
 
@@ -410,5 +411,17 @@ public class JobResultsPersister {
                 logger.trace("[{}] ES API CALL: to index {} with auto-generated ID", jobId, indexName);
             }
         }
+    }
+
+    public static class BulkIndexException extends Exception {
+
+        public BulkIndexException(String msg) {
+            super(msg);
+        }
+
+        public BulkIndexException(BulkResponse bulkResponse) {
+            this(bulkResponse.buildFailureMessage());
+        }
+
     }
 }

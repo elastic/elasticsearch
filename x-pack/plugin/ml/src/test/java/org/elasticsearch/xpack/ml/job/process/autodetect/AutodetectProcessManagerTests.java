@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
@@ -61,6 +62,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -151,7 +153,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         auditor = mock(AnomalyDetectionAuditor.class);
         clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings =
-            new ClusterSettings(Settings.EMPTY, Collections.singleton(MachineLearning.MAX_OPEN_JOBS_PER_NODE));
+            new ClusterSettings(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                    AutodetectResultProcessor.PERSIST_RESULTS_MAX_RETRIES)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         MetaData metaData = mock(MetaData.class);
         SortedMap<String, AliasOrIndex> aliasOrIndexSortedMap = new TreeMap<>();

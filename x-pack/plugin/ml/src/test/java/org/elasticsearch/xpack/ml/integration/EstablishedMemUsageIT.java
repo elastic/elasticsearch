@@ -221,7 +221,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
     }
 
-    private void createBuckets(String jobId, int count) {
+    private void createBuckets(String jobId, int count) throws Exception {
         JobResultsPersister.Builder builder = jobResultsPersister.bulkPersisterBuilder(jobId);
         for (int i = 1; i <= count; ++i) {
             Bucket bucket = new Bucket(jobId, new Date(bucketSpan * i), bucketSpan);

@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -71,6 +73,14 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class AutodetectResultProcessor {
 
+    public static final Setting<Integer> PERSIST_RESULTS_MAX_RETRIES = Setting.intSetting(
+        "xpack.ml.persist_results_max_retries",
+        2,
+        0,
+        Integer.MAX_VALUE - 2,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope);
+
     private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
 
     private final Client client;
@@ -86,6 +96,7 @@ public class AutodetectResultProcessor {
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
+    private final int maximumFailureRetries;
     private int bucketCount; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
     private boolean deleteInterimRequired;
@@ -102,15 +113,16 @@ public class AutodetectResultProcessor {
                                      JobResultsPersister persister,
                                      AutodetectProcess process,
                                      ModelSizeStats latestModelSizeStats,
-                                     TimingStats timingStats) {
-        this(client, auditor, jobId, renormalizer, persister, process, latestModelSizeStats, timingStats, new FlushListener());
+                                     TimingStats timingStats,
+                                     int maximumFailureRetries) {
+        this(client, auditor, jobId, renormalizer, persister, process, latestModelSizeStats, timingStats, new FlushListener(),
+            maximumFailureRetries);
     }
 
     // Visible for testing
     AutodetectResultProcessor(Client client, AnomalyDetectionAuditor auditor, String jobId, Renormalizer renormalizer,
                               JobResultsPersister persister, AutodetectProcess autodetectProcess, ModelSizeStats latestModelSizeStats,
-                              TimingStats timingStats,
-                              FlushListener flushListener) {
+                              TimingStats timingStats, FlushListener flushListener, int maximumFailureRetries) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -122,6 +134,7 @@ public class AutodetectResultProcessor {
         this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
         this.deleteInterimRequired = true;
+        this.maximumFailureRetries = maximumFailureRetries;
     }
 
     public void process() {
@@ -137,6 +150,8 @@ public class AutodetectResultProcessor {
                     timingStatsReporter.finishReporting();
                     bulkResultsPersister.executeRequest();
                 }
+            } catch (JobResultsPersister.BulkIndexException e){
+                bulkPersistWithRetry();
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
@@ -176,11 +191,15 @@ public class AutodetectResultProcessor {
                     if (result.getBucket() != null) {
                         LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
                     }
-                } catch (Exception e) {
-                    if (processKilled) {
-                        throw e;
+                } catch (JobResultsPersister.BulkIndexException e) {
+                    // Don't throw on bulk failures, just continue
+                    if (isDeadOrDying()) {
+                        continue;
                     }
-                    if (process.isProcessAliveAfterWaiting() == false) {
+                    // attempt to retry if possible
+                    bulkPersistWithRetry();
+                } catch (Exception e) {
+                    if (isDeadOrDying()) {
                         throw e;
                     }
                     LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
@@ -196,7 +215,7 @@ public class AutodetectResultProcessor {
         renormalizer.shutdown();
     }
 
-    void processResult(AutodetectResult result) {
+    void processResult(AutodetectResult result) throws JobResultsPersister.BulkIndexException {
         if (processKilled) {
             return;
         }
@@ -308,6 +327,45 @@ public class AutodetectResultProcessor {
             // deleted when the next finalized results come through
             deleteInterimRequired = true;
         }
+    }
+
+    void bulkPersistWithRetry() {
+        int attempts = 0;
+        while(attempts < maximumFailureRetries) {
+            try {
+                bulkResultsPersister.executeRequest();
+                return;
+            } catch (JobResultsPersister.BulkIndexException ex) {
+                if (isDeadOrDying()) {
+                    return;
+                }
+                final int currentAttempt = attempts;
+                LOGGER.trace(
+                    () -> new ParameterizedMessage("[{}] bulk persist failure on attempt [{}] ", jobId, currentAttempt),
+                    ex
+                );
+                attempts++;
+                try {
+                    double backOff = ((1 << attempts) - 1) / 2.0;
+                    Thread.sleep((int)(backOff * 100));
+                } catch (InterruptedException interrupt) {
+                    LOGGER.warn(
+                        () -> new ParameterizedMessage("[{}] failed bulk indexing of results after [{}] attempts", jobId, currentAttempt),
+                        ex
+                    );
+                    return;
+                }
+            } catch (Exception e) {
+                if (isDeadOrDying()) {
+                    throw e;
+                }
+                LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
+            }
+        }
+        LOGGER.warn(
+            new ParameterizedMessage("[{}] failed bulk indexing of results after [{}] attempts",
+                jobId,
+                attempts));
     }
 
     private void processModelSizeStats(ModelSizeStats modelSizeStats) {
@@ -433,6 +491,10 @@ public class AutodetectResultProcessor {
 
     boolean isDeleteInterimRequired() {
         return deleteInterimRequired;
+    }
+
+    private boolean isDeadOrDying() {
+        return processKilled || (process.isProcessAliveAfterWaiting() == false);
     }
 
     void setDeleteInterimRequired(boolean deleteInterimRequired) {

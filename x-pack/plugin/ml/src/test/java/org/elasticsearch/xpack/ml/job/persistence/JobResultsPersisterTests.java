@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.mockito.ArgumentCaptor;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,7 +50,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
     private static final String JOB_ID = "foo";
 
-    public void testPersistBucket_OneRecord() throws IOException {
+    public void testPersistBucket_OneRecord() throws Exception {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(captor);
         Bucket bucket = new Bucket("foo", new Date(), 123456);
@@ -94,7 +93,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*raw_anomaly_score.:19\\.19.*"));
     }
 
-    public void testPersistRecords() throws IOException {
+    public void testPersistRecords() throws Exception {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(captor);
 
@@ -149,7 +148,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*over_field_value.:.overValue.*"));
     }
 
-    public void testPersistInfluencers() throws IOException {
+    public void testPersistInfluencers() throws Exception {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(captor);
 
@@ -173,7 +172,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*influencer_score.:16\\.0.*"));
     }
 
-    public void testExecuteRequest_ClearsBulkRequest() {
+    public void testExecuteRequest_ClearsBulkRequest() throws Exception {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(captor);
         JobResultsPersister persister = new JobResultsPersister(client);
@@ -190,7 +189,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertEquals(0, builder.getBulkRequest().numberOfActions());
     }
 
-    public void testBulkRequestExecutesWhenReachMaxDocs() {
+    public void testBulkRequestExecutesWhenReachMaxDocs() throws Exception {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(captor);
         JobResultsPersister persister = new JobResultsPersister(client);
@@ -206,7 +205,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    public void testPersistTimingStats() {
+    public void testPersistTimingStats() throws Exception {
         ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(bulkRequestCaptor);
 

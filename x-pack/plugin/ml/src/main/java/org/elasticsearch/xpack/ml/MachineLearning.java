@@ -228,6 +228,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactor
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.NativeAutodetectProcessFactory;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
@@ -446,7 +447,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION,
                 InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE,
-                ModelLoadingService.INFERENCE_MODEL_CACHE_TTL
+                ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
+                AutodetectResultProcessor.PERSIST_RESULTS_MAX_RETRIES
             );
     }
 

@@ -46,7 +46,7 @@ public class TimingStatsReporterTests extends ESTestCase {
         verifyZeroInteractions(bulkResultsPersister);
     }
 
-    public void testReporting() {
+    public void testReporting() throws Exception {
         TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
         assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID)));
 
@@ -65,7 +65,7 @@ public class TimingStatsReporterTests extends ESTestCase {
         verifyNoMoreInteractions(bulkResultsPersister);
     }
 
-    public void testFinishReporting() {
+    public void testFinishReporting() throws Exception {
         TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
         assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID)));
 
@@ -87,14 +87,14 @@ public class TimingStatsReporterTests extends ESTestCase {
         verifyNoMoreInteractions(bulkResultsPersister);
     }
 
-    public void testFinishReporting_NoChange() {
+    public void testFinishReporting_NoChange() throws Exception {
         TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
         reporter.finishReporting();
 
         verifyZeroInteractions(bulkResultsPersister);
     }
 
-    public void testFinishReporting_WithChange() {
+    public void testFinishReporting_WithChange() throws Exception {
         TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
         reporter.reportBucket(createBucket(10));
         reporter.finishReporting();

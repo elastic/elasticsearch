@@ -31,14 +31,13 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import java.io.IOException;
 import java.util.Map;
 
-public class ReindexJob implements PersistentTaskParams {
+public class ReindexTaskParams implements PersistentTaskParams {
 
-    // TODO: Name
-    public static final String NAME = ReindexTask.NAME;
+    public static final String NAME = "reindex_task_params";
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ReindexJob, Void> PARSER
-        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((Boolean) a[0], (Map<String, String>) a[1]));
+    public static final ConstructingObjectParser<ReindexTaskParams, Void> PARSER
+        = new ConstructingObjectParser<>(NAME, a -> new ReindexTaskParams((Boolean) a[0], (Map<String, String>) a[1]));
 
     private static String STORE_RESULT = "store_result";
     private static String HEADERS = "headers";
@@ -51,12 +50,12 @@ public class ReindexJob implements PersistentTaskParams {
     private final boolean storeResult;
     private final Map<String, String> headers;
 
-    public ReindexJob(boolean storeResult, Map<String, String> headers) {
+    public ReindexTaskParams(boolean storeResult, Map<String, String> headers) {
         this.storeResult = storeResult;
         this.headers = headers;
     }
 
-    public ReindexJob(StreamInput in) throws IOException {
+    public ReindexTaskParams(StreamInput in) throws IOException {
         storeResult = in.readBoolean();
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
     }
@@ -94,7 +93,7 @@ public class ReindexJob implements PersistentTaskParams {
         return headers;
     }
 
-    public static ReindexJob fromXContent(XContentParser parser) {
+    public static ReindexTaskParams fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

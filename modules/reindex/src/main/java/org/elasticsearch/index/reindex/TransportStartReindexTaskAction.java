@@ -41,7 +41,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Predicate;
 
-public class TransportStartReindexJobAction extends HandledTransportAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
+public class TransportStartReindexTaskAction extends HandledTransportAction<StartReindexTaskAction.Request, StartReindexTaskAction.Response> {
 
     private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;
@@ -49,11 +49,11 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
     private final ReindexIndexClient reindexIndexClient;
 
     @Inject
-    public TransportStartReindexJobAction(Settings settings, Client client, TransportService transportService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          ClusterService clusterService, PersistentTasksService persistentTasksService,
-                                          AutoCreateIndex autoCreateIndex, NamedXContentRegistry xContentRegistry) {
-        super(StartReindexJobAction.NAME, transportService, actionFilters, StartReindexJobAction.Request::new);
+    public TransportStartReindexTaskAction(Settings settings, Client client, TransportService transportService, ThreadPool threadPool,
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                           ClusterService clusterService, PersistentTasksService persistentTasksService,
+                                           AutoCreateIndex autoCreateIndex, NamedXContentRegistry xContentRegistry) {
+        super(StartReindexTaskAction.NAME, transportService, actionFilters, StartReindexTaskAction.Request::new);
         this.threadPool = threadPool;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.persistentTasksService = persistentTasksService;
@@ -61,7 +61,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
     }
 
     @Override
-    protected void doExecute(Task task, StartReindexJobAction.Request request, ActionListener<StartReindexJobAction.Response> listener) {
+    protected void doExecute(Task task, StartReindexTaskAction.Request request, ActionListener<StartReindexTaskAction.Response> listener) {
         try {
             reindexValidator.initialValidation(request.getReindexRequest());
         } catch (Exception e) {
@@ -73,16 +73,15 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
 
         // In the current implementation, we only need to store task results if we do not wait for completion
         boolean storeTaskResult = request.getWaitForCompletion() == false;
-        ReindexJob job = new ReindexJob(storeTaskResult, threadPool.getThreadContext().getHeaders());
+        ReindexTaskParams job = new ReindexTaskParams(storeTaskResult, threadPool.getThreadContext().getHeaders());
 
         ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest());
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskState taskState) {
-                // TODO: Task name
                 persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> persistentTask) {
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> persistentTask) {
                         if (request.getWaitForCompletion()) {
                             waitForReindexDone(persistentTask.getId(), listener);
                         } else {
@@ -105,23 +104,23 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
         });
     }
 
-    private void waitForReindexDone(String taskId, ActionListener<StartReindexJobAction.Response> listener) {
+    private void waitForReindexDone(String taskId, ActionListener<StartReindexTaskAction.Response> listener) {
         // TODO: Configurable timeout?
         persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexPredicate(true), null,
-            new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
+            new PersistentTasksService.WaitForPersistentTaskListener<ReindexTaskParams>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
-                    ReindexJobState state = (ReindexJobState) task.getState();
-                    if (state.getStatus() == ReindexJobState.Status.ASSIGNMENT_FAILED) {
+                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> task) {
+                    ReindexPersistentTaskState state = (ReindexPersistentTaskState) task.getState();
+                    if (state.getStatus() == ReindexPersistentTaskState.Status.ASSIGNMENT_FAILED) {
                         listener.onFailure(new ElasticsearchException("Reindexing failed. Task node could not assign itself as the "
                             + "coordinating node in the " + ReindexIndexClient.REINDEX_ALIAS + " index"));
-                    } else if (state.getStatus() == ReindexJobState.Status.DONE) {
+                    } else if (state.getStatus() == ReindexPersistentTaskState.Status.DONE) {
                         reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
                             @Override
                             public void onResponse(ReindexTaskState taskState) {
                                 ReindexTaskStateDoc reindexState = taskState.getStateDoc();
                                 if (reindexState.getException() == null) {
-                                    listener.onResponse(new StartReindexJobAction.Response(taskId, reindexState.getReindexResponse()));
+                                    listener.onResponse(new StartReindexTaskAction.Response(taskId, reindexState.getReindexResponse()));
                                 } else {
                                     Exception exception = reindexState.getException();
                                     RestStatus statusCode = reindexState.getFailureStatusCode();
@@ -146,14 +145,14 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
             });
     }
 
-    private void waitForReindexTask(String taskId, ActionListener<StartReindexJobAction.Response> listener) {
+    private void waitForReindexTask(String taskId, ActionListener<StartReindexTaskAction.Response> listener) {
         // TODO: Configurable timeout?
         persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexPredicate(false), null,
-            new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
+            new PersistentTasksService.WaitForPersistentTaskListener<ReindexTaskParams>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
-                    ReindexJobState state = (ReindexJobState) task.getState();
-                    listener.onResponse(new StartReindexJobAction.Response(state.getEphemeralTaskId().toString()));
+                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexTaskParams> task) {
+                    ReindexPersistentTaskState state = (ReindexPersistentTaskState) task.getState();
+                    listener.onResponse(new StartReindexTaskAction.Response(state.getEphemeralTaskId().toString()));
                 }
 
                 @Override
@@ -181,7 +180,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                 return false;
             }
 
-            ReindexJobState state = (ReindexJobState) persistentTask.getState();
+            ReindexPersistentTaskState state = (ReindexPersistentTaskState) persistentTask.getState();
 
 
             if (waitForDone == false) {
@@ -191,11 +190,11 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
             }
         }
 
-        private boolean isStarted(ReindexJobState state) {
+        private boolean isStarted(ReindexPersistentTaskState state) {
             return state != null;
         }
 
-        private boolean isDone(ReindexJobState state) {
+        private boolean isDone(ReindexPersistentTaskState state) {
             return state != null && state.isDone();
         }
     }

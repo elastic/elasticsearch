@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.hasSize;
  * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
  * simulate failures but does not exercise important portion of the stack like transport and task management.
  */
-public class CancelTests extends ReindexRunAsJobAndTaskTestCase {
+public class CancelTests extends ReindexRunAsPersistentAndEphemeralTaskTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";
 

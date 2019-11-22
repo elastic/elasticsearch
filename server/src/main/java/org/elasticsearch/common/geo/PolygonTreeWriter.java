@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
@@ -55,11 +56,13 @@ public class PolygonTreeWriter extends ShapeTreeWriter {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // calculate size of outerShell's tree to make it easy to jump to the holes tree quickly when querying
-        int size = outerShell.tree.size * EdgeTreeWriter.EDGE_SIZE_IN_BYTES + Extent.WRITEABLE_SIZE_IN_BYTES + 1;
-        out.writeVInt(size);
+        BytesStreamOutput scratchBuffer = new BytesStreamOutput();
+        outerShell.writeTo(scratchBuffer);
+        int outerShellSize = scratchBuffer.size();
+        out.writeVInt(outerShellSize);
         long startPosition = out.position();
         outerShell.writeTo(out);
-        assert out.position() == size + startPosition;
+        assert out.position() == outerShellSize + startPosition;
         out.writeOptionalWriteable(holes);
     }
 }

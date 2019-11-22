@@ -54,7 +54,7 @@ public class RestDataFrameAnalyticsInfoAction extends BaseRestHandler {
         }
 
         // We need to consume the body before returning
-        PutDataFrameAnalyticsAction.Request infoRequestFromBody = jobId == null ?
+        PutDataFrameAnalyticsAction.Request infoRequestFromBody = Strings.isNullOrEmpty(jobId) ?
             PutDataFrameAnalyticsAction.Request.parseRequestForInfo(restRequest.contentOrSourceParamParser()) : null;
 
         return channel -> {

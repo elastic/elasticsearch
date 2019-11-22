@@ -87,7 +87,7 @@ IndexRequest indexRequest = new IndexRequest("index", "type", "1")
 UpdateRequest updateRequest = new UpdateRequest("index", "type", "1")
         .doc(jsonBuilder()
             .startObject()
-                .field("gender", "male")
+                .field("name", "Joe Dalton")
             .endObject())
         .upsert(indexRequest);              <1>
 client.update(updateRequest).get();
@@ -99,12 +99,12 @@ If the document `index/_doc/1` already exists, we will have after this operation
 [source,js]
 --------------------------------------------------
 {
-    "name"  : "Joe Dalton",
-    "gender": "male"        <1>
+    "name"  : "Joe Dalton",        <1>
+    "gender": "male"
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> This field is added by the update request
+<1> This field is updated by the update request
 
 If it does not exist, we will have a new document:
 

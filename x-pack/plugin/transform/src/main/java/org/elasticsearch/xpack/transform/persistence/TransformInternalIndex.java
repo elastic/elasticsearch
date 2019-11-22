@@ -113,26 +113,27 @@ public final class TransformInternalIndex {
         builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         builder.field(DYNAMIC, "false");
-        builder.startObject(PROPERTIES)
-            .startObject(TRANSFORM_ID)
-            .field(TYPE, KEYWORD)
-            .endObject()
-            .startObject(AbstractAuditMessage.LEVEL.getPreferredName())
-            .field(TYPE, KEYWORD)
-            .endObject()
-            .startObject(AbstractAuditMessage.MESSAGE.getPreferredName())
-            .field(TYPE, TEXT)
-            .startObject(FIELDS)
-            .startObject(RAW)
-            .field(TYPE, KEYWORD)
-            .endObject()
-            .endObject()
+        builder
+            .startObject(PROPERTIES)
+                .startObject(TRANSFORM_ID)
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AbstractAuditMessage.LEVEL.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AbstractAuditMessage.MESSAGE.getPreferredName())
+                    .field(TYPE, TEXT)
+                .startObject(FIELDS)
+                    .startObject(RAW)
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                .endObject()
             .endObject()
             .startObject(AbstractAuditMessage.TIMESTAMP.getPreferredName())
-            .field(TYPE, DATE)
+                .field(TYPE, DATE)
             .endObject()
             .startObject(AbstractAuditMessage.NODE_NAME.getPreferredName())
-            .field(TYPE, KEYWORD)
+                .field(TYPE, KEYWORD)
             .endObject()
             .endObject()
             .endObject()
@@ -174,7 +175,6 @@ public final class TransformInternalIndex {
     }
 
     private static XContentBuilder addTransformStoredDocMappings(XContentBuilder builder) throws IOException {
-        // tag::disable_formating
         return builder
             .startObject(TransformStoredDoc.STATE_FIELD.getPreferredName())
                 .startObject(PROPERTIES)
@@ -260,11 +260,9 @@ public final class TransformInternalIndex {
                     .endObject()
                 .endObject()
             .endObject();
-        // end::disable_formating
     }
 
     public static XContentBuilder addTransformsConfigMappings(XContentBuilder builder) throws IOException {
-        // tag::disable_formating
         return builder
             .startObject(TransformField.ID.getPreferredName())
                 .field(TYPE, KEYWORD)
@@ -295,11 +293,9 @@ public final class TransformInternalIndex {
             .startObject(TransformField.CREATE_TIME.getPreferredName())
                 .field(TYPE, DATE)
             .endObject();
-        // end::disable_formating
     }
 
     private static XContentBuilder addTransformCheckpointMappings(XContentBuilder builder) throws IOException {
-        // tag::disable_formating
         return builder
             .startObject(TransformField.TIMESTAMP_MILLIS.getPreferredName())
                 .field(TYPE, DATE)
@@ -310,7 +306,6 @@ public final class TransformInternalIndex {
             .startObject(TransformCheckpoint.CHECKPOINT.getPreferredName())
                 .field(TYPE, LONG)
             .endObject();
-        // end::disable_formating
     }
 
     /**

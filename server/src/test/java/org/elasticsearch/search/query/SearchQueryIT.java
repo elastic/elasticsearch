@@ -1573,7 +1573,7 @@ public class SearchQueryIT extends ESIntegTestCase {
      * as "Mi" for "Mittwoch (Wednesday" and "Do" for "Donnerstag (Thursday)" and the month in the query
      * as "Dez" for "Dezember (December)".
      * Note: this test currently needs the JVM arg `-Djava.locale.providers=SPI,COMPAT` to be set.
-     * When running with gradle this is done implicitely through the BuildPlugin, but when running from
+     * When running with gradle this is done implicitly through the BuildPlugin, but when running from
      * an IDE this might need to be set manually in the run configuration. See also CONTRIBUTING.md section
      * on "Configuring IDEs And Running Tests".
      */

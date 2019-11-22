@@ -28,6 +28,7 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -229,7 +230,6 @@ public class GeometryTreeTests extends ESTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37206")
     public void testRandomGeometryIntersection() throws IOException {
         int testPointCount = randomIntBetween(100, 200);
         Point[] testPoints = new Point[testPointCount];
@@ -241,15 +241,19 @@ public class GeometryTreeTests extends ESTestCase {
 
         Geometry geometry = randomGeometryTreeGeometry();
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        geometry = indexer.prepareForIndexing(geometry);
+        Geometry preparedGeometry = indexer.prepareForIndexing(geometry);
+
+        // TODO: support multi-polygons
+        assumeFalse("polygon crosses dateline",
+            ShapeType.POLYGON == geometry.type() && ShapeType.MULTIPOLYGON == preparedGeometry.type());
 
         for (int i = 0; i < testPointCount; i++) {
             int cur = i;
-            intersects[cur] = fold(geometry, false, (g, s) -> s || intersects(g, testPoints[cur], extentSize));
+            intersects[cur] = fold(preparedGeometry, false, (g, s) -> s || intersects(g, testPoints[cur], extentSize));
         }
 
         for (int i = 0; i < testPointCount; i++) {
-            assertEquals(intersects[i], intersects(geometry, testPoints[i], extentSize));
+            assertEquals(intersects[i], intersects(preparedGeometry, testPoints[i], extentSize));
         }
     }
 

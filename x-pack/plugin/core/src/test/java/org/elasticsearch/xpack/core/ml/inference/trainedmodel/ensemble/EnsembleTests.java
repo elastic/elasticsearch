@@ -15,13 +15,16 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 import org.junit.Before;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,9 +71,9 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
             .limit(numberOfModels)
             .collect(Collectors.toList());
-        List<Double> weights = randomBoolean() ?
+        double[] weights = randomBoolean() ?
             null :
-            Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
+            Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).mapToDouble(Double::valueOf).toArray();
         OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights),
             new WeightedSum(weights),
             new LogisticRegression(weights));
@@ -114,9 +117,9 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
     public void testEnsembleWithAggregatedOutputDifferingFromTrainedModels() {
         List<String> featureNames = Arrays.asList("foo", "bar");
         int numberOfModels = 5;
-        List<Double> weights = new ArrayList<>(numberOfModels + 2);
+        double[] weights = new double[numberOfModels + 2];
         for (int i = 0; i < numberOfModels + 2; i++) {
-            weights.add(randomDouble());
+            weights[i] = randomDouble();
         }
         OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
 
@@ -158,6 +161,27 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         });
     }
 
+    public void testEnsembleWithAggregatorOutputNotSupportingTargetType() {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
+            Ensemble.builder()
+                .setFeatureNames(featureNames)
+                .setTrainedModels(Arrays.asList(
+                    Tree.builder()
+                        .setNodes(TreeNode.builder(0)
+                            .setLeftChild(1)
+                            .setSplitFeature(1)
+                            .setThreshold(randomDouble()))
+                        .setFeatureNames(featureNames)
+                        .build()))
+                .setClassificationLabels(Arrays.asList("label1", "label2"))
+                .setTargetType(TargetType.CLASSIFICATION)
+                .setOutputAggregator(new WeightedSum())
+                .build()
+                .validate();
+        });
+    }
+
     public void testEnsembleWithTargetTypeAndLabelsMismatch() {
         List<String> featureNames = Arrays.asList("foo", "bar");
         String msg = "[target_type] should be [classification] if [classification_labels] is provided, and vice versa";
@@ -189,6 +213,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                         .setFeatureNames(featureNames)
                         .build()))
                 .setTargetType(TargetType.CLASSIFICATION)
+                .setOutputAggregator(new WeightedMode())
                 .build()
                 .validate();
         });
@@ -236,32 +261,35 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(Arrays.asList(0.7, 0.5, 1.0)))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}))
             .build();
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        List<Double> expected = Arrays.asList(0.231475216, 0.768524783);
+        List<Double> expected = Arrays.asList(0.768524783, 0.231475216);
         double eps = 0.000001;
-        List<Double> probabilities = ensemble.classificationProbability(featureMap);
+        List<ClassificationInferenceResults.TopClassEntry> probabilities =
+            ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
-            assertThat(probabilities.get(i), closeTo(expected.get(i), eps));
+            assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
         }
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
-        expected = Arrays.asList(0.3100255188, 0.689974481);
-        probabilities = ensemble.classificationProbability(featureMap);
+        expected = Arrays.asList(0.689974481, 0.3100255188);
+        probabilities =
+            ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
-            assertThat(probabilities.get(i), closeTo(expected.get(i), eps));
+            assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
         }
 
         featureVector = Arrays.asList(0.0, 1.0);
         featureMap = zipObjMap(featureNames, featureVector);
-        expected = Arrays.asList(0.231475216, 0.768524783);
-        probabilities = ensemble.classificationProbability(featureMap);
+        expected = Arrays.asList(0.768524783, 0.231475216);
+        probabilities =
+            ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
-            assertThat(probabilities.get(i), closeTo(expected.get(i), eps));
+            assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
         }
 
         // This should handle missing values and take the default_left path
@@ -270,9 +298,10 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             put("bar", null);
         }};
         expected = Arrays.asList(0.6899744811, 0.3100255188);
-        probabilities = ensemble.classificationProbability(featureMap);
+        probabilities =
+            ((ClassificationInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(2))).getTopClasses();
         for(int i = 0; i < expected.size(); i++) {
-            assertThat(probabilities.get(i), closeTo(expected.get(i), eps));
+            assertThat(probabilities.get(i).getProbability(), closeTo(expected.get(i), eps));
         }
     }
 
@@ -292,7 +321,9 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setLeftChild(3)
                 .setRightChild(4))
             .addNode(TreeNode.builder(3).setLeafValue(0.0))
-            .addNode(TreeNode.builder(4).setLeafValue(1.0)).build();
+            .addNode(TreeNode.builder(4).setLeafValue(1.0))
+            .setTargetType(randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION))
+            .build();
         Tree tree2 = Tree.builder()
             .setFeatureNames(featureNames)
             .setRoot(TreeNode.builder(0)
@@ -302,6 +333,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setThreshold(0.5))
             .addNode(TreeNode.builder(1).setLeafValue(0.0))
             .addNode(TreeNode.builder(2).setLeafValue(1.0))
+            .setTargetType(randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION))
             .build();
         Tree tree3 = Tree.builder()
             .setFeatureNames(featureNames)
@@ -312,31 +344,36 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .setThreshold(1.0))
             .addNode(TreeNode.builder(1).setLeafValue(1.0))
             .addNode(TreeNode.builder(2).setLeafValue(0.0))
+            .setTargetType(randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION))
             .build();
         Ensemble ensemble = Ensemble.builder()
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(Arrays.asList(0.7, 0.5, 1.0)))
+            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}))
             .build();
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(1.0, ensemble.infer(featureMap), 0.00001);
+        assertThat(1.0,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(0))).value(), 0.00001));
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(1.0, ensemble.infer(featureMap), 0.00001);
+        assertThat(1.0,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(0))).value(), 0.00001));
 
         featureVector = Arrays.asList(0.0, 1.0);
         featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(1.0, ensemble.infer(featureMap), 0.00001);
+        assertThat(1.0,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(0))).value(), 0.00001));
 
         featureMap = new HashMap<>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};
-        assertEquals(0.0, ensemble.infer(featureMap), 0.00001);
+        assertThat(0.0,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new ClassificationConfig(0))).value(), 0.00001));
     }
 
     public void testRegressionInference() {
@@ -370,16 +407,18 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             .setTargetType(TargetType.REGRESSION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2))
-            .setOutputAggregator(new WeightedSum(Arrays.asList(0.5, 0.5)))
+            .setOutputAggregator(new WeightedSum(new double[]{0.5, 0.5}))
             .build();
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(0.9, ensemble.infer(featureMap), 0.00001);
+        assertThat(0.9,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(0.5, ensemble.infer(featureMap), 0.00001);
+        assertThat(0.5,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         // Test with NO aggregator supplied, verifies default behavior of non-weighted sum
         ensemble = Ensemble.builder()
@@ -390,17 +429,32 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
         featureVector = Arrays.asList(0.4, 0.0);
         featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(1.8, ensemble.infer(featureMap), 0.00001);
+        assertThat(1.8,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         featureVector = Arrays.asList(2.0, 0.7);
         featureMap = zipObjMap(featureNames, featureVector);
-        assertEquals(1.0, ensemble.infer(featureMap), 0.00001);
+        assertThat(1.0,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
 
         featureMap = new HashMap<>(2) {{
             put("foo", 0.3);
             put("bar", null);
         }};
-        assertEquals(1.8, ensemble.infer(featureMap), 0.00001);
+        assertThat(1.8,
+            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, new RegressionConfig())).value(), 0.00001));
+    }
+
+    public void testOperationsEstimations() {
+        Tree tree1 = TreeTests.buildRandomTree(Arrays.asList("foo", "bar"), 2);
+        Tree tree2 = TreeTests.buildRandomTree(Arrays.asList("foo", "bar", "baz"), 5);
+        Tree tree3 = TreeTests.buildRandomTree(Arrays.asList("foo", "baz"), 3);
+        Ensemble ensemble = Ensemble.builder().setTrainedModels(Arrays.asList(tree1, tree2, tree3))
+            .setTargetType(TargetType.CLASSIFICATION)
+            .setFeatureNames(Arrays.asList("foo", "bar", "baz"))
+            .setOutputAggregator(new LogisticRegression(new double[]{0.1, 0.4, 1.0}))
+            .build();
+        assertThat(ensemble.estimatedNumOperations(), equalTo(9L));
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {

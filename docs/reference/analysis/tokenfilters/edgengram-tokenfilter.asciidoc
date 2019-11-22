@@ -130,9 +130,16 @@ See <<analysis-edgengram-tokenfilter-max-gram-limits>>.
 Minimum character length of a gram. Defaults to `1`.
 
 `side`::
++
+--
 (Optional, string)
 Deprecated. Indicates whether to truncate tokens from the `front` or `back`.
 Defaults to `front`.
+
+Instead of using the `back` value, you can use the
+<<analysis-reverse-tokenfilter,`reverse`>> token filter before and after the
+`edge_ngram` filter to achieve the same results.
+--
 
 [[analysis-edgengram-tokenfilter-customize]]
 ==== Customize

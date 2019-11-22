@@ -1,5 +1,9 @@
 [[cluster-nodes-reload-secure-settings]]
-== Nodes Reload Secure Settings
+=== Nodes reload secure settings API
+++++
+<titleabbrev>Nodes reload secure settings</titleabbrev>
+++++
+
 
 The cluster nodes reload secure settings API is used to re-load the keystore on each node.
 

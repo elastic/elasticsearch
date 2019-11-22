@@ -28,7 +28,7 @@ import java.util.Map;
 
 /**
  * A processor that breaks line from CSV file into separate fields.
- * If there's more fields requested than there is in the CSV extra field will no be present in document after processing.
+ * If there's more fields requested than there is in the CSV, extra field will not be present in the document after processing.
  * In the same way this processor will skip any field that is empty in CSV.
  *
  *

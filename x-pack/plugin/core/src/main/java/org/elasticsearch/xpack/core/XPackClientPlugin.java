@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -89,7 +90,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
-import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
@@ -158,6 +158,10 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.P
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.Recall;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.ScoreByThresholdResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.SoftClassificationMetric;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
@@ -171,10 +175,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.OutputAgg
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
-import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
@@ -381,7 +381,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 StartDataFrameAnalyticsAction.INSTANCE,
                 StopDataFrameAnalyticsAction.INSTANCE,
                 EvaluateDataFrameAction.INSTANCE,
-                EstimateMemoryUsageAction.INSTANCE,
+                ExplainDataFrameAnalyticsAction.INSTANCE,
                 InternalInferModelAction.INSTANCE,
                 GetTrainedModelsAction.INSTANCE,
                 DeleteTrainedModelAction.INSTANCE,

@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -701,12 +702,17 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request estimateMemoryUsage(PutDataFrameAnalyticsRequest estimateRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "analytics", "_estimate_memory_usage")
-            .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(estimateRequest, REQUEST_BODY_CONTENT_TYPE));
+    static Request explainDataFrameAnalytics(ExplainDataFrameAnalyticsRequest explainRequest) throws IOException {
+        EndpointBuilder endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics");
+        if (explainRequest.getId() != null) {
+            endpoint.addPathPart(explainRequest.getId());
+        }
+        endpoint.addPathPartAsIs("_explain");
+
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint.build());
+        if (explainRequest.getConfig() != null) {
+            request.setEntity(createEntity(explainRequest.getConfig(), REQUEST_BODY_CONTENT_TYPE));
+        }
         return request;
     }
 

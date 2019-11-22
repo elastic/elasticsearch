@@ -478,7 +478,7 @@ which defaults to a maximum size of 100 MB.
 `sort`:::
 (Optional, list) A comma-separated list of `<field>:<direction>` pairs to sort by before indexing.
 Use in conjunction with `max_docs` to control what documents are reindexed.
-[NOTE] deprecated[7.6, sort in reindex is deprecated] Sorting in reindex is deprecated.
+deprecated[7.6, sort in reindex is deprecated] *NOTE: Sorting in reindex is deprecated.*
 Sorting in reindex was never guaranteed to index
 documents in order and prevents future evolution of reindex such as resilience and performance
 improvements. If used in combination with `max_docs`, consider using a query filter instead.

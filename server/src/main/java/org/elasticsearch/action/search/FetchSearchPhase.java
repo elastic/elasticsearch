@@ -25,6 +25,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -135,11 +136,15 @@ final class FetchSearchPhase extends SearchPhase {
                             // we do this as we go since it will free up resources and passing on the request on the
                             // transport layer is cheap.
                             releaseIrrelevantSearchContext(queryResult.queryResult());
+
+                            // empty result
+                            FetchSearchResult result = new FetchSearchResult();
+                            result.setSearchShardTarget(queryResult.getSearchShardTarget());
+                            result.hits(SearchHits.empty());
+                            progressListener.onFetchResult(result);
                         }
                         // in any case we count down this result since we don't talk to this shard anymore
                         counter.countDown();
-                        // empty result
-                        progressListener.onFetchResult(queryResult.fetchResult());
                     } else {
                         SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
                         Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),

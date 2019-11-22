@@ -303,9 +303,8 @@ public final class InternalAutoDateHistogram extends
 
         List<Bucket> reducedBuckets = new ArrayList<>();
         List<Bucket> currentBuckets = new ArrayList<>();
-        CircuitBreaker requestBreaker = reduceContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
-        try (BreakingPriorityQueueWrapper<IteratorAndCurrent> pq = new BreakingPriorityQueueWrapper<>(aggregations.size(),
-            bytes -> requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "<internal-autohdatehisto-coordinator-reduce [" + name + "]>")) {
+        try (BreakingPriorityQueueWrapper<IteratorAndCurrent> pq
+                 = new BreakingPriorityQueueWrapper<>(aggregations.size(), reduceContext::addRequestCircuitBreakerBytes) {
             @Override
             protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
                 return a.current.key < b.current.key;

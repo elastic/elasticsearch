@@ -292,9 +292,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         List<Bucket> reducedBuckets = new ArrayList<>();
         List<Bucket> currentBuckets = new ArrayList<>();
 
-        CircuitBreaker requestBreaker = reduceContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
-        try (BreakingPriorityQueueWrapper<IteratorAndCurrent> pq = new BreakingPriorityQueueWrapper<>(aggregations.size(),
-            bytes -> requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "<internal-histogram-coordinator-reduce [" + name + "]>")) {
+        try (BreakingPriorityQueueWrapper<IteratorAndCurrent> pq
+                 = new BreakingPriorityQueueWrapper<>(aggregations.size(), reduceContext::addRequestCircuitBreakerBytes) {
             @Override
             protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
                 return Double.compare(a.current.key, b.current.key) < 0;

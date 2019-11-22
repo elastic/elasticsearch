@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,6 +82,19 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          */
         public void consumeBucketsAndMaybeBreak(int size) {
             multiBucketConsumer.accept(size);
+        }
+
+        public void addRequestCircuitBreakerBytes(long bytes) {
+            // Only use the potential to circuit break if bytes are being incremented
+            if (bytes > 0) {
+                bigArrays.breakerService()
+                    .getBreaker(CircuitBreaker.REQUEST)
+                    .addEstimateBytesAndMaybeBreak(bytes, "<internal-aggregation-coordinator-reduce>");
+            } else {
+                bigArrays.breakerService()
+                    .getBreaker(CircuitBreaker.REQUEST)
+                    .addWithoutBreaking(bytes);
+            }
         }
 
     }

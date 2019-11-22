@@ -26,73 +26,36 @@ import org.elasticsearch.common.lease.Releasable;
 import java.util.function.Consumer;
 
 /**
- * A wrapper around Lucene's PriorityQueue which also tracks memory usage via circuit
+ * A thin extension of Lucene's PriorityQueue which also tracks memory usage via circuit
  * breakers.
  *
  * Lucenes PriorityQueue allocates an array of `size` immediately upon instantiation.
  * This is potentially very dangerous though if the supplied size is large, and
  * the caller doesn't correctly account for circuit breaker allocation and de-allocation.
  *
- * This class wraps the PQ so that the circuit breaker is correctly called before
- * and after de-allocation.
+ * This class ensures that a breaker is called prior to the PQ being initialized, and
+ * again on deallocation
  *
- * NOTE: this class has _no null checks_ after the queue has been de-allocated (in
- * order to preserve performance).  Caller must not use the queue after
- * {@link BreakingPriorityQueueWrapper#close()} is called otherwise an NPE will
- * be thrown.
  */
-public abstract class BreakingPriorityQueueWrapper<T> implements Releasable {
-    private PriorityQueue<T> pq;
-    private final long size;
+public abstract class BreakingPriorityQueueWrapper<T> extends PriorityQueue<T> implements Releasable {
+    private final int size;
     private final Consumer<Long> circuitBreaker;
 
     public BreakingPriorityQueueWrapper(int size, Consumer<Long> circuitBreaker) {
-        // Account for PQ since it can be non-negligible if there are many values
-        // (e.g. min_doc_count: 0 on high cardinality field).  PQ allocates `size` objects
-        circuitBreaker.accept((long) size * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+        super(applyBreaker(size, circuitBreaker));
         this.size = size;
         this.circuitBreaker = circuitBreaker;
-
-        this.pq = new PriorityQueue<>(size) {
-            @Override
-            protected boolean lessThan(T a, T b) {
-                return BreakingPriorityQueueWrapper.this.lessThan(a, b);
-            }
-        };
-
     }
 
     protected abstract boolean lessThan(T a, T b);
 
-    public final T add(T element) {
-        return pq.add(element);
-    }
-
-    public T insertWithOverflow(T element) {
-        return pq.insertWithOverflow(element);
-    }
-
-    public final int size() {
-        return pq.size();
-    }
-
-    public final T pop() {
-        return pq.pop();
-    }
-
-    public final T top() {
-        return pq.top();
-    }
-
-    public final T updateTop() {
-        return pq.updateTop();
+    private static int applyBreaker(int size, Consumer<Long> breaker) {
+        breaker.accept((long)size * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+        return size;
     }
 
     @Override
     public void close() {
-        if (pq != null) {
-            this.pq = null;
-            circuitBreaker.accept(-size * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-        }
+        circuitBreaker.accept((long) -size * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
     }
 }

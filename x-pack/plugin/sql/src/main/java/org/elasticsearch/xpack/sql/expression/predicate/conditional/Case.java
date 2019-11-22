@@ -116,7 +116,7 @@ public class Case extends ConditionalFunction {
 
     /**
      * All foldable conditions that fold to FALSE should have
-     * been removed by the {@link Optimizer}.
+     * been removed by the {@link Optimizer}#SimplifyCase.
      */
     @Override
     public boolean foldable() {
@@ -124,7 +124,6 @@ public class Case extends ConditionalFunction {
             return true;
         }
         if (conditions.size() == 1 && conditions.get(0).condition().foldable()) {
-            // Need to prevent ConstantFolding rule to get applied before SimplifyCase rule
             if (conditions.get(0).condition().fold() == Boolean.TRUE) {
                 return conditions().get(0).result().foldable();
             } else {

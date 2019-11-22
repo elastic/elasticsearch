@@ -56,6 +56,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -796,6 +797,31 @@ public class MLRequestConvertersTests extends ESTestCase {
             DataFrameAnalyticsConfig parsedConfig = DataFrameAnalyticsConfig.fromXContent(parser);
             assertThat(parsedConfig, equalTo(estimateRequest.getConfig()));
         }
+    }
+
+    public void testGetTrainedModels() {
+        String modelId1 = randomAlphaOfLength(10);
+        String modelId2 = randomAlphaOfLength(10);
+        String modelId3 = randomAlphaOfLength(10);
+        GetTrainedModelsRequest getRequest = new GetTrainedModelsRequest(modelId1, modelId2, modelId3)
+            .setAllowNoMatch(false)
+            .setDecompressDefinition(true)
+            .setIncludeDefinition(false)
+            .setPageParams(new PageParams(100, 300));
+
+        Request request = MLRequestConverters.getTrainedModels(getRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/inference/" + modelId1 + "," + modelId2 + "," + modelId3, request.getEndpoint());
+        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300"), hasEntry("allow_no_match", "false")));
+        assertThat(request.getParameters(),
+            allOf(
+                hasEntry("from", "100"),
+                hasEntry("size", "300"),
+                hasEntry("allow_no_match", "false"),
+                hasEntry("decompress_definition", "true"),
+                hasEntry("include_model_definition", "false")
+            ));
+        assertNull(request.getEntity());
     }
 
     public void testPutFilter() throws IOException {

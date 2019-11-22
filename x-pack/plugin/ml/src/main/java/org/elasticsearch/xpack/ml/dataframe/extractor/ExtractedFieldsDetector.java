@@ -59,7 +59,7 @@ public class ExtractedFieldsDetector {
     private final Map<String, Long> fieldCardinalities;
 
     ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, boolean isTaskRestarting, int docValueFieldsLimit,
-                                    FieldCapabilitiesResponse fieldCapabilitiesResponse, Map<String, Long> fieldCardinalities) {
+                            FieldCapabilitiesResponse fieldCapabilitiesResponse, Map<String, Long> fieldCardinalities) {
         this.index = Objects.requireNonNull(index);
         this.config = Objects.requireNonNull(config);
         this.isTaskRestarting = isTaskRestarting;

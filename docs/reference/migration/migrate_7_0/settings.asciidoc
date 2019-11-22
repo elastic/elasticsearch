@@ -182,9 +182,9 @@ metadata over HTTPS (that is, `idp.metadata.path` is a URL starting with
 TLS versions, you must update this setting.
 
 `xpack.security.authc.realms.oidc.{name}.ssl.supported_protocols`::
-For outgoing HTTP connections to an OpenId Connect Authorization Server.
+For outgoing HTTP connections to an OpenId Connect Provider.
 If you have an OpenId Connect ("oidc") realm enabled and the realm is configured
-to connect to a remote authorization server which does not support newer TLS
+to connect to a remote OpenID Connect Provider which does not support newer TLS
 versions, you must update this setting.
 
 `xpack.monitoring.exporters.{name}.ssl.supported_protocols`::
@@ -200,8 +200,8 @@ update this setting.
 
 `xpack.security.transport.ssl.supported_protocols`::
 For incoming connections between {es} nodes. If you have specialized network
-equipment which inspects TLS packets between your nodes, you must update this
-setting.
+equipment which inspects TLS packets between your nodes, and that equipment
+enforces TLSv1 you must update this setting.
 
 
 The following is an example that enables TLS v1.0 for incoming HTTP connections:

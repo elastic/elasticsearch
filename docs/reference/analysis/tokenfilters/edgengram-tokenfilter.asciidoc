@@ -10,6 +10,8 @@ the beginning of a token.
 For example, you can use the `edge_ngram` token filter to change `quick` to
 `qu`.
 
+When not customized, the filter creates 1-character edge n-grams by default.
+
 This filter uses Lucene's
 https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/ngram/EdgeNGramTokenFilter.html[EdgeNGramTokenFilter].
 
@@ -34,7 +36,10 @@ GET _analyze
 {
   "tokenizer": "standard",
   "filter": [
-    { "type": "edge_ngram" }
+    { "type": "edge_ngram",
+      "min_gram": 1,
+      "max_gram": 2
+    }
   ],
   "text": "the quick brown fox jumps"
 }
@@ -158,7 +163,8 @@ PUT edge_ngram_example
 +
 --
 (Optional, integer)
-Maximum character length of a gram. Defaults to `2`.
+Maximum character length of a gram. For custom token filters, defaults to `2`.
+For the built-in `edge_ngram` filter, defaults to `1`.
 
 See <<analysis-edgengram-tokenfilter-max-gram-limits>>.
 --

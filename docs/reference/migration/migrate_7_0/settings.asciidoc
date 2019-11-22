@@ -167,7 +167,7 @@ newer TLS versions, you must update this setting.
 `xpack.security.authc.realms.ldap.{name}.ssl.supported_protocols`::
 For outgoing LDAP connections from {es} {security-features}.
 If you have an LDAP realm enabled and the LDAP directory to which that realm
-connects does not support newer TLS versions, tyou must update this setting.
+connects does not support newer TLS versions, you must update this setting.
 
 `xpack.security.authc.realms.active_directory.{name}.ssl.supported_protocols`::
 For outgoing Active Directory (LDAP) connections from {es} {security-features}.

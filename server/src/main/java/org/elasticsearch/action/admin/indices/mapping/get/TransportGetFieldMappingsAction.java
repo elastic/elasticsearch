@@ -65,9 +65,8 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         if (concreteIndices.length == 0) {
             listener.onResponse(new GetFieldMappingsResponse(emptyMap()));
         } else {
-            boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.fields().length == 1;
             for (final String index : concreteIndices) {
-                GetFieldMappingsIndexRequest shardRequest = new GetFieldMappingsIndexRequest(request, index, probablySingleFieldRequest);
+                GetFieldMappingsIndexRequest shardRequest = new GetFieldMappingsIndexRequest(request, index);
 
                 client.executeLocally(TransportGetFieldMappingsIndexAction.TYPE, shardRequest, new ActionListener<>() {
                     @Override

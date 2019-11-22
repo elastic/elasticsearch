@@ -32,7 +32,6 @@ import java.io.IOException;
 
 public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMappingsIndexRequest> {
 
-    private final boolean probablySingleFieldRequest;
     private final boolean includeDefaults;
     private final String[] fields;
 
@@ -45,12 +44,13 @@ public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMap
         }
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
-        probablySingleFieldRequest = in.readBoolean();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readBoolean();
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
-    GetFieldMappingsIndexRequest(GetFieldMappingsRequest other, String index, boolean probablySingleFieldRequest) {
-        this.probablySingleFieldRequest = probablySingleFieldRequest;
+    GetFieldMappingsIndexRequest(GetFieldMappingsRequest other, String index) {
         this.includeDefaults = other.includeDefaults();
         this.fields = other.fields();
         assert index != null;
@@ -65,10 +65,6 @@ public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMap
 
     public String[] fields() {
         return fields;
-    }
-
-    public boolean probablySingleFieldRequest() {
-        return probablySingleFieldRequest;
     }
 
     public boolean includeDefaults() {
@@ -93,7 +89,9 @@ public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMap
         }
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
-        out.writeBoolean(probablySingleFieldRequest);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeBoolean(false);
+        }
         OriginalIndices.writeOriginalIndices(originalIndices, out);
     }
 

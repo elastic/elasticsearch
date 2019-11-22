@@ -174,8 +174,6 @@ public class TransportGetFieldMappingsIndexAction
                 Mapper fieldMapper = allFieldMappers.getMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
-                } else if (request.probablySingleFieldRequest()) {
-                    fieldMappings.put(field, FieldMappingMetaData.NULL);
                 }
             }
         }

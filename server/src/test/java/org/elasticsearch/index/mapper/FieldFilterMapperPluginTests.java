@@ -97,8 +97,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings = response.mappings();
         assertEquals(1, mappings.size());
         Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldmapping = mappings.get("index1");
-        assertEquals(1, fieldmapping.size());
-        assertEquals(GetFieldMappingsResponse.FieldMappingMetaData.NULL, fieldmapping.get("non-existent"));
+        assertEquals(0, fieldmapping.size());
     }
 
     public void testFieldCapabilities() {

@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -125,16 +124,13 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                                            Params params,
                                            Map<String, FieldMappingMetaData> mappings) throws IOException {
         for (Map.Entry<String, FieldMappingMetaData> fieldEntry : mappings.entrySet()) {
-            if (fieldEntry.getValue().isNull() == false) {
-                builder.startObject(fieldEntry.getKey());
-                fieldEntry.getValue().toXContent(builder, params);
-                builder.endObject();
-            }
+            builder.startObject(fieldEntry.getKey());
+            fieldEntry.getValue().toXContent(builder, params);
+            builder.endObject();
         }
     }
 
     public static class FieldMappingMetaData implements ToXContentFragment {
-        public static final FieldMappingMetaData NULL = new FieldMappingMetaData("", BytesArray.EMPTY);
 
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
@@ -170,10 +166,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
         public Map<String, Object> sourceAsMap() {
             return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
-        }
-
-        public boolean isNull() {
-            return NULL.fullName().equals(fullName) && NULL.source.length() == source.length();
         }
 
         //pkg-private for testing

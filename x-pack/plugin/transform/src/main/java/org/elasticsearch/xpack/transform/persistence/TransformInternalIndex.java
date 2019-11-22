@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -54,8 +55,9 @@ public final class TransformInternalIndex {
      *                  progress::docs_processed, progress::docs_indexed,
      *                  stats::exponential_avg_checkpoint_duration_ms, stats::exponential_avg_documents_indexed,
      *                  stats::exponential_avg_documents_processed
-     *
+     * version 3 (7.5): rename to .transform-internal-xxx
      * version 4 (7.6): state::should_stop_at_checkpoint
+     *                  checkpoint::checkpoint
      */
 
     // constants for mappings
@@ -304,6 +306,9 @@ public final class TransformInternalIndex {
             .endObject()
             .startObject(TransformField.TIME_UPPER_BOUND_MILLIS.getPreferredName())
                 .field(TYPE, DATE)
+            .endObject()
+            .startObject(TransformCheckpoint.CHECKPOINT.getPreferredName())
+                .field(TYPE, LONG)
             .endObject();
         // end::disable_formating
     }

@@ -83,7 +83,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                     .filter(Objects::nonNull)
                     .findFirst();
 
-            assertTrue(mapping.isPresent());
+            assertTrue(mapping.isEmpty());
         });
     }
 }

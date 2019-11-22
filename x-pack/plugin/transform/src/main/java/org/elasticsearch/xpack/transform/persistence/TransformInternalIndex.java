@@ -77,14 +77,16 @@ public final class TransformInternalIndex {
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
-                .patterns(Collections.singletonList(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME))
-                .version(Version.CURRENT.id)
-                .settings(Settings.builder()
-                        // the configurations are expected to be small
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
-                .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
-                .build();
+            .patterns(Collections.singletonList(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME))
+            .version(Version.CURRENT.id)
+            .settings(
+                Settings.builder()
+                    // the configurations are expected to be small
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            )
+            .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
+            .build();
         return transformTemplate;
     }
 
@@ -92,10 +94,12 @@ public final class TransformInternalIndex {
         IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX)
             .patterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
             .version(Version.CURRENT.id)
-            .settings(Settings.builder()
-                // the audits are expected to be small
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
+            .settings(
+                Settings.builder()
+                    // the audits are expected to be small
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            )
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
             .putAlias(AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))
             .build();
@@ -167,8 +171,8 @@ public final class TransformInternalIndex {
         return builder;
     }
 
-
     private static XContentBuilder addTransformStoredDocMappings(XContentBuilder builder) throws IOException {
+        // tag::disable_formating
         return builder
             .startObject(TransformStoredDoc.STATE_FIELD.getPreferredName())
                 .startObject(PROPERTIES)
@@ -254,12 +258,11 @@ public final class TransformInternalIndex {
                     .endObject()
                 .endObject()
             .endObject();
-            // This is obsolete and can be removed for future versions of the index, but is left here as a warning/reminder that
-            // we cannot declare this field differently in version 1 of the internal index as it would cause a mapping clash
-            // .startObject("checkpointing").field(ENABLED, false).endObject();
+        // end::disable_formating
     }
 
     public static XContentBuilder addTransformsConfigMappings(XContentBuilder builder) throws IOException {
+        // tag::disable_formating
         return builder
             .startObject(TransformField.ID.getPreferredName())
                 .field(TYPE, KEYWORD)
@@ -290,9 +293,11 @@ public final class TransformInternalIndex {
             .startObject(TransformField.CREATE_TIME.getPreferredName())
                 .field(TYPE, DATE)
             .endObject();
+        // end::disable_formating
     }
 
     private static XContentBuilder addTransformCheckpointMappings(XContentBuilder builder) throws IOException {
+        // tag::disable_formating
         return builder
             .startObject(TransformField.TIMESTAMP_MILLIS.getPreferredName())
                 .field(TYPE, DATE)
@@ -300,6 +305,7 @@ public final class TransformInternalIndex {
             .startObject(TransformField.TIME_UPPER_BOUND_MILLIS.getPreferredName())
                 .field(TYPE, DATE)
             .endObject();
+        // end::disable_formating
     }
 
     /**
@@ -310,9 +316,7 @@ public final class TransformInternalIndex {
      * @throws IOException On write error
      */
     private static XContentBuilder addMetaInformation(XContentBuilder builder) throws IOException {
-        return builder.startObject("_meta")
-                    .field("version", Version.CURRENT)
-                .endObject();
+        return builder.startObject("_meta").field("version", Version.CURRENT).endObject();
     }
 
     /**

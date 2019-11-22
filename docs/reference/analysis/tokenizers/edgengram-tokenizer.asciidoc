@@ -99,6 +99,7 @@ Character classes may be any of the following:
 * `punctuation` -- for example `!` or `"`
 * `symbol` --      for example `$` or `√`
 
+[float]
 [[max-gram-limits]]
 === Limitations of the `max_gram` parameter
 

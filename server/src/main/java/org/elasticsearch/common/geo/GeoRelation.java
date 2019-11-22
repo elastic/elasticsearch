@@ -18,15 +18,12 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.geometry.Geometry;
-
-import java.io.IOException;
-
 /**
- * Shape Reader to read different {@link Geometry} doc-values
+ * Enum for capturing relationships between a shape
+ * and a query
  */
-public interface ShapeTreeReader {
-
-    Extent getExtent() throws IOException;
-    GeoRelation relate(Extent extent) throws IOException;
+public enum GeoRelation {
+    QUERY_CROSSES,
+    QUERY_INSIDE,
+    QUERY_DISJOINT
 }

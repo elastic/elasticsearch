@@ -98,6 +98,11 @@ public final class GeoTileUtils {
      * @param tiles     the number of tiles per row for a pre-determined zoom-level
      */
     static int getXTile(double longitude, long tiles) {
+        // normalizeLon treats this as 180, which is not friendly for tile mapping
+        if (longitude == -180) {
+            return 0;
+        }
+
         int xTile = (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
 
         // Edge values may generate invalid values, and need to be clipped.

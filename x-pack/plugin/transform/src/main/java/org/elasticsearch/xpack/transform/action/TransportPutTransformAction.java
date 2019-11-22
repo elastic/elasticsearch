@@ -267,7 +267,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
 
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
-            logger.debug("[{}] created transform");
+            logger.debug("[{}] created transform", config.getId());
             auditor.info(config.getId(), "Created transform.");
             listener.onResponse(new AcknowledgedResponse(true));
         }, listener::onFailure);

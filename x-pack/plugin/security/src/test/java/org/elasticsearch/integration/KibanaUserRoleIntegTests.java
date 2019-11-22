@@ -68,7 +68,6 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
                 .includeDefaults(true).get();
         FieldMappingMetaData fieldMappingMetaData = response.fieldMappings(index, field);
         assertThat(fieldMappingMetaData, notNullValue());
-        assertThat(fieldMappingMetaData.isNull(), is(false));
 
         response = client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
@@ -77,7 +76,6 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
                 .includeDefaults(true).get();
         FieldMappingMetaData fieldMappingMetaData1 = response.fieldMappings(index, field);
         assertThat(fieldMappingMetaData1, notNullValue());
-        assertThat(fieldMappingMetaData1.isNull(), is(false));
         assertThat(fieldMappingMetaData1.fullName(), equalTo(fieldMappingMetaData.fullName()));
     }
 

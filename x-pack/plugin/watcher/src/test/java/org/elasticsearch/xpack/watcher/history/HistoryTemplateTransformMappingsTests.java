@@ -12,9 +12,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
-import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -26,7 +25,6 @@ import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequ
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.hasItem;
 
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
 
@@ -80,13 +78,12 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
                                                                 .get();
 
             // time might have rolled over to a new day, thus we need to check that this field exists only in one of the history indices
-            List<Boolean> payloadNulls = response.mappings().values().stream()
+            Optional<GetFieldMappingsResponse.FieldMappingMetaData> mapping = response.mappings().values().stream()
                     .map(map -> map.get("result.actions.transform.payload"))
                     .filter(Objects::nonNull)
-                    .map(GetFieldMappingsResponse.FieldMappingMetaData::isNull)
-                    .collect(Collectors.toList());
+                    .findFirst();
 
-            assertThat(payloadNulls, hasItem(true));
+            assertTrue(mapping.isPresent());
         });
     }
 }

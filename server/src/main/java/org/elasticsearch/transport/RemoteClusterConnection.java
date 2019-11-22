@@ -238,7 +238,7 @@ final class RemoteClusterConnection implements Closeable {
         return remoteConnectionManager.getConnectionManager();
     }
 
-    public boolean shouldRebuildConnection(Settings newSettings) {
+    boolean shouldRebuildConnection(Settings newSettings) {
         return connectionStrategy.shouldRebuildConnection(newSettings);
     }
 }

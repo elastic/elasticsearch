@@ -226,22 +226,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-        if (remoteClusters.containsKey(clusterAlias) == false) {
-            CountDownLatch latch = new CountDownLatch(1);
-            updateRemoteCluster(clusterAlias, settings, ActionListener.wrap(latch::countDown));
+        CountDownLatch latch = new CountDownLatch(1);
+        updateRemoteCluster(clusterAlias, settings, ActionListener.wrap(latch::countDown));
 
-            try {
-                // Wait 10 seconds for a new cluster. We must use a latch instead of a future because we
-                // are on the cluster state thread and our custom future implementation will throw an
-                // assertion.
-                if (latch.await(10, TimeUnit.SECONDS) == false) {
-                    logger.warn("failed to connect to new remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(10));
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+        try {
+            // Wait 10 seconds for a connections. We must use a latch instead of a future because we
+            // are on the cluster state thread and our custom future implementation will throw an
+            // assertion.
+            if (latch.await(10, TimeUnit.SECONDS) == false) {
+                logger.warn("failed to connect to new remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(10));
             }
-        } else {
-            updateRemoteCluster(clusterAlias, settings, noopListener);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -269,13 +265,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             return;
         }
 
-        // this is a new cluster we have to add a new representation
         if (remote == null) {
+            // this is a new cluster we have to add a new representation
             Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
             remoteClusters.put(clusterAlias, remote);
+            remote.ensureConnected(listener);
         } else if (remote.shouldRebuildConnection(newSettings)) {
-            // New ConnectionProfile. Must tear down existing connection
+            // Changes to connection configuration. Must tear down existing connection
             try {
                 IOUtils.close(remote);
             } catch (IOException e) {
@@ -285,9 +282,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
             remoteClusters.put(clusterAlias, remote);
+            remote.ensureConnected(listener);
+        } else {
+            // No changes to connection configuration.
+            listener.onResponse(null);
         }
-
-        remote.ensureConnected(listener);
     }
 
     /**

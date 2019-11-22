@@ -17,7 +17,7 @@ experimental[]
 
 `GET _ml/data_frame/analytics/_info`
 `POST _ml/data_frame/analytics/_info`
-`GET _ml/data_frame/analytics/<data_frame_analytics_id/_info`
+`GET _ml/data_frame/analytics/<data_frame_analytics_id>/_info`
 `POST _ml/data_frame/analytics/<data_frame_analytics_id/_info`
 
 [[ml-dfanalytics-info-prereq]]

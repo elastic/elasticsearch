@@ -93,9 +93,8 @@ public class TransportLoggerTests extends ESTestCase {
         try (BytesStreamOutput messageOutput = new BytesStreamOutput()) {
             messageOutput.setVersion(Version.CURRENT);
             long preHeaderPosition = messageOutput.position();
-            try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
-                context.writeTo(messageOutput);
-            }
+            ThreadContext context = new ThreadContext(Settings.EMPTY);
+            context.writeTo(messageOutput);
             messageOutput.writeString(ClusterStatsAction.NAME);
             int variableHeaderSize = Math.toIntExact(messageOutput.position() - preHeaderPosition);
             new ClusterStatsRequest().writeTo(messageOutput);

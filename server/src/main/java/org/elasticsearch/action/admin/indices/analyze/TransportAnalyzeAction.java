@@ -171,6 +171,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             if (analyzer == null) {
                 throw new IllegalArgumentException("failed to find normalizer under [" + request.normalizer() + "]");
             }
+            return analyzer;
         }
         if (request.field() != null) {
             if (indexService == null) {

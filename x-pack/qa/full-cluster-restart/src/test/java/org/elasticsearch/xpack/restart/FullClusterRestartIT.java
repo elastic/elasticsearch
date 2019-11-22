@@ -214,11 +214,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // index documents for the rollup job
             final StringBuilder bulk = new StringBuilder();
             for (int i = 0; i < numDocs; i++) {
-                if (getOldClusterVersion().onOrAfter(Version.V_7_0_0)) {
-                    bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
-                } else {
-                    bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"doc\"}}\n");
-                }
+                bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
                 String date = String.format(Locale.ROOT, "%04d-01-01T00:%02d:00Z", year, i);
                 bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");
             }

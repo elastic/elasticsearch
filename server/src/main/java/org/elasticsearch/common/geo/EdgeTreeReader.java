@@ -30,6 +30,10 @@ import static org.apache.lucene.geo.GeoUtils.lineCrossesLineWithBoundary;
  * serialized with the {@link EdgeTreeWriter}
  */
 public class EdgeTreeReader implements ShapeTreeReader {
+    private static final Optional<Boolean> OPTIONAL_FALSE = Optional.of(false);
+    private static final Optional<Boolean> OPTIONAL_TRUE = Optional.of(true);
+    private static final Optional<Boolean> OPTIONAL_EMPTY = Optional.empty();
+
     private final ByteBufferStreamInput input;
     private final int startPosition;
     private final boolean hasArea;
@@ -43,8 +47,8 @@ public class EdgeTreeReader implements ShapeTreeReader {
     }
 
     public Extent getExtent() throws IOException {
-        resetInputPosition();
         if (treeExtent == null) {
+            resetInputPosition();
             treeExtent = new Extent(input);
         }
         return treeExtent;
@@ -53,25 +57,27 @@ public class EdgeTreeReader implements ShapeTreeReader {
     /**
      * Returns true if the rectangle query and the edge tree's shape overlap
      */
-    public boolean intersects(Extent extent) throws IOException {
-        if (hasArea) {
-            return containsBottomLeft(extent) || crosses(extent);
-        } else {
-            return crosses(extent);
+    @Override
+    public GeoRelation relate(Extent extent) throws IOException {
+        if (crosses(extent)) {
+            return GeoRelation.QUERY_CROSSES;
+        } else if (hasArea && containsBottomLeft(extent)){
+            return GeoRelation.QUERY_INSIDE;
         }
+        return GeoRelation.QUERY_DISJOINT;
     }
 
     static Optional<Boolean> checkExtent(Extent treeExtent, Extent extent) throws IOException {
         if (treeExtent.minY() > extent.maxY() || treeExtent.maxX() < extent.minX()
                 || treeExtent.maxY() < extent.minY() || treeExtent.minX() > extent.maxX()) {
-            return Optional.of(false); // tree and bbox-query are disjoint
+            return OPTIONAL_FALSE; // tree and bbox-query are disjoint
         }
 
         if (extent.minX() <= treeExtent.minX() && extent.minY() <= treeExtent.minY()
                 && extent.maxX() >= treeExtent.maxX() && extent.maxY() >= treeExtent.maxY()) {
-            return Optional.of(true); // bbox-query fully contains tree's extent.
+            return OPTIONAL_TRUE; // bbox-query fully contains tree's extent.
         }
-        return Optional.empty();
+        return OPTIONAL_EMPTY;
     }
 
     boolean containsBottomLeft(Extent extent) throws IOException {
@@ -83,15 +89,6 @@ public class EdgeTreeReader implements ShapeTreeReader {
         resetToRootEdge();
         if (input.readBoolean()) { /* has edges */
             return containsBottomLeft(input.position(), extent);
-        }
-        return false;
-    }
-
-    boolean containsFully(Extent extent) throws IOException {
-        getExtent();
-        resetToRootEdge();
-        if (input.readBoolean()) { /* has edges */
-            return containsFully(input.position(), extent);
         }
         return false;
     }
@@ -138,54 +135,6 @@ public class EdgeTreeReader implements ShapeTreeReader {
             // cast infinite ray to the right from bottom-left of bbox-query to see if it intersects edge
             if (lineCrossesLineWithBoundary(x1, y1, x2, y2, extent.minX(), extent.minY(), Integer.MAX_VALUE,
                     extent.minY())) {
-                res = true;
-            }
-
-            if (rightOffset > 0) { /* has left node */
-                res ^= containsBottomLeft(streamOffset, extent);
-            }
-
-            if (rightOffset >= 0 && extent.maxY() >= minY) { /* no right node if rightOffset == -1 */
-                res ^= containsBottomLeft(streamOffset + rightOffset, extent);
-            }
-        }
-        return res;
-    }
-
-    /**
-     * Returns true if every corner in the rectangle query is contained within the tree's edges.
-     */
-    private boolean containsFully(int edgePosition, Extent extent) throws IOException {
-        // start read edge from bytes
-        input.position(edgePosition);
-        int maxY = Math.toIntExact(treeExtent.maxY() - input.readVLong());
-        int minY = Math.toIntExact(treeExtent.maxY() - input.readVLong());
-        int x1 = Math.toIntExact(treeExtent.maxX() - input.readVLong());
-        int x2 = Math.toIntExact(treeExtent.maxX() - input.readVLong());
-        int y1 = Math.toIntExact(treeExtent.maxY() - input.readVLong());
-        int y2 = Math.toIntExact(treeExtent.maxY() - input.readVLong());
-        int rightOffset = input.readVInt();
-        if (rightOffset == 1) {
-            rightOffset = 0;
-        } else if (rightOffset == 0) {
-            rightOffset = -1;
-        }
-        int streamOffset = input.position();
-        // end read edge from bytes
-
-        boolean res = false;
-        if (maxY >= extent.minY()) {
-            // is bbox-query contained within linearRing
-            // cast infinite ray to the right from each corner of the extent
-            if (lineCrossesLineWithBoundary(x1, y1, x2, y2, extent.minX(), extent.minY(),
-                    Integer.MAX_VALUE, extent.minY())
-                && lineCrossesLineWithBoundary(x1, y1, x2, y2, extent.minX(), extent.maxY(),
-                    Integer.MAX_VALUE, extent.maxY())
-                && lineCrossesLineWithBoundary(x1, y1, x2, y2, extent.maxX(), extent.minY(),
-                    Integer.MAX_VALUE, extent.minY())
-                && lineCrossesLineWithBoundary(x1, y1, x2, y2, extent.maxX(), extent.maxY(),
-                    Integer.MAX_VALUE, extent.maxY())
-            ) {
                 res = true;
             }
 
@@ -265,39 +214,5 @@ public class EdgeTreeReader implements ShapeTreeReader {
 
     private void resetToRootEdge() throws IOException {
         input.position(startPosition + Extent.WRITEABLE_SIZE_IN_BYTES); // skip extent
-    }
-
-    private static final class Edge {
-        final int streamOffset;
-        final int x1;
-        final int y1;
-        final int x2;
-        final int y2;
-        final int minY;
-        final int maxY;
-        final int rightOffset;
-
-        /**
-         * Object representing an edge node read from bytes
-         *
-         * @param streamOffset offset in byte-reference where edge terminates
-         * @param x1 x-coordinate of first point in segment
-         * @param y1 y-coordinate of first point in segment
-         * @param x2 x-coordinate of second point in segment
-         * @param y2 y-coordinate of second point in segment
-         * @param minY minimum y-coordinate in this edge-node's tree
-         * @param maxY maximum y-coordinate in this edge-node's tree
-         * @param rightOffset the start offset in the byte-reference of the right edge-node
-         */
-        Edge(int streamOffset, int x1, int y1, int x2, int y2, int minY, int maxY, int rightOffset) {
-            this.streamOffset = streamOffset;
-            this.x1 = x1;
-            this.y1 = y1;
-            this.x2 = x2;
-            this.y2 = y2;
-            this.minY = minY;
-            this.maxY = maxY;
-            this.rightOffset = rightOffset;
-        }
     }
 }

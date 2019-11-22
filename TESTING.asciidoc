@@ -249,6 +249,151 @@ If you want to just run the precommit checks:
 Some of these checks will require `docker-compose` installed for bringing up
 test fixtures. If it's not present those checks will be skipped automatically.
 
+== How to write good tests?
+
+=== Test pyramid
+
+-------------------------------------------------
+                  /\
+                 /  \
+                /    \
+               /manual\
+              /________\ 
+             /          \
+            / 3rd party  \ 
+           /      OS      \   
+          /      BWC       \   
+         / Internal Cluster \ 
+        /  External (REST)   \ 
+       /        Unit          \
+      /________________________\
+-------------------------------------------------
+
+As a rule of thumb, always prefer writing tests at the lowest possible level 
+of the pyramid. 
+
+==== Unit Tests 
+
+Unit tests are the preferred way to test some functionality: most of the time
+they are simpler to understand, more likely to reproduce, and unlikely to be
+affected by changes that are unrelated to the piece of functionality that is
+being tested.
+
+**`ESTestCase`**: The base class of all tests. 
+It is typically extended directly by unit tests.
+
+The Gradle target to run unit tests is **`test`**.
+
+==== External REST Tests 
+
+The `'elasticsearch.testclusters'` Gradle plugin has support for configuring
+and starting, and stopping clusters used for testing. 
+These test run against a cluster started from the generated distribution with 
+a configuration specific for the test and only interact using the REST APIs. 
+
+These can use the full default or oss distribution but we can also use a special
+one (integ-test) built for testing only that doesn't have any modules added.
+Module that are needed by the test can be added trough the testclusters plugin.
+This approach is preferred as it leads to better isolation, faster execution,
+and better build avoidance: if a change only changes a particular module, 
+all the others don't have to be re-tested, except when testing using the full 
+distribution.
+
+**`ESRestTestCase`**: is the base class for these tests.
+These tests can also be implemented using YAML and ran using a subclass of
+**ESClientYamlSuiteTestCase**.
+
+The Gradle target to run rest tests is **`integTest`**
+
+==== Internal Cluster Tests
+
+There are multiple base classes for these:
+
+* **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
+  single node.
+* **`ESIntegTestCase`**: An integration test case that creates a cluster that
+  might have multiple nodes.
+
+The reason why `ESSingleNodeTestCase` exists is that all our components used to
+be very hard to set up in isolation, which had led us to having a number of
+integration tests but close to no unit tests. `ESSingleNodeTestCase` is a
+workaround for this issue which provides an easy way to spin up a node and get
+access to components that are hard to instantiate like `IndicesService`.
+Whenever practical, you should prefer unit tests.
+
+Many tests extend `ESIntegTestCase`, mostly because this is how most tests used
+to work in the early days of Elasticsearch. However the complexity of these
+tests tends to make them hard to debug. Whenever the functionality that is
+being tested isn't intimately dependent on how Elasticsearch behaves as a
+cluster, it is recommended to write unit tests or REST tests instead.
+
+In short, most new functionality should come with unit tests, and optionally
+REST tests to test integration.
+
+==== Backwards Compatability Tests (BWC)
+
+Each version of Elasticsearch knows about the versions it's compatible with. 
+These tests run trough various upgrade scenarios from each compatibible version 
+to the current one. 
+This also includes snapshot versions (being worked on but not released).
+The build knows how to check out and build them so the tip of their branch
+can be tested.
+
+The Gradle target to run these is **`bwcTest`**
+
+==== OS / Packaging tests
+
+Thes live in **`qa/os`** and their goal is to verify that all the distribution
+types (archive, deb, rpm, windows installer) are compatible with the Operating
+Systems from our support matrix.  
+
+==== Third Party Integration Tests
+
+These are specialized tests that verify that Elasticsearch works correctly with 
+external services, e.x. with different providers for snashot storage.
+
+=== Good practices
+
+==== Refactor code to make it easier to test
+
+Unfortunately, a large part of our code base is still hard to unit test.
+Sometimes because some classes have lots of dependencies that make them hard to
+instantiate. Sometimes because API contracts make tests hard to write. Code
+refactors that make functionality easier to unit test are encouraged. If this
+sounds very abstract to you, you can have a look at
+https://github.com/elastic/elasticsearch/pull/16610[this pull request] for
+instance, which is a good example. It refactors `IndicesRequestCache` in such
+a way that:
+ - it no longer depends on objects that are hard to instantiate such as
+   `IndexShard` or `SearchContext`,
+ - time-based eviction is applied on top of the cache rather than internally,
+   which makes it easier to assert on what the cache is expected to contain at
+   a given time.
+
+=== Bad practices
+
+==== Use randomized-testing for coverage
+
+In general, randomization should be used for parameters that are not expected
+to affect the behavior of the functionality that is being tested. For instance
+the number of shards should not impact `date_histogram` aggregations, and the
+choice of the `store` type (`niofs` vs `mmapfs`) does not affect the results of
+a query. Such randomization helps improve confidence that we are not relying on
+implementation details of one component or specifics of some setup.
+
+However it should not be used for coverage. For instance if you are testing a
+piece of functionality that enters different code paths depending on whether
+the index has 1 shards or 2+ shards, then we shouldn't just test against an
+index with a random number of shards: there should be one test for the 1-shard
+case, and another test for the 2+ shards case.
+
+==== Abuse randomization in multi-threaded tests
+
+Multi-threaded tests are often not reproducible due to the fact that there is
+no guarantee on the order in which operations occur across threads. Adding
+randomization to the mix usually makes things worse and should be done with
+care.
+
 == Testing the REST layer
 
 The available integration tests make use of the java API to communicate with
@@ -500,128 +645,6 @@ repository without fetching latest. For these use cases, you can set the system
 property `tests.bwc.git_fetch_latest` to `false` and the BWC builds will skip
 fetching the latest from the remote.
 
-== How to write good tests?
-
-=== Test pyramid
-
--------------------------------------------------
-                 /\
-                /  \
-               /    \
-              /manual\
-             /________\ 
-            /          \
-           / 3rd party  \ 
-          /     BWC      \   
-         /Internal Cluster\ 
-        /  External (REST) \ 
-       /        Unit        \
-      /______________________\
--------------------------------------------------
-
-As a rule of thumb, always prefer writing tests at the lowest possible level 
-of the pyramid. 
-
-==== Unit Tests 
-
-Unit tests are the preferred way to test some functionality: most of the time
-they are simpler to understand, more likely to reproduce, and unlikely to be
-affected by changes that are unrelated to the piece of functionality that is
-being tested.
-
-**`ESTestCase`**: The base class of all tests. 
-It is typically extended directly by unit tests.
-
-The Gradle target to run unit tests is **`test`**.
-
-==== External REST Tests 
-
-The `'elasticsearch.testclusters'` Gradle plugin has support for configuring
-and starting, and stopping clusters used for testing. 
-These test run against a cluster started from the generated distribution with 
-a configuration specific for the test and only interact using the REST APIs. 
-
-These can use the full default or oss distribution but we can also use a special
-one (integ-test) built for testing only that doesn't have any modules added.
-Module that are needed by the test can be added trough the testclusters plugin.
-This approach is preferred as it leads to better isolation, faster execution,
-and better build avoidance: if a change only changes a particular module, 
-all the others don't have to be re-tested, except when testing using the full 
-distribution.
-
-**`ESRestTestCase`**: is the base class for these tests.
-These tests can also be implemented using YAML and ran using a subclass of
-**ESClientYamlSuiteTestCase**.
-
-The Gradle target to run rest tests is **`integTest`**
-
-==== Internal Cluster Tests
-
-There are multiple base classes for these:
-
-* **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
-  single node.
-* **`ESIntegTestCase`**: An integration test case that creates a cluster that
-  might have multiple nodes.
-
-The reason why `ESSingleNodeTestCase` exists is that all our components used to
-be very hard to set up in isolation, which had led us to having a number of
-integration tests but close to no unit tests. `ESSingleNodeTestCase` is a
-workaround for this issue which provides an easy way to spin up a node and get
-access to components that are hard to instantiate like `IndicesService`.
-Whenever practical, you should prefer unit tests.
-
-Many tests extend `ESIntegTestCase`, mostly because this is how most tests used
-to work in the early days of Elasticsearch. However the complexity of these
-tests tends to make them hard to debug. Whenever the functionality that is
-being tested isn't intimately dependent on how Elasticsearch behaves as a
-cluster, it is recommended to write unit tests or REST tests instead.
-
-In short, most new functionality should come with unit tests, and optionally
-REST tests to test integration.
-
-
-=== Good practices
-
-==== Refactor code to make it easier to test
-
-Unfortunately, a large part of our code base is still hard to unit test.
-Sometimes because some classes have lots of dependencies that make them hard to
-instantiate. Sometimes because API contracts make tests hard to write. Code
-refactors that make functionality easier to unit test are encouraged. If this
-sounds very abstract to you, you can have a look at
-https://github.com/elastic/elasticsearch/pull/16610[this pull request] for
-instance, which is a good example. It refactors `IndicesRequestCache` in such
-a way that:
- - it no longer depends on objects that are hard to instantiate such as
-   `IndexShard` or `SearchContext`,
- - time-based eviction is applied on top of the cache rather than internally,
-   which makes it easier to assert on what the cache is expected to contain at
-   a given time.
-
-=== Bad practices
-
-==== Use randomized-testing for coverage
-
-In general, randomization should be used for parameters that are not expected
-to affect the behavior of the functionality that is being tested. For instance
-the number of shards should not impact `date_histogram` aggregations, and the
-choice of the `store` type (`niofs` vs `mmapfs`) does not affect the results of
-a query. Such randomization helps improve confidence that we are not relying on
-implementation details of one component or specifics of some setup.
-
-However it should not be used for coverage. For instance if you are testing a
-piece of functionality that enters different code paths depending on whether
-the index has 1 shards or 2+ shards, then we shouldn't just test against an
-index with a random number of shards: there should be one test for the 1-shard
-case, and another test for the 2+ shards case.
-
-==== Abuse randomization in multi-threaded tests
-
-Multi-threaded tests are often not reproducible due to the fact that there is
-no guarantee on the order in which operations occur across threads. Adding
-randomization to the mix usually makes things worse and should be done with
-care.
 
 == Test coverage analysis
 

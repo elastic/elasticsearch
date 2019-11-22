@@ -282,7 +282,7 @@ public class CompoundProcessorTests extends ESTestCase {
         assertStats(pipeline, 1, 1, 0);
     }
 
-    public void testFailurePipelineField() {
+    public void testFailureProcessorIsInvokedOnFailure() {
         TestProcessor onFailureProcessor = new TestProcessor(null, "on_failure", ingestDocument -> {
             Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
             assertThat(ingestMetadata.entrySet(), hasSize(4));

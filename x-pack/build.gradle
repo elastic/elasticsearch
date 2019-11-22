@@ -11,7 +11,7 @@ subprojects {
   repositories {
     maven {
       name "opensaml"
-      url "https://build.shibboleth.net/nexus/content/repositories/releases/"
+      url "https://artifactory.elstc.co/artifactory/shibboleth-releases/"
       content {
         includeGroup "org.opensaml"
         includeGroup "net.shibboleth.utilities"

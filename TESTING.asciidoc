@@ -179,29 +179,14 @@ Its difficult to pick the "right" number here. Hypercores don't count for CPU
 intensive tests and you should leave some slack for JVM-internal threads like
 the garbage collector. And you have to have enough RAM to handle each JVM.
 
-=== Test compatibility.
-
-It is possible to provide a version that allows to adapt the tests behaviour
-to older features or bugs that have been changed or fixed in the meantime.
-
------------------------------------------
-./gradlew test -Dtests.compatibility=1.0.0
------------------------------------------
-
-
 === Miscellaneous.
 
 Run all tests without stopping on errors (inspect log files).
 
 -----------------------------------------
-./gradlew test -Dtests.haltonfailure=false
+./gradlew --continue test 
 -----------------------------------------
 
-Run more verbose output (slave JVM parameters, etc.).
-
-----------------------
-./gradlew test -verbose
-----------------------
 
 Change the default suite timeout to 5 seconds for all
 tests (note the exclamation mark).
@@ -517,28 +502,67 @@ fetching the latest from the remote.
 
 == How to write good tests?
 
-=== Base classes for test cases
+=== Test pyramid
 
-There are multiple base classes for tests:
+-------------------------------------------------
+                 /\
+                /  \
+               /    \
+              /manual\
+             /________\ 
+            /          \
+           / 3rd party  \ 
+          /     BWC      \   
+         /Internal Cluster\ 
+        /  External (REST) \ 
+       /        Unit        \
+      /______________________\
+-------------------------------------------------
 
-* **`ESTestCase`**: The base class of all tests. It is typically extended
-  directly by unit tests.
-* **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
-  single node.
-* **`ESIntegTestCase`**: An integration test case that creates a cluster that
-  might have multiple nodes.
-* **`ESRestTestCase`**: An integration tests that interacts with an external
-  cluster via the REST API. For instance, YAML tests run via sub classes of
-  `ESRestTestCase`.
+As a rule of thumb, always prefer writing tests at the lowest possible level 
+of the pyramid. 
 
-=== Good practices
-
-==== What kind of tests should I write?
+==== Unit Tests 
 
 Unit tests are the preferred way to test some functionality: most of the time
 they are simpler to understand, more likely to reproduce, and unlikely to be
 affected by changes that are unrelated to the piece of functionality that is
 being tested.
+
+**`ESTestCase`**: The base class of all tests. 
+It is typically extended directly by unit tests.
+
+The Gradle target to run unit tests is **`test`**.
+
+==== External REST Tests 
+
+The `'elasticsearch.testclusters'` Gradle plugin has support for configuring
+and starting, and stopping clusters used for testing. 
+These test run against a cluster started from the generated distribution with 
+a configuration specific for the test and only interact using the REST APIs. 
+
+These can use the full default or oss distribution but we can also use a special
+one (integ-test) built for testing only that doesn't have any modules added.
+Module that are needed by the test can be added trough the testclusters plugin.
+This approach is preferred as it leads to better isolation, faster execution,
+and better build avoidance: if a change only changes a particular module, 
+all the others don't have to be re-tested, except when testing using the full 
+distribution.
+
+**`ESRestTestCase`**: is the base class for these tests.
+These tests can also be implemented using YAML and ran using a subclass of
+**ESClientYamlSuiteTestCase**.
+
+The Gradle target to run rest tests is **`integTest`**
+
+==== Internal Cluster Tests
+
+There are multiple base classes for these:
+
+* **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
+  single node.
+* **`ESIntegTestCase`**: An integration test case that creates a cluster that
+  might have multiple nodes.
 
 The reason why `ESSingleNodeTestCase` exists is that all our components used to
 be very hard to set up in isolation, which had led us to having a number of
@@ -555,6 +579,9 @@ cluster, it is recommended to write unit tests or REST tests instead.
 
 In short, most new functionality should come with unit tests, and optionally
 REST tests to test integration.
+
+
+=== Good practices
 
 ==== Refactor code to make it easier to test
 

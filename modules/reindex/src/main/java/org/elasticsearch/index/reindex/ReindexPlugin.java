@@ -87,8 +87,10 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
-            new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(ReindexTaskParams.NAME), ReindexTaskParams::fromXContent),
-            new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(ReindexPersistentTaskState.NAME), ReindexPersistentTaskState::fromXContent),
+            new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(ReindexTaskParams.NAME),
+                ReindexTaskParams::fromXContent),
+            new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(ReindexPersistentTaskState.NAME),
+                ReindexPersistentTaskState::fromXContent),
             new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(ReindexPersistentTaskState.NAME),
                 ReindexPersistentTaskState::fromXContent));
     }

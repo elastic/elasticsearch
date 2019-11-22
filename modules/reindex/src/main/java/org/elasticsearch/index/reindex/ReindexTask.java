@@ -225,7 +225,8 @@ public class ReindexTask extends AllocatedPersistentTask {
     }
 
     private void sendStartedNotification(boolean shouldStoreResult) {
-        updatePersistentTaskState(new ReindexPersistentTaskState(taskId, ReindexPersistentTaskState.Status.STARTED), new ActionListener<>() {
+        updatePersistentTaskState(new ReindexPersistentTaskState(taskId, ReindexPersistentTaskState.Status.STARTED),
+            new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
             }

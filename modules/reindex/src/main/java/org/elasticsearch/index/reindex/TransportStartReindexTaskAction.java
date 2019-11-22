@@ -41,7 +41,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Predicate;
 
-public class TransportStartReindexTaskAction extends HandledTransportAction<StartReindexTaskAction.Request, StartReindexTaskAction.Response> {
+public class TransportStartReindexTaskAction
+    extends HandledTransportAction<StartReindexTaskAction.Request, StartReindexTaskAction.Response> {
 
     private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;

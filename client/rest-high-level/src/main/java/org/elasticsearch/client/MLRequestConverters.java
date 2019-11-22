@@ -29,7 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.CloseJobRequest;
-import org.elasticsearch.client.ml.DataFrameAnalyticsInfoRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -702,16 +702,16 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request dataFrameAnalyticsInfo(DataFrameAnalyticsInfoRequest infoRequest) throws IOException {
+    static Request explainDataFrameAnalytics(ExplainDataFrameAnalyticsRequest explainRequest) throws IOException {
         EndpointBuilder endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics");
-        if (infoRequest.getId() != null) {
-            endpoint.addPathPart(infoRequest.getId());
+        if (explainRequest.getId() != null) {
+            endpoint.addPathPart(explainRequest.getId());
         }
-        endpoint.addPathPartAsIs("_info");
+        endpoint.addPathPartAsIs("_explain");
 
         Request request = new Request(HttpPost.METHOD_NAME, endpoint.build());
-        if (infoRequest.getConfig() != null) {
-            request.setEntity(createEntity(infoRequest.getConfig(), REQUEST_BODY_CONTENT_TYPE));
+        if (explainRequest.getConfig() != null) {
+            request.setEntity(createEntity(explainRequest.getConfig(), REQUEST_BODY_CONTENT_TYPE));
         }
         return request;
     }

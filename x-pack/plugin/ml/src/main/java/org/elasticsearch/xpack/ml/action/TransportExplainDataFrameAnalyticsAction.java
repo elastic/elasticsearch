@@ -17,10 +17,10 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.DataFrameAnalyticsInfoAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.dataframe.info.FieldSelection;
-import org.elasticsearch.xpack.core.ml.dataframe.info.MemoryEstimation;
+import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.xpack.core.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
@@ -34,11 +34,11 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Retrieves info for the given data frame analytics spec.
+ * Provides explanations on aspects of the given data frame analytics spec like memory estimation, field selection, etc.
  * Redirects to a different node if the current node is *not* an ML node.
  */
-public class TransportDataFrameAnalyticsInfoAction
-    extends HandledTransportAction<PutDataFrameAnalyticsAction.Request, DataFrameAnalyticsInfoAction.Response> {
+public class TransportExplainDataFrameAnalyticsAction
+    extends HandledTransportAction<PutDataFrameAnalyticsAction.Request, ExplainDataFrameAnalyticsAction.Response> {
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -46,12 +46,12 @@ public class TransportDataFrameAnalyticsInfoAction
     private final MemoryUsageEstimationProcessManager processManager;
 
     @Inject
-    public TransportDataFrameAnalyticsInfoAction(TransportService transportService,
-                                                 ActionFilters actionFilters,
-                                                 ClusterService clusterService,
-                                                 NodeClient client,
-                                                 MemoryUsageEstimationProcessManager processManager) {
-        super(DataFrameAnalyticsInfoAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
+    public TransportExplainDataFrameAnalyticsAction(TransportService transportService,
+                                                    ActionFilters actionFilters,
+                                                    ClusterService clusterService,
+                                                    NodeClient client,
+                                                    MemoryUsageEstimationProcessManager processManager) {
+        super(ExplainDataFrameAnalyticsAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
         this.transportService = transportService;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
@@ -61,32 +61,32 @@ public class TransportDataFrameAnalyticsInfoAction
     @Override
     protected void doExecute(Task task,
                              PutDataFrameAnalyticsAction.Request request,
-                             ActionListener<DataFrameAnalyticsInfoAction.Response> listener) {
+                             ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         DiscoveryNode localNode = clusterService.localNode();
         if (MachineLearning.isMlNode(localNode)) {
-            collectInfo(task, request, listener);
+            explain(task, request, listener);
         } else {
             redirectToMlNode(request, listener);
         }
     }
 
-    private void collectInfo(Task task, PutDataFrameAnalyticsAction.Request request,
-                             ActionListener<DataFrameAnalyticsInfoAction.Response> listener) {
+    private void explain(Task task, PutDataFrameAnalyticsAction.Request request,
+                         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(client);
         extractedFieldsDetectorFactory.createFromSource(request.getConfig(), true, ActionListener.wrap(
             extractedFieldsDetector -> {
-                collectInfo(task, request, extractedFieldsDetector, listener);
+                explain(task, request, extractedFieldsDetector, listener);
             },
             listener::onFailure
         ));
     }
 
-    private void collectInfo(Task task, PutDataFrameAnalyticsAction.Request request, ExtractedFieldsDetector extractedFieldsDetector,
-                             ActionListener<DataFrameAnalyticsInfoAction.Response> listener) {
+    private void explain(Task task, PutDataFrameAnalyticsAction.Request request, ExtractedFieldsDetector extractedFieldsDetector,
+                         ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
         ActionListener<MemoryEstimation> memoryEstimationListener = ActionListener.wrap(
-            memoryEstimation -> listener.onResponse(new DataFrameAnalyticsInfoAction.Response(fieldExtraction.v2(), memoryEstimation)),
+            memoryEstimation -> listener.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), memoryEstimation)),
             listener::onFailure
         );
 
@@ -121,11 +121,11 @@ public class TransportDataFrameAnalyticsInfoAction
      * Finds the first available ML node in the cluster and redirects the request to this node.
      */
     private void redirectToMlNode(PutDataFrameAnalyticsAction.Request request,
-                                  ActionListener<DataFrameAnalyticsInfoAction.Response> listener) {
+                                  ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         Optional<DiscoveryNode> node = findMlNode(clusterService.state());
         if (node.isPresent()) {
-            transportService.sendRequest(
-                node.get(), actionName, request, new ActionListenerResponseHandler<>(listener, DataFrameAnalyticsInfoAction.Response::new));
+            transportService.sendRequest(node.get(), actionName, request,
+                new ActionListenerResponseHandler<>(listener, ExplainDataFrameAnalyticsAction.Response::new));
         } else {
             listener.onFailure(ExceptionsHelper.badRequestException("No ML node to run on"));
         }

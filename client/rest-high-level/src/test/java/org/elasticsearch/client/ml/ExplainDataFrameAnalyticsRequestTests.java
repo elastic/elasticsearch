@@ -26,10 +26,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataFrameAnalyticsInfoRequestTests extends ESTestCase {
+public class ExplainDataFrameAnalyticsRequestTests extends ESTestCase {
 
     public void testIdConstructor() {
-        DataFrameAnalyticsInfoRequest request = new DataFrameAnalyticsInfoRequest("foo");
+        ExplainDataFrameAnalyticsRequest request = new ExplainDataFrameAnalyticsRequest("foo");
         assertThat(request.getId(), equalTo("foo"));
         assertThat(request.getConfig(), is(nullValue()));
     }
@@ -37,7 +37,7 @@ public class DataFrameAnalyticsInfoRequestTests extends ESTestCase {
     public void testConfigConstructor() {
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.randomDataFrameAnalyticsConfig();
 
-        DataFrameAnalyticsInfoRequest request = new DataFrameAnalyticsInfoRequest(config);
+        ExplainDataFrameAnalyticsRequest request = new ExplainDataFrameAnalyticsRequest(config);
         assertThat(request.getId(), is(nullValue()));
         assertThat(request.getConfig(), equalTo(config));
     }

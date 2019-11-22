@@ -22,8 +22,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
-import org.elasticsearch.client.ml.DataFrameAnalyticsInfoRequest;
-import org.elasticsearch.client.ml.DataFrameAnalyticsInfoResponse;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -2250,46 +2250,46 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Retrieves info about the given Data Frame Analytics
+     * Explains the given Data Frame Analytics
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/dfanalytics-info.html">
-     *     Data Frame Analytics Info documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/explain-dfanalytics.html">
+     *     Explain Data Frame Analytics documentation</a>
      *
-     * @param request The {@link DataFrameAnalyticsInfoRequest}
+     * @param request The {@link ExplainDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return {@link DataFrameAnalyticsInfoResponse} response object
+     * @return {@link ExplainDataFrameAnalyticsResponse} response object
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public DataFrameAnalyticsInfoResponse dataFrameAnalyticsInfo(DataFrameAnalyticsInfoRequest request,
-                                                                 RequestOptions options) throws IOException {
+    public ExplainDataFrameAnalyticsResponse explainDataFrameAnalytics(ExplainDataFrameAnalyticsRequest request,
+                                                                       RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
-            MLRequestConverters::dataFrameAnalyticsInfo,
+            MLRequestConverters::explainDataFrameAnalytics,
             options,
-            DataFrameAnalyticsInfoResponse::fromXContent,
+            ExplainDataFrameAnalyticsResponse::fromXContent,
             Collections.emptySet());
     }
 
     /**
-     * Retrieves info about the given Data Frame Analytics asynchronously and notifies listener upon completion
+     * Explains the given Data Frame Analytics asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/dfanalytics-info.html">
-     *     Data Frame Analytics Info documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/explain-dfanalytics.html">
+     *     Explain Data Frame Analytics documentation</a>
      *
-     * @param request The {@link DataFrameAnalyticsInfoRequest}
+     * @param request The {@link ExplainDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable dataFrameAnalyticsInfoAsync(DataFrameAnalyticsInfoRequest request, RequestOptions options,
-                                                ActionListener<DataFrameAnalyticsInfoResponse> listener) {
+    public Cancellable explainDataFrameAnalyticsAsync(ExplainDataFrameAnalyticsRequest request, RequestOptions options,
+                                                      ActionListener<ExplainDataFrameAnalyticsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
-            MLRequestConverters::dataFrameAnalyticsInfo,
+            MLRequestConverters::explainDataFrameAnalytics,
             options,
-            DataFrameAnalyticsInfoResponse::fromXContent,
+            ExplainDataFrameAnalyticsResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

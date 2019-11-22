@@ -13,25 +13,25 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.dataframe.info.FieldSelection;
-import org.elasticsearch.xpack.core.ml.dataframe.info.MemoryEstimation;
+import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.xpack.core.ml.dataframe.explain.MemoryEstimation;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class DataFrameAnalyticsInfoAction extends ActionType<DataFrameAnalyticsInfoAction.Response> {
+public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrameAnalyticsAction.Response> {
 
-    public static final DataFrameAnalyticsInfoAction INSTANCE = new DataFrameAnalyticsInfoAction();
-    public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/info";
+    public static final ExplainDataFrameAnalyticsAction INSTANCE = new ExplainDataFrameAnalyticsAction();
+    public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/explain";
 
-    private DataFrameAnalyticsInfoAction() {
-        super(NAME, DataFrameAnalyticsInfoAction.Response::new);
+    private ExplainDataFrameAnalyticsAction() {
+        super(NAME, ExplainDataFrameAnalyticsAction.Response::new);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        public static final ParseField TYPE = new ParseField("data_frame_analytics_info_response");
+        public static final ParseField TYPE = new ParseField("explain_data_frame_analytics_response");
 
         public static final ParseField FIELD_SELECTION = new ParseField("field_selection");
         public static final ParseField MEMORY_ESTIMATION = new ParseField("memory_estimation");

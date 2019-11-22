@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.DataFrameAnalyticsInfoAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -193,9 +193,9 @@ public class TransportStartDataFrameAnalyticsAction
         final String jobId = startContext.config.getId();
 
         // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-        ActionListener<DataFrameAnalyticsInfoAction.Response> infoListener = ActionListener.wrap(
-            infoResponse -> {
-                ByteSizeValue expectedMemoryWithoutDisk = infoResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk();
+        ActionListener<ExplainDataFrameAnalyticsAction.Response> explainListener = ActionListener.wrap(
+            explainResponse -> {
+                ByteSizeValue expectedMemoryWithoutDisk = explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk();
                 auditor.info(jobId,
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE, expectedMemoryWithoutDisk));
                 // Validate that model memory limit is sufficient to run the analysis
@@ -216,13 +216,13 @@ public class TransportStartDataFrameAnalyticsAction
             listener::onFailure
         );
 
-        PutDataFrameAnalyticsAction.Request infoRequest = new PutDataFrameAnalyticsAction.Request(startContext.config);
+        PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(startContext.config);
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.ML_ORIGIN,
-            DataFrameAnalyticsInfoAction.INSTANCE,
-            infoRequest,
-            infoListener);
+            ExplainDataFrameAnalyticsAction.INSTANCE,
+            explainRequest,
+            explainListener);
 
     }
 

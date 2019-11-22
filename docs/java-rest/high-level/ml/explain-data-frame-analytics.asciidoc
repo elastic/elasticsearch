@@ -1,23 +1,21 @@
 --
-:api: data-frame-analytics-info
-:request: DataFrameAnalyticsInfoRequest
-:response: DataFrameAnalyticsInfoResponse
+:api: explain-data-frame-analytics
+:request: ExplainDataFrameAnalyticsRequest
+:response: ExplainDataFrameAnalyticsResponse
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Data frame analytics info API
+=== Explain {dfanalytics}} API
 
-Retrieves info about a {dataframe-analytics-config}.
+Explains the following about a {dataframe-analytics-config}:
 
-Info includes:
-
-* field selection which explains which fields are included or not in the analysis
-* memory estimation that can be used when deciding the appropriate value for `model_memory_limit` setting later on
+* field selection: which fields are included or not in the analysis
+* memory estimation: how much memory is estimated to be required. The estimate can be used when deciding the appropriate value for `model_memory_limit` setting later on.
 
 The API accepts an +{request}+ object and returns an +{response}+.
 
 [id="{upid}-{api}-request"]
-==== {dfanalytics} info request
+==== Explain {dfanalytics} request
 
 The request can be constructed with the id of an existing {dfanalytics-job}.
 
@@ -25,15 +23,15 @@ The request can be constructed with the id of an existing {dfanalytics-job}.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-id-request]
 --------------------------------------------------
-<1> Constructing a new request with the id of an existing {dfanalytics-job} to retrieve info for
+<1> Constructing a new request with the id of an existing {dfanalytics-job}
 
-It can also be constructed with a {dataframe-analytics-config} in order to retrieve info before creating it.
+It can also be constructed with a {dataframe-analytics-config} to explain it before creating it.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-config-request]
 --------------------------------------------------
-<1> Constructing a new request containing a {dataframe-analytics-config} to retrieve info for it before creating it.
+<1> Constructing a new request containing a {dataframe-analytics-config}
 
 include::../execution.asciidoc[]
 

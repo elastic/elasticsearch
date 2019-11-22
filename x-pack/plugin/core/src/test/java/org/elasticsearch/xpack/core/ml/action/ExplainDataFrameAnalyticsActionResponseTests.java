@@ -8,17 +8,17 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.DataFrameAnalyticsInfoAction.Response;
-import org.elasticsearch.xpack.core.ml.dataframe.info.FieldSelection;
-import org.elasticsearch.xpack.core.ml.dataframe.info.FieldSelectionTests;
-import org.elasticsearch.xpack.core.ml.dataframe.info.MemoryEstimation;
-import org.elasticsearch.xpack.core.ml.dataframe.info.MemoryEstimationTests;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction.Response;
+import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelectionTests;
+import org.elasticsearch.xpack.core.ml.dataframe.explain.MemoryEstimation;
+import org.elasticsearch.xpack.core.ml.dataframe.explain.MemoryEstimationTests;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
-public class DataFrameAnalyticsInfoActionResponseTests extends AbstractSerializingTestCase<Response> {
+public class ExplainDataFrameAnalyticsActionResponseTests extends AbstractSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {

@@ -32,8 +32,8 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
-import org.elasticsearch.client.ml.DataFrameAnalyticsInfoRequest;
-import org.elasticsearch.client.ml.DataFrameAnalyticsInfoResponse;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -141,8 +141,8 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Binar
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
-import org.elasticsearch.client.ml.dataframe.info.FieldSelection;
-import org.elasticsearch.client.ml.dataframe.info.MemoryEstimation;
+import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
@@ -1969,8 +1969,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
     }
 
-    public void testDataFrameAnalyticsInfo() throws IOException {
-        String indexName = "df-info-test-index";
+    public void testExplainDataFrameAnalytics() throws IOException {
+        String indexName = "explain-df-test-index";
         createIndex(indexName, mappingForSoftClassification());
         BulkRequest bulk1 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1980,8 +1980,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().bulk(bulk1, RequestOptions.DEFAULT);
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        DataFrameAnalyticsInfoRequest infoRequest =
-            new DataFrameAnalyticsInfoRequest(
+        ExplainDataFrameAnalyticsRequest explainRequest =
+            new ExplainDataFrameAnalyticsRequest(
                 DataFrameAnalyticsConfig.builder()
                     .setSource(DataFrameAnalyticsSource.builder().setIndex(indexName).build())
                     .setAnalysis(OutlierDetection.createDefault())
@@ -1992,8 +1992,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         ByteSizeValue upperBound = new ByteSizeValue(1, ByteSizeUnit.GB);
 
         // Data Frame has 10 rows, expect that the returned estimates fall within (1kB, 1GB) range.
-        DataFrameAnalyticsInfoResponse response1 =
-            execute(infoRequest, machineLearningClient::dataFrameAnalyticsInfo, machineLearningClient::dataFrameAnalyticsInfoAsync);
+        ExplainDataFrameAnalyticsResponse response1 = execute(explainRequest, machineLearningClient::explainDataFrameAnalytics,
+            machineLearningClient::explainDataFrameAnalyticsAsync);
 
         MemoryEstimation memoryEstimation1 = response1.getMemoryEstimation();
         assertThat(memoryEstimation1.getExpectedMemoryWithoutDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
@@ -2011,9 +2011,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().bulk(bulk2, RequestOptions.DEFAULT);
 
         // Data Frame now has 100 rows, expect that the returned estimates will be greater than or equal to the previous ones.
-        DataFrameAnalyticsInfoResponse response2 =
+        ExplainDataFrameAnalyticsResponse response2 =
             execute(
-                infoRequest, machineLearningClient::dataFrameAnalyticsInfo, machineLearningClient::dataFrameAnalyticsInfoAsync);
+                explainRequest, machineLearningClient::explainDataFrameAnalytics, machineLearningClient::explainDataFrameAnalyticsAsync);
         MemoryEstimation memoryEstimation2 = response2.getMemoryEstimation();
         assertThat(
             memoryEstimation2.getExpectedMemoryWithoutDisk(),

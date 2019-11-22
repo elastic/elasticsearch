@@ -416,11 +416,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
 
         /**
-         * Builds {@link DataFrameAnalyticsConfig} object for the purpose of retrieving info for a job that has not been created yet.
+         * Builds {@link DataFrameAnalyticsConfig} object for the purpose of explaining a job that has not been created yet.
          * Some fields (i.e. "id", "dest") may not be present, therefore we overwrite them here to make {@link DataFrameAnalyticsConfig}'s
          * constructor validations happy.
          */
-        public DataFrameAnalyticsConfig buildForInfo() {
+        public DataFrameAnalyticsConfig buildForExplain() {
             return new DataFrameAnalyticsConfig(
                 id != null ? id : "dummy",
                 description,

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.info;
+package org.elasticsearch.client.ml.dataframe.explain;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;

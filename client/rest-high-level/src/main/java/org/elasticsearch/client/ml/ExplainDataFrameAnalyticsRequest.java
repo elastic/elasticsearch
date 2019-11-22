@@ -25,24 +25,23 @@ import org.elasticsearch.common.Nullable;
 import java.util.Objects;
 
 /**
- * Request to retrieve info about a data frame analytics job
- * There is info about:
+ * Request to explain the following about a data frame analytics job:
  * <ul>
- *     <li>field selection: an explanation of which fields are included or are not in the analysis</li>
+ *     <li>field selection: which fields are included or are not in the analysis</li>
  *     <li>memory estimation: how much memory the job is estimated to require</li>
  * </ul>
  */
-public class DataFrameAnalyticsInfoRequest implements Validatable {
+public class ExplainDataFrameAnalyticsRequest implements Validatable {
 
     private final String id;
     private final DataFrameAnalyticsConfig config;
 
-    public DataFrameAnalyticsInfoRequest(String id) {
+    public ExplainDataFrameAnalyticsRequest(String id) {
         this.id = Objects.requireNonNull(id);
         this.config = null;
     }
 
-    public DataFrameAnalyticsInfoRequest(DataFrameAnalyticsConfig config) {
+    public ExplainDataFrameAnalyticsRequest(DataFrameAnalyticsConfig config) {
         this.id = null;
         this.config = Objects.requireNonNull(config);
     }
@@ -62,7 +61,7 @@ public class DataFrameAnalyticsInfoRequest implements Validatable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        DataFrameAnalyticsInfoRequest other = (DataFrameAnalyticsInfoRequest) o;
+        ExplainDataFrameAnalyticsRequest other = (ExplainDataFrameAnalyticsRequest) o;
         return Objects.equals(id, other.id) && Objects.equals(config, other.config);
     }
 

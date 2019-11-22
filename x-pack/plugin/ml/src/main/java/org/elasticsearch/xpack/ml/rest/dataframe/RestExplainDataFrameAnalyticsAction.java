@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.ml.action.DataFrameAnalyticsInfoAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -23,20 +23,20 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class RestDataFrameAnalyticsInfoAction extends BaseRestHandler {
+public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
 
-    public RestDataFrameAnalyticsInfoAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "data_frame/analytics/_info", this);
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "data_frame/analytics/_info", this);
+    public RestExplainDataFrameAnalyticsAction(RestController controller) {
+        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "data_frame/analytics/_explain", this);
+        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "data_frame/analytics/_explain", this);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "data_frame/analytics/{"
-            + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_info", this);
+            + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain", this);
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "data_frame/analytics/{"
-            + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_info", this);
+            + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_explain", this);
     }
 
     @Override
     public String getName() {
-        return "ml_data_frame_analytics_info_action";
+        return "ml_explain_data_frame_analytics_action";
     }
 
     @Override
@@ -54,14 +54,14 @@ public class RestDataFrameAnalyticsInfoAction extends BaseRestHandler {
         }
 
         // We need to consume the body before returning
-        PutDataFrameAnalyticsAction.Request infoRequestFromBody = Strings.isNullOrEmpty(jobId) ?
-            PutDataFrameAnalyticsAction.Request.parseRequestForInfo(restRequest.contentOrSourceParamParser()) : null;
+        PutDataFrameAnalyticsAction.Request explainRequestFromBody = Strings.isNullOrEmpty(jobId) ?
+            PutDataFrameAnalyticsAction.Request.parseRequestForExplain(restRequest.contentOrSourceParamParser()) : null;
 
         return channel -> {
-            RestToXContentListener<DataFrameAnalyticsInfoAction.Response> listener = new RestToXContentListener<>(channel);
+            RestToXContentListener<ExplainDataFrameAnalyticsAction.Response> listener = new RestToXContentListener<>(channel);
 
-            if (infoRequestFromBody != null) {
-                client.execute(DataFrameAnalyticsInfoAction.INSTANCE, infoRequestFromBody, listener);
+            if (explainRequestFromBody != null) {
+                client.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequestFromBody, listener);
             } else {
                 GetDataFrameAnalyticsAction.Request getRequest = new GetDataFrameAnalyticsAction.Request(jobId);
                 getRequest.setAllowNoResources(false);
@@ -72,8 +72,8 @@ public class RestDataFrameAnalyticsInfoAction extends BaseRestHandler {
                             listener.onFailure(ExceptionsHelper.badRequestException("expected only one config but matched {}",
                                 jobs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList())));
                         } else {
-                            PutDataFrameAnalyticsAction.Request infoRequest = new PutDataFrameAnalyticsAction.Request(jobs.get(0));
-                            client.execute(DataFrameAnalyticsInfoAction.INSTANCE, infoRequest, listener);
+                            PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(jobs.get(0));
+                            client.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequest, listener);
                         }
                     },
                     listener::onFailure

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.dataframe.info.FieldSelection;
-import org.elasticsearch.client.ml.dataframe.info.MemoryEstimation;
+import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -30,22 +30,22 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class DataFrameAnalyticsInfoResponse implements ToXContentObject {
+public class ExplainDataFrameAnalyticsResponse implements ToXContentObject {
 
-    public static final ParseField TYPE = new ParseField("data_frame_analytics_info_response");
+    public static final ParseField TYPE = new ParseField("explain_data_frame_analytics_response");
 
     public static final ParseField FIELD_SELECTION = new ParseField("field_selection");
     public static final ParseField MEMORY_ESTIMATION = new ParseField("memory_estimation");
 
-    public static DataFrameAnalyticsInfoResponse fromXContent(XContentParser parser) throws IOException {
+    public static ExplainDataFrameAnalyticsResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<DataFrameAnalyticsInfoResponse, Void> PARSER =
+    static final ConstructingObjectParser<ExplainDataFrameAnalyticsResponse, Void> PARSER =
         new ConstructingObjectParser<>(
             TYPE.getPreferredName(), true,
-            args -> new DataFrameAnalyticsInfoResponse((List<FieldSelection>) args[0], (MemoryEstimation) args[1]));
+            args -> new ExplainDataFrameAnalyticsResponse((List<FieldSelection>) args[0], (MemoryEstimation) args[1]));
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FieldSelection.PARSER, FIELD_SELECTION);
@@ -55,7 +55,7 @@ public class DataFrameAnalyticsInfoResponse implements ToXContentObject {
     private final List<FieldSelection> fieldSelection;
     private final MemoryEstimation memoryEstimation;
 
-    public DataFrameAnalyticsInfoResponse(List<FieldSelection> fieldSelection, MemoryEstimation memoryEstimation) {
+    public ExplainDataFrameAnalyticsResponse(List<FieldSelection> fieldSelection, MemoryEstimation memoryEstimation) {
         this.fieldSelection = Objects.requireNonNull(fieldSelection);
         this.memoryEstimation = Objects.requireNonNull(memoryEstimation);
     }
@@ -74,7 +74,7 @@ public class DataFrameAnalyticsInfoResponse implements ToXContentObject {
         if (this == other) return true;
         if (other == null || getClass() != other.getClass()) return false;
 
-        DataFrameAnalyticsInfoResponse that = (DataFrameAnalyticsInfoResponse) other;
+        ExplainDataFrameAnalyticsResponse that = (ExplainDataFrameAnalyticsResponse) other;
         return Objects.equals(fieldSelection, that.fieldSelection)
             && Objects.equals(memoryEstimation, that.memoryEstimation);
     }

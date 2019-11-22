@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.dataframe.info.FieldSelection;
-import org.elasticsearch.client.ml.dataframe.info.FieldSelectionTests;
-import org.elasticsearch.client.ml.dataframe.info.MemoryEstimation;
-import org.elasticsearch.client.ml.dataframe.info.MemoryEstimationTests;
+import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.client.ml.dataframe.explain.FieldSelectionTests;
+import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
+import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimationTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -30,21 +30,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
-public class DataFrameAnalyticsInfoResponseTests extends AbstractXContentTestCase<DataFrameAnalyticsInfoResponse> {
+public class ExplainDataFrameAnalyticsResponseTests extends AbstractXContentTestCase<ExplainDataFrameAnalyticsResponse> {
 
     @Override
-    protected DataFrameAnalyticsInfoResponse createTestInstance() {
+    protected ExplainDataFrameAnalyticsResponse createTestInstance() {
         int fieldSelectionCount = randomIntBetween(1, 5);
         List<FieldSelection> fieldSelection = new ArrayList<>(fieldSelectionCount);
         IntStream.of(fieldSelectionCount).forEach(i -> fieldSelection.add(FieldSelectionTests.createRandom()));
         MemoryEstimation memoryEstimation = MemoryEstimationTests.createRandom();
 
-        return new DataFrameAnalyticsInfoResponse(fieldSelection, memoryEstimation);
+        return new ExplainDataFrameAnalyticsResponse(fieldSelection, memoryEstimation);
     }
 
     @Override
-    protected DataFrameAnalyticsInfoResponse doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameAnalyticsInfoResponse.fromXContent(parser);
+    protected ExplainDataFrameAnalyticsResponse doParseInstance(XContentParser parser) throws IOException {
+        return ExplainDataFrameAnalyticsResponse.fromXContent(parser);
     }
 
     @Override

@@ -36,8 +36,8 @@ import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
-import org.elasticsearch.client.ml.DataFrameAnalyticsInfoRequest;
-import org.elasticsearch.client.ml.DataFrameAnalyticsInfoResponse;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -156,8 +156,8 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Confu
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric.ConfusionMatrix;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
-import org.elasticsearch.client.ml.dataframe.info.FieldSelection;
-import org.elasticsearch.client.ml.dataframe.info.MemoryEstimation;
+import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
@@ -3464,10 +3464,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testDataFrameAnalyticsInfo() throws Exception {
-        createIndex("df-info-test-source-index");
+    public void testExplainDataFrameAnalytics() throws Exception {
+        createIndex("explain-df-test-source-index");
         BulkRequest bulkRequest =
-            new BulkRequest("df-info-test-source-index")
+            new BulkRequest("explain-df-test-source-index")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; ++i) {
             bulkRequest.add(new IndexRequest().source(XContentType.JSON, "timestamp", 123456789L, "total", 10L));
@@ -3475,26 +3475,27 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
         {
-            // tag::data-frame-analytics-info-id-request
-            DataFrameAnalyticsInfoRequest request = new DataFrameAnalyticsInfoRequest("existing_job_id"); // <1>
-            // end::data-frame-analytics-info-id-request
+            // tag::explain-data-frame-analytics-id-request
+            ExplainDataFrameAnalyticsRequest request = new ExplainDataFrameAnalyticsRequest("existing_job_id"); // <1>
+            // end::explain-data-frame-analytics-id-request
 
-            // tag::data-frame-analytics-info-config-request
+            // tag::explain-data-frame-analytics-config-request
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
-                .setSource(DataFrameAnalyticsSource.builder().setIndex("df-info-test-source-index").build())
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("explain-df-test-source-index").build())
                 .setAnalysis(OutlierDetection.createDefault())
                 .build();
-            request = new DataFrameAnalyticsInfoRequest(config); // <1>
-            // end::data-frame-analytics-info-config-request
+            request = new ExplainDataFrameAnalyticsRequest(config); // <1>
+            // end::explain-data-frame-analytics-config-request
 
-            // tag::data-frame-analytics-info-execute
-            DataFrameAnalyticsInfoResponse response = client.machineLearning().dataFrameAnalyticsInfo(request, RequestOptions.DEFAULT);
-            // end::data-frame-analytics-info-execute
+            // tag::explain-data-frame-analytics-execute
+            ExplainDataFrameAnalyticsResponse response = client.machineLearning().explainDataFrameAnalytics(request,
+                RequestOptions.DEFAULT);
+            // end::explain-data-frame-analytics-execute
 
-            // tag::data-frame-analytics-info-response
+            // tag::explain-data-frame-analytics-response
             List<FieldSelection> fieldSelection = response.getFieldSelection(); // <1>
             MemoryEstimation memoryEstimation = response.getMemoryEstimation(); // <2>
-            // end::data-frame-analytics-info-response
+            // end::explain-data-frame-analytics-response
 
             assertThat(fieldSelection.size(), equalTo(2));
             assertThat(fieldSelection.stream().map(FieldSelection::getName).collect(Collectors.toList()), contains("timestamp", "total"));
@@ -3510,14 +3511,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
-                .setSource(DataFrameAnalyticsSource.builder().setIndex("df-info-test-source-index").build())
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("explain-df-test-source-index").build())
                 .setAnalysis(OutlierDetection.createDefault())
                 .build();
-            DataFrameAnalyticsInfoRequest request = new DataFrameAnalyticsInfoRequest(config);
-            // tag::estimate-memory-usage-execute-listener
-            ActionListener<DataFrameAnalyticsInfoResponse> listener = new ActionListener<>() {
+            ExplainDataFrameAnalyticsRequest request = new ExplainDataFrameAnalyticsRequest(config);
+            // tag::explain-data-frame-analytics-execute-listener
+            ActionListener<ExplainDataFrameAnalyticsResponse> listener = new ActionListener<>() {
                 @Override
-                public void onResponse(DataFrameAnalyticsInfoResponse response) {
+                public void onResponse(ExplainDataFrameAnalyticsResponse response) {
                     // <1>
                 }
 
@@ -3526,15 +3527,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::estimate-memory-usage-execute-listener
+            // end::explain-data-frame-analytics-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::estimate-memory-usage-execute-async
-            client.machineLearning().dataFrameAnalyticsInfoAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::estimate-memory-usage-execute-async
+            // tag::explain-data-frame-analytics-execute-async
+            client.machineLearning().explainDataFrameAnalyticsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::explain-data-frame-analytics-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

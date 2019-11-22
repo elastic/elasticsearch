@@ -12,7 +12,7 @@ You can use the following APIs to perform {ml} {dfanalytics} activities.
 * <<start-dfanalytics,Start {dfanalytics-jobs}>>
 * <<stop-dfanalytics,Stop {dfanalytics-jobs}>>
 * <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
-* <<dfanalytics-info,{dfanalytics} info>>
+* <<explain-dfanalytics,Explain {dfanalytics}>>
 
 See also <<ml-apis>>.
 
@@ -23,7 +23,7 @@ include::delete-dfanalytics.asciidoc[]
 //EVALUATE
 include::evaluate-dfanalytics.asciidoc[]
 //ESTIMATE_MEMORY_USAGE
-include::dfanalytics-info.asciidoc[]
+include::explain-dfanalytics.asciidoc[]
 //GET
 include::get-dfanalytics.asciidoc[]
 include::get-dfanalytics-stats.asciidoc[]

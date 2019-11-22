@@ -121,7 +121,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         if (secureSettings != null) {
             secureSettings.close();
         }
-        HttpExporterTests.initializeXpackPlugin();
+        logger.info("Initialized XPackPlugin with new instance: " + HttpExporterTests.initializeXpackPlugin());
     }
 
     public void testCannotUpdateSslSettingsWithSecureSettings() throws Exception {

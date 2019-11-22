@@ -1,17 +1,4 @@
 ---
-setup:
-  - do:
-      indices.create:
-        index: index-source
-        body:
-          mappings:
-            properties:
-              x:
-                type: float
-              y:
-                type: float
-
----
 "Test neither job id nor body":
   - do:
       catch: /Please provide a job \[id\] or the config object/
@@ -37,6 +24,10 @@ setup:
 
 ---
 "Test id that matches multiple jobs":
+
+  - do:
+      indices.create:
+        index: index-source
 
   - do:
       ml.put_data_frame_analytics:
@@ -73,6 +64,18 @@ setup:
 
 ---
 "Test empty data frame given body":
+
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              x:
+                type: float
+              y:
+                type: float
+
   - do:
       catch: /Unable to estimate memory usage as no documents in the source indices \[index-source\] contained all the fields selected for analysis/
       ml.explain_data_frame_analytics:
@@ -98,6 +101,18 @@ setup:
 
 ---
 "Test non-empty data frame given body":
+
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              x:
+                type: float
+              y:
+                type: float
+
   - do:
       index:
         index: index-source
@@ -161,7 +176,7 @@ setup:
 
   - do:
       indices.create:
-        index: more-complex-index-source
+        index: index-source
         body:
           mappings:
             properties:
@@ -174,7 +189,7 @@ setup:
 
   - do:
       index:
-        index: more-complex-index-source
+        index: index-source
         refresh: true
         body: { field_1: 3, field_2: 3.14, field_3: "2019-11-11T00:00:00", field_4: "blah" }
   - match: { result: "created" }
@@ -182,7 +197,7 @@ setup:
   - do:
       ml.explain_data_frame_analytics:
         body:
-          source: { index: "more-complex-index-source" }
+          source: { index: "index-source" }
           analysis: { regression: { dependent_variable: "field_1" } }
   - is_true: memory_estimation.expected_memory_without_disk
   - is_true: memory_estimation.expected_memory_with_disk
@@ -223,7 +238,7 @@ setup:
 
   - do:
       indices.create:
-        index: more-complex-index-source
+        index: index-source
         body:
           mappings:
             properties:
@@ -236,7 +251,7 @@ setup:
 
   - do:
       index:
-        index: more-complex-index-source
+        index: index-source
         refresh: true
         body: { field_1: 3, field_2: 3.14, field_3: "2019-11-11T00:00:00", field_4: "blah" }
   - match: { result: "created" }
@@ -247,7 +262,7 @@ setup:
         body: >
           {
             "source": {
-              "index": "more-complex-index-source"
+              "index": "index-source"
             },
             "dest": {
               "index": "index-dest"

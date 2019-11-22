@@ -29,7 +29,7 @@ order, and the total amount of ordered products for each customer.
 
 [source,console]
 ----------------------------------
-POST _data_frame/transforms/_preview
+POST _transform/_preview
 {
   "source": {
     "index": "kibana_sample_data_ecommerce"
@@ -115,7 +115,7 @@ to determine what percentage of the flight time was actually delay.
 
 [source,console]
 ----------------------------------
-POST _data_frame/transforms/_preview
+POST _transform/_preview
 {
   "source": {
     "index": "kibana_sample_data_flights",
@@ -207,7 +207,7 @@ entity is `clientip`.
 
 [source,console]
 ----------------------------------
-POST _data_frame/transforms/_preview
+POST _transform/_preview
 {
   "source": {
     "index": "kibana_sample_data_logs",

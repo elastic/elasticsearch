@@ -459,11 +459,11 @@ public class DefOptimizationTests extends ScriptTestCase {
     
     public void testLambdaReturnType() {
         assertBytecodeExists("List l = new ArrayList(); l.removeIf(x -> x < 10)",
-                             "synthetic lambda$0(Ljava/lang/Object;)Z");
+                             "synthetic lambda$synthetic$0(Ljava/lang/Object;)Z");
     }
     
     public void testLambdaArguments() {
         assertBytecodeExists("List l = new ArrayList(); l.stream().mapToDouble(Double::valueOf).map(x -> x + 1)",
-                             "synthetic lambda$0(D)D");
+                             "synthetic lambda$synthetic$0(D)D");
     }
 }

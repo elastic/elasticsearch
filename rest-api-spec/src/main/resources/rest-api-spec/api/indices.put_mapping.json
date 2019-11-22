@@ -8,7 +8,7 @@
     "url":{
       "paths":[
         {
-          "path":"{index}/_mapping",
+          "path":"/{index}/_mapping",
           "methods":[
             "PUT",
             "POST"

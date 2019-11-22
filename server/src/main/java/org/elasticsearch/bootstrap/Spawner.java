@@ -72,13 +72,9 @@ final class Spawner implements Closeable {
         List<Path> paths = PluginsService.findPluginDirs(environment.modulesFile());
         for (final Path modules : paths) {
             final PluginInfo info = PluginInfo.readFromProperties(modules);
-            Path spawnPath = Platforms.nativeControllerPath(modules);
+            final Path spawnPath = Platforms.nativeControllerPath(modules);
             if (!Files.isRegularFile(spawnPath)) {
-                // TODO: remove before release and just continue if the controller is not in the standard place
-                spawnPath = Platforms.fallbackNativeControllerPath(modules);
-                if (spawnPath == null || Files.isRegularFile(spawnPath) == false) {
-                    continue;
-                }
+                continue;
             }
             if (!info.hasNativeController()) {
                 final String message = String.format(

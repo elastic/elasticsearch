@@ -536,14 +536,14 @@ The `params` would look like:
     "params": {
         "text":      "words to search for",
         "line_no": { <1>
-            "start": 10, <1>
-            "end":   20  <1>
+            "start": 10,
+            "end":   20
         }
     }
 }
 ------------------------------------------
 // NOTCONSOLE
-<1> All three of these elements are optional.
+<1> The `line_no`, `start`, and `end` parameters are optional.
 
 
 We could write the query as:
@@ -565,13 +565,13 @@ We could write the query as:
               {{#start}} <3>
                 "gte": "{{start}}" <4>
                 {{#end}},{{/end}} <5>
-              {{/start}} <3>
+              {{/start}}
               {{#end}} <6>
                 "lte": "{{end}}" <7>
-              {{/end}} <6>
+              {{/end}}
             }
           }
-        {{/line_no}} <2>
+        {{/line_no}}
       }
     }
   }

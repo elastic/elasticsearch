@@ -6,21 +6,21 @@
 The {es} {security-features} use the following files:
 
 * `ES_PATH_CONF/roles.yml` defines the roles in use on the cluster. See
-{stack-ov}/defining-roles.html[Defining roles].
+<<defining-roles>>.
 
 * `ES_PATH_CONF/elasticsearch-users` defines the users and their hashed passwords for
-  the `file` realm. See <<configuring-file-realm>>.
+  the `file` realm. See <<file-realm>>.
 
 * `ES_PATH_CONF/elasticsearch-users_roles` defines the user roles assignment for the
-  the `file` realm. See <<configuring-file-realm>>.
+  the `file` realm. See <<file-realm>>.
 
 * `ES_PATH_CONF/role_mapping.yml` defines the role assignments for a
   Distinguished Name (DN) to a role. This allows for LDAP and Active Directory
   groups and users and PKI users to be mapped to roles. See
-  {stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+  <<mapping-roles>>.
 
 * `ES_PATH_CONF/log4j2.properties` contains audit information. See
-{stack-ov}/audit-log-output.html[Logfile audit output].
+<<audit-log-output>>.
 
 [[security-files-location]]
 

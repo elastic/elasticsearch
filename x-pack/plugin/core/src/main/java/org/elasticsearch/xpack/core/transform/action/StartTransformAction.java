@@ -25,7 +25,7 @@ import java.util.Objects;
 public class StartTransformAction extends ActionType<StartTransformAction.Response> {
 
     public static final StartTransformAction INSTANCE = new StartTransformAction();
-    public static final String NAME = "cluster:admin/data_frame/start";
+    public static final String NAME = "cluster:admin/transform/start";
 
     private StartTransformAction() {
         super(NAME, StartTransformAction.Response::new);

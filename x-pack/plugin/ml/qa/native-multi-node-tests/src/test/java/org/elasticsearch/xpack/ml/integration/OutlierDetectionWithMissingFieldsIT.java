@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.junit.After;
 
 import java.util.Map;
@@ -68,11 +68,12 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         }
 
         String id = "test_outlier_detection_with_missing_fields";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, new String[] {sourceIndex}, sourceIndex + "-results", null);
+        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
+            new OutlierDetection.Builder().build());
         registerAnalytics(config);
         putAnalytics(config);
 
-        assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertIsStopped(id);
         assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);

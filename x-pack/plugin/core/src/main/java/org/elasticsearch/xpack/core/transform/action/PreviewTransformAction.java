@@ -23,8 +23,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
 
     public static final PreviewTransformAction INSTANCE = new PreviewTransformAction();
-    public static final String NAME = "cluster:admin/data_frame/preview";
+    public static final String NAME = "cluster:admin/transform/preview";
 
     private PreviewTransformAction() {
         super(NAME, PreviewTransformAction.Response::new);

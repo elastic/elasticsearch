@@ -56,7 +56,7 @@ discovery.type: single-node
 ----
 
 For more information, see
-{ref}/bootstrap-checks.html#single-node-discovery[Single-node discovery].
+<<single-node-discovery>>.
 --
 
 When you enable {es} {security-features}, basic authentication is enabled by
@@ -357,7 +357,7 @@ want to encrypt communications across the {stack}. To learn how, read
 
 For more detailed information about securing the {stack}, see:
 
-* {ref}/configuring-security.html[Configuring security in {es}]. Encrypt 
+* <<configuring-security,Configuring security in {es}>>. Encrypt 
 inter-node communications, set passwords for the built-in users, and manage your 
 users and roles.  
 
@@ -369,8 +369,9 @@ the browser and the {kib} server.
 authentication credentials for Logstash and encrypt communications between 
 Logstash and {es}. 
 
-* <<beats,Configuring security in the Beats>>. Configure authentication 
-credentials and encrypt connections to {es}. 
+* Configuring security in the Beats. Configure authentication 
+credentials and encrypt connections to {es}. For example, see
+{filebeat-ref}/securing-beats.html[Configure {filebeat} to use {security-features}].
 
 * {hadoop-ref}/security.html[Configuring {es} for Apache Hadoop to use secured transport]. 
 

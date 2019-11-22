@@ -20,12 +20,12 @@ import java.io.IOException;
 public class RestPreviewTransformAction extends BaseRestHandler {
 
     public RestPreviewTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH + "transforms/_preview", this);
+        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS + "_preview", this);
     }
 
     @Override
     public String getName() {
-        return "data_frame_preview_transform_action";
+        return "transform_preview_transform_action";
     }
 
     @Override

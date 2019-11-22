@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -48,13 +47,14 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
 
     public void testProcessWithFieldPresent() {
         String field = "categorical";
-        List<String> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote");
-        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Function.identity(),
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.5);
+        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
             v -> randomDoubleBetween(0.0, 1.0, false)));
         String encodedFeatureName = "encoded";
         FrequencyEncoding encoding = new FrequencyEncoding(field, encodedFeatureName, valueMap);
-        String fieldValue = randomFrom(values);
-        Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(encodedFeatureName, equalTo(valueMap.get(fieldValue)));
+        Object fieldValue = randomFrom(values);
+        Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(encodedFeatureName,
+            equalTo(valueMap.get(fieldValue.toString())));
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
         testProcess(encoding, fieldValues, matchers);
 

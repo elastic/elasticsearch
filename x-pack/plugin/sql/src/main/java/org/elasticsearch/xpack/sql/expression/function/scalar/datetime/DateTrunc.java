@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -18,9 +18,7 @@ import java.time.temporal.ChronoField;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.BinaryDateTimeProcessor.BinaryDateOperation.TRUNC;
+import java.util.function.UnaryOperator;
 
 public class DateTrunc extends BinaryDateTimeFunction {
 
@@ -34,7 +32,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
                 .with(ChronoField.MONTH_OF_YEAR, 1)
                 .with(ChronoField.DAY_OF_MONTH, 1)
                 .toLocalDate().atStartOfDay(dt.getZone());
-            },"millennia"),
+        },"millennia"),
         CENTURY(dt -> {
             int year = dt.getYear();
             int firstYearOfCentury = year - (year % 100);
@@ -43,7 +41,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
                 .with(ChronoField.MONTH_OF_YEAR, 1)
                 .with(ChronoField.DAY_OF_MONTH, 1)
                 .toLocalDate().atStartOfDay(dt.getZone());
-            }, "centuries"),
+        }, "centuries"),
         DECADE(dt -> {
             int year = dt.getYear();
             int firstYearOfDecade = year - (year % 10);
@@ -52,7 +50,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
                 .with(ChronoField.MONTH_OF_YEAR, 1)
                 .with(ChronoField.DAY_OF_MONTH, 1)
                 .toLocalDate().atStartOfDay(dt.getZone());
-            }, "decades"),
+        }, "decades"),
         YEAR(dt -> dt
             .with(ChronoField.MONTH_OF_YEAR, 1)
             .with(ChronoField.DAY_OF_MONTH, 1)
@@ -65,14 +63,14 @@ public class DateTrunc extends BinaryDateTimeFunction {
                 .with(ChronoField.MONTH_OF_YEAR, firstMonthOfQuarter)
                 .with(ChronoField.DAY_OF_MONTH, 1)
                 .toLocalDate().atStartOfDay(dt.getZone());
-            }, "quarters", "qq", "q"),
+        }, "quarters", "qq", "q"),
         MONTH(dt -> dt
-                .with(ChronoField.DAY_OF_MONTH, 1)
-                .toLocalDate().atStartOfDay(dt.getZone()),
+            .with(ChronoField.DAY_OF_MONTH, 1)
+            .toLocalDate().atStartOfDay(dt.getZone()),
             "months", "mm", "m"),
         WEEK(dt -> dt
-                .with(ChronoField.DAY_OF_WEEK, 1)
-                .toLocalDate().atStartOfDay(dt.getZone()),
+            .with(ChronoField.DAY_OF_WEEK, 1)
+            .toLocalDate().atStartOfDay(dt.getZone()),
             "weeks", "wk", "ww"),
         DAY(dt -> dt.toLocalDate().atStartOfDay(dt.getZone()), "days", "dd", "d"),
         HOUR(dt -> {
@@ -86,16 +84,16 @@ public class DateTrunc extends BinaryDateTimeFunction {
             return dt.toLocalDate().atStartOfDay(dt.getZone())
                 .with(ChronoField.HOUR_OF_DAY, hour)
                 .with(ChronoField.MINUTE_OF_HOUR, minute);
-            }, "minutes", "mi", "n"),
+        }, "minutes", "mi", "n"),
         SECOND(dt -> dt.with(ChronoField.NANO_OF_SECOND, 0), "seconds", "ss", "s"),
         MILLISECOND(dt -> {
             int micros = dt.get(ChronoField.MICRO_OF_SECOND);
             return dt.with(ChronoField.MILLI_OF_SECOND, (micros / 1000));
-            }, "milliseconds", "ms"),
+        }, "milliseconds", "ms"),
         MICROSECOND(dt -> {
             int nanos = dt.getNano();
             return dt.with(ChronoField.MICRO_OF_SECOND, (nanos / 1000));
-            }, "microseconds", "mcs"),
+        }, "microseconds", "mcs"),
         NANOSECOND(dt -> dt, "nanoseconds", "ns");
 
         private static final Map<String, Part> NAME_TO_PART;
@@ -106,10 +104,10 @@ public class DateTrunc extends BinaryDateTimeFunction {
             VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
-        private Function<ZonedDateTime, ZonedDateTime> truncateFunction;
+        private UnaryOperator<ZonedDateTime> truncateFunction;
         private Set<String> aliases;
 
-        Part(Function<ZonedDateTime, ZonedDateTime> truncateFunction, String... aliases) {
+        Part(UnaryOperator<ZonedDateTime> truncateFunction, String... aliases) {
             this.truncateFunction = truncateFunction;
             this.aliases = Set.of(aliases);
         }
@@ -133,7 +131,7 @@ public class DateTrunc extends BinaryDateTimeFunction {
     }
 
     public DateTrunc(Source source, Expression truncateTo, Expression timestamp, ZoneId zoneId) {
-        super(source, truncateTo, timestamp, zoneId, TRUNC);
+        super(source, truncateTo, timestamp, zoneId);
     }
 
     @Override
@@ -152,8 +150,18 @@ public class DateTrunc extends BinaryDateTimeFunction {
     }
 
     @Override
-    public Nullability nullable() {
-        return Nullability.TRUE;
+    protected String scriptMethodName() {
+        return "dateTrunc";
+    }
+
+    @Override
+    public Object fold() {
+        return DateTruncProcessor.process(left().fold(), right().fold(), zoneId());
+    }
+
+    @Override
+    protected Pipe createPipe(Pipe truncateTo, Pipe timestamp, ZoneId zoneId) {
+        return new DateTruncPipe(source(), this, truncateTo, timestamp, zoneId);
     }
 
     @Override
@@ -164,16 +172,6 @@ public class DateTrunc extends BinaryDateTimeFunction {
     @Override
     protected List<String> findSimilarDateTimeFields(String dateTimeField) {
         return Part.findSimilar(dateTimeField);
-    }
-
-    @Override
-    protected String scriptMethodName() {
-        return "dateTrunc";
-    }
-
-    @Override
-    public Object fold() {
-        return DateTruncProcessor.process(left().fold(), right().fold(), zoneId());
     }
 
     @Override

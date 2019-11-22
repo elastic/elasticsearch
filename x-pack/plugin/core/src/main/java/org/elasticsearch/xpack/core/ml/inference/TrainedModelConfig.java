@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -12,34 +13,50 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+
 public class TrainedModelConfig implements ToXContentObject, Writeable {
 
-    public static final String NAME = "trained_model_doc";
+    public static final String NAME = "trained_model_config";
+    public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
+    public static final String DECOMPRESS_DEFINITION = "decompress_definition";
+
+    private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField CREATED_BY = new ParseField("created_by");
     public static final ParseField VERSION = new ParseField("version");
     public static final ParseField DESCRIPTION = new ParseField("description");
-    public static final ParseField CREATED_TIME = new ParseField("created_time");
-    public static final ParseField MODEL_VERSION = new ParseField("model_version");
+    public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField DEFINITION = new ParseField("definition");
-    public static final ParseField MODEL_TYPE = new ParseField("model_type");
+    public static final ParseField COMPRESSED_DEFINITION = new ParseField("compressed_definition");
+    public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
+    public static final ParseField INPUT = new ParseField("input");
+    public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
+    public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
+    public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -53,16 +70,23 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         parser.declareString(TrainedModelConfig.Builder::setCreatedBy, CREATED_BY);
         parser.declareString(TrainedModelConfig.Builder::setVersion, VERSION);
         parser.declareString(TrainedModelConfig.Builder::setDescription, DESCRIPTION);
-        parser.declareField(TrainedModelConfig.Builder::setCreatedTime,
-            (p, c) -> TimeUtils.parseTimeFieldToInstant(p, CREATED_TIME.getPreferredName()),
-            CREATED_TIME,
+        parser.declareField(TrainedModelConfig.Builder::setCreateTime,
+            (p, c) -> TimeUtils.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
+            CREATE_TIME,
             ObjectParser.ValueType.VALUE);
-        parser.declareLong(TrainedModelConfig.Builder::setModelVersion, MODEL_VERSION);
-        parser.declareString(TrainedModelConfig.Builder::setModelType, MODEL_TYPE);
+        parser.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         parser.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
-        parser.declareObject(TrainedModelConfig.Builder::setDefinition,
+        parser.declareString((trainedModelConfig, s) -> {}, InferenceIndexConstants.DOC_TYPE);
+        parser.declareObject(TrainedModelConfig.Builder::setInput,
+            (p, c) -> TrainedModelInput.fromXContent(p, ignoreUnknownFields),
+            INPUT);
+        parser.declareLong(TrainedModelConfig.Builder::setEstimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
+        parser.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
+        parser.declareObject(TrainedModelConfig.Builder::setLazyDefinition,
             (p, c) -> TrainedModelDefinition.fromXContent(p, ignoreUnknownFields),
             DEFINITION);
+        parser.declareString(TrainedModelConfig.Builder::setLazyDefinition, COMPRESSED_DEFINITION);
+        parser.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
         return parser;
     }
 
@@ -70,41 +94,51 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return lenient ? LENIENT_PARSER.parse(parser, null) : STRICT_PARSER.parse(parser, null);
     }
 
-    public static String documentId(String modelId, long modelVersion) {
-        return NAME + "-" + modelId + "-" + modelVersion;
-    }
-
-
     private final String modelId;
     private final String createdBy;
     private final Version version;
     private final String description;
-    private final Instant createdTime;
-    private final long modelVersion;
-    private final String modelType;
+    private final Instant createTime;
+    private final List<String> tags;
     private final Map<String, Object> metadata;
-    // TODO how to reference and store large models that will not be executed in Java???
-    // Potentially allow this to be null and have an {index: indexName, doc: model_doc_id} or something
-    // TODO Should this be lazily parsed when loading via the index???
-    private final TrainedModelDefinition definition;
+    private final TrainedModelInput input;
+    private final long estimatedHeapMemory;
+    private final long estimatedOperations;
+    private final License.OperationMode licenseLevel;
+
+    private final LazyModelDefinition definition;
+
     TrainedModelConfig(String modelId,
                        String createdBy,
                        Version version,
                        String description,
-                       Instant createdTime,
-                       Long modelVersion,
-                       String modelType,
-                       TrainedModelDefinition definition,
-                       Map<String, Object> metadata) {
+                       Instant createTime,
+                       LazyModelDefinition definition,
+                       List<String> tags,
+                       Map<String, Object> metadata,
+                       TrainedModelInput input,
+                       Long estimatedHeapMemory,
+                       Long estimatedOperations,
+                       String licenseLevel) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
-        this.createdTime = Instant.ofEpochMilli(ExceptionsHelper.requireNonNull(createdTime, CREATED_TIME).toEpochMilli());
-        this.modelType = ExceptionsHelper.requireNonNull(modelType, MODEL_TYPE);
+        this.createTime = Instant.ofEpochMilli(ExceptionsHelper.requireNonNull(createTime, CREATE_TIME).toEpochMilli());
         this.definition = definition;
         this.description = description;
+        this.tags = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(tags, TAGS));
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
-        this.modelVersion = modelVersion == null ? 0 : modelVersion;
+        this.input = ExceptionsHelper.requireNonNull(input, INPUT);
+        if (ExceptionsHelper.requireNonNull(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES) < 0) {
+            throw new IllegalArgumentException(
+                "[" + ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName() + "] must be greater than or equal to 0");
+        }
+        this.estimatedHeapMemory = estimatedHeapMemory;
+        if (ExceptionsHelper.requireNonNull(estimatedOperations, ESTIMATED_OPERATIONS) < 0) {
+            throw new IllegalArgumentException("[" + ESTIMATED_OPERATIONS.getPreferredName() + "] must be greater than or equal to 0");
+        }
+        this.estimatedOperations = estimatedOperations;
+        this.licenseLevel = License.OperationMode.resolve(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -112,11 +146,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         createdBy = in.readString();
         version = Version.readVersion(in);
         description = in.readOptionalString();
-        createdTime = in.readInstant();
-        modelVersion = in.readVLong();
-        modelType = in.readString();
-        definition = in.readOptionalWriteable(TrainedModelDefinition::new);
+        createTime = in.readInstant();
+        definition = in.readOptionalWriteable(LazyModelDefinition::fromStreamInput);
+        tags = Collections.unmodifiableList(in.readList(StreamInput::readString));
         metadata = in.readMap();
+        input = new TrainedModelInput(in);
+        estimatedHeapMemory = in.readVLong();
+        estimatedOperations = in.readVLong();
+        licenseLevel = License.OperationMode.resolve(in.readString());
     }
 
     public String getModelId() {
@@ -135,16 +172,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return description;
     }
 
-    public Instant getCreatedTime() {
-        return createdTime;
+    public Instant getCreateTime() {
+        return createTime;
     }
 
-    public long getModelVersion() {
-        return modelVersion;
-    }
-
-    public String getModelType() {
-        return modelType;
+    public List<String> getTags() {
+        return tags;
     }
 
     public Map<String, Object> getMetadata() {
@@ -152,12 +185,62 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     }
 
     @Nullable
-    public TrainedModelDefinition getDefinition() {
-        return definition;
+    public String getCompressedDefinition() throws IOException {
+        if (definition == null) {
+            return null;
+        }
+        return definition.getCompressedString();
+    }
+
+    public TrainedModelConfig ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
+        if (definition == null) {
+            return null;
+        }
+        definition.ensureParsedDefinition(xContentRegistry);
+        return this;
+    }
+
+    @Nullable
+    public TrainedModelDefinition getModelDefinition() {
+        if (definition == null) {
+            return null;
+        }
+        return definition.parsedDefinition;
+    }
+
+    public TrainedModelInput getInput() {
+        return input;
     }
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    public long getEstimatedHeapMemory() {
+        return estimatedHeapMemory;
+    }
+
+    public long getEstimatedOperations() {
+        return estimatedOperations;
+    }
+
+    public License.OperationMode getLicenseLevel() {
+        return licenseLevel;
+    }
+
+    public boolean isAvailableWithLicense(XPackLicenseState licenseState) {
+        // Basic is always true
+        if (licenseLevel.equals(License.OperationMode.BASIC)) {
+            return true;
+        }
+
+        // The model license does not matter, this is the highest licensed level
+        if (licenseState.isActive() && XPackLicenseState.isPlatinumOrTrialOperationMode(licenseState.getOperationMode())) {
+            return true;
+        }
+
+        // catch the rest, if the license is active and is at least the required model license
+        return licenseState.isActive() && License.OperationMode.compare(licenseState.getOperationMode(), licenseLevel) >= 0;
     }
 
     @Override
@@ -166,11 +249,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeString(createdBy);
         Version.writeVersion(version, out);
         out.writeOptionalString(description);
-        out.writeInstant(createdTime);
-        out.writeVLong(modelVersion);
-        out.writeString(modelType);
+        out.writeInstant(createTime);
         out.writeOptionalWriteable(definition);
+        out.writeCollection(tags, StreamOutput::writeString);
         out.writeMap(metadata);
+        input.writeTo(out);
+        out.writeVLong(estimatedHeapMemory);
+        out.writeVLong(estimatedOperations);
+        out.writeString(licenseLevel.description());
     }
 
     @Override
@@ -182,15 +268,29 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        builder.timeField(CREATED_TIME.getPreferredName(), CREATED_TIME.getPreferredName() + "_string", createdTime.toEpochMilli());
-        builder.field(MODEL_VERSION.getPreferredName(), modelVersion);
-        builder.field(MODEL_TYPE.getPreferredName(), modelType);
-        if (definition != null) {
-            builder.field(DEFINITION.getPreferredName(), definition);
+        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+        // We don't store the definition in the same document as the configuration
+        if ((params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) && definition != null) {
+            if (params.paramAsBoolean(DECOMPRESS_DEFINITION, true)) {
+                builder.field(DEFINITION.getPreferredName(), definition);
+            } else {
+                builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.getCompressedString());
+            }
         }
+        builder.field(TAGS.getPreferredName(), tags);
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
         }
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
+        }
+        builder.field(INPUT.getPreferredName(), input);
+        builder.humanReadableField(
+            ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+            ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
+            new ByteSizeValue(estimatedHeapMemory));
+        builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
+        builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
         builder.endObject();
         return builder;
     }
@@ -209,10 +309,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             Objects.equals(createdBy, that.createdBy) &&
             Objects.equals(version, that.version) &&
             Objects.equals(description, that.description) &&
-            Objects.equals(createdTime, that.createdTime) &&
-            Objects.equals(modelVersion, that.modelVersion) &&
-            Objects.equals(modelType, that.modelType) &&
+            Objects.equals(createTime, that.createTime) &&
             Objects.equals(definition, that.definition) &&
+            Objects.equals(tags, that.tags) &&
+            Objects.equals(input, that.input) &&
+            Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
+            Objects.equals(estimatedOperations, that.estimatedOperations) &&
+            Objects.equals(licenseLevel, that.licenseLevel) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -221,12 +324,15 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return Objects.hash(modelId,
             createdBy,
             version,
-            createdTime,
-            modelType,
+            createTime,
             definition,
             description,
+            tags,
             metadata,
-            modelVersion);
+            estimatedHeapMemory,
+            estimatedOperations,
+            input,
+            licenseLevel);
     }
 
     public static class Builder {
@@ -235,11 +341,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private String createdBy;
         private Version version;
         private String description;
-        private Instant createdTime;
-        private Long modelVersion;
-        private String modelType;
+        private Instant createTime;
+        private List<String> tags = Collections.emptyList();
         private Map<String, Object> metadata;
-        private TrainedModelDefinition.Builder definition;
+        private TrainedModelInput input;
+        private Long estimatedHeapMemory;
+        private Long estimatedOperations;
+        private LazyModelDefinition definition;
+        private String licenseLevel = License.OperationMode.PLATINUM.description();
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -265,18 +374,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setCreatedTime(Instant createdTime) {
-            this.createdTime = createdTime;
+        public Builder setCreateTime(Instant createTime) {
+            this.createTime = createTime;
             return this;
         }
 
-        public Builder setModelVersion(Long modelVersion) {
-            this.modelVersion = modelVersion;
-            return this;
-        }
-
-        public Builder setModelType(String modelType) {
-            this.modelType = modelType;
+        public Builder setTags(List<String> tags) {
+            this.tags = ExceptionsHelper.requireNonNull(tags, TAGS);
             return this;
         }
 
@@ -285,14 +389,77 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setDefinition(TrainedModelDefinition.Builder definition) {
-            this.definition = definition;
+        public Builder setParsedDefinition(TrainedModelDefinition.Builder definition) {
+            if (definition == null) {
+                return this;
+            }
+            this.definition = LazyModelDefinition.fromParsedDefinition(definition.build());
+            return this;
+        }
+
+        public Builder setDefinitionFromString(String definitionFromString) {
+            if (definitionFromString == null) {
+                return this;
+            }
+            this.definition = LazyModelDefinition.fromCompressedString(definitionFromString);
+            return this;
+        }
+
+        private Builder setLazyDefinition(TrainedModelDefinition.Builder parsedTrainedModel) {
+            if (parsedTrainedModel == null) {
+                return this;
+            }
+
+            if (this.definition != null) {
+                throw new IllegalArgumentException(new ParameterizedMessage(
+                    "both [{}] and [{}] cannot be set.",
+                    COMPRESSED_DEFINITION.getPreferredName(),
+                    DEFINITION.getPreferredName())
+                    .getFormattedMessage());
+            }
+            this.definition = LazyModelDefinition.fromParsedDefinition(parsedTrainedModel.build());
+            return this;
+        }
+
+        private Builder setLazyDefinition(String compressedString) {
+            if (compressedString == null) {
+                return this;
+            }
+
+            if (this.definition != null) {
+                throw new IllegalArgumentException(new ParameterizedMessage(
+                    "both [{}] and [{}] cannot be set.",
+                    COMPRESSED_DEFINITION.getPreferredName(),
+                    DEFINITION.getPreferredName())
+                    .getFormattedMessage());
+            }
+            this.definition = LazyModelDefinition.fromCompressedString(compressedString);
+            return this;
+        }
+
+        public Builder setInput(TrainedModelInput input) {
+            this.input = input;
+            return this;
+        }
+
+        public Builder setEstimatedHeapMemory(long estimatedHeapMemory) {
+            this.estimatedHeapMemory = estimatedHeapMemory;
+            return this;
+        }
+
+        public Builder setEstimatedOperations(long estimatedOperations) {
+            this.estimatedOperations = estimatedOperations;
+            return this;
+        }
+
+        public Builder setLicenseLevel(String licenseLevel) {
+            this.licenseLevel = licenseLevel;
             return this;
         }
 
         // TODO move to REST level instead of here in the builder
         public void validate() {
-            // We require a definition to be available until we support other means of supplying the definition
+            // We require a definition to be available here even though it will be stored in a different doc
             ExceptionsHelper.requireNonNull(definition, DEFINITION);
             ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
 
@@ -307,18 +474,17 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     MlStrings.ID_LENGTH_LIMIT));
             }
 
-            if (version != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", VERSION.getPreferredName());
-            }
+            checkIllegalSetting(version, VERSION.getPreferredName());
+            checkIllegalSetting(createdBy, CREATED_BY.getPreferredName());
+            checkIllegalSetting(createTime, CREATE_TIME.getPreferredName());
+            checkIllegalSetting(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName());
+            checkIllegalSetting(estimatedOperations, ESTIMATED_OPERATIONS.getPreferredName());
+            checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName());
+        }
 
-            if (createdBy != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
-                    CREATED_BY.getPreferredName());
-            }
-
-            if (createdTime != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
-                    CREATED_TIME.getPreferredName());
+        private static void checkIllegalSetting(Object value, String setting) {
+            if (value != null) {
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", setting);
             }
         }
 
@@ -328,24 +494,85 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 createdBy,
                 version,
                 description,
-                createdTime,
-                modelVersion,
-                modelType,
-                definition == null ? null : definition.build(),
-                metadata);
-        }
-
-        public TrainedModelConfig build(Version version) {
-            return new TrainedModelConfig(
-                modelId,
-                createdBy,
-                version,
-                description,
-                Instant.now(),
-                modelVersion,
-                modelType,
-                definition == null ? null : definition.build(),
-                metadata);
+                createTime == null ? Instant.now() : createTime,
+                definition,
+                tags,
+                metadata,
+                input,
+                estimatedHeapMemory,
+                estimatedOperations,
+                licenseLevel);
         }
     }
+
+    public static class LazyModelDefinition implements ToXContentObject, Writeable {
+
+        private String compressedString;
+        private TrainedModelDefinition parsedDefinition;
+
+        public static LazyModelDefinition fromParsedDefinition(TrainedModelDefinition definition) {
+            return new LazyModelDefinition(null, definition);
+        }
+
+        public static LazyModelDefinition fromCompressedString(String compressedString) {
+            return new LazyModelDefinition(compressedString, null);
+        }
+
+        public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
+            return new LazyModelDefinition(input.readString(), null);
+        }
+
+        private LazyModelDefinition(String compressedString, TrainedModelDefinition trainedModelDefinition) {
+            if (compressedString == null && trainedModelDefinition == null) {
+                throw new IllegalArgumentException("unexpected null model definition");
+            }
+            this.compressedString = compressedString;
+            this.parsedDefinition = trainedModelDefinition;
+        }
+
+        public void ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
+            if (parsedDefinition == null) {
+                parsedDefinition = InferenceToXContentCompressor.inflate(compressedString,
+                    parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
+                    xContentRegistry);
+            }
+        }
+
+        public String getCompressedString() throws IOException {
+            if (compressedString == null) {
+                compressedString = InferenceToXContentCompressor.deflate(parsedDefinition);
+            }
+            return compressedString;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(getCompressedString());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (parsedDefinition != null) {
+                return parsedDefinition.toXContent(builder, params);
+            }
+            Map<String, Object> map = InferenceToXContentCompressor.inflateToMap(compressedString);
+            return builder.map(map);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            LazyModelDefinition that = (LazyModelDefinition) o;
+            return Objects.equals(compressedString, that.compressedString) &&
+                Objects.equals(parsedDefinition, that.parsedDefinition);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(compressedString, parsedDefinition);
+        }
+
+    }
+
 }

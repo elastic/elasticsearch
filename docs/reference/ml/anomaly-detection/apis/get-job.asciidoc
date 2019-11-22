@@ -24,7 +24,7 @@ Retrieves configuration information for {anomaly-jobs}.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-get-job-desc]]
 ==== {api-description-title}
@@ -122,7 +122,8 @@ The API returns the following results:
         "time_format": "epoch_ms"
       },
       "model_snapshot_retention_days": 1,
-      "results_index_name": "shared"
+      "results_index_name": "shared",
+      "allow_lazy_open": false
     }
   ]
 }

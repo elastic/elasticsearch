@@ -81,9 +81,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject()))
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject()))
         .actionGet();
-        client().index(indexRequest("test").type("type1").id("2")
+        client().index(indexRequest("test").id("2")
                 .source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -104,9 +104,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject()))
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject()))
             .actionGet();
-        client().index(indexRequest("test").type("type1").id("2")
+        client().index(indexRequest("test").id("2")
             .source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -132,9 +132,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        client().index(indexRequest("test").type("type").id("1").source(jsonBuilder().startObject()
+        client().index(indexRequest("test").id("1").source(jsonBuilder().startObject()
             .field("myField", "and_foo").field("empty", "").endObject())).actionGet();
-        client().index(indexRequest("test").type("type").id("2").source(jsonBuilder().startObject()
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject()
             .field("myField", "and_foo").field("empty", "").endObject())).actionGet();
 
         client().admin().indices().refresh(refreshRequest()).actionGet();
@@ -155,11 +155,11 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(indexRequest("test").type("type1").id("1")
+        client().index(indexRequest("test").id("1")
                 .source(jsonBuilder().startObject().field("some_long", 1367484649580L).endObject())).actionGet();
-        client().index(indexRequest("test").type("type1").id("2")
+        client().index(indexRequest("test").id("2")
                 .source(jsonBuilder().startObject().field("some_long", 0).endObject())).actionGet();
-        client().index(indexRequest("test").type("type1").id("3")
+        client().index(indexRequest("test").id("3")
                 .source(jsonBuilder().startObject().field("some_long", -666).endObject())).actionGet();
 
         client().admin().indices().refresh(refreshRequest()).actionGet();
@@ -185,13 +185,13 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(indexRequest("test").type("type1").id("1")
+        client().index(indexRequest("test").id("1")
                 .source(jsonBuilder().startObject().field("text", "lucene beta").endObject())).actionGet();
-        client().index(indexRequest("test").type("type1").id("2")
+        client().index(indexRequest("test").id("2")
                 .source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
-        client().index(indexRequest("test").type("type1").id("3")
+        client().index(indexRequest("test").id("3")
                 .source(jsonBuilder().startObject().field("text", "elasticsearch beta").endObject())).actionGet();
-        client().index(indexRequest("test").type("type1").id("4")
+        client().index(indexRequest("test").id("4")
                 .source(jsonBuilder().startObject().field("text", "elasticsearch release").endObject())).actionGet();
         client().admin().indices().refresh(refreshRequest()).actionGet();
 
@@ -234,11 +234,11 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
-        client().index(indexRequest(indexName).type(typeName).id("1")
+        client().index(indexRequest(indexName).id("1")
                 .source(jsonBuilder().startObject().field("text", "elasticsearch index").endObject())).actionGet();
-        client().index(indexRequest(indexName).type(typeName).id("2")
+        client().index(indexRequest(indexName).id("2")
                 .source(jsonBuilder().startObject().field("text", "lucene index").endObject())).actionGet();
-        client().index(indexRequest(indexName).type(typeName).id("3")
+        client().index(indexRequest(indexName).id("3")
                 .source(jsonBuilder().startObject().field("text", "elasticsearch index").endObject())).actionGet();
         refresh(indexName);
 
@@ -254,7 +254,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject());
         client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
-        client().prepareIndex("foo", "bar", "1")
+        client().prepareIndex("foo").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .get();
         client().admin().indices().prepareRefresh("foo").get();
@@ -279,7 +279,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
         ensureGreen();
 
-        client().prepareIndex("foo", "bar", "1")
+        client().prepareIndex("foo").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .setRouting("2")
                 .get();
@@ -302,7 +302,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .addMapping("bar", mapping, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("foo", "bar", "1")
+        client().prepareIndex("foo").setId("1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .setRouting("4000")
                 .get();
@@ -324,10 +324,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                         .endObject()
                     .endObject().endObject()).get();
         ensureGreen();
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject())
                 .get();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test").setId("2")
                 .setSource(jsonBuilder().startObject().field("string_value", "elasticsearch index").field("int_value", 42).endObject())
                 .get();
 
@@ -406,8 +406,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("_doc", mapping));
         ensureGreen();
 
-        index("test", "_doc", "1", "text", "lucene");
-        index("test", "_doc", "2", "text", "lucene release");
+        indexDoc("test", "1", "text", "lucene");
+        indexDoc("test", "2", "text", "lucene release");
         refresh();
 
         Item item = new Item("test", "1");
@@ -429,11 +429,11 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client().index(indexRequest("test").type("type1").id("1").source(
+        client().index(indexRequest("test").id("1").source(
                 jsonBuilder().startObject()
                         .field("text", "Apache Lucene is a free/open source information retrieval software library").endObject()))
                 .actionGet();
-        client().index(indexRequest("test").type("type1").id("2").source(
+        client().index(indexRequest("test").id("2").source(
                 jsonBuilder().startObject()
                         .field("text", "Lucene has been ported to other programming languages").endObject()))
                 .actionGet();
@@ -469,9 +469,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         logger.info("Indexing...");
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene").setId("1"));
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene release").setId("2"));
-        builders.add(client().prepareIndex("test", "type1").setSource("text", "apache lucene").setId("3"));
+        builders.add(client().prepareIndex("test").setSource("text", "lucene").setId("1"));
+        builders.add(client().prepareIndex("test").setSource("text", "lucene release").setId("2"));
+        builders.add(client().prepareIndex("test").setSource("text", "apache lucene").setId("3"));
         indexRandom(true, builders);
 
         logger.info("Running MoreLikeThis");
@@ -493,10 +493,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         String[] values = {"aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj"};
         List<IndexRequestBuilder> builders = new ArrayList<>(values.length + 1);
         // index one document with all the values
-        builders.add(client().prepareIndex("test", "type1", "0").setSource("text", values));
+        builders.add(client().prepareIndex("test").setId("0").setSource("text", values));
         // index each document with only one of the values
         for (int i = 0; i < values.length; i++) {
-            builders.add(client().prepareIndex("test", "type1", String.valueOf(i + 1)).setSource("text", values[i]));
+            builders.add(client().prepareIndex("test").setId(String.valueOf(i + 1)).setSource("text", values[i]));
         }
         indexRandom(true, builders);
 
@@ -528,7 +528,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             for (int j = 1; j <= 10 - i; j++) {
                 text += j + " ";
             }
-            builders.add(client().prepareIndex("test", "type1", i + "").setSource("text", text));
+            builders.add(client().prepareIndex("test").setId(i + "").setSource("text", text));
         }
         indexRandom(true, builders);
 
@@ -563,7 +563,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             doc.field("field" + i, generateRandomStringArray(5, 10, false) + "a"); // make sure they are not all empty
         }
         doc.endObject();
-        indexRandom(true, client().prepareIndex("test", "type1", "0").setSource(doc));
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(doc));
 
         logger.info("Checking the document matches ...");
         // routing to ensure we hit the shard with the doc
@@ -585,7 +585,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         ensureGreen("test");
 
         logger.info("Creating an index with a single document ...");
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource(jsonBuilder()
                 .startObject()
                 .field("text", "Hello World!")
                 .field("date", "2009-01-01")
@@ -648,7 +648,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Indexing each field value of this document as a single document.");
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numFields; i++) {
-            builders.add(client().prepareIndex("test", "type1", i+"").setSource("field"+i, i+""));
+            builders.add(client().prepareIndex("test").setId(i+"").setSource("field"+i, i+""));
         }
         indexRandom(true, builders);
 
@@ -686,12 +686,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .addMapping("type1", "text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace"));
         ensureGreen("test");
 
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource(jsonBuilder()
                         .startObject()
                         .field("text", "hello world")
                         .field("text1", "elasticsearch")
                         .endObject()),
-                client().prepareIndex("test", "type1", "2").setSource(jsonBuilder()
+                client().prepareIndex("test").setId("2").setSource(jsonBuilder()
                         .startObject()
                         .field("text", "goodby moon")
                         .field("text1", "elasticsearch")
@@ -719,9 +719,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     }
 
     public void testWithRouting() throws IOException {
-        client().prepareIndex("index", "type", "1").setRouting("3").setSource("text", "this is a document").get();
-        client().prepareIndex("index", "type", "2").setRouting("1").setSource("text", "this is another document").get();
-        client().prepareIndex("index", "type", "3").setRouting("4").setSource("text", "this is yet another document").get();
+        client().prepareIndex("index").setId("1").setRouting("3").setSource("text", "this is a document").get();
+        client().prepareIndex("index").setId("2").setRouting("1").setSource("text", "this is another document").get();
+        client().prepareIndex("index").setId("3").setRouting("4").setSource("text", "this is yet another document").get();
         refresh("index");
 
         Item item = new Item("index", "2").routing("1");

@@ -101,7 +101,7 @@ public class TrainedModelDefinition implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinition that = (TrainedModelDefinition) o;
         return Objects.equals(trainedModel, that.trainedModel) &&
-            Objects.equals(preProcessors, that.preProcessors) ;
+            Objects.equals(preProcessors, that.preProcessors);
     }
 
     @Override

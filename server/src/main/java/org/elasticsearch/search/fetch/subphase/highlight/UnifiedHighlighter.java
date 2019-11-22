@@ -37,10 +37,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -61,17 +61,18 @@ public class UnifiedHighlighter implements Highlighter {
     public HighlightField highlight(HighlighterContext highlighterContext) {
         MappedFieldType fieldType = highlighterContext.fieldType;
         SearchContextHighlight.Field field = highlighterContext.field;
-        SearchContext context = highlighterContext.context;
+        QueryShardContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
-        final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
+        final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
 
         List<Snippet> snippets = new ArrayList<>();
         int numberOfFragments;
         try {
 
-            final Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(), hitContext);
-            List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext);
+            final Analyzer analyzer = getAnalyzer(context.getMapperService().documentMapper(), hitContext);
+            List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext,
+                highlighterContext.highlight.forceSource(field));
             if (fieldValues.size() == 0) {
                 return null;
             }
@@ -83,7 +84,7 @@ public class UnifiedHighlighter implements Highlighter {
             if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValue.length() > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
                     "The length of [" + highlighterContext.fieldName + "] field of [" + hitContext.hit().getId() +
-                        "] doc of [" + context.indexShard().shardId().getIndexName() + "] index " + "has exceeded [" +
+                        "] doc of [" + context.index().getName() + "] index " + "has exceeded [" +
                         maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
                         "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
                         "] index level setting. " + "For large texts, indexing with offsets or term vectors is recommended!");
@@ -122,7 +123,7 @@ public class UnifiedHighlighter implements Highlighter {
                 }
             }
         } catch (IOException e) {
-            throw new FetchPhaseExecutionException(context.shardTarget(),
+            throw new FetchPhaseExecutionException(highlighterContext.shardTarget,
                 "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
 
@@ -153,9 +154,12 @@ public class UnifiedHighlighter implements Highlighter {
         return docMapper.mappers().indexAnalyzer();
     }
 
-    protected List<Object> loadFieldValues(MappedFieldType fieldType, SearchContextHighlight.Field field, SearchContext context,
-            FetchSubPhase.HitContext hitContext) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldType, context, hitContext);
+    protected List<Object> loadFieldValues(MappedFieldType fieldType,
+                                           SearchContextHighlight.Field field,
+                                           QueryShardContext context,
+                                           FetchSubPhase.HitContext hitContext,
+                                           boolean forceSource) throws IOException {
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, context, hitContext, forceSource);
         fieldValues = fieldValues.stream()
             .map((s) -> convertFieldValue(fieldType, s))
             .collect(Collectors.toList());

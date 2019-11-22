@@ -110,7 +110,10 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
             .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(),
                     TransformStoredDoc.NAME)));
 
-        SearchRequestBuilder requestBuilder = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+        SearchRequestBuilder requestBuilder = client
+            .prepareSearch(
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
             .setSize(0)
             .setQuery(queryBuilder);
 

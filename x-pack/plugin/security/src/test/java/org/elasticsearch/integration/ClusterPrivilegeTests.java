@@ -149,7 +149,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_d", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);
 
-        Request createBar = new Request("PUT", "/someindex/bar/1");
+        Request createBar = new Request("PUT", "/someindex/_doc/1");
         createBar.setJsonEntity("{ \"name\" : \"elasticsearch\" }");
         createBar.addParameter("refresh", "true");
         assertAccessIsDenied("user_a", createBar);

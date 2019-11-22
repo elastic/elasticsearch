@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -68,7 +68,7 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         locals = Locals.newLocalScope(locals);
 
         if (block == null) {
@@ -77,16 +77,15 @@ public final class SDo extends AStatement {
 
         block.beginLoop = true;
         block.inLoop = true;
-
-        block.analyze(functions, locals);
+        block.analyze(scriptRoot, locals);
 
         if (block.loopEscape && !block.anyContinue) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         condition.expected = boolean.class;
-        condition.analyze(functions, locals);
-        condition = condition.cast(functions, locals);
+        condition.analyze(scriptRoot, locals);
+        condition = condition.cast(scriptRoot, locals);
 
         if (condition.constant != null) {
             continuous = (boolean)condition.constant;

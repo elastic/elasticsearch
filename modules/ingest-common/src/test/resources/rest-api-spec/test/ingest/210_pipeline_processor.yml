@@ -106,5 +106,5 @@ teardown:
       id: 1
       pipeline: "outer"
       body: {}
-- match: { error.root_cause.0.type: "exception" }
-- match: { error.root_cause.0.reason: "java.lang.IllegalArgumentException: java.lang.IllegalStateException: Cycle detected for pipeline: inner" }
+- match: { error.root_cause.0.type: "ingest_processor_exception" }
+- match: { error.root_cause.0.reason: "java.lang.IllegalStateException: Cycle detected for pipeline: inner" }

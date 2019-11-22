@@ -226,7 +226,7 @@ if (project != rootProject) {
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {
-    it.executable = Jvm.current().getJavaHome().toPath().resolve("bin").resolve("java").toAbsolutePath()
+    it.executable = Jvm.current().getJavaExecutable()
   }
 
   /*

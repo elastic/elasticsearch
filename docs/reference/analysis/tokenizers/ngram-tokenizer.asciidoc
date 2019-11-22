@@ -1,5 +1,5 @@
 [[analysis-ngram-tokenizer]]
-=== NGram Tokenizer
+=== N-gram tokenizer
 
 The `ngram` tokenizer first breaks text down into words whenever it encounters
 one of a list of specified characters, then it emits

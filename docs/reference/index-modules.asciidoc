@@ -151,6 +151,7 @@ specific index module:
     The maximum number of `script_fields` that are allowed in a query.
     Defaults to `32`.
 
+[[index-max-ngram-diff]]
 `index.max_ngram_diff`::
 
     The maximum allowed difference between min_gram and max_gram for NGramTokenizer and NGramTokenFilter.

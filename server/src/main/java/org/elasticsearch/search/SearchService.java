@@ -1098,7 +1098,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         public CanMatchResponse(StreamInput in) throws IOException {
             super(in);
             this.canMatch = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
                 minAndMax = in.readOptionalWriteable(MinAndMax::new);
             } else {
                 minAndMax = null;
@@ -1113,7 +1113,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(canMatch);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
                 out.writeOptionalWriteable(minAndMax);
             }
         }

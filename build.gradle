@@ -90,9 +90,6 @@ subprojects {
         }
       }
       repositories {
-        mavenLocal() {
-          
-        }
         maven {
           name = 'test'
           url = "${rootProject.buildDir}/local-test-repo"

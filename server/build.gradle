@@ -124,8 +124,8 @@ dependencies {
   // repackaged jna with native bits linked against all elastic supported platforms
   compile "org.elasticsearch:jna:${versions.jna}"
 
-  compile ("co.elastic.logging:log4j2-ecs-layout:0.1.0-SNAPSHOT")
-  compile ("co.elastic.logging:ecs-logging-core:0.1.0-SNAPSHOT")
+  compile "co.elastic.logging:log4j2-ecs-layout:0.1.3"
+  compile "co.elastic.logging:ecs-logging-core:0.1.3"
 
   if (!isEclipse && !isIdea) {
     java12Compile sourceSets.main.output

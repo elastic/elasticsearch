@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * This test confirms JSON log structure is properly formatted and can be parsed.
  * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>
+ * When running from IDE set -Dtests.security.manager=false
  */
 public class JsonLoggerTests extends ESTestCase {
 

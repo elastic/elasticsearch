@@ -33,7 +33,6 @@ This API retrieves information that includes:
 
 * field selection that explains which fields are included or not in the analysis
 * memory estimation that can be used when deciding the appropriate value for `model_memory_limit` setting later on
-
 about either an existing {dfanalytics-job} or one that has not been created yet.
 
 [[ml-dfanalytics-info-path-params]]

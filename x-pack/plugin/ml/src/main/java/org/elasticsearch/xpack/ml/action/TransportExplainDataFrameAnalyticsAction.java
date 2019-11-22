@@ -15,8 +15,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
@@ -40,6 +43,7 @@ import java.util.Optional;
 public class TransportExplainDataFrameAnalyticsAction
     extends HandledTransportAction<PutDataFrameAnalyticsAction.Request, ExplainDataFrameAnalyticsAction.Response> {
 
+    private final XPackLicenseState licenseState;
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final NodeClient client;
@@ -50,11 +54,13 @@ public class TransportExplainDataFrameAnalyticsAction
                                                     ActionFilters actionFilters,
                                                     ClusterService clusterService,
                                                     NodeClient client,
+                                                    XPackLicenseState licenseState,
                                                     MemoryUsageEstimationProcessManager processManager) {
         super(ExplainDataFrameAnalyticsAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
         this.transportService = transportService;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
+        this.licenseState = licenseState;
         this.processManager = Objects.requireNonNull(processManager);
     }
 
@@ -62,6 +68,11 @@ public class TransportExplainDataFrameAnalyticsAction
     protected void doExecute(Task task,
                              PutDataFrameAnalyticsAction.Request request,
                              ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
+        if (licenseState.isMachineLearningAllowed() == false) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+            return;
+        }
+
         DiscoveryNode localNode = clusterService.localNode();
         if (MachineLearning.isMlNode(localNode)) {
             explain(task, request, listener);

@@ -73,6 +73,8 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
+import org.elasticsearch.client.ml.GetTrainedModelsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsResponse;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -125,6 +127,7 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.PhaseProgress;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
@@ -138,6 +141,9 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Confu
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
+import org.elasticsearch.client.ml.inference.TrainedModelConfig;
+import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -147,11 +153,14 @@ import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -160,9 +169,11 @@ import org.elasticsearch.search.SearchHit;
 import org.junit.After;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -170,6 +181,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -177,7 +189,6 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -186,6 +197,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
@@ -1784,6 +1796,27 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
+        {  // Accuracy
+            EvaluateDataFrameRequest evaluateDataFrameRequest =
+                new EvaluateDataFrameRequest(
+                    indexName, null, new Classification(actualClassField, predictedClassField, new AccuracyMetric()));
+
+            EvaluateDataFrameResponse evaluateDataFrameResponse =
+                execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+            assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME));
+            assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+            AccuracyMetric.Result accuracyResult = evaluateDataFrameResponse.getMetricByName(AccuracyMetric.NAME);
+            assertThat(accuracyResult.getMetricName(), equalTo(AccuracyMetric.NAME));
+            assertThat(
+                accuracyResult.getActualClasses(),
+                equalTo(
+                    List.of(
+                        new AccuracyMetric.ActualClass("cat", 5, 0.6),  // 3 out of 5 examples labeled as "cat" were classified correctly
+                        new AccuracyMetric.ActualClass("dog", 4, 0.75),  // 3 out of 4 examples labeled as "dog" were classified correctly
+                        new AccuracyMetric.ActualClass("ant", 1, 0.0))));  // no examples labeled as "ant" were classified correctly
+            assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.6));  // 6 out of 10 examples were classified correctly
+        }
         {  // No size provided for MulticlassConfusionMatrixMetric, default used instead
             EvaluateDataFrameRequest evaluateDataFrameRequest =
                 new EvaluateDataFrameRequest(
@@ -1959,8 +1992,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         EstimateMemoryUsageResponse response1 =
             execute(
                 estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
-        assertThat(response1.getExpectedMemoryWithoutDisk(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
-        assertThat(response1.getExpectedMemoryWithDisk(), allOf(greaterThan(lowerBound), lessThan(upperBound)));
+        assertThat(response1.getExpectedMemoryWithoutDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
+        assertThat(response1.getExpectedMemoryWithDisk(), allOf(greaterThanOrEqualTo(lowerBound), lessThan(upperBound)));
 
         BulkRequest bulk2 = new BulkRequest()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1969,13 +2002,85 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
         highLevelClient().bulk(bulk2, RequestOptions.DEFAULT);
 
-        // Data Frame now has 100 rows, expect that the returned estimates will be greater than the previous ones.
+        // Data Frame now has 100 rows, expect that the returned estimates will be greater than or equal to the previous ones.
         EstimateMemoryUsageResponse response2 =
             execute(
                 estimateMemoryUsageRequest, machineLearningClient::estimateMemoryUsage, machineLearningClient::estimateMemoryUsageAsync);
         assertThat(
-            response2.getExpectedMemoryWithoutDisk(), allOf(greaterThan(response1.getExpectedMemoryWithoutDisk()), lessThan(upperBound)));
-        assertThat(response2.getExpectedMemoryWithDisk(), allOf(greaterThan(response1.getExpectedMemoryWithDisk()), lessThan(upperBound)));
+            response2.getExpectedMemoryWithoutDisk(),
+            allOf(greaterThanOrEqualTo(response1.getExpectedMemoryWithoutDisk()), lessThan(upperBound)));
+        assertThat(
+            response2.getExpectedMemoryWithDisk(),
+            allOf(greaterThanOrEqualTo(response1.getExpectedMemoryWithDisk()), lessThan(upperBound)));
+    }
+
+    public void testGetTrainedModels() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String modelIdPrefix = "get-trained-model-";
+        int numberOfModels = 5;
+        for (int i = 0; i < numberOfModels; ++i) {
+            String modelId = modelIdPrefix + i;
+            putTrainedModel(modelId);
+        }
+
+        {
+            GetTrainedModelsResponse getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(true).setIncludeDefinition(true),
+                machineLearningClient::getTrainedModels,
+                machineLearningClient::getTrainedModelsAsync);
+
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getCompressedDefinition(), is(nullValue()));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition(), is(not(nullValue())));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
+
+            getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(true),
+                machineLearningClient::getTrainedModels,
+                machineLearningClient::getTrainedModelsAsync);
+
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getCompressedDefinition(), is(not(nullValue())));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition(), is(nullValue()));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
+
+            getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + 0).setDecompressDefinition(false).setIncludeDefinition(false),
+                machineLearningClient::getTrainedModels,
+                machineLearningClient::getTrainedModelsAsync);
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getCompressedDefinition(), is(nullValue()));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getDefinition(), is(nullValue()));
+            assertThat(getTrainedModelsResponse.getTrainedModels().get(0).getModelId(), equalTo(modelIdPrefix + 0));
+
+        }
+        {
+            GetTrainedModelsResponse getTrainedModelsResponse = execute(
+                GetTrainedModelsRequest.getAllTrainedModelConfigsRequest(),
+                machineLearningClient::getTrainedModels, machineLearningClient::getTrainedModelsAsync);
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(numberOfModels));
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L));
+        }
+        {
+            GetTrainedModelsResponse getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + 4, modelIdPrefix + 2, modelIdPrefix + 3),
+                machineLearningClient::getTrainedModels, machineLearningClient::getTrainedModelsAsync);
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(3));
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(3L));
+        }
+        {
+            GetTrainedModelsResponse getTrainedModelsResponse = execute(
+                new GetTrainedModelsRequest(modelIdPrefix + "*").setPageParams(new PageParams(1, 2)),
+                machineLearningClient::getTrainedModels, machineLearningClient::getTrainedModelsAsync);
+            assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(2));
+            assertThat(getTrainedModelsResponse.getCount(), equalTo(5L));
+            assertThat(
+                getTrainedModelsResponse.getTrainedModels().stream().map(TrainedModelConfig::getModelId).collect(Collectors.toList()),
+                containsInAnyOrder(modelIdPrefix + 1, modelIdPrefix + 2));
+        }
     }
 
     public void testPutFilter() throws Exception {
@@ -2153,6 +2258,60 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     private void openJob(Job job) throws IOException {
         highLevelClient().machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
+    }
+
+    private void putTrainedModel(String modelId) throws IOException {
+        TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder().build();
+        highLevelClient().index(
+            new IndexRequest(".ml-inference-000001")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .source(modelConfigString(modelId), XContentType.JSON)
+                .id(modelId),
+            RequestOptions.DEFAULT);
+
+        highLevelClient().index(
+            new IndexRequest(".ml-inference-000001")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .source(modelDocString(compressDefinition(definition), modelId), XContentType.JSON)
+                .id("trained_model_definition_doc-" + modelId + "-0"),
+            RequestOptions.DEFAULT);
+    }
+
+    private String compressDefinition(TrainedModelDefinition definition) throws IOException {
+        BytesReference reference = XContentHelper.toXContent(definition, XContentType.JSON, false);
+        BytesStreamOutput out = new BytesStreamOutput();
+        try (OutputStream compressedOutput = new GZIPOutputStream(out, 4096)) {
+            reference.writeTo(compressedOutput);
+        }
+        return new String(Base64.getEncoder().encode(BytesReference.toBytes(out.bytes())), StandardCharsets.UTF_8);
+    }
+
+    private static String modelConfigString(String modelId) {
+        return "{\n" +
+            "  \"doc_type\": \"trained_model_config\",\n" +
+            "  \"model_id\": \"" + modelId + "\",\n" +
+            "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
+            "  \"description\": \"test model\",\n" +
+            "  \"version\": \"7.6.0\",\n" +
+            "  \"license_level\": \"platinum\",\n" +
+            "  \"created_by\": \"ml_test\",\n" +
+            "  \"estimated_heap_memory_usage_bytes\": 0," +
+            "  \"estimated_operations\": 0," +
+            "  \"created_time\": 0\n" +
+            "}";
+    }
+
+    private static String modelDocString(String compressedDefinition, String modelId) {
+        return "" +
+            "{" +
+            "\"model_id\": \"" + modelId + "\",\n" +
+            "\"doc_num\": 0,\n" +
+            "\"doc_type\": \"trained_model_definition_doc\",\n" +
+            "  \"compression_version\": " + 1 + ",\n" +
+            "  \"total_definition_length\": " + compressedDefinition.length() + ",\n" +
+            "  \"definition_length\": " + compressedDefinition.length() + ",\n" +
+            "\"definition\": \"" + compressedDefinition + "\"\n" +
+            "}";
     }
 
     private void waitForJobToClose(String jobId) throws Exception {

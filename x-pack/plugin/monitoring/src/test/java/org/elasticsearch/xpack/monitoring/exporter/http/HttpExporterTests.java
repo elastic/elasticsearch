@@ -644,10 +644,10 @@ public class HttpExporterTests extends ESTestCase {
 
     /**
      * Instantiates an instance of {@link XPackPlugin} to trigger initialization of its static fields, some of which
-     * are required by some unit tests. Idempotently instantiates only a single instance to avoid errors from the static
+     * are required by some tests. Idempotently instantiates only a single instance to avoid errors from the static
      * {@link org.apache.lucene.util.SetOnce} fields in {@link XPackPlugin}.
      */
-    private static synchronized void initializeXpackPlugin() {
+    public static synchronized void initializeXpackPlugin() {
         if (xPackPlugin == null) {
             Settings.Builder builder = Settings.builder();
             xPackPlugin = new XPackPlugin(builder.put("path.home", createTempDir()).build(), null);

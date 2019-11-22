@@ -266,16 +266,16 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
 
         if (field == null) {
             if (script == null) {
-                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
+                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(CoreValuesSourceType.ANY);
                 return config.format(resolveFormat(null, valueType));
             }
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            if (valuesSourceType == null || valuesSourceType == ValuesSourceType.ANY) {
+            if (valuesSourceType == null || valuesSourceType == CoreValuesSourceType.ANY) {
                 // the specific value source type is undefined, but for scripts,
                 // we need to have a specific value source
                 // type to know how to handle the script values, so we fallback
                 // on Bytes
-                valuesSourceType = ValuesSourceType.BYTES;
+                valuesSourceType = CoreValuesSourceType.BYTES;
             }
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missingMap.get(field));
@@ -294,13 +294,13 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         IndexFieldData<?> indexFieldData = queryShardContext.getForField(fieldType);
 
         ValuesSourceConfig<VS> config;
-        if (valuesSourceType == ValuesSourceType.ANY) {
+        if (valuesSourceType == CoreValuesSourceType.ANY) {
             if (indexFieldData instanceof IndexNumericFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
+                config = new ValuesSourceConfig<>(CoreValuesSourceType.NUMERIC);
             } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
+                config = new ValuesSourceConfig<>(CoreValuesSourceType.GEOPOINT);
             } else {
-                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
+                config = new ValuesSourceConfig<>(CoreValuesSourceType.BYTES);
             }
         } else {
             config = new ValuesSourceConfig<>(valuesSourceType);

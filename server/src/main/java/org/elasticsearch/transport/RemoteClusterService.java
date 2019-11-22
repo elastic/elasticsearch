@@ -113,19 +113,19 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 false,
                 Setting.Property.Dynamic,
                 Setting.Property.NodeScope),
-            REMOTE_CLUSTERS_SEEDS);
+            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.ping_schedule",
         key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),
-        REMOTE_CLUSTERS_SEEDS);
+        SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.compress",
         key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),
-        REMOTE_CLUSTERS_SEEDS);
+        SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
 
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();

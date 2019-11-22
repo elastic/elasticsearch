@@ -100,7 +100,7 @@ import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -169,7 +169,7 @@ import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetRecordsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.ml.action.TransportInferModelAction;
+import org.elasticsearch.xpack.ml.action.TransportInternalInferModelAction;
 import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.action.TransportIsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportKillProcessAction;
@@ -349,9 +349,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(parameters.client,
             parameters.ingestService.getClusterService(),
             this.settings,
-            parameters.ingestService,
-            getLicenseState());
-        getLicenseState().addListener(inferenceFactory);
+            parameters.ingestService);
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
     }
@@ -577,7 +575,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         } else {
             mlController = new DummyController();
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
-                    new BlackHoleAutodetectProcess(job.getId());
+                    new BlackHoleAutodetectProcess(job.getId(), onProcessCrash);
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, state, executorService, onProcessCrash) -> null;
@@ -611,6 +609,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             inferenceAuditor,
             threadPool,
             clusterService,
+            xContentRegistry,
             settings);
 
         // Data frame analytics components
@@ -823,7 +822,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(StopDataFrameAnalyticsAction.INSTANCE, TransportStopDataFrameAnalyticsAction.class),
                 new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class),
                 new ActionHandler<>(EstimateMemoryUsageAction.INSTANCE, TransportEstimateMemoryUsageAction.class),
-                new ActionHandler<>(InferModelAction.INSTANCE, TransportInferModelAction.class),
+                new ActionHandler<>(InternalInferModelAction.INSTANCE, TransportInternalInferModelAction.class),
                 new ActionHandler<>(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class),
                 new ActionHandler<>(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class),
                 new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),

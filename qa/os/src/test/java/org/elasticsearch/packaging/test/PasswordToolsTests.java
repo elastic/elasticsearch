@@ -70,10 +70,8 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test30AddBootstrapPassword() throws Exception {
         try (Stream<Path> dataFiles = Files.list(installation.data)) {
-            dataFiles.forEach(p -> {
-                logger.warn("Deleting data dir: " + p);
-                FileUtils.rm(p);
-            }); // delete each dir under data, not data itself
+            // delete each dir under data, not data itself
+            dataFiles.forEach(FileUtils::rm);
         }
         installation.executables().elasticsearchKeystore.run(sh, "add --stdin bootstrap.password", BOOTSTRAP_PASSWORD);
 

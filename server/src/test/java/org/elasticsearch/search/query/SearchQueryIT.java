@@ -1579,6 +1579,7 @@ public class SearchQueryIT extends ESIntegTestCase {
      */
     public void testRangeQueryWithLocaleMapping() throws Exception {
         assumeTrue("need java 9 for testing ",JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
+        assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(prepareCreate("test")
             .addMapping("type1", jsonBuilder().startObject().startObject("properties").startObject("date_field")

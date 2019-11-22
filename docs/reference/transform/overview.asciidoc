@@ -35,9 +35,9 @@ more about the supported aggregations and group-by fields, see
 As an optional step, you can also add a query to further limit the scope of the
 aggregation.
 
-IMPORTANT: In 7.2, you can build {dataframes} on the top of a static indices. 
-When new data comes into the index, you have to perform the transformation again 
-on the altered data.
+IMPORTANT: In 7.2, you can use {transforms} on static indices. When new data 
+comes into the index, you have to perform the transformation again on the 
+altered data.
 
 .Example
 

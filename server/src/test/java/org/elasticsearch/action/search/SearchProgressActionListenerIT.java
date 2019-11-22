@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,7 +47,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchActionProgressListenerIT extends ESSingleNodeTestCase {
+public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
     private List<SearchShard> shards;
 
     public void setUp() throws Exception {
@@ -204,7 +205,7 @@ public class SearchActionProgressListenerIT extends ESSingleNodeTestCase {
     private static List<SearchShard> createRandomIndices(Client client) {
         int numIndices = randomIntBetween(3, 20);
         for (int i = 0; i < numIndices; i++) {
-            String indexName = String.format("index-%03d" , i);
+            String indexName = String.format(Locale.ROOT, "index-%03d" , i);
             assertAcked(client.admin().indices().prepareCreate(indexName).get());
             client.prepareIndex(indexName).setSource("number", i, "foo", "bar").get();
         }

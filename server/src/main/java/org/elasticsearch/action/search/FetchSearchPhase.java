@@ -34,7 +34,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 

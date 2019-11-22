@@ -139,7 +139,7 @@ public class EdgeTreeTests extends ESTestCase {
             if (maxYBox - 1 >= minYBox) {
                 assertTrue(reader.intersects(Extent.fromPoints(minXBox, minYBox, maxXBox, maxYBox - 1)));
             }
-            if (maxXBox -1 >= minXBox) {
+            if (maxXBox - 1 >= minXBox) {
                 assertTrue(reader.intersects(Extent.fromPoints(minXBox, minYBox, maxXBox - 1, maxYBox)));
             }
             // does not cross

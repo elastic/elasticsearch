@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
@@ -67,8 +68,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     // pkg private for tests
     static final TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
 
-    static final Set<License.LicenseType> VALID_TRIAL_TYPES = Set.of(
-        License.LicenseType.GOLD, License.LicenseType.PLATINUM, License.LicenseType.ENTERPRISE, License.LicenseType.TRIAL);
+    static final Set<License.LicenseType> VALID_TRIAL_TYPES = Collections.unmodifiableSet(Sets.newHashSet(
+        License.LicenseType.GOLD, License.LicenseType.PLATINUM, License.LicenseType.ENTERPRISE, License.LicenseType.TRIAL));
 
     /**
      * Duration of grace period after a license has expired
@@ -266,7 +267,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     private static boolean licenseIsCompatible(License license, Version version) {
         if (License.LicenseType.ENTERPRISE.getTypeName().equalsIgnoreCase(license.type())) {
-            return version.onOrAfter(Version.V_8_0_0);
+            return version.onOrAfter(Version.V_7_6_0);
         } else {
             return true;
         }

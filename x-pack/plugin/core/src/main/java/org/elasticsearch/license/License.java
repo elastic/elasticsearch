@@ -113,6 +113,12 @@ public class License implements ToXContentObject {
      */
     public static final String REST_VIEW_MODE = "rest_view";
     /**
+     * XContent param name to map the "enterprise" license type to "platinum"
+     * for backwards compatibility with older clients
+     */
+    public static final String XCONTENT_HIDE_ENTERPRISE = "hide_enterprise";
+
+    /**
      * XContent param name to deserialize license(s) with
      * no signature
      */
@@ -437,6 +443,7 @@ public class License implements ToXContentObject {
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         boolean licenseSpecMode = params.paramAsBoolean(LICENSE_SPEC_VIEW_MODE, false);
         boolean restViewMode = params.paramAsBoolean(REST_VIEW_MODE, false);
+        boolean hideEnterprise = params.paramAsBoolean(XCONTENT_HIDE_ENTERPRISE, false);
         boolean previouslyHumanReadable = builder.humanReadable();
         if (licenseSpecMode && restViewMode) {
             throw new IllegalArgumentException("can have either " + REST_VIEW_MODE + " or " + LICENSE_SPEC_VIEW_MODE);
@@ -455,7 +462,10 @@ public class License implements ToXContentObject {
             builder.field(Fields.STATUS, status().label());
         }
         builder.field(Fields.UID, uid);
-        builder.field(Fields.TYPE, type);
+
+        final String bwcType = hideEnterprise && "enterprise".equals(type) ? "platinum" : type;
+        builder.field(Fields.TYPE, bwcType);
+
         if (version == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }

@@ -52,7 +52,7 @@ import static org.junit.Assert.assertTrue;
 
 public class Packages {
 
-    protected static final Logger logger =  LogManager.getLogger(Packages.class);
+    private static final Logger logger =  LogManager.getLogger(Packages.class);
 
     public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
     public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/elasticsearch.service");
@@ -114,7 +114,7 @@ public class Packages {
         return installation;
     }
 
-    public static Result runInstallCommand(Distribution distribution, Shell sh) {
+    private static Result runInstallCommand(Distribution distribution, Shell sh) {
         final Path distributionFile = distribution.path;
 
         if (Platforms.isRPM()) {
@@ -281,7 +281,33 @@ public class Packages {
         assertElasticsearchStarted(sh, installation);
     }
 
-    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws IOException {
+    /**
+     * Starts Elasticsearch, without checking that startup is successful. To also check
+     * that Elasticsearch has started, call {@link #startElasticsearch(Shell, Installation)}.
+     */
+    public static void startElasticsearchIgnoringFailure(Shell sh) {
+        if (isSystemd()) {
+            sh.runIgnoreExitCode("systemctl daemon-reload");
+            sh.runIgnoreExitCode("systemctl enable elasticsearch.service");
+            sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service");
+            sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+        } else {
+            sh.runIgnoreExitCode("service elasticsearch start");
+        }
+    }
+
+    /**
+     * Clears the systemd journal. This is intended to clear the <code>journalctl</code> output
+     * before a test that checks the journal output.
+     */
+    public static void clearJournal(Shell sh) {
+        if (isSystemd()) {
+            sh.run("rm -rf /run/log/journal/");
+            sh.run("systemctl restart systemd-journald");
+        }
+    }
+
+    private static void assertElasticsearchStarted(Shell sh, Installation installation) throws IOException {
         waitForElasticsearch(installation);
 
         if (isSystemd()) {
@@ -292,7 +318,7 @@ public class Packages {
         }
     }
 
-    public static void stopElasticsearch(Shell sh) throws IOException {
+    public static void stopElasticsearch(Shell sh) {
         if (isSystemd()) {
             sh.run("systemctl stop elasticsearch.service");
         } else {

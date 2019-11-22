@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.TermAndBoost;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -255,7 +256,7 @@ public class MultiMatchQuery extends MatchQuery {
             for (TermAndBoost boostedTerm : boostedTerms) {
                 Query query;
                 try {
-                    query = ft.fieldType.termQuery(boostedTerm.term.bytes(), context);
+                    query = ft.fieldType.termQuery(boostedTerm.getTerm().bytes(), context);
                 } catch (RuntimeException e) {
                     if (lenient) {
                         query = newLenientFieldQuery(ft.fieldType.name(), e);
@@ -270,7 +271,7 @@ public class MultiMatchQuery extends MatchQuery {
                     boost *= bq.getBoost();
                 }
                 // also apply any individual term boost
-                boost *= boostedTerm.boost;
+                boost *= boostedTerm.getBoost();
                 if (query.getClass() == TermQuery.class) {
                     terms[i] = ((TermQuery) query).getTerm();
                     blendedBoost[i] = boost;

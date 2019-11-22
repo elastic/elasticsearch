@@ -257,43 +257,6 @@ public abstract class BlendedTermQuery extends Query {
         visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this).consumeTerms(this, terms);
     }
 
-    private class TermAndBoost implements Comparable<TermAndBoost> {
-        protected final Term term;
-        protected float boost;
-
-        protected TermAndBoost(Term term, float boost) {
-            this.term = term;
-            this.boost = boost;
-        }
-
-        @Override
-        public int compareTo(TermAndBoost other) {
-            int compareTo = term.compareTo(other.term);
-            if (compareTo == 0) {
-                compareTo = Float.compare(boost, other.boost);
-            }
-            return compareTo;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o instanceof TermAndBoost == false) {
-                return false;
-            }
-
-            TermAndBoost that = (TermAndBoost) o;
-            return term.equals(that.term) && (Float.compare(boost, that.boost) == 0);
-        }
-
-        @Override
-        public int hashCode() {
-            return  31 * term.hashCode() + Float.hashCode(boost);
-        }
-    }
-
     private volatile TermAndBoost[] equalTermsAndBoosts = null;
 
     private TermAndBoost[] equalsTermsAndBoosts() {

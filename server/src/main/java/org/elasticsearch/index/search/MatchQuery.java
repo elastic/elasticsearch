@@ -31,6 +31,7 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermAndBoost;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -136,16 +137,6 @@ public class MatchQuery {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.ordinal);
-        }
-    }
-
-    static class TermAndBoost {
-        final Term term;
-        final float boost;
-
-        TermAndBoost(Term term, float boost) {
-            this.term = term;
-            this.boost = boost;
         }
     }
 
@@ -590,26 +581,6 @@ public class MatchQuery {
             return isPrefix && lastOffset == offsetAtt.endOffset() ? newPrefixQuery(term) : newTermQuery(term);
         }
 
-        private void add(BooleanQuery.Builder q, String field, List<TermAndBoost> current, BooleanClause.Occur operator, boolean isPrefix) {
-            if (current.isEmpty()) {
-                return;
-            }
-            if (current.size() == 1) {
-                if (isPrefix) {
-                    q.add(newPrefixQuery(current.get(0).term), operator);
-                } else {
-                    q.add(newTermQuery(current.get(0).term), operator);
-                }
-            } else {
-                // We don't apply prefix on synonyms
-                SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
-                for(TermAndBoost tb : current) {
-                    builder.addTerm(tb.term, tb.boost);
-                }
-                q.add(builder.build(), operator);
-            }
-        }
-
         @Override
         protected Query analyzeBoolean(String field, TokenStream stream) throws IOException {
             TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
@@ -627,7 +598,7 @@ public class MatchQuery {
         protected Query newSynonymQuery(String field, List<TermAndBoost> terms) {
             SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
             for (TermAndBoost term : terms) {
-              builder.addTerm(term.term, term.boost);
+              builder.addTerm(term.getTerm(), term.getBoost());
             }
             return builder.build();
         }
@@ -655,6 +626,26 @@ public class MatchQuery {
             stream.end();
             add(q, field, currentQuery, operator, isPrefix && lastOffset == offsetAtt.endOffset());
             return q.build();
+        }
+
+        private void add(BooleanQuery.Builder q, String field, List<TermAndBoost> current, BooleanClause.Occur operator, boolean isPrefix) {
+            if (current.isEmpty()) {
+                return;
+            }
+            if (current.size() == 1) {
+                if (isPrefix) {
+                    q.add(newPrefixQuery(current.get(0).getTerm()), operator);
+                } else {
+                    q.add(newTermQuery(current.get(0).getTerm()), operator);
+                }
+            } else {
+                // We don't apply prefix on synonyms
+                SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
+                for(TermAndBoost tb : current) {
+                    builder.addTerm(tb.getTerm(), tb.getBoost());
+                }
+                q.add(builder.build(), operator);
+            }
         }
 
         private float getTokenTypeBoost(TypeAttribute typeAtt) {

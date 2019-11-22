@@ -83,6 +83,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("no such repository [repo]"));
     }
 
+    @AwaitsFix(bugUrl = "THE BUG IS A LIE")
     public void testNothingScheduledWhenNotRunning() throws InterruptedException {
         ClockMock clock = new ClockMock();
         SnapshotLifecyclePolicyMetadata initialPolicy = SnapshotLifecyclePolicyMetadata.builder()

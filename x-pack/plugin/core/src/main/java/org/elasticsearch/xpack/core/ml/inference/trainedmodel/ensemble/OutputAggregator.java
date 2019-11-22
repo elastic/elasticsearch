@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.util.List;
 
-public interface OutputAggregator extends NamedXContentObject, NamedWriteable {
+public interface OutputAggregator extends NamedXContentObject, NamedWriteable, Accountable {
 
     /**
      * @return The expected size of the values array when aggregating. `null` implies there is no expected size.
@@ -44,4 +46,6 @@ public interface OutputAggregator extends NamedXContentObject, NamedWriteable {
      * @return The name of the output aggregator
      */
     String getName();
+
+    boolean compatibleWith(TargetType targetType);
 }

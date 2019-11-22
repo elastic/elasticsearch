@@ -65,32 +65,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         return List.of(InternalSettingsPlugin.class, ReloadableFilterPlugin.class);
     }
 
-    public void testTypeNameStartsWithIllegalDot() {
-        String index = "test-index";
-        String type = ".test-type";
-        String field = "field";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            client().admin().indices().prepareCreate(index)
-                    .addMapping(type, field, "type=text")
-                    .execute().actionGet();
-        });
-        assertTrue(e.getMessage(), e.getMessage().contains("mapping type name [.test-type] must not start with a '.'"));
-    }
-
-    public void testTypeNameTooLong() {
-        String index = "text-index";
-        String field = "field";
-        String type = new String(new char[256]).replace("\0", "a");
-
-        MapperException e = expectThrows(MapperException.class, () -> {
-            client().admin().indices().prepareCreate(index)
-                    .addMapping(type, field, "type=text")
-                    .execute().actionGet();
-        });
-        assertTrue(e.getMessage(), e.getMessage().contains("mapping type name [" + type
-            + "] is too long; limit is length 255 but was [256]"));
-    }
-
     public void testTypeValidation() {
         InvalidTypeNameException e = expectThrows(InvalidTypeNameException.class, () -> MapperService.validateTypeName("_type"));
         assertEquals("mapping type name [_type] can't start with '_' unless it is called [_doc]", e.getMessage());

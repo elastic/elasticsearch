@@ -144,7 +144,7 @@ public class CompoundProcessor implements Processor {
                 if (ignoreFailure) {
                     innerExecute(currentProcessor + 1, ingestDocument, handler);
                 } else {
-                    ElasticsearchException compoundProcessorException =
+                    IngestProcessorException compoundProcessorException =
                         newCompoundProcessorException(e, processor, ingestDocument);
                     if (onFailureProcessors.isEmpty()) {
                         handler.accept(null, compoundProcessorException);
@@ -214,12 +214,12 @@ public class CompoundProcessor implements Processor {
         ingestMetadata.remove(ON_FAILURE_PIPELINE_FIELD);
     }
 
-    private ElasticsearchException newCompoundProcessorException(Exception e, Processor processor, IngestDocument document) {
-        if (e instanceof ElasticsearchException && ((ElasticsearchException) e).getHeader("processor_type") != null) {
-            return (ElasticsearchException) e;
+    private IngestProcessorException newCompoundProcessorException(Exception e, Processor processor, IngestDocument document) {
+        if (e instanceof IngestProcessorException && ((IngestProcessorException) e).getHeader("processor_type") != null) {
+            return (IngestProcessorException) e;
         }
 
-        ElasticsearchException exception = new ElasticsearchException(e);
+        IngestProcessorException exception = new IngestProcessorException(e);
 
         String processorType = processor.getType();
         if (processorType != null) {
@@ -236,4 +236,5 @@ public class CompoundProcessor implements Processor {
 
         return exception;
     }
+
 }

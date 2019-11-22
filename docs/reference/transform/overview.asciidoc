@@ -35,19 +35,9 @@ more about the supported aggregations and group-by fields, see
 As an optional step, you can also add a query to further limit the scope of the
 aggregation.
 
-<<<<<<< HEAD
 IMPORTANT: In 7.2, you can build {dataframes} on the top of a static indices. 
 When new data comes into the index, you have to perform the transformation again 
 on the altered data.
-=======
-The {transform} performs a composite aggregation that paginates through all the 
-data defined by the source index query. The output of the aggregation is stored 
-in a destination index. Each time the {transform} queries the source index, it 
-creates a _checkpoint_. You can decide whether you want the {transform} to run 
-once (batch {transform}) or continuously ({transform}). A batch {transform} is a 
-single operation that has a single checkpoint. {ctransforms-cap} continually 
-increment and process checkpoints as new source data is ingested.
->>>>>>> 6dad2662aec... [DOCS] Removes data frame leftovers from transforms overview (#49434)
 
 .Example
 

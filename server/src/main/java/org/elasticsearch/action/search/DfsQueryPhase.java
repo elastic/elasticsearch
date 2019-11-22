@@ -73,7 +73,7 @@ final class DfsQueryPhase extends SearchPhase {
             resultList.size(),
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
         final SearchSourceBuilder sourceBuilder = context.getRequest().source();
-        progressListener.onListShards(progressListener.searchShards(resultList), sourceBuilder == null || sourceBuilder.size() != 0);
+        progressListener.notifyListShards(progressListener.searchShards(resultList), sourceBuilder == null || sourceBuilder.size() != 0);
         for (final DfsSearchResult dfsResult : resultList) {
             final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());

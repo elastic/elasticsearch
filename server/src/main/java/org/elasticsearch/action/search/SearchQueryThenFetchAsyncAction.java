@@ -51,7 +51,8 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
         this.searchPhaseController = searchPhaseController;
         final SearchProgressListener progressListener = task.getProgressListener();
         final SearchSourceBuilder sourceBuilder = request.source();
-        progressListener.onListShards(progressListener.searchShards(this.shardsIts), sourceBuilder == null || sourceBuilder.size() != 0);
+        progressListener.notifyListShards(progressListener.searchShards(this.shardsIts),
+            sourceBuilder == null || sourceBuilder.size() != 0);
     }
 
     protected void executePhaseOnShard(final SearchShardIterator shardIt, final ShardRouting shard,

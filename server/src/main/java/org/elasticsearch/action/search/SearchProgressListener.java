@@ -19,6 +19,9 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -35,6 +38,8 @@ import java.util.stream.StreamSupport;
  * A listener that allows to track progress of the {@link SearchAction}.
  */
 abstract class SearchProgressListener {
+    private static final Logger logger = LogManager.getLogger(SearchProgressListener.class);
+
     /**
      * Executed when shards are ready to be queried.
      *
@@ -92,6 +97,49 @@ abstract class SearchProgressListener {
      * @param exc The cause of the failure.
      */
     public void onFetchFailure(int shardIndex, Exception exc) {}
+
+    final void notifyListShards(List<SearchShard> shards, boolean fetchPhase) {
+        try {
+            onListShards(shards, fetchPhase);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on list shards", e));
+        }
+    }
+
+    final void notifyQueryResult(QuerySearchResult result) {
+        try {
+            onQueryResult(result);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result",
+                result.getSearchShardTarget().getShardId().getId()), e);
+        }
+    }
+
+    final void notifyPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int version) {
+        try {
+            onPartialReduce(shards, totalHits, aggs, version);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on partial reduce", e));
+        }
+    }
+
+    final void notifyReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs) {
+        try {
+            onReduce(shards, totalHits, aggs);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on reduce", e));
+        }
+    }
+
+    public void notifyFetchResult(FetchSearchResult result) {
+        try {
+            onFetchResult(result);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch result",
+                result.getSearchShardTarget().getShardId().getId()), e);
+        }
+    }
+
 
     final List<SearchShard> searchShards(List<? extends SearchPhaseResult> results) {
         return results.stream()

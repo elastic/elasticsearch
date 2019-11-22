@@ -618,7 +618,7 @@ public final class SearchPhaseController {
             super.consumeResult(result);
             QuerySearchResult queryResult = result.queryResult();
             consumeInternal(queryResult);
-            progressListener.onQueryResult(queryResult);
+            progressListener.notifyQueryResult(queryResult);
         }
 
         private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
@@ -639,7 +639,7 @@ public final class SearchPhaseController {
                 numReducePhases++;
                 index = 1;
                 if (hasAggs) {
-                    progressListener.onPartialReduce(progressListener.searchShards(results.asList()),
+                    progressListener.notifyPartialReduce(progressListener.searchShards(results.asList()),
                         topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
                 }
             }
@@ -667,7 +667,8 @@ public final class SearchPhaseController {
         public ReducedQueryPhase reduce() {
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(),
                 getRemainingAggs(), getRemainingTopDocs(), topDocsStats, numReducePhases, false, performFinalReduce);
-            progressListener.onReduce(progressListener.searchShards(results.asList()), reducePhase.totalHits, reducePhase.aggregations);
+            progressListener.notifyReduce(progressListener.searchShards(results.asList()),
+                reducePhase.totalHits, reducePhase.aggregations);
             return reducePhase;
         }
 
@@ -713,7 +714,7 @@ public final class SearchPhaseController {
             @Override
             void consumeResult(SearchPhaseResult result) {
                 super.consumeResult(result);
-                listener.onQueryResult(result.queryResult());
+                listener.notifyQueryResult(result.queryResult());
             }
 
             @Override
@@ -727,7 +728,7 @@ public final class SearchPhaseController {
                 List<SearchPhaseResult> resultList = results.asList();
                 final ReducedQueryPhase reducePhase =
                     reducedQueryPhase(resultList, isScrollRequest, trackTotalHitsUpTo, request.isFinalReduce());
-                listener.onReduce(listener.searchShards(resultList), reducePhase.totalHits, reducePhase.aggregations);
+                listener.notifyReduce(listener.searchShards(resultList), reducePhase.totalHits, reducePhase.aggregations);
                 return reducePhase;
             }
         };

@@ -137,11 +137,11 @@ final class FetchSearchPhase extends SearchPhase {
                             // transport layer is cheap.
                             releaseIrrelevantSearchContext(queryResult.queryResult());
 
-                            // empty result
+                            // propagate empty result to the progress listener
                             FetchSearchResult result = new FetchSearchResult();
                             result.setSearchShardTarget(queryResult.getSearchShardTarget());
                             result.hits(SearchHits.empty());
-                            progressListener.onFetchResult(result);
+                            progressListener.notifyFetchResult(result);
                         }
                         // in any case we count down this result since we don't talk to this shard anymore
                         counter.countDown();
@@ -181,7 +181,7 @@ final class FetchSearchPhase extends SearchPhase {
                         context.onPhaseFailure(FetchSearchPhase.this, "", e);
                     }
                     if (success) {
-                        progressListener.onFetchResult(result);
+                        progressListener.notifyFetchResult(result);
                     }
                 }
 

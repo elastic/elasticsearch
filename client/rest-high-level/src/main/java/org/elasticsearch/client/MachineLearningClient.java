@@ -73,6 +73,8 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
+import org.elasticsearch.client.ml.GetTrainedModelsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsResponse;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -2290,4 +2292,48 @@ public final class MachineLearningClient {
             listener,
             Collections.emptySet());
     }
+
+    /**
+     * Gets trained model configs
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     GET Trained Model Configs documentation</a>
+     *
+     * @param request The {@link GetTrainedModelsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetTrainedModelsResponse} response object
+     */
+    public GetTrainedModelsResponse getTrainedModels(GetTrainedModelsRequest request,
+                                                     RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getTrainedModels,
+            options,
+            GetTrainedModelsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets trained model configs asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     GET Trained Model Configs documentation</a>
+     *
+     * @param request The {@link GetTrainedModelsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getTrainedModelsAsync(GetTrainedModelsRequest request,
+                                             RequestOptions options,
+                                             ActionListener<GetTrainedModelsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getTrainedModels,
+            options,
+            GetTrainedModelsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
 }

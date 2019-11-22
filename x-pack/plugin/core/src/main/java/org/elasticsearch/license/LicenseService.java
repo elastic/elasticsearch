@@ -205,7 +205,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final License newLicense = request.license();
         final License.LicenseType licenseType;
         try {
-            licenseType = License.LicenseType.resolve(newLicense.type());
+            licenseType = License.LicenseType.resolve(newLicense);
         } catch (Exception e) {
             listener.onFailure(e);
             return;

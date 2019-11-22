@@ -40,7 +40,9 @@ import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwners
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
+import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
@@ -49,6 +51,7 @@ import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileUtils.append;
+import static org.elasticsearch.packaging.util.FileUtils.mktempDir;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
@@ -175,6 +178,30 @@ public class DockerTests extends PackagingTestCase {
         final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
         assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
         assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+    }
+
+    /**
+     * Check that the default config can be overridden using a bind mount, and that env vars are respected
+     */
+    public void test71BindMountCustomPathWithDifferentUID() throws Exception {
+        copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
+
+        final Path tempDataDir = mktempDir(getTempDir());
+        final Path tempEsDataDir = tempDataDir.resolve("esDataDir");
+        // Make the local directory and contents accessible when bind-mounted
+        mkDirWithPrivilegeEscalation(tempEsDataDir, 1500, 0);
+
+        // Restart the container
+        final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), Path.of("/usr/share/elasticsearch/data"));
+
+        runContainer(distribution(), volumes, Map.of("ES_JAVA_OPTS", "-Xms512m -Xmx512m"));
+
+        waitForElasticsearch(installation);
+
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+
+        assertThat(nodesResponse, containsString("\"_nodes\":{\"total\":1,\"successful\":1,\"failed\":0}"));
+        rmDirWithPrivilegeEscalation(tempEsDataDir);
     }
 
     /**

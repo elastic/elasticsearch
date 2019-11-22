@@ -74,7 +74,7 @@ The API returns a response that contains the following:
   `is_included`:::
     (boolean) Whether the field is selected to be included in the analysis.
 
-  `is_included`:::
+  `is_required`:::
     (boolean) Whether the field is required.
 
   `feature_type`:::

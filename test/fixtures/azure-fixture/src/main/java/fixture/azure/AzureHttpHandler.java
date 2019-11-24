@@ -63,6 +63,10 @@ public class AzureHttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+            int read = exchange.getRequestBody().read();
+            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
+        }
         try {
             if (Regex.simpleMatch("PUT /" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
@@ -140,9 +144,6 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("DELETE /" + container + "/*", request)) {
                 // Delete Blob (https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob)
-                try (InputStream is = exchange.getRequestBody()) {
-                    while (is.read() >= 0);
-                }
                 blobs.entrySet().removeIf(blob -> blob.getKey().startsWith(exchange.getRequestURI().getPath()));
                 exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
 

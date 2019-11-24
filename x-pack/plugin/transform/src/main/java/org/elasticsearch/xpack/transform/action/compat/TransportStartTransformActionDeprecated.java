@@ -16,20 +16,34 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
-import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 public class TransportStartTransformActionDeprecated extends TransportStartTransformAction {
 
     @Inject
-    public TransportStartTransformActionDeprecated(TransportService transportService, ActionFilters actionFilters,
-                                                   ClusterService clusterService, XPackLicenseState licenseState,
-                                                   ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   TransformConfigManager transformConfigManager,
-                                                   PersistentTasksService persistentTasksService, Client client,
-                                                   TransformAuditor auditor) {
-        super(StartTransformActionDeprecated.NAME, transportService, actionFilters, clusterService, licenseState, threadPool,
-              indexNameExpressionResolver, transformConfigManager, persistentTasksService, client, auditor);
+    public TransportStartTransformActionDeprecated(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformServices transformServices,
+        PersistentTasksService persistentTasksService,
+        Client client
+    ) {
+        super(
+            StartTransformActionDeprecated.NAME,
+            transportService,
+            actionFilters,
+            clusterService,
+            licenseState,
+            threadPool,
+            indexNameExpressionResolver,
+            transformServices,
+            persistentTasksService,
+            client
+        );
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import static org.elasticsearch.common.geo.GeoTestUtils.assertRelation;
 import static org.hamcrest.Matchers.equalTo;
 
 public class Point2DTests extends ESTestCase {
@@ -40,13 +41,17 @@ public class Point2DTests extends ESTestCase {
         Point2DReader reader = new Point2DReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
         assertThat(reader.getExtent(), equalTo(Extent.fromPoint(x, y)));
         assertThat(reader.getExtent(), equalTo(reader.getExtent()));
-        assertTrue(reader.intersects(Extent.fromPoint(x, y)));
-        assertTrue(reader.intersects(Extent.fromPoints(x, y, x + randomIntBetween(1, 10), y + randomIntBetween(1, 10))));
-        assertTrue(reader.intersects(Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10), x, y)));
-        assertTrue(reader.intersects(Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10),
-            x + randomIntBetween(1, 10), y + randomIntBetween(1, 10))));
-        assertFalse(reader.intersects(Extent.fromPoints(x - randomIntBetween(10, 100), y - randomIntBetween(10, 100),
-            x - randomIntBetween(1, 10), y - randomIntBetween(1, 10))));
+        assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoint(x, y));
+        assertRelation(GeoRelation.QUERY_CROSSES, reader,
+            Extent.fromPoints(x, y, x + randomIntBetween(1, 10), y + randomIntBetween(1, 10)));
+        assertRelation(GeoRelation.QUERY_CROSSES, reader,
+            Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10), x, y));
+        assertRelation(GeoRelation.QUERY_CROSSES, reader,
+            Extent.fromPoints(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10),
+            x + randomIntBetween(1, 10), y + randomIntBetween(1, 10)));
+        assertRelation(GeoRelation.QUERY_DISJOINT, reader,
+            Extent.fromPoints(x - randomIntBetween(10, 100), y - randomIntBetween(10, 100),
+            x - randomIntBetween(1, 10), y - randomIntBetween(1, 10)));
     }
 
     public void testPoints() throws IOException {
@@ -70,9 +75,11 @@ public class Point2DTests extends ESTestCase {
             writer.writeTo(output);
             output.close();
             Point2DReader reader = new Point2DReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+            // tests calling getExtent() and relate() multiple times to make sure deserialization is not affected
             assertThat(reader.getExtent(), equalTo(reader.getExtent()));
             assertThat(reader.getExtent(), equalTo(writer.getExtent()));
-            assertTrue(reader.intersects(extent));
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, extent);
+            assertRelation(GeoRelation.QUERY_CROSSES, reader, extent);
         }
     }
 }

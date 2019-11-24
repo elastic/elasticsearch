@@ -28,5 +28,5 @@ import java.io.IOException;
 public interface ShapeTreeReader {
 
     Extent getExtent() throws IOException;
-    boolean intersects(Extent extent) throws IOException;
+    GeoRelation relate(Extent extent) throws IOException;
 }

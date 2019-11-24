@@ -51,13 +51,16 @@ public class PolygonTreeReader implements ShapeTreeReader {
      * Returns true if the rectangle query and the edge tree's shape overlap
      */
     @Override
-    public boolean intersects(Extent extent) throws IOException {
+    public GeoRelation relate(Extent extent) throws IOException {
         if (holes != null) {
-            boolean onlyInHole = holes.containsFully(extent);
-            if (onlyInHole) {
-                return false;
+            GeoRelation relation = holes.relate(extent);
+            if (GeoRelation.QUERY_CROSSES == relation) {
+                return GeoRelation.QUERY_CROSSES;
+            }
+            if (GeoRelation.QUERY_INSIDE == relation) {
+                return GeoRelation.QUERY_DISJOINT;
             }
         }
-        return outerShell.intersects(extent);
+        return outerShell.relate(extent);
     }
 }

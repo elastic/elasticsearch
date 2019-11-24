@@ -25,6 +25,7 @@ import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.Ignore;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -81,6 +82,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Keystore is not password-protected"));
     }
 
+    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49469 */
     public void test20CreateKeystoreManually() throws Exception {
         rmKeystoreIfExists();
         createKeystore();
@@ -143,6 +145,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertElasticsearchFailure(result, PASSWORD_ERROR_MESSAGE);
     }
 
+    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test42KeystorePasswordOnTty() throws Exception {
         assumeTrue("expect command isn't on Windows",
             distribution.platform != Distribution.Platform.WINDOWS);
@@ -163,6 +166,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
+    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test43WrongKeystorePasswordOnTty() throws Exception {
         assumeTrue("expect command isn't on Windows",
             distribution.platform != Distribution.Platform.WINDOWS);

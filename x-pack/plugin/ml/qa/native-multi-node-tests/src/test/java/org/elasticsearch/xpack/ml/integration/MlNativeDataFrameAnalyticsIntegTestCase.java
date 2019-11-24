@@ -18,6 +18,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -140,6 +141,11 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = response.getResponse().results();
         assertThat("Got: " + stats.toString(), stats.size(), equalTo(1));
         return stats.get(0);
+    }
+
+    protected EstimateMemoryUsageAction.Response estimateMemoryUsage(DataFrameAnalyticsConfig config) {
+        PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
+        return client().execute(EstimateMemoryUsageAction.INSTANCE, request).actionGet();
     }
 
     protected EvaluateDataFrameAction.Response evaluateDataFrame(String index, Evaluation evaluation) {

@@ -363,6 +363,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                 scheduleNow(this::disconnectOrRestartDataNode);
             }
+            // Only disconnect master if we have more than a single master and can simulate a failover
             final boolean disconnectedMaster = randomBoolean() && masterNodes > 1;
             if (disconnectedMaster) {
                 scheduleNow(this::disconnectOrRestartMasterNode);

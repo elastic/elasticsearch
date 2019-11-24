@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -58,6 +59,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -700,12 +702,49 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request estimateMemoryUsage(PutDataFrameAnalyticsRequest estimateRequest) throws IOException {
+    static Request explainDataFrameAnalytics(ExplainDataFrameAnalyticsRequest explainRequest) throws IOException {
+        EndpointBuilder endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "data_frame", "analytics");
+        if (explainRequest.getId() != null) {
+            endpoint.addPathPart(explainRequest.getId());
+        }
+        endpoint.addPathPartAsIs("_explain");
+
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint.build());
+        if (explainRequest.getConfig() != null) {
+            request.setEntity(createEntity(explainRequest.getConfig(), REQUEST_BODY_CONTENT_TYPE));
+        }
+        return request;
+    }
+
+    static Request getTrainedModels(GetTrainedModelsRequest getTrainedModelsRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml", "data_frame", "analytics", "_estimate_memory_usage")
+            .addPathPartAsIs("_ml", "inference")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getIds()))
             .build();
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(estimateRequest, REQUEST_BODY_CONTENT_TYPE));
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (getTrainedModelsRequest.getPageParams() != null) {
+            PageParams pageParams = getTrainedModelsRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        if (getTrainedModelsRequest.getAllowNoMatch() != null) {
+            params.putParam(GetTrainedModelsRequest.ALLOW_NO_MATCH,
+                Boolean.toString(getTrainedModelsRequest.getAllowNoMatch()));
+        }
+        if (getTrainedModelsRequest.getDecompressDefinition() != null) {
+            params.putParam(GetTrainedModelsRequest.DECOMPRESS_DEFINITION,
+                Boolean.toString(getTrainedModelsRequest.getDecompressDefinition()));
+        }
+        if (getTrainedModelsRequest.getIncludeDefinition() != null) {
+            params.putParam(GetTrainedModelsRequest.INCLUDE_MODEL_DEFINITION,
+                Boolean.toString(getTrainedModelsRequest.getIncludeDefinition()));
+        }
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameters(params.asMap());
         return request;
     }
 

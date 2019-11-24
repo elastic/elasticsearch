@@ -490,7 +490,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
-
+        // We end up with two snapshots no matter if the delete worked out or not
         assertThat(snapshotIds, hasSize(2));
 
         for (SnapshotId snapshotId : snapshotIds) {

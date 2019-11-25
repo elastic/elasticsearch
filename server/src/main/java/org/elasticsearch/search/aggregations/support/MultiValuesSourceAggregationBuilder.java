@@ -170,7 +170,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         Map<String, ValuesSourceConfig<VS>> configs = new HashMap<>(fields.size());
         fields.forEach((key, value) -> {
             ValuesSourceConfig<VS> config = ValuesSourceConfig.resolve(queryShardContext, finalValueType,
-                value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format);
+                value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format, getType());
             configs.put(key, config);
         });
         DocValueFormat docValueFormat = resolveFormat(format, finalValueType);

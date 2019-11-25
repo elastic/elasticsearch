@@ -444,7 +444,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public void testNoRangesInQuery()  {
         try {
             client().prepareSearch("idx")
-                .addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)))
+                .addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location"))
                 .get();
             fail();
         } catch (SearchPhaseExecutionException spee){

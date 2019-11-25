@@ -330,7 +330,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     protected ValuesSourceConfig<VS> resolveConfig(QueryShardContext queryShardContext) {
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
         return ValuesSourceConfig.resolve(queryShardContext,
-                valueType, field, script, missing, timeZone, format, this::resolveScriptAny);
+                valueType, field, script, missing, timeZone, format, this::resolveScriptAny, this.getType());
     }
 
     protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,

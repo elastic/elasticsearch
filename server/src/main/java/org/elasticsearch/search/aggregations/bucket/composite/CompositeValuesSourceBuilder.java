@@ -276,7 +276,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(queryShardContext,
-            valueType, field, script, null,null, format);
+            valueType, field, script, null,null, format, name());
         return innerBuild(queryShardContext, config);
     }
 }

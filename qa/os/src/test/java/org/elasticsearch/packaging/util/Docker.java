@@ -318,7 +318,7 @@ public class Docker {
      * @param uid The numeric id for localPath
      * @param gid The numeric id for localPath
      */
-    public static void mkDirWithPrivilegeEscalation(Path localPath, Integer uid, Integer gid) {
+    public static void mkDirWithPrivilegeEscalation(Path localPath, int uid, int gid) {
         final Path containerBasePath = Paths.get("/mount");
         final Path containerPath = containerBasePath.resolve(Paths.get("/").relativize(localPath));
         final List<String> args = new ArrayList<>();
@@ -333,9 +333,9 @@ public class Docker {
 
         final PosixFileAttributes dirAttributes = FileUtils.getPosixFileAttributes(localPath);
         final Map<String, Integer> numericPathOwnership = FileUtils.getNumericUnixPathOwnership(localPath);
-        assertEquals(localPath.toString() + " has wrong uid", numericPathOwnership.get("uid"), uid);
-        assertEquals(localPath.toString() + " has wrong gid", numericPathOwnership.get("gid"), gid);
-        assertEquals(localPath.toString() + " has wrong permissions", dirAttributes.permissions(), p770);
+        assertEquals(localPath + " has wrong uid", numericPathOwnership.get("uid").intValue(), uid);
+        assertEquals(localPath + " has wrong gid", numericPathOwnership.get("gid").intValue(), gid);
+        assertEquals(localPath + " has wrong permissions", dirAttributes.permissions(), p770);
     }
 
     /**

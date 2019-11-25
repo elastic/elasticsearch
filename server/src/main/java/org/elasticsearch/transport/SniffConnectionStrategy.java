@@ -165,6 +165,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     parsePort(s);
                 }
             }),
+            SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(ns),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope),
         REMOTE_CLUSTER_SEEDS);

@@ -6,23 +6,18 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.script.Params;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-import java.util.List;
 import java.util.Objects;
-
-import static java.util.Collections.emptyList;
 
 /**
  * SQL Literal or constant.
  */
-public class Literal extends NamedExpression {
+public class Literal extends LeafExpression {
 
     public static final Literal TRUE = Literal.of(Source.EMPTY, Boolean.TRUE);
     public static final Literal FALSE = Literal.of(Source.EMPTY, Boolean.FALSE);
@@ -32,11 +27,7 @@ public class Literal extends NamedExpression {
     private final DataType dataType;
 
     public Literal(Source source, Object value, DataType dataType) {
-        this(source, null, value, dataType);
-    }
-
-    public Literal(Source source, String name, Object value, DataType dataType) {
-        super(source, name == null ? source.text() : name, emptyList(), null);
+        super(source);
         this.dataType = dataType;
         this.value = DataTypeConversion.convert(value, dataType);
     }
@@ -75,31 +66,10 @@ public class Literal extends NamedExpression {
         return value;
     }
 
-    @Override
-    public Attribute toAttribute() {
-        return new LiteralAttribute(source(), name(), dataType, null, nullable(), id(), false, this);
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        return new ScriptTemplate(String.valueOf(value), Params.EMPTY, dataType);
-    }
-
-    @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
-    }
-
-    @Override
-    public AttributeSet references() {
-        return AttributeSet.EMPTY;
-    }
-
-    @Override
-    protected Expression canonicalize() {
-        String s = String.valueOf(value);
-        return name().equals(s) ? this : Literal.of(source(), value);
-    }
+    //    @Override
+    //    public ScriptTemplate asScript() {
+    //        return new ScriptTemplate(String.valueOf(value), Params.EMPTY, dataType);
+    //    }
 
     @Override
     public int hashCode() {
@@ -116,14 +86,19 @@ public class Literal extends NamedExpression {
         }
 
         Literal other = (Literal) obj;
-        return Objects.equals(value, other.value)
-                && Objects.equals(dataType, other.dataType);
+        // add shortcut for null since the dataType become irrelevant
+        return (value == null && other.value == null) ||
+                (Objects.equals(value, other.value) && Objects.equals(dataType, other.dataType));
     }
 
     @Override
     public String toString() {
-        String s = String.valueOf(value);
-        return name().equals(s) ? s : name() + "=" + value;
+        return String.valueOf(value);
+    }
+
+    @Override
+    public String nodeString() {
+        return toString() + "[" + dataType + "]";
     }
 
     /**
@@ -141,31 +116,18 @@ public class Literal extends NamedExpression {
      * Throws an exception if the expression is not foldable.
      */
     public static Literal of(Expression foldable) {
-        return of((String) null, foldable);
-    }
-
-    public static Literal of(String name, Expression foldable) {
         if (!foldable.foldable()) {
             throw new SqlIllegalArgumentException("Foldable expression required for Literal creation; received unfoldable " + foldable);
         }
 
         if (foldable instanceof Literal) {
-            Literal l = (Literal) foldable;
-            if (name == null || l.name().equals(name)) {
-                return l;
-            }
+            return (Literal) foldable;
         }
 
-        Object fold = foldable.fold();
-
-        if (name == null) {
-            name = foldable instanceof NamedExpression ? ((NamedExpression) foldable).name() : String.valueOf(fold);
-        }
-        return new Literal(foldable.source(), name, fold, foldable.dataType());
+        return new Literal(foldable.source(), foldable.fold(), foldable.dataType());
     }
 
     public static Literal of(Expression source, Object value) {
-        String name = source instanceof NamedExpression ? ((NamedExpression) source).name() : String.valueOf(value);
-        return new Literal(source.source(), name, value, source.dataType());
+        return new Literal(source.source(), value, source.dataType());
     }
 }

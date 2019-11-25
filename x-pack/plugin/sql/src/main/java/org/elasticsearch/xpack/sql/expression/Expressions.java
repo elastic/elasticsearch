@@ -6,14 +6,19 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.Function;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.AttributeInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -103,7 +108,7 @@ public final class Expressions {
     }
 
     public static String name(Expression e) {
-        return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.nodeName();
+        return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.sourceText();
     }
 
     public static boolean isNull(Expression e) {
@@ -123,9 +128,6 @@ public final class Expressions {
         if (e instanceof NamedExpression) {
             return ((NamedExpression) e).toAttribute();
         }
-        if (e != null && e.foldable()) {
-            return Literal.of(e).toAttribute();
-        }
         return null;
     }
 
@@ -135,6 +137,16 @@ public final class Expressions {
             return (l != null && l.semanticEquals(attribute(right)));
         }
         return true;
+    }
+
+    public static AttributeMap<Expression> aliases(List<? extends NamedExpression> named) {
+        Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
+        for (NamedExpression ne : named) {
+            if (ne instanceof Alias) {
+                aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
+            }
+        }
+        return new AttributeMap<>(aliasMap);
     }
 
     public static List<Attribute> onlyPrimitiveFieldAttributes(Collection<Attribute> attributes) {
@@ -162,8 +174,14 @@ public final class Expressions {
     }
 
     public static Pipe pipe(Expression e) {
+        if (e.foldable()) {
+            return new ConstantInput(e.source(), e, e.fold());
+        }
         if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).asPipe();
+            return new AttributeInput(e.source(), e, ((NamedExpression) e).toAttribute());
+        }
+        if (e instanceof Function) {
+            return ((Function) e).asPipe();
         }
         throw new SqlIllegalArgumentException("Cannot create pipe for {}", e);
     }
@@ -174,5 +192,9 @@ public final class Expressions {
             pipes.add(pipe(e));
         }
         return pipes;
+    }
+
+    public static String id(Expression e) {
+        return Integer.toHexString(e.hashCode());
     }
 }

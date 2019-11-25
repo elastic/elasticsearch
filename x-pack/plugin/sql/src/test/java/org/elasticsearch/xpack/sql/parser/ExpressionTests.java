@@ -463,8 +463,8 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(3, c.conditions().size());
         IfConditional ifc = c.conditions().get(0);
         assertEquals("WHEN a = 1 THEN 'one'", ifc.sourceText());
-        assertThat(ifc.condition().toString(), startsWith("Equals[?a,1]#"));
-        assertEquals("'one'=one", ifc.result().toString());
+        assertThat(ifc.condition().toString(), startsWith("a = 1"));
+        assertEquals("one", ifc.result().toString());
         assertEquals(Literal.NULL, c.elseResult());
 
         expr = parser.createExpression(
@@ -478,7 +478,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(2, c.conditions().size());
         ifc = c.conditions().get(0);
         assertEquals("WHEN a = 1 THEN 'one'", ifc.sourceText());
-        assertEquals("'many'=many", c.elseResult().toString());
+        assertEquals("many", c.elseResult().toString());
     }
 
     public void testCaseWithOperand() {
@@ -493,8 +493,8 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(3, c.conditions().size());
         IfConditional ifc = c.conditions().get(0);
         assertEquals("WHEN 1 THEN 'one'", ifc.sourceText());
-        assertThat(ifc.condition().toString(), startsWith("Equals[?a,1]#"));
-        assertEquals("'one'=one", ifc.result().toString());
+        assertThat(ifc.condition().toString(), startsWith("WHEN 1 THEN 'one'"));
+        assertEquals("one", ifc.result().toString());
         assertEquals(Literal.NULL, c.elseResult());
 
         expr = parser.createExpression(
@@ -507,6 +507,6 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(2, c.conditions().size());
         ifc = c.conditions().get(0);
         assertEquals("WHEN 1 THEN 'one'", ifc.sourceText());
-        assertEquals("'many'=many", c.elseResult().toString());
+        assertEquals("many", c.elseResult().toString());
     }
 }

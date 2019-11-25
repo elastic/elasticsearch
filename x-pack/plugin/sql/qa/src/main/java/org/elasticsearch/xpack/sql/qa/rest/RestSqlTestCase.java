@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -417,36 +418,36 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         String expected = "";
         if (columnar) {
-            expected = "{\n" + 
-                    "  \"columns\" : [\n" + 
-                    "    {\n" + 
-                    "      \"name\" : \"test1\",\n" + 
-                    "      \"type\" : \"text\"\n" + 
-                    "    }\n" + 
-                    "  ],\n" + 
-                    "  \"values\" : [\n" + 
-                    "    [\n" + 
-                    "      \"test1\",\n" + 
-                    "      \"test2\"\n" + 
-                    "    ]\n" + 
-                    "  ]\n" + 
+            expected = "{\n" +
+                    "  \"columns\" : [\n" +
+                    "    {\n" +
+                    "      \"name\" : \"test1\",\n" +
+                    "      \"type\" : \"text\"\n" +
+                    "    }\n" +
+                    "  ],\n" +
+                    "  \"values\" : [\n" +
+                    "    [\n" +
+                    "      \"test1\",\n" +
+                    "      \"test2\"\n" +
+                    "    ]\n" +
+                    "  ]\n" +
                     "}\n";
         } else {
-            expected = "{\n" + 
-                    "  \"columns\" : [\n" + 
-                    "    {\n" + 
-                    "      \"name\" : \"test1\",\n" + 
-                    "      \"type\" : \"text\"\n" + 
-                    "    }\n" + 
-                    "  ],\n" + 
-                    "  \"rows\" : [\n" + 
-                    "    [\n" + 
-                    "      \"test1\"\n" + 
-                    "    ],\n" + 
-                    "    [\n" + 
-                    "      \"test2\"\n" + 
-                    "    ]\n" + 
-                    "  ]\n" + 
+            expected = "{\n" +
+                    "  \"columns\" : [\n" +
+                    "    {\n" +
+                    "      \"name\" : \"test1\",\n" +
+                    "      \"type\" : \"text\"\n" +
+                    "    }\n" +
+                    "  ],\n" +
+                    "  \"rows\" : [\n" +
+                    "    [\n" +
+                    "      \"test1\"\n" +
+                    "    ],\n" +
+                    "    [\n" +
+                    "      \"test2\"\n" +
+                    "    ]\n" +
+                    "  ]\n" +
                     "}\n";
         }
         executeAndAssertPrettyPrinting(expected, "true", columnar);
@@ -639,14 +640,14 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> aggregations2 = (Map<String, Object>) groupby.get("aggregations");
         assertEquals(2, aggregations2.size());
 
-        List<Integer> aggKeys = new ArrayList<>(2);
+        List<String> aggKeys = new ArrayList<>(2);
         String aggFilterKey = null;
         for (Map.Entry<String, Object> entry : aggregations2.entrySet()) {
             String key = entry.getKey();
             if (key.startsWith("having")) {
                 aggFilterKey = key;
             } else {
-                aggKeys.add(Integer.valueOf(key));
+                aggKeys.add(key);
                 @SuppressWarnings("unchecked")
                 Map<String, Object> aggr = (Map<String, Object>) entry.getValue();
                 assertEquals(1, aggr.size());

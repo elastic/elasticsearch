@@ -378,7 +378,7 @@ public abstract class Node<T extends Node<T>> {
                 if (needsComma) {
                     sb.append(",");
                 }
-                String stringValue = Objects.toString(prop);
+                String stringValue = prop instanceof Node<?> ? ((Node<?>) prop).nodeString() : Objects.toString(prop);
                 if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
                     int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
                     sb.append(stringValue.substring(0, cutoff));

@@ -184,8 +184,6 @@ public class DockerTests extends PackagingTestCase {
      * Check that the default config can be overridden using a bind mount, and that env vars are respected
      */
     public void test71BindMountCustomPathWithDifferentUID() throws Exception {
-//        copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
-
         final Path tempEsDataDir = tempDir.resolve("esDataDir");
         // Make the local directory and contents accessible when bind-mounted
         mkDirWithPrivilegeEscalation(tempEsDataDir, 1500, 0);

@@ -126,7 +126,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
                     .stream()
                     .map(
                             s -> {
-                                final Tuple<String, Integer> hostPort = RemoteClusterAware.parseHostPort(s);
+                                final Tuple<String, Integer> hostPort = RemoteConnectionStrategy.parseHostPort(s);
                                 assert hostPort.v2() != null : s;
                                 try {
                                     return new TransportAddress(

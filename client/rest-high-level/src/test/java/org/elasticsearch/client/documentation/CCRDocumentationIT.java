@@ -87,7 +87,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         String transportAddress = (String) nodesResponse.get("transport_address");
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(Collections.singletonMap("cluster.remote.local.seeds", transportAddress));
+        updateSettingsRequest.transientSettings(Collections.singletonMap("cluster.remote.local.sniff.seeds", transportAddress));
         ClusterUpdateSettingsResponse updateSettingsResponse =
             client.cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));

@@ -120,6 +120,35 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class, MockKeywordPlugin.class, MockAnalysisPlugin.class);
     }
 
+    public void testHighlightingWithKeywordIgnoreBoundaryScanner() throws IOException {
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+            .startObject("properties")
+                .startObject("tags")
+                    .field("type", "keyword")
+                .endObject()
+            .endObject().endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("type", mappings));
+        client().prepareIndex("test").setId("1")
+            .setSource(jsonBuilder().startObject().array("tags", "foo bar", "foo bar", "foo bar", "foo baz").endObject())
+            .get();
+        client().prepareIndex("test").setId("2")
+            .setSource(jsonBuilder().startObject().array("tags", "foo baz", "foo baz", "foo baz", "foo bar").endObject())
+            .get();
+        refresh();
+
+        for (BoundaryScannerType scanner : BoundaryScannerType.values()) {
+            SearchResponse search = client().prepareSearch().setQuery(matchQuery("tags", "foo bar"))
+                .highlighter(new HighlightBuilder().field(new Field("tags")).numOfFragments(2).boundaryScannerType(scanner)).get();
+            assertHighlight(search, 0, "tags", 0, 2, equalTo("<em>foo bar</em>"));
+            assertHighlight(search, 0, "tags", 1, 2, equalTo("<em>foo bar</em>"));
+            assertHighlight(search, 1, "tags", 0, 1, equalTo("<em>foo bar</em>"));
+        }
+    }
+
     public void testHighlightingWithStoredKeyword() throws IOException {
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();

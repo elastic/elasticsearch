@@ -63,9 +63,6 @@ include::{docdir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 [[cat-tasks-api-examples]]
 ==== {api-examples-title}
 
-[[cat-tasks-api-all-ex]]
-===== Get information for all tasks in a cluster
-
 [source,console]
 ----
 GET _cat/tasks?v

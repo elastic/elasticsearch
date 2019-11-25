@@ -29,4 +29,6 @@ public interface ShapeTreeReader {
 
     Extent getExtent() throws IOException;
     GeoRelation relate(Extent extent) throws IOException;
+    double getCentroidX() throws IOException;
+    double getCentroidY() throws IOException;
 }

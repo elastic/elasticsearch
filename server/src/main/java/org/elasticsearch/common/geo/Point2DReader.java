@@ -39,6 +39,7 @@ class Point2DReader implements ShapeTreeReader {
         this.startPosition = input.position();
     }
 
+    @Override
     public Extent getExtent() throws IOException {
         if (size == 1) {
             int x = readX(0);
@@ -49,6 +50,17 @@ class Point2DReader implements ShapeTreeReader {
             return new Extent(input);
         }
     }
+
+    @Override
+    public double getCentroidX() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public double getCentroidY() {
+        throw new UnsupportedOperationException();
+    }
+
 
     @Override
     public GeoRelation relate(Extent extent) throws IOException {
@@ -73,7 +85,7 @@ class Point2DReader implements ShapeTreeReader {
                 continue;
             }
 
-            int middle = (right - left) >> 1;
+            int middle = (right + left) >> 1;
             int x = readX(middle);
             int y = readY(middle);
             if (x >= extent.minX() && x <= extent.maxX() && y >= extent.minY() && y <= extent.maxY()) {

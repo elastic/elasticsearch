@@ -40,6 +40,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 
 import java.io.IOException;
@@ -52,19 +53,20 @@ import java.util.List;
  * Internally it tessellate the given {@link Geometry} and it builds an interval tree with the
  * tessellation.
  */
-public class TriangleTreeWriter implements Writeable {
+public class TriangleTreeWriter extends ShapeTreeWriter {
 
-    private final TriangleTreeBuilder builder;
     private final TriangleTreeNode node;
     private final CoordinateEncoder coordinateEncoder;
-    private CentroidCalculator centroidCalculator;
+    private final CentroidCalculator centroidCalculator;
+    private final ShapeType type;
 
     public TriangleTreeWriter(Geometry geometry, CoordinateEncoder coordinateEncoder) {
         this.coordinateEncoder = coordinateEncoder;
         this.centroidCalculator = new CentroidCalculator();
-        builder = new TriangleTreeBuilder(coordinateEncoder);
+        this.type = geometry.type();
+        TriangleTreeBuilder builder = new TriangleTreeBuilder(coordinateEncoder);
         geometry.visit(builder);
-        node = builder.build();
+        this.node = builder.build();
     }
 
     @Override
@@ -72,6 +74,22 @@ public class TriangleTreeWriter implements Writeable {
         out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
         node.writeTo(out);
+    }
+
+    @Override
+    public Extent getExtent() {
+        // do it right
+        return Extent.fromPoints(node.minX, node.minY, node.maxX, node.maxY);
+    }
+
+    @Override
+    public ShapeType getShapeType() {
+        return type;
+    }
+
+    @Override
+    public CentroidCalculator getCentroidCalculator() {
+        return centroidCalculator;
     }
 
     /**
@@ -176,7 +194,7 @@ public class TriangleTreeWriter implements Writeable {
             for (int i = 0; i < triangles.size(); i++) {
                 nodes[i] = new TriangleTreeNode(triangles.get(i));
             }
-            TriangleTreeNode root =  createTree(nodes, 0, triangles.size() - 1, false);
+            TriangleTreeNode root =  createTree(nodes, 0, triangles.size() - 1, true);
             for (TriangleTreeNode node : nodes) {
                 root.minX = Math.min(root.minX, node.minX);
                 root.minY = Math.min(root.minY, node.minY);
@@ -377,7 +395,6 @@ public class TriangleTreeWriter implements Writeable {
     /**
      * Represents an leaf of the tree containing one of the triangles.
      */
-    //TODO: Add edges belong to the polygon when updating to LUCENE 8.3
     static class TriangleTreeLeaf {
 
         public enum TYPE {

@@ -24,13 +24,13 @@ import org.elasticsearch.geometry.Geometry;
 import java.io.IOException;
 
 
-public class GeometryTreeTests extends AbstractTreeTestCase {
+public class TriangleTreeTests extends AbstractTreeTestCase {
 
     protected ShapeTreeReader geometryTreeReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
-        GeometryTreeWriter writer = new GeometryTreeWriter(geometry, encoder);
+        TriangleTreeWriter writer = new TriangleTreeWriter(geometry, encoder);
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        return new GeometryTreeReader(output.bytes().toBytesRef(), encoder);
+        return new TriangleTreeReader(output.bytes().toBytesRef(), encoder);
     }
 }

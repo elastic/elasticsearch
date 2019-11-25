@@ -43,11 +43,13 @@ public class GeometryTreeReader implements ShapeTreeReader {
         this.coordinateEncoder = coordinateEncoder;
     }
 
+    @Override
     public double getCentroidX() throws IOException {
         input.position(0);
         return coordinateEncoder.decodeX(input.readInt());
     }
 
+    @Override
     public double getCentroidY() throws IOException {
         input.position(4);
         return coordinateEncoder.decodeY(input.readInt());

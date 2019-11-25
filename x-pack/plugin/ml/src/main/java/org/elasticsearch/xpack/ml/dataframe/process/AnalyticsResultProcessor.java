@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -80,7 +81,7 @@ public class AnalyticsResultProcessor {
             completionLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.error(new ParameterizedMessage("[{}] Interrupted waiting for results processor to complete", analytics.getId()), e);
+            setAndReportFailure(ExceptionsHelper.serverError("interrupted waiting for results processor to complete", e));
         }
     }
 
@@ -110,11 +111,10 @@ public class AnalyticsResultProcessor {
             if (isCancelled) {
                 // No need to log error as it's due to stopping
             } else {
-                LOGGER.error(new ParameterizedMessage("[{}] Error parsing data frame analytics output", analytics.getId()), e);
-                failure = "error parsing data frame analytics output: [" + e.getMessage() + "]";
+                setAndReportFailure(e);
             }
         } finally {
-            if (isCancelled == false) {
+            if (isCancelled == false && failure == null) {
                 completeResultsProgress();
             }
             completionLatch.countDown();
@@ -155,7 +155,7 @@ public class AnalyticsResultProcessor {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.error(new ParameterizedMessage("[{}] Interrupted waiting for inference model to be stored", analytics.getId()), e);
+            setAndReportFailure(ExceptionsHelper.serverError("interrupted waiting for inference model to be stored"));
         }
     }
 
@@ -186,19 +186,22 @@ public class AnalyticsResultProcessor {
             aBoolean -> {
                 if (aBoolean == false) {
                     LOGGER.error("[{}] Storing trained model responded false", analytics.getId());
+                    setAndReportFailure(ExceptionsHelper.serverError("storing trained model responded false"));
                 } else {
                     LOGGER.info("[{}] Stored trained model with id [{}]", analytics.getId(), trainedModelConfig.getModelId());
                     auditor.info(analytics.getId(), "Stored trained model with id [" + trainedModelConfig.getModelId() + "]");
                 }
             },
-            e -> {
-                LOGGER.error(new ParameterizedMessage("[{}] Error storing trained model [{}]", analytics.getId(),
-                    trainedModelConfig.getModelId()), e);
-                auditor.error(analytics.getId(), "Error storing trained model with id [" + trainedModelConfig.getModelId()
-                    + "]; error message [" + e.getMessage() + "]");
-            }
+            e -> setAndReportFailure(ExceptionsHelper.serverError("error storing trained model with id [{}]", e,
+                trainedModelConfig.getModelId()))
         );
         trainedModelProvider.storeTrainedModel(trainedModelConfig, new LatchedActionListener<>(storeListener, latch));
         return latch;
+    }
+
+    private void setAndReportFailure(Exception e) {
+        LOGGER.error(new ParameterizedMessage("[{}] Error processing results; ", analytics.getId()), e);
+        failure = "error processing results; " + e.getMessage();
+        auditor.error(analytics.getId(), "Error processing results; " + e.getMessage());
     }
 }

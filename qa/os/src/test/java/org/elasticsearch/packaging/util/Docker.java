@@ -312,11 +312,6 @@ public class Docker {
         sh.run(command);
     }
 
-    private static void executePrivilegeEscalatedShellCmd(String shellCmd, Path localPath) {
-        final Path relativeLocalPath = Paths.get("/").relativize(localPath);
-        executePrivilegeEscalatedShellCmd(shellCmd, localPath, Paths.get("/containerPath").resolve(relativeLocalPath));
-    }
-
     /**
      * Create a directory with specified uid/gid using Docker backed privilege escalation.
      * @param localPath The path to the directory to create.

@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
@@ -70,6 +71,8 @@ public final class ExceptionsHelper {
             if (t instanceof ElasticsearchException) {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
+                return RestStatus.BAD_REQUEST;
+            } else if (t instanceof JsonParseException) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof EsRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;

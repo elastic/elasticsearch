@@ -356,6 +356,7 @@ public class AutodetectResultProcessor {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
             }
         }
+        bulkResultsPersister.clearBulkRequest();
         LOGGER.warn(
             new ParameterizedMessage("[{}] failed bulk indexing of results after [{}] attempts",
                 jobId,

@@ -168,7 +168,7 @@ when a bucket is empty and a different value should be generated.
 Bucket scripts have access to a special `params.doc_count` property which contains the document count
 for the particular bucket the script is evaluating:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -198,7 +198,6 @@ POST /sales/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 <1> `params.doc_count` is a special parameter which contains the bucket's document count
 
@@ -206,7 +205,7 @@ By default, a `bucket_script` has a `skip` gap policy applied.  This means empty
 count) are not evaluated by the script.  But if you wish to evaluate an empty bucket, you can use `gap_policy: none`
 and access the doc count in the script to determine how the result should be generated:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -237,7 +236,6 @@ POST /sales/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 <1> The gap policy is set to "none", which means the script will evaluate on all buckets
 <2> The script checks the document count and emits a -1.0 if the bucket is empty, or a 1.0 if there are documents

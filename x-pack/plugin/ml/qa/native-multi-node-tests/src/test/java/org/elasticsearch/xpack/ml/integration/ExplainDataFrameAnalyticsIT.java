@@ -50,12 +50,12 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         String id = "test_source_query_is_applied";
 
-        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder();
-        configBuilder.setId(id);
-        configBuilder.setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
-            QueryProvider.fromParsedQuery(QueryBuilders.termQuery("categorical", "only-one"))));
-        configBuilder.setAnalysis(new Classification("categorical"));
-        DataFrameAnalyticsConfig config = configBuilder.buildForExplain();
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId(id)
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
+                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("categorical", "only-one"))))
+            .setAnalysis(new Classification("categorical"))
+            .buildForExplain();
 
         ExplainDataFrameAnalyticsAction.Response explainResponse = explainDataFrame(config);
 

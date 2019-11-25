@@ -21,6 +21,7 @@ import org.antlr.v4.runtime.misc.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.eql.expression.Expression;
+import org.antlr.v4.runtime.ANTLRInputStream;
 
 import java.util.Arrays;
 import java.util.BitSet;
@@ -56,11 +57,11 @@ public class EqlParser {
         return invokeParser(expression, EqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
-    private <T> T invokeParser(String sql,
+    private <T> T invokeParser(String eql,
             Function<EqlBaseParser, ParserRuleContext> parseFunction,
                                BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
         try {
-            EqlBaseLexer lexer = new EqlBaseLexer(new CaseInsensitiveStream(sql));
+            EqlBaseLexer lexer = new EqlBaseLexer(new ANTLRInputStream(eql));
 
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
@@ -96,8 +97,8 @@ public class EqlParser {
 
             return visitor.apply(new AstBuilder(), tree);
         } catch (StackOverflowError e) {
-            throw new ParsingException("SQL statement is too large, " +
-                "causing stack overflow when generating the parsing tree: [{}]", sql);
+            throw new ParsingException("EQL statement is too large, " +
+                "causing stack overflow when generating the parsing tree: [{}]", eql);
         }
     }
 
@@ -126,29 +127,6 @@ public class EqlParser {
             this.ruleNames = ruleNames;
         }
 
-        @Override
-        public void exitDigitIdentifier(EqlBaseParser.DigitIdentifierContext context) {
-            Token token = context.DIGIT_IDENTIFIER().getSymbol();
-            throw new ParsingException(
-                    "identifiers must not start with a digit; please use double quotes",
-                    null,
-                    token.getLine(),
-                    token.getCharPositionInLine());
-        }
-
-        @Override
-        public void exitQuotedIdentifier(EqlBaseParser.QuotedIdentifierContext context) {
-            // Remove quotes
-            context.getParent().removeLastChild();
-
-            Token token = (Token) context.getChild(0).getPayload();
-            context.getParent().addChild(new CommonToken(
-                    new Pair<>(token.getTokenSource(), token.getInputStream()),
-                    EqlBaseLexer.IDENTIFIER,
-                    token.getChannel(),
-                    token.getStartIndex() + 1,
-                    token.getStopIndex() - 1));
-        }
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {

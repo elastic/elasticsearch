@@ -47,7 +47,7 @@ network where total_out_bytes > 100000000
 
 //
 // Sequences
-// 
+//
 
 sequence by user_name
   [process where process_name == "whoami"]
@@ -59,26 +59,26 @@ sequence with maxspan=30s
   [network where destination_port==3389 and event_subtype_full="*_accept_event*"]
   [security where event_id in (4624, 4625) and logon_type == 10]
 ;
-  
+
 sequence with maxspan=30s
   [network where destination_port==3389 and event_subtype_full="*_accept_event"] by source_address
   [security where event_id in (4624, 4625) and logon_type == 10] by ip_address
 ;
-  
+
 sequence with maxspan=5m
-  [ file where file_name == "*.exe"] by user_name, file_path
-  [ process where true] by user_name, process_path
+  [file where file_name == "*.exe"] by user_name, file_path
+  [process where true] by user_name, process_path
 ;
-  
+
 sequence by user_name with maxspan=5m
-  [ file where file_name == "*.exe"] by file_path
-  [ process where true] by process_path
+  [file where file_name == "*.exe"] by file_path
+  [process where true] by process_path
 ;
 
 //
 // Joins
 //
-  
+
 join by source_ip, destination_ip
   [network where destination_port == 3389]  // RDP
   [network where destination_port == 135]   // RPC
@@ -92,4 +92,862 @@ join by pid
   [file where true]
 
 until [process where event_subtype_full == "termination_event"]
+;
+
+
+
+/* UNIT TESTS FROM
+ * https://github.com/endgameinc/eql/blob/master/tests/test_parser.py
+ */
+
+file where true;
+
+file where true and true;
+
+file where false or true;
+
+registry where not pid;
+
+process where process_name == "net.exe" and command_line == "* user*.exe";
+
+process where command_line == "~!@#$%^&*();'[]{}\\|<>?,./:\"-= ' ";
+
+process where
+
+ pid ==	 4;
+
+process where process_name in ("net.exe", "cmd.exe", "at.exe");
+
+process where command_line == "*.exe *admin*" or command_line == "* a b*";
+
+process where pid in (1,2,3,4,5,6,7,8) and abc == 100 and def == 200 and ghi == 300 and jkl == x;
+
+process where ppid != pid;
+
+image_load where not x != y;
+
+image_load where not x == y;
+
+image_load where not not not not x < y;
+
+image_load where not x <= y;
+
+image_load where not x >= y;
+
+image_load where not x > y;
+
+process where _leadingUnderscore == 100;
+
+network where 1 * 2 + 3 * 4 + 10 / 2 == 2 + 12 + 5;
+
+file where 1 - -2;
+
+file where 1 + (-2);
+
+file where 1 * (-2);
+
+file where 3 * -length(file_path);
+
+network where a * b + c * d + e / f == g + h + i;
+
+network where a * (b + c * d) + e / f == g + h + i;
+
+process where pid == 4 or pid == 5 or pid == 6 or pid == 7 or pid == 8;
+
+network where pid == 0 or pid == 4 or (ppid == 0 or ppid = 4) or (abc == defgh) and process_name == "*" ;
+
+network where pid = 4;
+
+process where descendant of [process where process_name == "lsass.exe"] and process_name == "cmd.exe";
+
+ join 			[process where process_name == "*"] [file where file_path == "*"
+ ];
+
+ join by pid [process where name == "*"] [file where path == "*"] until [process where opcode == 2];
+
+sequence [process where name == "*"] [file where path == "*"] until [process where opcode == 2];
+
+sequence by pid [process where name == "*"] [file where path == "*"] until [process where opcode == 2];
+
+ join [process where process_name == "*"] by process_path [file where file_path == "*"] by image_path;
+
+sequence [process where process_name == "*"] by process_path [file where file_path == "*"] by image_path;
+
+sequence by pid [process where process_name == "*"] [file where file_path == "*"];
+
+sequence by pid with maxspan=200 [process where process_name == "*" ] [file where file_path == "*"];
+
+sequence by pid with maxspan=2s [process where process_name == "*" ] [file where file_path == "*"];
+
+sequence by pid with maxspan=2sec [process where process_name == "*" ] [file where file_path == "*"];
+
+sequence by pid with maxspan=2seconds [process where process_name == "*" ] [file where file_path == "*"];
+
+sequence with maxspan=2.5m [process where x == x] by pid [file where file_path == "*"] by ppid;
+
+sequence by pid with maxspan=2.0h [process where process_name == "*"] [file where file_path == "*"];
+
+sequence by pid with maxspan=2.0h [process where process_name == "*"] [file where file_path == "*"];
+
+sequence by pid with maxspan=1.0075d [process where process_name == "*"] [file where file_path == "*"];
+
+dns where pid == 100 | head 100 | tail 50 | unique pid;
+
+network where pid == 100 | unique command_line | count;
+
+security where user_domain == "endgame" | count user_name, a, b | tail 5;
+
+process where 1==1 | count user_name, unique_pid, concat(field2,a,bc);
+
+process where 1==1 | unique user_name, concat(field2,a,bc), field2;
+
+registry where a.b;
+
+registry where a[0];
+
+registry where a.b.c.d.e;
+
+registry where a.b.c[0];
+
+registry where a[0].b;
+
+registry where a[0][1].b;
+
+registry where a[0].b[1];
+
+registry where topField.subField[100].subsubField == 0;
+
+process where true | filter true;
+
+process where 1==1 | filter abc == def;
+
+process where 1==1 | filter abc == def and 1 != 2;
+
+process where 1==1 | count process_name | filter percent > 0.5;
+
+process where a > 100000000000000000000000000000000;
+
+any where true | unique a, b, c | sort a, b, c | count;
+
+any where true | unique a, b,   c | sort a, b, c | count;
+
+any where true | unique a, b,   c | sort a,b,c | count;
+
+file where child of [registry where true];
+
+file where event of [registry where true];
+
+file where event of [registry where true];
+
+file where descendant of [registry where true];
+
+sequence by field1  [file where true] by f1 [process where true] by f1;
+
+sequence by a,b,c,d [file where true] by f1,f2 [process where true] by f1,f2;
+
+sequence [file where 1] by f1,f2 [process where 1] by f1,f2 until [process where 1] by f1,f2;
+
+sequence by f [file where true] by a,b [process where true] by c,d until [process where 1] by e,f;
+
+//sequence by unique_pid [process where true] [file where true] fork;
+
+sequence by unique_pid [process where true] [file where true] fork=true;
+
+sequence by unique_pid [process where true] [file where true] fork=1;
+
+sequence by unique_pid [process where true] [file where true] fork=false;
+
+sequence by unique_pid [process where true] [file where true] fork=0 [network where true];
+
+sequence by unique_pid [process where true] [file where true] fork=0;
+
+
+/* TESTS FROM
+ * https://raw.githubusercontent.com/endgameinc/eql/master/eql/etc/test_queries.toml
+ */
+process where serial_event_id = 1;
+
+process where serial_event_id < 4;
+
+process where true | head 6;
+
+process where false;
+
+process where missing_field != null;
+
+process where bad_field == null | head 5;
+
+process where process_name == "impossible name" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
+;
+
+process where serial_event_id <= 8 and serial_event_id > 7
+| filter serial_event_id == 8;
+
+process where true
+| filter serial_event_id <= 10
+| filter serial_event_id > 6;
+
+process where true
+| filter serial_event_id <= 10
+| filter serial_event_id > 6
+| head 2;
+
+process where true
+| head 1000
+| filter serial_event_id <= 10
+| filter serial_event_id > 6
+| tail 2
+;
+
+process where serial_event_id<=8 and serial_event_id > 7
+;
+
+process where exit_code >= 0;
+
+process where 0 <= exit_code;
+
+process where exit_code <= 0;
+
+process where exit_code < 1;
+
+process where exit_code > -1;
+
+process where -1 < exit_code;
+
+process where not (exit_code > -1)
+  and serial_event_id in (58, 64, 69, 74, 80, 85, 90, 93, 94)
+| head 10
+;
+
+process where not (exit_code > -1) | head 7;
+
+process where not (-1 < exit_code) | head 7;
+
+process where exit_code > 0;
+
+process where exit_code < 0;
+
+process where 0 < exit_code;
+
+process where 0 > exit_code;
+
+process where (serial_event_id<=8 and serial_event_id > 7) and (opcode=3 and opcode>2);
+
+process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid);
+
+process where process_name == "VMACTHLP.exe" and unique_pid == 12 | filter true;
+
+process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
+| unique process_name;
+
+process where process_name in ("python.exe", "smss.exe", "Explorer.exe")
+| unique length(process_name);
+
+process where process_name in ("python.exe", "smss.exe", "explorer.exe")
+| unique length(process_name) == length("python.exe");
+
+process where process_name in ("Python.exe", "smss.exe", "explorer.exe")
+| unique process_name != "python.exe";
+
+process where process_name in ("python.exe", "smss.exe", "explorer.exe")
+| unique process_name
+| head 2
+| tail 1;
+
+process where process_name in ("python.exe", "smss.exe", "explorer.exe")
+| unique process_name
+| tail 2
+| head 1;
+
+process where process_name in ("python.exe", "smss.exe")
+| unique process_name, parent_process_name;
+
+process where process_name in ("python.exe", "smss.exe")
+| unique process_name, parent_process_name;
+
+process where process_name in ("python.exe", "smss.exe")
+| head 5
+| unique process_name, parent_process_name;
+
+registry where length(bytes_written_string_list) == 2 and bytes_written_string_list[1] == "EN";
+
+registry where key_path == "*\\MACHINE\\SAM\\SAM\\*\\Account\\Us*ers\\00*03E9\\F";
+
+process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3,4);
+
+file where file_name == "csrss.exe" and opcode=0
+  and descendant of [process where opcode in (1,3) and process_name="cmd.exe"]
+;
+
+process where opcode=1 and process_name == "csrss.exe"
+  and descendant of [file where file_name == "csrss.exe" and opcode=0]
+;
+
+process where opcode=1 and process_name == "smss.exe"
+  and descendant of [
+  file where file_name == "csrss.exe" and opcode=0
+      and descendant of [
+      process where opcode in(1,3) and process_name="cmd.exe"
+      ]
+  ]
+;
+
+file where file_path="*\\red_ttp\\winin*.*"
+  and opcode in (0,1,2) and user_name="vagrant"
+;
+
+file where file_path="*\\red_ttp\\winin*.*"
+  and opcode not in (0,1,2) and user_name="vagrant"
+;
+
+file where file_path="*\\red_ttp\\winin*.*"
+  and opcode not in (3, 4, 5, 6 ,7) and user_name="vagrant"
+;
+
+file where file_name in ("wininit.exe", "lsass.exe") and opcode == 2
+;
+
+file where true
+| tail 3;
+
+process where opcode in (1,3) and process_name in (parent_process_name, "SYSTEM")
+;
+
+file where true
+| tail 4
+| sort file_path;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, process_name;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, null_field, process_name;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, null_field, process_name;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, null_field, process_name
+| head 2;
+
+process where true
+| head 5
+| sort md5, event_subtype_full, null_field, process_name
+| sort serial_event_id;
+
+sequence
+  [process where serial_event_id = 1]
+  [process where serial_event_id = 2]
+;
+
+sequence
+  [process where serial_event_id < 5]
+  [process where serial_event_id = 5]
+;
+
+sequence
+  [process where serial_event_id=1] by unique_pid
+  [process where true] by unique_ppid;
+
+sequence
+  [process where serial_event_id<3] by unique_pid
+  [process where true] by unique_ppid
+;
+
+sequence
+  [process where serial_event_id<3] by unique_pid * 2
+  [process where true] by unique_ppid * 2
+;
+
+sequence
+  [process where serial_event_id<3] by unique_pid * 2, length(unique_pid), string(unique_pid)
+  [process where true] by unique_ppid * 2, length(unique_ppid), string(unique_ppid)
+;
+
+sequence
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence with maxspan=1d
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence with maxspan=1h
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence with maxspan=1m
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence with maxspan=10s
+   [file where event_subtype_full == "file_create_event"] by file_path
+   [process where opcode == 1] by process_path
+   [process where opcode == 2] by process_path
+   [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence with maxspan=0.5s
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence
+  [process where serial_event_id < 5]
+  [process where serial_event_id < 5]
+;
+
+sequence
+  [file where opcode=0 and file_name="svchost.exe"] by unique_pid
+  [process where opcode == 1] by unique_ppid
+;
+
+sequence
+  [file where opcode=0] by unique_pid
+  [file where opcode=0] by unique_pid
+| head 1;
+
+sequence
+  [file where opcode=0] by unique_pid
+  [file where opcode=0] by unique_pid
+| filter events[1].serial_event_id == 92;
+
+sequence
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+until [process where opcode=5000] by unique_ppid
+| head 1;
+
+sequence
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+until [process where opcode=1] by unique_ppid
+| head 1;
+
+join
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+  [file where opcode=2 and file_name="*.exe"] by unique_pid
+until [process where opcode=1] by unique_ppid
+| head 1;
+
+join by user_name
+  [process where opcode in (1,3) and process_name="smss.exe"]
+  [process where opcode in (1,3) and process_name == "python.exe"]
+;
+
+join by unique_pid
+  [process where opcode=1]
+  [file where opcode=0 and file_name="svchost.exe"]
+  [file where opcode == 0 and file_name == "lsass.exe"];
+
+join by string(unique_pid)
+  [process where opcode=1]
+  [file where opcode=0 and file_name="svchost.exe"]
+  [file where opcode == 0 and file_name == "lsass.exe"];
+
+join by unique_pid
+  [process where opcode=1]
+  [file where opcode=0 and file_name="svchost.exe"]
+  [file where opcode == 0 and file_name == "lsass.exe"]
+until [file where opcode == 2];
+
+join by string(unique_pid), unique_pid, unique_pid * 2
+  [process where opcode=1]
+  [file where opcode=0 and file_name="svchost.exe"]
+  [file where opcode == 0 and file_name == "lsass.exe"]
+until [file where opcode == 2];
+
+join
+  [file where opcode=0 and file_name="svchost.exe"] by unique_pid
+  [process where opcode == 1] by unique_ppid
+;
+
+join by unique_pid
+  [process where opcode in (1,3) and process_name="python.exe"]
+  [file where file_name == "*.exe"];
+
+join by user_name
+  [process where opcode in (1,3) and process_name="python.exe"]
+  [process where opcode in (1,3) and process_name == "smss.exe"]
+;
+
+join
+  [process where opcode in (1,3) and process_name="python.exe"]
+  [process where opcode in (1,3) and process_name == "smss.exe"]
+;
+
+process where fake_field == "*";
+
+process where fake_field != "*"
+| head 4;
+
+process where not (fake_field == "*")
+| head 4;
+
+registry where invalid_field_name != null;
+
+registry where length(bad_field) > 0
+;
+
+process where opcode == 1
+  and process_name in ("net.exe", "net1.exe")
+  and not (parent_process_name == "net.exe"
+  and process_name == "net1.exe")
+  and command_line == "*group *admin*" and command_line != "* /add*";
+
+any where true
+| unique event_type_full;
+
+process where opcode=1 and process_name in ("services.exe", "smss.exe", "lsass.exe")
+  and descendant of [process where process_name == "cmd.exe" ];
+
+process where process_name in ("services.exe", "smss.exe", "lsass.exe")
+  and descendant of [process where process_name == "cmd.exe" ];
+
+process where opcode=2 and process_name in ("services.exe", "smss.exe", "lsass.exe")
+  and descendant of [process where process_name == "cmd.exe" ];
+
+process where process_name="svchost.exe"
+  and child of [file where file_name="svchost.exe" and opcode=0];
+
+process where process_name="svchost.exe"
+  and not child of [file where file_name="svchost.exe" and opcode=0]
+| head 3;
+
+process where process_name="lsass.exe"
+  and child of [
+  process where process_name="python.exe"
+    and child of [process where process_name="cmd.exe"]
+  ]
+;
+
+file where child of [
+process where child of [
+    process where child of [process where process_name="*wsmprovhost.exe"]
+  ]
+]
+| tail 1;
+
+file where process_name = "python.exe"
+| unique unique_pid;
+
+file where event of [process where process_name = "python.exe" ]
+| unique unique_pid;
+
+process where process_name = "python.exe";
+
+process where event of [process where process_name = "python.exe" ];
+
+sequence
+  [file where file_name="lsass.exe"] by file_path,process_path
+  [process where true] by process_path,parent_process_path
+;
+
+sequence by user_name
+  [file where file_name="lsass.exe"] by file_path, process_path
+  [process where true] by process_path, parent_process_path
+;
+
+sequence by pid
+  [file where file_name="lsass.exe"] by file_path,process_path
+  [process where true] by process_path,parent_process_path
+;
+
+sequence by user_name
+  [file where opcode=0] by file_path
+  [process where opcode=1] by process_path
+  [process where opcode=2] by process_path
+  [file where opcode=2] by file_path
+| tail 1;
+
+sequence by user_name
+  [file where opcode=0] by pid,file_path
+  [file where opcode=2] by pid,file_path
+until [process where opcode=2] by ppid,process_path
+;
+
+sequence by user_name
+  [file where opcode=0] by pid,file_path
+  [file where opcode=2] by pid,file_path
+until [process where opcode=5] by ppid,process_path
+| head 2;
+
+sequence by pid
+  [file where opcode=0] by file_path
+  [process where opcode=1] by process_path
+  [process where opcode=2] by process_path
+  [file where opcode=2] by file_path
+| tail 1;
+
+join by user_name
+  [file where true] by pid,file_path
+  [process where true] by ppid,process_path
+| head 2;
+
+sequence
+  [process where true] by unique_pid
+  [file where true] fork=true by unique_pid
+  [process where true] by unique_ppid
+| head 4;
+
+process where command_line == "*%*" ;
+
+process where command_line == "*%*%*" ;
+
+process where command_line == "%*%*" ;
+
+any where process_name == "svchost.exe"
+| unique_count event_type_full, process_name;
+
+any where process_name == "svchost.exe"
+| sort event_type_full, serial_event_id
+| unique_count event_type_full, process_name;
+
+any where process_name == "svchost.exe"
+| unique_count event_type_full, opcode
+| filter count == 7;
+
+any where process_name == "svchost.exe"
+| unique_count event_type_full, opcode
+| filter percent >= .5
+;
+
+registry where arrayContains(bytes_written_string_list, 'En-uS');
+
+registry where arrayContains(bytes_written_string_list, 'En');
+
+registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == 'EN-us'
+;
+
+registry where bytes_written_string_list[0] == 'EN-us'
+;
+
+registry where bytes_written_string_list[1] == 'EN'
+;
+
+process where matchLite(?'.*?net1\s+localgroup\s+.*?', command_line)
+;
+
+process where matchLite(?'.*?net1\s+\w+\s+.*?', command_line)
+;
+
+process where matchLite(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+;
+
+process where match(?'.*?net1\s+\w{4,15}\s+.*?', command_line)
+;
+
+process where matchLite(?'.*?net1\s+[localgrup]{4,15}\s+.*?', command_line)
+;
+
+process where 'net.EXE' == original_file_name
+| filter process_name="net*.exe"
+;
+
+process where process_name == original_file_name
+| filter process_name='net*.exe'
+;
+
+process where original_file_name == process_name
+| filter length(original_file_name) > 0
+;
+
+file where opcode=0 and startsWith(file_name, 'exploRER.')
+;
+
+file where opcode=0 and startsWith(file_name, 'expLORER.exe')
+;
+
+file where opcode=0 and endsWith(file_name, 'loREr.exe');
+
+file where opcode=0 and startsWith(file_name, 'explORER.EXE');
+
+file where opcode=0 and startsWith('explorer.exeaaaaaaaa', file_name);
+
+file where opcode=0 and serial_event_id = 88 and startsWith('explorer.exeaAAAA', 'EXPLORER.exe');
+
+file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)
+;
+
+file where opcode=0 and indexOf(file_name, 'plore') == 2 and not indexOf(file_name, '.pf')
+;
+
+file where opcode=0 and indexOf(file_name, 'explorer.') and indexOf(file_name, 'plore', 100)
+;
+
+file where opcode=0 and indexOf(file_name, 'plorer.', 0) == 2;
+
+file where opcode=0 and indexOf(file_name, 'plorer.', 2);
+
+file where opcode=0 and indexOf(file_name, 'plorer.', 4);
+
+file where opcode=0 and indexOf(file_name, 'thing that never happened');
+
+file where opcode=0 and indexOf(file_name, 'plorer.', 2) == 2;
+
+file where opcode=0 and indexOf(file_name, 'explorer.', 0) == 0;
+
+file where serial_event_id=88 and substring(file_name, 0, 4) == 'expl'
+;
+
+file where serial_event_id=88 and substring(file_name, 1, 3) == 'xp'
+;
+
+file where serial_event_id=88 and substring(file_name, -4) == '.exe'
+;
+
+file where serial_event_id=88 and substring(file_name, -4, -1) == '.ex'
+;
+
+process where add(serial_event_id, 0) == 1 and add(0, 1) == serial_event_id;
+
+process where subtract(serial_event_id, -5) == 6;
+
+process where multiply(6, serial_event_id) == 30 and divide(30, 4.0) == 7.5;
+
+process where modulo(11, add(serial_event_id, 1)) == serial_event_id;
+
+process where serial_event_id == number('5');
+
+process where serial_event_id == number('0x32', 16);
+
+process where serial_event_id == number('32', 16);
+
+process where number(serial_event_id) == number(5);
+
+process where concat(serial_event_id, ':', process_name, opcode) == '5:winINIT.exe3'
+;
+
+process where process_name != original_file_name
+| filter length(original_file_name) > 0;
+
+sequence by unique_pid [process where opcode=1 and process_name == 'msbuild.exe'] [network where true];
+
+registry where arraySearch(bytes_written_string_list, a, a == 'en-us');
+
+registry where arraySearch(bytes_written_string_list, a, endsWith(a, '-us'));
+
+network where mysterious_field
+  and arraySearch(mysterious_field.subarray, s, true)
+;
+
+network where mysterious_field and arraySearch(mysterious_field.subarray, s, false)
+;
+
+network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a == 's0-*')
+;
+
+network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a != 's0-*')
+;
+
+network where mysterious_field
+  and arraySearch(mysterious_field.subarray, sub1,
+    arraySearch(sub1.c, nested, nested.x.y == '*'))
+;
+
+network where mysterious_field
+  and arraySearch(mysterious_field.subarray, sub1,
+    sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == 's0-c1-x-z'))
+;
+
+network where mysterious_field
+  and arraySearch(mysterious_field.subarray, sub1,
+    sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == sub1.cross_match))
+;
+
+network where mysterious_field
+  and arraySearch(mysterious_field.subarray, sub1,
+    arraySearch(sub1.c, nested, nested.x.y == mysterious_field.outer_cross_match))
+;
+
+network where safe(divide(process_name, process_name))
+;
+
+file where serial_event_id == 82 and (true == (process_name in ('svchost.EXE', 'bad.exe', 'bad2.exe')))
+;
+
+registry where arrayCount(bytes_written_string_list, s, s == '*-us') == 1
+;
+
+registry where arrayCount(bytes_written_string_list, s, s == '*en*') == 2
+;
+
+registry where arrayContains(bytes_written_string_list, "missing", "en-US")
+;
+
+file where serial_event_id - 1 == 81;
+
+file where serial_event_id + 1 == 83;
+
+file where serial_event_id * 2 == 164;
+
+file where serial_event_id / 2 == 41;
+
+file where serial_event_id % 40 == 2;
+
+process where between(process_name, "s", "e") == "yst"
+;
+
+process where between(process_name, "s", "e", false) == "yst"
+;
+
+process where between(process_name, "s", "e", false, true) == "yst"
+;
+
+process where between(process_name, "s", "e", false, true) == "t"
+;
+
+process where between(process_name, "S", "e", false, true) == "yst"
+;
+
+process where between(process_name, "s", "e", true) == "ystem Idle Proc"
+;
+
+file where between(file_path, "dev", ".json", false) == "\\testlogs\\something"
+;
+
+file where between(file_path, "dev", ".json", true) == "\\testlogs\\something"
+;
+
+network where cidrMatch(source_address, "10.6.48.157/8")
+;
+
+network where cidrMatch(source_address, "192.168.0.0/16")
+;
+
+network where cidrMatch(source_address, "192.168.0.0/16", "10.6.48.157/8")
+
+;
+
+network where cidrMatch(source_address, "0.0.0.0/0")
+;
+
+process where length(between(process_name, 'g', 'e')) > 0
+;
+
+process where length(between(process_name, 'g', 'z')) > 0
 ;

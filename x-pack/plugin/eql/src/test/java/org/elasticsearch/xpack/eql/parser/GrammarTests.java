@@ -67,6 +67,8 @@ public class GrammarTests extends ESTestCase {
                         query.setLength(query.length() - 1);
                         queries.add(new Tuple<>(query.toString(), lineNumber));
                         query.setLength(0);
+                    } else {
+                        query.append("\n");
                     }
                 }
                 lineNumber++;

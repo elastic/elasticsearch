@@ -77,8 +77,8 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
     }
 
-    public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static TrainedModelConfig fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null).build();
     }
 
     private final String modelId;
@@ -293,12 +293,12 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        private Builder setCreatedBy(String createdBy) {
+        public Builder setCreatedBy(String createdBy) {
             this.createdBy = createdBy;
             return this;
         }
 
-        private Builder setVersion(Version version) {
+        public Builder setVersion(Version version) {
             this.version = version;
             return this;
         }
@@ -312,7 +312,7 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        private Builder setCreateTime(Instant createTime) {
+        public Builder setCreateTime(Instant createTime) {
             this.createTime = createTime;
             return this;
         }
@@ -347,17 +347,17 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        private Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
+        public Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
             this.estimatedHeapMemory = estimatedHeapMemory;
             return this;
         }
 
-        private Builder setEstimatedOperations(Long estimatedOperations) {
+        public Builder setEstimatedOperations(Long estimatedOperations) {
             this.estimatedOperations = estimatedOperations;
             return this;
         }
 
-        private Builder setLicenseLevel(String licenseLevel) {
+        public Builder setLicenseLevel(String licenseLevel) {
             this.licenseLevel = licenseLevel;
             return this;
         }

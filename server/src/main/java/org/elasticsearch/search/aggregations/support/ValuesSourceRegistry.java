@@ -95,14 +95,14 @@ public enum ValuesSourceRegistry {
             } else {
                 // TODO: Legacy resolve logic; remove this after converting all aggregations to the new system
                 if (indexFieldData instanceof IndexNumericFieldData) {
-                    return ValuesSourceType.NUMERIC;
+                    return CoreValuesSourceType.NUMERIC;
                 } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                    return ValuesSourceType.GEOPOINT;
+                    return CoreValuesSourceType.GEOPOINT;
                 } else if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
-                    return ValuesSourceType.RANGE;
+                    return CoreValuesSourceType.RANGE;
                 } else {
                     if (valueType == null) {
-                        return ValuesSourceType.BYTES;
+                        return CoreValuesSourceType.BYTES;
                     } else {
                         return valueType.getValuesSourceType();
                     }

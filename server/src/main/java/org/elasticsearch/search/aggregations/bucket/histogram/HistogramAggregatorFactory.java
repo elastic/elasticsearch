@@ -30,12 +30,12 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.HistogramAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
 
     // TODO: Registration should happen on the actual aggregator classes, but I don't want to set up the whole dynamic loading thing yet
     static {
-        ValuesSourceRegistry.getInstance().register(HistogramAggregationBuilder.NAME, ValuesSourceType.RANGE,
+        ValuesSourceRegistry.getInstance().register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
             new HistogramAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
@@ -76,7 +76,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             (fieldType, indexFieldData) -> fieldType instanceof RangeFieldMapper.RangeFieldType
         );
 
-        ValuesSourceRegistry.getInstance().register(HistogramAggregationBuilder.NAME, ValuesSourceType.NUMERIC,
+        ValuesSourceRegistry.getInstance().register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.NUMERIC,
             new HistogramAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name, AggregatorFactories factories, double interval, double offset,

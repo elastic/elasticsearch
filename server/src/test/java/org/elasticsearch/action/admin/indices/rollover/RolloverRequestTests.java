@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverRequestTests extends ESTestCase {
@@ -107,7 +108,7 @@ public class RolloverRequestTests extends ESTestCase {
         request.fromXContent(createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
-        assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));
+        assertThat(request.getCreateIndexRequest().mappings(), containsString("not_analyzed"));
         assertThat(request.getCreateIndexRequest().aliases().size(), equalTo(1));
         assertThat(request.getCreateIndexRequest().settings().getAsInt("number_of_shards", 0), equalTo(10));
     }
@@ -128,7 +129,7 @@ public class RolloverRequestTests extends ESTestCase {
         request.fromXContent(createParser(builder));
 
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
-        String mapping = createIndexRequest.mappings().get(MapperService.SINGLE_MAPPING_NAME);
+        String mapping = createIndexRequest.mappings();
         assertNotNull(mapping);
 
         Map<String, Object> parsedMapping = XContentHelper.convertToMap(

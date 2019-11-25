@@ -245,7 +245,6 @@ public class FileUtils {
 
     /**
      * Gets numeric ownership attributes that are supported by Unix filesystems
-
      * @return a Map of the uid/gid integer values
      */
     public static Map<String, Integer> getNumericUnixPathOwnership(Path path) {

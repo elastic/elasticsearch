@@ -76,6 +76,7 @@ import static org.elasticsearch.action.search.SearchProgressListener.NOOP;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -768,12 +769,14 @@ public class SearchPhaseControllerTests extends ESTestCase {
             AtomicReference<TotalHits> totalHitsListener = new AtomicReference<>();
             SearchProgressListener progressListener = new SearchProgressListener() {
                 @Override
-                public void onQueryResult(QuerySearchResult result) {
+                public void onQueryResult(int shardIndex) {
+                    assertThat(shardIndex, lessThan(expectedNumResults));
                     numQueryResultListener.incrementAndGet();
                 }
 
                 @Override
-                public void onQueryFailure(int shardId, Exception exc) {
+                public void onQueryFailure(int shardIndex, Exception exc) {
+                    assertThat(shardIndex, lessThan(expectedNumResults));
                     numQueryFailureListener.incrementAndGet();
                 }
 

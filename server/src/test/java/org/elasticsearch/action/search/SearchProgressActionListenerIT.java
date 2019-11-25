@@ -27,8 +27,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -46,6 +44,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
     private List<SearchShard> shards;
@@ -146,22 +145,26 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onQueryResult(QuerySearchResult result) {
+            public void onQueryResult(int shardIndex) {
+                assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numQueryResults.incrementAndGet();
             }
 
             @Override
-            public void onQueryFailure(int shardNumber, Exception exc) {
+            public void onQueryFailure(int shardIndex, Exception exc) {
+                assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numQueryFailures.incrementAndGet();
             }
 
             @Override
-            public void onFetchResult(FetchSearchResult result) {
+            public void onFetchResult(int shardIndex) {
+                assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numFetchResults.incrementAndGet();
             }
 
             @Override
-            public void onFetchFailure(int shardNumber, Exception exc) {
+            public void onFetchFailure(int shardIndex, Exception exc) {
+                assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numFetchFailures.incrementAndGet();
             }
 

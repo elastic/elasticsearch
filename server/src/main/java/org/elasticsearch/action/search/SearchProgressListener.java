@@ -26,8 +26,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.List;
 import java.util.Objects;
@@ -42,6 +40,8 @@ abstract class SearchProgressListener {
 
     public static final SearchProgressListener NOOP = new SearchProgressListener() {};
 
+    private List<SearchShard> shards;
+
     /**
      * Executed when shards are ready to be queried.
      *
@@ -53,9 +53,9 @@ abstract class SearchProgressListener {
     /**
      * Executed when a shard returns a query result.
      *
-     * @param result The query result.
+     * @param shardIndex The index of the shard in the list provided by onListShards.
      */
-    public void onQueryResult(QuerySearchResult result) {}
+    public void onQueryResult(int shardIndex) {}
 
     /**
      * Executed when a shard reports a query failure.
@@ -88,9 +88,9 @@ abstract class SearchProgressListener {
     /**
      * Executed when a shard returns a query result.
      *
-     * @param result The fetch result.
+     * @param shardIndex The index of the shard in the list provided by onListShards.
      */
-    public void onFetchResult(FetchSearchResult result) {}
+    public void onFetchResult(int shardIndex) {}
 
     /**
      * Executed when a shard reports a fetch failure.
@@ -101,6 +101,7 @@ abstract class SearchProgressListener {
     public void onFetchFailure(int shardIndex, Exception exc) {}
 
     final void notifyListShards(List<SearchShard> shards, boolean fetchPhase) {
+        this.shards = shards;
         try {
             onListShards(shards, fetchPhase);
         } catch (Exception e) {
@@ -108,12 +109,12 @@ abstract class SearchProgressListener {
         }
     }
 
-    final void notifyQueryResult(QuerySearchResult result) {
+    final void notifyQueryResult(int shardIndex) {
         try {
-            onQueryResult(result);
+            onQueryResult(shardIndex);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result",
-                result.getSearchShardTarget().getShardId().getId()), e);
+                shards.get(shardIndex)), e);
         }
     }
 
@@ -133,12 +134,12 @@ abstract class SearchProgressListener {
         }
     }
 
-    final void notifyFetchResult(FetchSearchResult result) {
+    final void notifyFetchResult(int shardIndex) {
         try {
-            onFetchResult(result);
+            onFetchResult(shardIndex);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch result",
-                result.getSearchShardTarget().getShardId().getId()), e);
+                shards.get(shardIndex)), e);
         }
     }
 

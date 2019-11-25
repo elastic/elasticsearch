@@ -618,7 +618,7 @@ public final class SearchPhaseController {
             super.consumeResult(result);
             QuerySearchResult queryResult = result.queryResult();
             consumeInternal(queryResult);
-            progressListener.notifyQueryResult(queryResult);
+            progressListener.notifyQueryResult(queryResult.getShardIndex());
         }
 
         private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
@@ -714,7 +714,7 @@ public final class SearchPhaseController {
             @Override
             void consumeResult(SearchPhaseResult result) {
                 super.consumeResult(result);
-                listener.notifyQueryResult(result.queryResult());
+                listener.notifyQueryResult(result.queryResult().getShardIndex());
             }
 
             @Override

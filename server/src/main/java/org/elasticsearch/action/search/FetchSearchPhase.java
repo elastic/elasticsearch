@@ -141,8 +141,8 @@ final class FetchSearchPhase extends SearchPhase {
                             FetchSearchResult result = new FetchSearchResult();
                             result.setSearchShardTarget(queryResult.getSearchShardTarget());
                             result.hits(SearchHits.empty());
-                            progressListener.notifyFetchResult(result);
                         }
+                        progressListener.notifyFetchResult(i);
                         // in any case we count down this result since we don't talk to this shard anymore
                         counter.countDown();
                     } else {
@@ -181,7 +181,7 @@ final class FetchSearchPhase extends SearchPhase {
                         context.onPhaseFailure(FetchSearchPhase.this, "", e);
                     }
                     if (success) {
-                        progressListener.notifyFetchResult(result);
+                        progressListener.notifyFetchResult(shardIndex);
                     }
                 }
 

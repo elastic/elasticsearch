@@ -191,7 +191,7 @@ public class DockerTests extends PackagingTestCase {
         // Restart the container
         final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), installation.data);
 
-        runContainer(distribution(), volumes, Map.of("ES_JAVA_OPTS", "-Xms512m -Xmx512m"));
+        runContainer(distribution(), volumes, null);
 
         waitForElasticsearch(installation);
 

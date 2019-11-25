@@ -339,7 +339,7 @@ public class Docker {
     }
 
     /**
-     * Delete a directory using Docker backed privilege escallation.
+     * Delete a directory using Docker backed privilege escalation.
      * @param localPath The path to the directory to delete.
      */
     public static void rmDirWithPrivilegeEscalation(Path localPath) {

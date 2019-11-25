@@ -62,7 +62,7 @@ public class ChildrenAggregationBuilder
      */
     public ChildrenAggregationBuilder(String name, String childType) {
         super(name, ValueType.STRING);
-        f (childType == null) {
+        if (childType == null) {
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
         this.childType = childType;

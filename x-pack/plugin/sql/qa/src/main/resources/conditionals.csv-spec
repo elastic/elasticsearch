@@ -69,6 +69,19 @@ FROM test_emp ORDER BY 1 LIMIT 5;
 10005   | 1      | 10005
 ;
 
+caseWithErroneousResultsForFalseConditions
+schema::bytes_in:i|bytes_out:i|div:i
+SELECT bytes_in, bytes_out, CASE WHEN bytes_in = 0 THEN NULL ELSE bytes_out / bytes_in END div FROM logs ORDER BY bytes_in LIMIT 5;
+
+   bytes_in    |   bytes_out   |      div
+---------------+---------------+---------------
+0              |128            |null
+0              |null           |null
+8              |null           |null
+8              |null           |null
+8              |null           |null
+;
+
 caseWhere
 SELECT last_name FROM test_emp WHERE CASE WHEN LENGTH(last_name) < 7 THEN 'ShortName' ELSE 'LongName' END = 'LongName'
 ORDER BY emp_no LIMIT 10;
@@ -263,6 +276,19 @@ SELECT emp_no, IIF(NULL, emp_no) AS IIF_1, IIF(NULL, emp_no, languages) AS IIF_2
 10003   | null  | 4     | 10003
 10004   | null  | 5     | 10004
 10005   | null  | 1     | 10005
+;
+
+iifWithErroneousResultsForFalseCondition
+schema::bytes_in:i|bytes_out:i|div:i
+SELECT bytes_in, bytes_out, IIF(bytes_in = 0, NULL, bytes_out / bytes_in) div FROM logs ORDER BY bytes_in LIMIT 5;
+
+   bytes_in    |   bytes_out   |      div
+---------------+---------------+---------------
+0              |128            |null
+0              |null           |null
+8              |null           |null
+8              |null           |null
+8              |null           |null
 ;
 
 iifWhere

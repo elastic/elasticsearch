@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import static  org.apache.lucene.geo.GeoUtils.orient;
+import static org.apache.lucene.geo.GeoUtils.orient;
 
 /**
  * A tree reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
@@ -217,7 +217,7 @@ public class TriangleTreeReader implements ShapeTreeReader {
         protected int minY;
         protected int maxY;
 
-        public Rectangle2D() {
+        Rectangle2D() {
         }
 
         protected void setValues(int minX, int maxX, int minY, int maxY) {

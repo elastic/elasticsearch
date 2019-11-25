@@ -421,7 +421,9 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
         }
 
         // generic constructor
-        TriangleTreeLeaf(int aXencoded, int aYencoded, boolean ab, int bXencoded, int bYencoded, boolean bc, int cXencoded, int cYencoded, boolean ca) {
+        TriangleTreeLeaf(int aXencoded, int aYencoded, boolean ab,
+                         int bXencoded, int bYencoded, boolean bc,
+                         int cXencoded, int cYencoded, boolean ca) {
             if (aXencoded == bXencoded && aYencoded == bYencoded) {
                 if (aXencoded == cXencoded && aYencoded == cYencoded) {
                     encodePoint(aYencoded, aXencoded);
@@ -466,7 +468,9 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
             this.maxY = Math.max(aY, bY);
         }
 
-        private void encodeTriangle(int aXencoded, int aYencoded, boolean abFromShape, int bXencoded, int bYencoded, boolean bcFromShape, int cXencoded, int cYencoded, boolean caFromShape) {
+        private void encodeTriangle(int aXencoded, int aYencoded, boolean abFromShape,
+                                    int bXencoded, int bYencoded, boolean bcFromShape,
+                                    int cXencoded, int cYencoded, boolean caFromShape) {
 
             int aX, aY, bX, bY, cX, cY;
             boolean ab, bc, ca;

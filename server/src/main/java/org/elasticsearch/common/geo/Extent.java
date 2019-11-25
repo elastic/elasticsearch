@@ -30,7 +30,7 @@ import java.util.Objects;
  * {@link GeometryTreeWriter} and {@link EdgeTreeWriter}.
  */
 public class Extent implements Writeable {
-    static final int WRITEABLE_SIZE_IN_BYTES = 24;
+    static final int WRITEABLE_SIZE_IN_BYTES = 16;
 
     public final int top;
     public final int bottom;
@@ -49,7 +49,31 @@ public class Extent implements Writeable {
     }
 
     Extent(StreamInput input) throws IOException {
-        this(input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt());
+        this.top = input.readInt();
+        this.bottom = input.readInt();
+
+        int left = input.readInt();
+        int right = input.readInt();
+
+        int negLeft = Integer.MAX_VALUE;
+        int negRight = Integer.MIN_VALUE;
+        int posLeft = Integer.MAX_VALUE;
+        int posRight = Integer.MIN_VALUE;
+        if (left < 0 && right < 0) {
+            negLeft = left;
+            negRight = right;
+        } else if (left < 0) {
+            negLeft = negRight = left;
+            posLeft = posRight = right;
+        } else {
+            posLeft = left;
+            posRight = right;
+        }
+
+        this.negLeft = negLeft;
+        this.negRight = negRight;
+        this.posLeft = posLeft;
+        this.posRight = posRight;
     }
 
     /**
@@ -128,10 +152,8 @@ public class Extent implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(top);
         out.writeInt(bottom);
-        out.writeInt(negLeft);
-        out.writeInt(negRight);
-        out.writeInt(posLeft);
-        out.writeInt(posRight);
+        out.writeInt(minX());
+        out.writeInt(maxX());
     }
 
     @Override

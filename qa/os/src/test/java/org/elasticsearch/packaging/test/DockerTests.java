@@ -186,8 +186,7 @@ public class DockerTests extends PackagingTestCase {
     public void test71BindMountCustomPathWithDifferentUID() throws Exception {
         copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
 
-        final Path tempDataDir = mktempDir(getTempDir());
-        final Path tempEsDataDir = tempDataDir.resolve("esDataDir");
+        final Path tempEsDataDir = tempDir.resolve("esDataDir");
         // Make the local directory and contents accessible when bind-mounted
         mkDirWithPrivilegeEscalation(tempEsDataDir, 1500, 0);
 

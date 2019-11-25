@@ -40,6 +40,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
 
     private String index = "bulk-failure-retry";
     private long now = System.currentTimeMillis();
+    private static long DAY = 86400000;
     private String jobId = "bulk-failure-retry-job";
     private String resultsIndex = ".ml-anomalies-custom-bulk-failure-retry-job";
 
@@ -48,9 +49,9 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         client().admin().indices().prepareCreate(index)
             .addMapping("type", "time", "type=date", "value", "type=long")
             .get();
-        long oneDayAgo = now - 86400000;
-        long twoDaysAgo = oneDayAgo - 86400000;
-        writeData(logger, index, 128, twoDaysAgo, oneDayAgo);
+        long twoDaysAgo = now - DAY * 2;
+        long threeDaysAgo = now - DAY * 3;
+        writeData(logger, index, 250, threeDaysAgo, twoDaysAgo);
     }
 
     @After
@@ -59,8 +60,10 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
             .cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
-                .putNull("logger.org.elasticsearch.xpack.ml")
                 .putNull("xpack.ml.persist_results_max_retries")
+                .putNull("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob")
+                .putNull("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister")
+                .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output")
                 .build()).get();
         cleanUp();
     }
@@ -87,7 +90,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
             acknowledgedResponseHolder,
             exceptionHolder);
         if (exceptionHolder.get() != null) {
-            logger.error("FAILED TO MARK ["+ resultsIndex + "] as read-write again", exceptionHolder.get());
+            logger.error("FAILED TO MARK ["+ resultsIndex + "] as read-ONLY", exceptionHolder.get());
         }
     }
 
@@ -103,7 +106,8 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
-        startDatafeed(datafeedConfig.getId(), 0L, now - 86400000);
+        long twoDaysAgo = now - 2 * DAY;
+        startDatafeed(datafeedConfig.getId(), 0L, twoDaysAgo);
         waitUntilJobIsClosed(jobId);
 
         // Get the job stats
@@ -114,18 +118,19 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
             .cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output", "TRACE")
                 .put("xpack.ml.persist_results_max_retries", "10000")
                 .build()).get();
 
         setAnomaliesReadOnlyBlock();
 
-        int moreDocs = 128;
-        long oneDayAgo = now - 86400000;
-        writeData(logger, index, moreDocs, oneDayAgo, now);
+        int moreDocs = 20_000;
+        writeData(logger, index, moreDocs, twoDaysAgo, now);
 
         openJob(job.getId());
-        startDatafeed(datafeedConfig.getId(), oneDayAgo, now);
+        startDatafeed(datafeedConfig.getId(), twoDaysAgo, now);
 
         // TODO Any better way?????
         Thread.sleep(1000);

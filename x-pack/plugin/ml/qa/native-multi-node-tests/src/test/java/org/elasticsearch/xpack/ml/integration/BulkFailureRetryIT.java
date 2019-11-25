@@ -126,14 +126,12 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
 
         setAnomaliesReadOnlyBlock();
 
-        int moreDocs = 20_000;
+        int moreDocs = 1_000;
         writeData(logger, index, moreDocs, twoDaysAgo, now);
 
         openJob(job.getId());
         startDatafeed(datafeedConfig.getId(), twoDaysAgo, now);
 
-        // TODO Any better way?????
-        Thread.sleep(1000);
         ensureAnomaliesWrite();
         waitUntilJobIsClosed(jobId);
 

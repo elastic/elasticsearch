@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -146,11 +147,11 @@ public class AutodetectResultProcessor {
 
             try {
                 if (processKilled == false) {
-                    timingStatsReporter.finishReporting();
-                    bulkResultsPersister.executeRequest();
+                    bulkPersistWithRetry(() -> {
+                        timingStatsReporter.finishReporting();
+                        bulkResultsPersister.executeRequest();
+                    });
                 }
-            } catch (JobResultsPersister.BulkIndexException e){
-                bulkPersistWithRetry();
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
@@ -190,13 +191,6 @@ public class AutodetectResultProcessor {
                     if (result.getBucket() != null) {
                         LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
                     }
-                } catch (JobResultsPersister.BulkIndexException e) {
-                    // Don't throw on bulk failures, just continue
-                    if (isDeadOrDying()) {
-                        continue;
-                    }
-                    // attempt to retry if possible
-                    bulkPersistWithRetry();
                 } catch (Exception e) {
                     if (isDeadOrDying()) {
                         throw e;
@@ -214,7 +208,7 @@ public class AutodetectResultProcessor {
         renormalizer.shutdown();
     }
 
-    void processResult(AutodetectResult result) throws JobResultsPersister.BulkIndexException {
+    void processResult(AutodetectResult result) {
         if (processKilled) {
             return;
         }
@@ -231,18 +225,19 @@ public class AutodetectResultProcessor {
 
             // persist after deleting interim results in case the new
             // results are also interim
-            timingStatsReporter.reportBucket(bucket);
-            bulkResultsPersister.persistBucket(bucket).executeRequest();
-
+            bulkPersistWithRetry(() -> {
+                timingStatsReporter.reportBucket(bucket);
+                bulkResultsPersister.persistBucket(bucket).executeRequest();
+            });
             ++bucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
-            bulkResultsPersister.persistRecords(records);
+            bulkPersistWithRetry(() -> bulkResultsPersister.persistRecords(records));
         }
         List<Influencer> influencers = result.getInfluencers();
         if (influencers != null && !influencers.isEmpty()) {
-            bulkResultsPersister.persistInfluencers(influencers);
+            bulkPersistWithRetry(() -> bulkResultsPersister.persistInfluencers(influencers));
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {
@@ -250,16 +245,16 @@ public class AutodetectResultProcessor {
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
-            bulkResultsPersister.persistModelPlot(modelPlot);
+            bulkPersistWithRetry(() -> bulkResultsPersister.persistModelPlot(modelPlot));
         }
         Forecast forecast = result.getForecast();
         if (forecast != null) {
-            bulkResultsPersister.persistForecast(forecast);
+            bulkPersistWithRetry(() -> bulkResultsPersister.persistForecast(forecast));
         }
         ForecastRequestStats forecastRequestStats = result.getForecastRequestStats();
         if (forecastRequestStats != null) {
             LOGGER.trace("Received Forecast Stats [{}]", forecastRequestStats.getId());
-            bulkResultsPersister.persistForecastRequestStats(forecastRequestStats);
+            bulkPersistWithRetry(() -> bulkResultsPersister.persistForecastRequestStats(forecastRequestStats));
 
             // execute the bulk request only in some cases or in doubt
             // otherwise rely on the count-based trigger
@@ -271,7 +266,7 @@ public class AutodetectResultProcessor {
                 case SCHEDULED:
                 case FINISHED:
                 default:
-                    bulkResultsPersister.executeRequest();
+                    bulkPersistWithRetry(bulkResultsPersister::executeRequest);
 
             }
         }
@@ -291,7 +286,7 @@ public class AutodetectResultProcessor {
         if (quantiles != null) {
             LOGGER.debug("[{}] Parsed Quantiles with timestamp {}", jobId, quantiles.getTimestamp());
             persister.persistQuantiles(quantiles);
-            bulkResultsPersister.executeRequest();
+            bulkPersistWithRetry(bulkResultsPersister::executeRequest);
 
             if (processKilled == false && renormalizer.isEnabled()) {
                 // We need to make all results written up to these quantiles available for renormalization
@@ -308,7 +303,7 @@ public class AutodetectResultProcessor {
             // through to the data store
             Exception exception = null;
             try {
-                bulkResultsPersister.executeRequest();
+                bulkPersistWithRetry(bulkResultsPersister::executeRequest);
                 persister.commitResultWrites(jobId);
                 LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
             } catch (Exception e) {
@@ -328,11 +323,11 @@ public class AutodetectResultProcessor {
         }
     }
 
-    void bulkPersistWithRetry() {
+    void bulkPersistWithRetry(CheckedRunnable<JobResultsPersister.BulkIndexException> bulkRunnable) {
         int attempts = 0;
         while(attempts < maximumFailureRetries) {
             try {
-                bulkResultsPersister.executeRequest();
+                bulkRunnable.run();
                 return;
             } catch (JobResultsPersister.BulkIndexException ex) {
                 if (isDeadOrDying()) {

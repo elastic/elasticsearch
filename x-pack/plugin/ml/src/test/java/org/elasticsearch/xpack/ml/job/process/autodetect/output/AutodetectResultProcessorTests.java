@@ -455,7 +455,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             flushListener,
             2);
 
-        processorUnderTest.bulkPersistWithRetry();
+        processorUnderTest.bulkPersistWithRetry(bulkBuilder::executeRequest);
 
         // Hax as memory persister needs to be verified before @After
         verify(this.persister).bulkPersisterBuilder(JOB_ID);
@@ -482,8 +482,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             2);
 
         processorUnderTest.setProcessKilled();
-        processorUnderTest.bulkPersistWithRetry();
-        verify(bulkBuilder, times(1)).executeRequest();
+        processorUnderTest.bulkPersistWithRetry(bulkBuilder::executeRequest);
         // Hax as memory persister needs to be verified before @After
         verify(this.persister).bulkPersisterBuilder(JOB_ID);
         verify(this.renormalizer).shutdown();
@@ -508,7 +507,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             flushListener,
             2);
 
-        processorUnderTest.bulkPersistWithRetry();
+        processorUnderTest.bulkPersistWithRetry(bulkBuilder::executeRequest);
         verify(bulkBuilder, times(1)).executeRequest();
         // Hax as memory persister needs to be verified before @After
         verify(this.persister).bulkPersisterBuilder(JOB_ID);
@@ -533,7 +532,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             flushListener,
             2);
 
-        expectThrows(ElasticsearchException.class, processorUnderTest::bulkPersistWithRetry);
+        expectThrows(ElasticsearchException.class, () -> processorUnderTest.bulkPersistWithRetry(bulkBuilder::executeRequest));
         // Hax as memory persister needs to be verified before @After
         verify(this.persister).bulkPersisterBuilder(JOB_ID);
     }

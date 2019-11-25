@@ -39,8 +39,10 @@ public class CaseProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
+        // Check every condition in sequence and if it evaluates to TRUE,
+        // evaluate and return the result associated with that condition.
         for (int i = 0; i < processors.size() - 2; i += 2) {
-            if (processors.get(i).process(input)==Boolean.TRUE) {
+            if (processors.get(i).process(input) == Boolean.TRUE) {
                 return processors.get(i + 1).process(input);
             }
         }
@@ -49,6 +51,8 @@ public class CaseProcessor implements Processor {
     }
 
     public static Object apply(List<Object> objects) {
+        // Check every condition in sequence and if it evaluates to TRUE,
+        // evaluate and return the result associated with that condition.
         for (int i = 0; i < objects.size() - 2; i += 2) {
             if (objects.get(i) == Boolean.TRUE) {
                 return objects.get(i + 1);

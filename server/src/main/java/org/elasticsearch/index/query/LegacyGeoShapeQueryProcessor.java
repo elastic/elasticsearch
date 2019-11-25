@@ -28,6 +28,7 @@ import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
@@ -37,16 +38,19 @@ import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
@@ -121,7 +125,7 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         ShapeBuilder<?, ?, ?> shapeBuilder = geometry.visit(new GeometryVisitor<>() {
             @Override
             public ShapeBuilder<?, ?, ?> visit(Circle circle) {
-                throw new UnsupportedOperationException("circle is not supported");
+                return new CircleBuilder().center(circle.getLon(), circle.getLat()).radius(circle.getRadiusMeters(), DistanceUnit.METERS);
             }
 
             @Override
@@ -134,10 +138,10 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
             }
 
             @Override
-            public ShapeBuilder<?, ?, ?> visit(org.elasticsearch.geo.geometry.Line line) {
+            public ShapeBuilder<?, ?, ?> visit(Line line) {
                 List<Coordinate> coordinates = new ArrayList<>();
                 for (int i = 0; i < line.length(); i++) {
-                    coordinates.add(new Coordinate(line.getLon(i), line.getLat(i), line.getAlt(i)));
+                    coordinates.add(new Coordinate(line.getX(i), line.getY(i), line.getZ(i)));
                 }
                 return new LineStringBuilder(coordinates);
             }
@@ -161,7 +165,7 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
                 List<Coordinate> coordinates = new ArrayList<>();
                 for (int i = 0; i < multiPoint.size(); i++) {
                     Point p = multiPoint.get(i);
-                    coordinates.add(new Coordinate(p.getLon(), p.getLat(), p.getAlt()));
+                    coordinates.add(new Coordinate(p.getX(), p.getY(), p.getZ()));
                 }
                 return new MultiPointBuilder(coordinates);
             }
@@ -177,24 +181,24 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
 
             @Override
             public ShapeBuilder<?, ?, ?> visit(Point point) {
-                return new PointBuilder(point.getLon(), point.getLat());
+                return new PointBuilder(point.getX(), point.getY());
             }
 
             @Override
-            public ShapeBuilder<?, ?, ?> visit(org.elasticsearch.geo.geometry.Polygon polygon) {
+            public ShapeBuilder<?, ?, ?> visit(Polygon polygon) {
                 PolygonBuilder polygonBuilder =
-                    new PolygonBuilder((LineStringBuilder) visit((org.elasticsearch.geo.geometry.Line) polygon.getPolygon()),
+                    new PolygonBuilder((LineStringBuilder) visit((Line) polygon.getPolygon()),
                         ShapeBuilder.Orientation.RIGHT, false);
                 for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-                    polygonBuilder.hole((LineStringBuilder) visit((org.elasticsearch.geo.geometry.Line) polygon.getHole(i)));
+                    polygonBuilder.hole((LineStringBuilder) visit((Line) polygon.getHole(i)));
                 }
                 return polygonBuilder;
             }
 
             @Override
             public ShapeBuilder<?, ?, ?> visit(Rectangle rectangle) {
-                return new EnvelopeBuilder(new Coordinate(rectangle.getMinLon(), rectangle.getMaxLat()),
-                    new Coordinate(rectangle.getMaxLon(), rectangle.getMinLat()));
+                return new EnvelopeBuilder(new Coordinate(rectangle.getMinX(), rectangle.getMaxY()),
+                    new Coordinate(rectangle.getMaxX(), rectangle.getMinY()));
             }
         });
         return shapeBuilder;

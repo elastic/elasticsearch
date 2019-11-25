@@ -23,7 +23,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 
 /**
@@ -102,6 +102,17 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
                                MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
             multiFields, copyTo);
+    }
+
+    @Override
+    protected void doMerge(Mapper mergeWith) {
+        if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
+            LegacyGeoShapeFieldMapper legacy = (LegacyGeoShapeFieldMapper) mergeWith;
+            throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
+                "using [BKD] strategy cannot be merged with " + "[" + legacy.fieldType().typeName() + "] with [" +
+                legacy.fieldType().strategy() + "] strategy");
+        }
+        super.doMerge(mergeWith);
     }
 
     @Override

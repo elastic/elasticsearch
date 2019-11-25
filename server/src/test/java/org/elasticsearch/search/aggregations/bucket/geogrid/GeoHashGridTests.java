@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 

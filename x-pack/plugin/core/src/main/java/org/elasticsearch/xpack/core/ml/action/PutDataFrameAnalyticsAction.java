@@ -34,6 +34,9 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
+        /**
+         * Parses request.
+         */
         public static Request parseRequest(String id, XContentParser parser) {
             DataFrameAnalyticsConfig.Builder config = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
             if (config.getId() == null) {
@@ -45,6 +48,18 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
             }
 
             return new PutDataFrameAnalyticsAction.Request(config.build());
+        }
+
+        /**
+         * Parses request for use in the explain action.
+         * {@link Request} is reused across {@link PutDataFrameAnalyticsAction} and
+         * {@link ExplainDataFrameAnalyticsAction} but parsing differs
+         * between these two usages.
+         */
+        public static Request parseRequestForExplain(XContentParser parser) {
+            DataFrameAnalyticsConfig.Builder configBuilder = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
+            DataFrameAnalyticsConfig config = configBuilder.buildForExplain();
+            return new PutDataFrameAnalyticsAction.Request(config);
         }
 
         private DataFrameAnalyticsConfig config;
@@ -105,7 +120,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
         Response() {}
 
-        Response(StreamInput in) throws IOException {
+        public Response(StreamInput in) throws IOException {
             super(in);
             config = new DataFrameAnalyticsConfig(in);
         }

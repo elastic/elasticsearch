@@ -21,7 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,6 +37,42 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PutRoleRequestTests extends ESTestCase {
+
+    public void testValidationErrorWithUnknownClusterPrivilegeName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        String unknownClusterPrivilegeName = "unknown_" + randomAlphaOfLengthBetween(3,9);
+        request.cluster("manage_security", unknownClusterPrivilegeName);
+
+        // Fail
+        assertValidationError("unknown cluster privilege [" + unknownClusterPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationSuccessWithCorrectClusterPrivilegeName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        request.cluster("manage_security", "manage", "cluster:admin/xpack/security/*");
+        assertSuccessfulValidation(request);
+    }
+
+    public void testValidationErrorWithUnknownIndexPrivilegeName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        String unknownIndexPrivilegeName = "unknown_" + randomAlphaOfLengthBetween(3,9);
+        request.addIndex(new String[]{randomAlphaOfLength(5)}, new String[]{"index", unknownIndexPrivilegeName}, null,
+            null, null, randomBoolean());
+
+        // Fail
+        assertValidationError("unknown index privilege [" + unknownIndexPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationSuccessWithCorrectIndexPrivilegeName() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        request.addIndex(new String[]{randomAlphaOfLength(5)}, new String[]{"index", "write", "indices:data/read"}, null,
+            null, null, randomBoolean());
+        assertSuccessfulValidation(request);
+    }
 
     public void testValidationOfApplicationPrivileges() {
         assertSuccessfulValidation(buildRequestWithApplicationPrivilege("app", new String[]{"read"}, new String[]{"*"}));
@@ -127,7 +163,7 @@ public class PutRoleRequestTests extends ESTestCase {
 
         if (randomBoolean()) {
             final String[] appNames = randomArray(1, 4, String[]::new, stringWithInitialLowercase);
-            request.conditionalCluster(new ConditionalClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
+            request.conditionalCluster(new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Sets.newHashSet(appNames)));
         }
 
         request.runAs(generateRandomStringArray(4, 3, false, true));

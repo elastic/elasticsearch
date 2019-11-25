@@ -96,16 +96,18 @@ specific index module:
     Auto-expand the number of replicas based on the number of data nodes in the cluster.
     Set to a dash delimited lower and upper bound (e.g. `0-5`) or use `all`
     for the upper bound (e.g. `0-all`). Defaults to `false` (i.e. disabled).
-    Note that the auto-expanded number of replicas does not take any other allocation
-    rules into account, such as <<allocation-awareness,shard allocation awareness>>,
-    <<shard-allocation-filtering,filtering>> or <<allocation-total-shards,total shards per node>>,
-    and this can lead to the cluster health becoming `YELLOW` if the applicable rules
-    prevent all the replicas from being allocated.
+    Note that the auto-expanded number of replicas only takes
+    <<shard-allocation-filtering,allocation filtering>> rules into account, but ignores
+    any other allocation rules such as <<allocation-awareness,shard allocation awareness>>
+    and <<allocation-total-shards,total shards per node>>, and this can lead to the
+    cluster health becoming `YELLOW` if the applicable rules prevent all the replicas
+    from being allocated.
 
 `index.search.idle.after`::
     How long a shard can not receive a search or get request until it's considered
     search idle. (default is `30s`)
 
+[[index-refresh-interval-setting]]
 `index.refresh_interval`::
 
     How often to perform a refresh operation, which makes recent changes to the
@@ -150,6 +152,7 @@ specific index module:
     The maximum number of `script_fields` that are allowed in a query.
     Defaults to `32`.
 
+[[index-max-ngram-diff]]
 `index.max_ngram_diff`::
 
     The maximum allowed difference between min_gram and max_gram for NGramTokenizer and NGramTokenFilter.
@@ -166,8 +169,10 @@ specific index module:
     allow writes and metadata changes.
 
 `index.blocks.read_only_allow_delete`::
-    Identical to `index.blocks.read_only` but allows deleting the index to free
-     up resources.
+
+    Similar to `index.blocks.read_only` but also allows deleting the index to
+    free up resources. The <<disk-allocator,disk-based shard allocator>> may
+    add and remove this block automatically.
 
 `index.blocks.read`::
 
@@ -232,12 +237,19 @@ specific index module:
     The length of time that a <<delete-versioning,deleted document's version number>> remains available for <<index-versioning,further versioned operations>>.
     Defaults to `60s`.
 
-  `index.default_pipeline`::
+ `index.default_pipeline`::
 
     The default <<ingest,ingest node>> pipeline for this index. Index requests will fail
     if the default pipeline is set and the pipeline does not exist. The default may be
     overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
     no ingest pipeline should be run.
+
+ `index.final_pipeline`::
+    The final <<ingest,ingest node>> pipeline for this index. Index requests
+    will fail if the final pipeline is set and the pipeline does not exist.
+    The final pipeline always runs after the request pipeline (if specified) and
+    the default pipeline (if it exists). The special pipeline name `_none`
+    indicates no ingest pipeline will run.
 
 [float]
 === Settings in other index modules
@@ -278,6 +290,10 @@ Other index settings are available in index modules:
 
     Control over the transaction log and background flush operations.
 
+<<index-modules-history-retention,History retention>>::
+
+    Control over the retention of a history of operations in the index.
+
 [float]
 [[x-pack-index-settings]]
 === [xpack]#{xpack} index settings#
@@ -302,5 +318,7 @@ include::index-modules/slowlog.asciidoc[]
 include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
+
+include::index-modules/history-retention.asciidoc[]
 
 include::index-modules/index-sorting.asciidoc[]

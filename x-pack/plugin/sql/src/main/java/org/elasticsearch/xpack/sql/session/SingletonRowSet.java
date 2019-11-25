@@ -44,11 +44,6 @@ class SingletonRowSet extends AbstractRowSet implements SchemaRowSet {
     }
 
     @Override
-    public Cursor nextPageCursor() {
-        return Cursor.EMPTY;
-    }
-
-    @Override
     public Schema schema() {
         return schema;
     }

@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -75,7 +75,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private Client client;
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
     private Renormalizer renormalizer;
     private JobResultsPersister persister;
     private JobResultsPersister.Builder bulkBuilder;
@@ -91,7 +91,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         renormalizer = mock(Renormalizer.class);
         persister = mock(JobResultsPersister.class);
         bulkBuilder = mock(JobResultsPersister.Builder.class);
@@ -220,7 +220,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertTrue(processorUnderTest.isDeleteInterimRequired());
 
         verify(persister).bulkPersisterBuilder(JOB_ID);
-        verify(flushListener).acknowledgeFlush(flushAcknowledgement);
+        verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
         verify(persister).commitResultWrites(JOB_ID);
         verify(bulkBuilder).executeRequest();
     }
@@ -242,7 +242,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         inOrder.verify(persister).persistCategoryDefinition(categoryDefinition);
         inOrder.verify(bulkBuilder).executeRequest();
         inOrder.verify(persister).commitResultWrites(JOB_ID);
-        inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement);
+        inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
     }
 
     public void testProcessResult_modelPlot() {
@@ -319,7 +319,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
 
         when(persister.persistModelSnapshot(any(), any()))
-            .thenReturn(new IndexResponse(new ShardId("ml", "uid", 0), "doc", "1", 0L, 0L, 0L, true));
+            .thenReturn(new IndexResponse(new ShardId("ml", "uid", 0), "1", 0L, 0L, 0L, true));
 
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);
@@ -397,7 +397,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister, times(2)).persistModelSnapshot(any(), eq(WriteRequest.RefreshPolicy.IMMEDIATE));
     }
 
-    public void testParsingErrorSetsFailed() throws InterruptedException {
+    public void testParsingErrorSetsFailed() throws Exception {
         @SuppressWarnings("unchecked")
         Iterator<AutodetectResult> iterator = mock(Iterator.class);
         when(iterator.hasNext()).thenThrow(new ElasticsearchParseException("this test throws"));

@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -30,8 +29,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 
 public class RestPendingClusterTasksAction extends BaseRestHandler {
-    public RestPendingClusterTasksAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestPendingClusterTasksAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/pending_tasks", this);
     }
 

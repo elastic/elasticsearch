@@ -143,13 +143,27 @@ public class DanglingIndicesState implements ClusterStateListener {
                 } else {
                     logger.info("[{}] dangling index exists on local file system, but not in cluster metadata, " +
                                 "auto import to cluster state", indexMetaData.getIndex());
-                    newIndices.put(indexMetaData.getIndex(), indexMetaData);
+                    newIndices.put(indexMetaData.getIndex(), stripAliases(indexMetaData));
                 }
             }
             return newIndices;
         } catch (IOException e) {
             logger.warn("failed to list dangling indices", e);
             return emptyMap();
+        }
+    }
+
+    /**
+     * Dangling importing indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
+     * previously had only one index with any is_write_index indication.
+     */
+    private IndexMetaData stripAliases(IndexMetaData indexMetaData) {
+        if (indexMetaData.getAliases().isEmpty()) {
+            return indexMetaData;
+        } else {
+            logger.info("[{}] stripping aliases: {} from index before importing",
+                indexMetaData.getIndex(), indexMetaData.getAliases().keys());
+            return IndexMetaData.builder(indexMetaData).removeAllAliases().build();
         }
     }
 

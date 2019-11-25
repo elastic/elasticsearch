@@ -112,7 +112,7 @@ The values are extracted from a field or a script exactly like the `terms` aggre
 
 Example:
 
-[source,js]
+[source,console,id=composite-aggregation-terms-field-example]
 --------------------------------------------------
 GET /_search
 {
@@ -127,11 +127,10 @@ GET /_search
      }
 }
 --------------------------------------------------
-// CONSOLE
 
 Like the `terms` aggregation it is also possible to use a script to create the values for the composite buckets:
 
-[source,js]
+[source,console,id=composite-aggregation-terms-script-example]
 --------------------------------------------------
 GET /_search
 {
@@ -155,7 +154,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Histogram
 
@@ -166,7 +164,7 @@ a value of `101` would be translated to `100` which is the key for the interval 
 
 Example:
 
-[source,js]
+[source,console,id=composite-aggregation-histogram-field-example]
 --------------------------------------------------
 GET /_search
 {
@@ -181,11 +179,10 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The values are built from a numeric field or a script that return numerical values:
 
-[source,js]
+[source,console,id=composite-aggregation-histogram-script-example]
 --------------------------------------------------
 GET /_search
 {
@@ -210,7 +207,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 ===== Date Histogram
@@ -218,7 +214,7 @@ GET /_search
 The `date_histogram` is similar to the `histogram` value source except that the interval
 is specified by date/time expression:
 
-[source,js]
+[source,console,id=composite-aggregation-datehistogram-example]
 --------------------------------------------------
 GET /_search
 {
@@ -233,7 +229,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The example above creates an interval per day and translates all `timestamp` values to the start of its closest intervals.
 Available expressions for interval: `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second`
@@ -248,7 +243,7 @@ Internally, a date is represented as a 64 bit number representing a timestamp in
 These timestamps are returned as the bucket keys. It is possible to return a formatted date string instead using
 the format specified with the format parameter:
 
-[source,js]
+[source,console,id=composite-aggregation-datehistogram-format-example]
 --------------------------------------------------
 GET /_search
 {
@@ -271,7 +266,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Supports expressive date <<date-format-pattern,format pattern>>
 
@@ -291,7 +285,7 @@ The `sources` parameter accepts an array of values source.
 It is possible to mix different values source to create composite buckets.
 For example:
 
-[source,js]
+[source,console,id=composite-aggregation-mixing-sources-example]
 --------------------------------------------------
 GET /_search
 {
@@ -307,14 +301,13 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 This will create composite buckets from the values created by two values source, a `date_histogram` and a `terms`.
 Each bucket is composed of two values, one for each value source defined in the aggregation.
 Any type of combinations is allowed and the order in the array is preserved
 in the composite buckets.
 
-[source,js]
+[source,console,id=composite-aggregation-mixing-three-sources-example]
 --------------------------------------------------
 GET /_search
 {
@@ -331,7 +324,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Order
 
@@ -344,7 +336,7 @@ It is possible to define the direction of the sort for each value source by sett
 or `desc` (descending order) directly in the value source definition.
 For example:
 
-[source,js]
+[source,console,id=composite-aggregation-order-example]
 --------------------------------------------------
 GET /_search
 {
@@ -360,7 +352,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 \... will sort the composite bucket in descending order when comparing values from the `date_histogram` source
 and in ascending order when comparing values from the `terms` source.
@@ -371,7 +362,7 @@ By default documents without a value for a given source are ignored.
 It is possible to include them in the response by setting `missing_bucket` to
 `true` (defaults to `false`):
 
-[source,js]
+[source,console,id=composite-aggregation-missing-bucket-example]
 --------------------------------------------------
 GET /_search
 {
@@ -386,7 +377,6 @@ GET /_search
      }
 }
 --------------------------------------------------
-// CONSOLE
 
 In the example above the source `product_name` will emit an explicit `null` value
 for documents without a value for the field `product`.
@@ -411,7 +401,7 @@ If all composite buckets should be retrieved it is preferable to use a small siz
 and then use the `after` parameter to retrieve the next results.
 For example:
 
-[source,js]
+[source,console,id=composite-aggregation-after-key-example]
 --------------------------------------------------
 GET /_search
 {
@@ -428,12 +418,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 \... returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -477,7 +466,7 @@ the last composite buckets returned in a previous round.
 For the example below the last bucket can be found in `after_key` and the next
 round of result can be retrieved with:
 
-[source,js]
+[source,console,id=composite-aggregation-after-example]
 --------------------------------------------------
 GET /_search
 {
@@ -495,7 +484,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Should restrict the aggregation to buckets that sort **after** the provided values.
 
@@ -507,7 +495,7 @@ parent aggregation.
 For instance the following example computes the average value of a field
 per composite bucket:
 
-[source,js]
+[source,console,id=composite-aggregation-subaggregations-example]
 --------------------------------------------------
 GET /_search
 {
@@ -528,12 +516,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 \... returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

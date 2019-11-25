@@ -33,7 +33,8 @@ search functionality. The default approach, where each subfield has its own
 entry in the mappings, works well in the majority of cases.
 
 An flattened object field can be created as follows:
-[source,js]
+
+[source,console]
 --------------------------------
 PUT bug_reports
 {
@@ -62,7 +63,6 @@ POST bug_reports/_doc/1
   }
 }
 --------------------------------
-// CONSOLE
 // TESTSETUP
 
 During indexing, tokens are created for each leaf value in the JSON object. The
@@ -72,7 +72,7 @@ numbers or dates.
 Querying the top-level `flattened` field searches all leaf values in the
 object:
 
-[source,js]
+[source,console]
 --------------------------------
 POST bug_reports/_search
 {
@@ -81,10 +81,10 @@ POST bug_reports/_search
   }
 }
 --------------------------------
-// CONSOLE
 
 To query on a specific key in the flattened object, object dot notation is used:
-[source,js]
+
+[source,console]
 --------------------------------
 POST bug_reports/_search
 {
@@ -93,7 +93,6 @@ POST bug_reports/_search
   }
 }
 --------------------------------
-// CONSOLE
 
 [[supported-operations]]
 ==== Supported operations
@@ -141,7 +140,8 @@ The following mapping parameters are accepted:
 
     The maximum allowed depth of the flattened object field, in terms of nested
     inner objects. If a flattened object field exceeds this limit, then an
-    error will be thrown. Defaults to `20`.
+    error will be thrown. Defaults to `20`. Note that `depth_limit` can be
+    updated dynamically through the <<indices-put-mapping, put mapping>> API.
 
 <<doc-values,`doc_values`>>::
 

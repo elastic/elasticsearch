@@ -22,8 +22,8 @@ Retrieves {anomaly-job} results for one or more categories.
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
 need `read` index privilege on the index that stores the results. The
 `machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. See {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+privileges. See <<security-privileges>> and
+<<built-in-roles>>.
 
 [[ml-get-category-desc]]
 ==== {api-description-title}
@@ -66,7 +66,7 @@ The API returns the following information:
 The following example gets information about one category for the
 `esxi_log` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/esxi_log/results/categories
 {
@@ -75,7 +75,6 @@ GET _ml/anomaly_detectors/esxi_log/results/categories
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 In this example, the API returns the following information:

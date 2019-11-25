@@ -17,7 +17,7 @@ The following search returns documents where the `user` field contains a term
 that begins with `ki` and ends with `y`. These matching terms can include `kiy`,
 `kity`, or `kimchy`.
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -32,7 +32,6 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[wildcard-top-level-params]]
 ==== Top-level parameters for `wildcard`

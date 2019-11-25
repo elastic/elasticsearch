@@ -9,15 +9,18 @@ import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.XYLine;
 import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 
@@ -71,8 +74,8 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
         }
 
         @Override
-        public Void visit(org.elasticsearch.geo.geometry.Line line) {
-            float[][] vertices = lineToFloatArray(line.getLons(), line.getLats());
+        public Void visit(Line line) {
+            float[][] vertices = lineToFloatArray(line.getX(), line.getY());
             addFields(XYShape.createIndexableFields(name, new XYLine(vertices[0], vertices[1])));
             return null;
         }
@@ -84,7 +87,7 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
 
         @Override
         public Void visit(MultiLine multiLine) {
-            for (org.elasticsearch.geo.geometry.Line line : multiLine) {
+            for (Line line : multiLine) {
                 visit(line);
             }
             return null;
@@ -100,7 +103,7 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
 
         @Override
         public Void visit(MultiPolygon multiPolygon) {
-            for(org.elasticsearch.geo.geometry.Polygon polygon : multiPolygon) {
+            for(Polygon polygon : multiPolygon) {
                 visit(polygon);
             }
             return null;
@@ -108,21 +111,21 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
 
         @Override
         public Void visit(Point point) {
-            addFields(XYShape.createIndexableFields(name, (float)point.getLon(), (float)point.getLat()));
+            addFields(XYShape.createIndexableFields(name, (float)point.getX(), (float)point.getY()));
             return null;
         }
 
         @Override
-        public Void visit(org.elasticsearch.geo.geometry.Polygon polygon) {
+        public Void visit(Polygon polygon) {
             addFields(XYShape.createIndexableFields(name, toLucenePolygon(polygon)));
             return null;
         }
 
         @Override
-        public Void visit(org.elasticsearch.geo.geometry.Rectangle r) {
+        public Void visit(Rectangle r) {
             XYPolygon p = new XYPolygon(
-                new float[]{(float)r.getMinLon(), (float)r.getMaxLon(), (float)r.getMaxLon(), (float)r.getMinLon(), (float)r.getMinLon()},
-                new float[]{(float)r.getMinLat(), (float)r.getMinLat(), (float)r.getMaxLat(), (float)r.getMaxLat(), (float)r.getMinLat()});
+                new float[]{(float)r.getMinX(), (float)r.getMaxX(), (float)r.getMaxX(), (float)r.getMinX(), (float)r.getMinX()},
+                new float[]{(float)r.getMinY(), (float)r.getMinY(), (float)r.getMaxY(), (float)r.getMaxY(), (float)r.getMinY()});
             addFields(XYShape.createIndexableFields(name, p));
             return null;
         }
@@ -132,17 +135,17 @@ public class ShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometr
         }
     }
 
-    public static XYPolygon toLucenePolygon(org.elasticsearch.geo.geometry.Polygon polygon) {
+    public static XYPolygon toLucenePolygon(Polygon polygon) {
         XYPolygon[] holes = new XYPolygon[polygon.getNumberOfHoles()];
         LinearRing ring;
         float[][] vertices;
         for(int i = 0; i<holes.length; i++) {
             ring = polygon.getHole(i);
-            vertices = lineToFloatArray(ring.getLons(), ring.getLats());
+            vertices = lineToFloatArray(ring.getX(), ring.getY());
             holes[i] = new XYPolygon(vertices[0], vertices[1]);
         }
         ring = polygon.getPolygon();
-        vertices = lineToFloatArray(ring.getLons(), ring.getLats());
+        vertices = lineToFloatArray(ring.getX(), ring.getY());
         return new XYPolygon(vertices[0], vertices[1], holes);
     }
 

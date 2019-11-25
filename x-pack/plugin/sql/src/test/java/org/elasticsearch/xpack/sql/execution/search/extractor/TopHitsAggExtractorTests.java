@@ -14,8 +14,8 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -28,7 +28,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
-public class TopHitsAggExtractorTests extends AbstractWireSerializingTestCase<TopHitsAggExtractor> {
+public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase<TopHitsAggExtractor> {
 
     public static TopHitsAggExtractor randomTopHitsAggExtractor() {
         return new TopHitsAggExtractor(randomAlphaOfLength(16), randomFrom(DataType.values()), randomZone());
@@ -42,6 +42,11 @@ public class TopHitsAggExtractorTests extends AbstractWireSerializingTestCase<To
     @Override
     protected Reader<TopHitsAggExtractor> instanceReader() {
         return TopHitsAggExtractor::new;
+    }
+
+    @Override
+    protected ZoneId instanceZoneId(TopHitsAggExtractor instance) {
+        return instance.zoneId();
     }
 
     @Override

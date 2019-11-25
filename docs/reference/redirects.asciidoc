@@ -404,7 +404,7 @@ GET _search
 move the query and filter to the `must` and `filter` parameters in the `bool`
 query:
 
-[source,js]
+[source,console]
 -------------------------
 GET _search
 {
@@ -424,7 +424,6 @@ GET _search
   }
 }
 -------------------------
-// CONSOLE
 
 [role="exclude",id="query-dsl-or-query"]
 === Or query
@@ -552,7 +551,7 @@ See <<security-api-has-privileges>>.
 [role="exclude",id="xpack-commands"]
 === X-Pack commands
 
-See <<commands>>. 
+See <<commands>>.
 
 [role="exclude",id="ml-api-definitions"]
 === Machine learning API definitions
@@ -598,7 +597,7 @@ See <<faster-prefix-queries>>.
 === Set up {xpack}
 
 {xpack} is an Elastic Stack extension that provides security, alerting,
-monitoring, reporting, machine learning, and many other capabilities. By default, 
+monitoring, reporting, machine learning, and many other capabilities. By default,
 when you install {es}, {xpack} is installed.
 
 [role="exclude",id="setup-xpack-client"]
@@ -617,15 +616,21 @@ The `common` terms query is deprecated. Use the <<query-dsl-match-query, `match`
 query>> instead. The `match` query skips blocks of documents efficiently,
 without any configuration, if the total number of hits is not tracked.
 
+[role="exclude",id="indices-types-exists"]
+=== Types Exists
+
+The types exists endpoint has been removed. See <<removal-of-types>> for
+more details.
+
 [role="exclude",id="xpack-api"]
 === X-Pack APIs
 
-{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>.
 
 [role="exclude",id="ml-calendar-resource"]]
 === Calendar resources
 
-See <<ml-get-calendar>> and 
+See <<ml-get-calendar>> and
 {stack-ov}/ml-calendars.html[Calendars and scheduled events].
 
 [role="exclude",id="ml-filter-resource"]
@@ -637,7 +642,7 @@ See <<ml-get-filter>> and
 [role="exclude",id="ml-event-resource"]
 === Scheduled event resources
 
-See <<ml-get-calendar-event>> and 
+See <<ml-get-calendar-event>> and
 {stack-ov}/ml-calendars.html[Calendars and scheduled events].
 
 [role="exclude",id="index-apis"]
@@ -774,7 +779,7 @@ See <<explain-analyze-api>>.
 
 [role="exclude",id="indices-synced-flush"]
 === Synced flush API
-See <<synced-flush-api>>.
+See <<indices-synced-flush-api>>.
 
 [role="exclude",id="_repositories"]
 === Snapshot repositories
@@ -783,3 +788,261 @@ See <<snapshots-repositories>>.
 [role="exclude",id="_snapshot"]
 === Snapshot
 See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="getting-started-explore"]
+=== Exploring your cluster
+See <<cat>>.
+
+[role="exclude",id="getting-started-cluster-health"]
+=== Cluster health
+See <<cat-health>>.
+
+[role="exclude", id="getting-started-list-indices"]
+=== List all indices
+See <<cat-indices>>.
+
+[role="exclude", id="getting-started-create-index"]
+=== Create an index
+See <<indices-create-index>>.
+
+[role="exclude", id="getting-started-query-document"]
+=== Index and query a document
+See <<getting-started-index>>.
+
+[role="exclude", id="getting-started-delete-index"]
+=== Delete an index
+See <<indices-delete-index>>.
+
+[role="exclude", id="getting-started-modify-data"]
+== Modifying your data
+See <<docs-update>>.
+
+[role="exclude", id="indexing-replacing-documents"]
+=== Indexing/replacing documents
+See <<docs-index_>>.
+
+[role="exclude", id="getting-started-explore-data"]
+=== Exploring your data
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-search-API"]
+=== Search API
+See <<getting-started-search>>.
+
+[role="exclude", id="getting-started-conclusion"]
+=== Conclusion
+See <<getting-started-next-steps>>.
+
+[role="exclude",id="ccs-reduction"]
+=== {ccs-cap} reduction
+See <<ccs-works>>.
+
+[role="exclude",id="administer-elasticsearch"]
+=== Administering {es}
+See <<high-availability>>.
+
+[role="exclude",id="slm-api"]
+=== Snapshot lifecycle management API
+See <<snapshot-lifecycle-management-api>>.
+
+[role="exclude",id="delete-data-frame-transform"]
+===  Delete {transforms} API
+
+See <<delete-transform>>.
+
+[role="exclude",id="get-data-frame-transform-stats"]
+=== Get {transform} statistics API
+
+See <<get-transform-stats>>.
+
+[role="exclude",id="get-data-frame-transform"]
+=== Get {transforms} API
+
+See <<get-transform>>.
+
+[role="exclude",id="preview-data-frame-transform"]
+=== Preview {transforms} API
+
+See <<preview-transform>>.
+
+[role="exclude",id="put-data-frame-transform"]
+===  Create {transforms} API
+
+See <<put-transform>>.
+
+[role="exclude",id="start-data-frame-transform"]
+=== Start {transforms} API
+
+See <<start-transform>>.
+
+[role="exclude",id="stop-data-frame-transform"]
+=== Stop {transforms} API
+
+See <<stop-transform>>.
+
+[role="exclude",id="update-data-frame-transform"]
+=== Update {transforms} API
+
+See <<update-transform>>.
+
+[role="exclude",id="data-frame-apis"]
+=== {transform-cap} APIs
+
+See <<transform-apis>>.
+
+[role="exclude",id="data-frame-transform-resource"]
+=== {transform-cap} resources
+
+See <<transform-resource>>.
+
+[role="exclude",id="data-frame-transform-dest"]
+=== Dest objects
+
+See <<transform-dest>>.
+
+[role="exclude",id="data-frame-transform-source"]
+==== Source objects
+
+See <<transform-source>>.
+
+[role="exclude",id="data-frame-transform-pivot"]
+==== Pivot objects
+
+See <<transform-pivot>>.
+
+[role="exclude",id="configuring-monitoring"]
+=== Configuring monitoring
+
+See <<monitoring-overview>>.
+
+[role="exclude",id="es-monitoring"]
+=== Monitoring {es}
+
+See <<monitor-elasticsearch-cluster>>.
+
+[role="exclude",id="docker-cli-run"]
+=== Docker Run
+
+See <<docker-cli-run-dev-mode>>.
+
+[role="exclude",id="auditing"]
+=== Audit logging
+
+See <<enable-audit-logging>>.
+
+[role="exclude",id="analysis-compound-word-tokenfilter"]
+=== Compound word token filters
+
+See <<analysis-dict-decomp-tokenfilter>> and
+<<analysis-hyp-decomp-tokenfilter>>.
+
+[role="exclude",id="configuring-native-realm"]
+=== Configuring a native realm
+
+See <<native-realm-configuration>>.
+
+[role="exclude",id="native-settings"]
+==== Native realm settings
+
+See <<ref-native-settings>>. 
+
+[role="exclude",id="configuring-saml-realm"]
+=== Configuring a SAML realm
+
+See <<saml-guide>>.
+
+[role="exclude",id="saml-settings"]
+==== SAML realm settings
+
+See <<ref-saml-settings>>. 
+
+[role="exclude",id="_saml_realm_signing_settings"]
+==== SAML realm signing settings
+
+See <<ref-saml-signing-settings>>. 
+
+[role="exclude",id="_saml_realm_encryption_settings"]
+==== SAML realm encryption settings
+
+See <<ref-saml-encryption-settings>>. 
+
+[role="exclude",id="_saml_realm_ssl_settings"]
+==== SAML realm SSL settings
+
+See <<ref-saml-ssl-settings>>. 
+
+[role="exclude",id="configuring-file-realm"]
+=== Configuring a file realm
+
+See <<file-realm-configuration>>. 
+
+[role="exclude",id="ldap-user-search"]
+=== User search mode and user DN templates mode
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="configuring-ldap-realm"]
+=== Configuring an LDAP realm
+
+See <<ldap-realm-configuration>>.
+
+[role="exclude",id="ldap-settings"]
+=== LDAP realm settings
+
+See <<ref-ldap-settings>>.
+
+[role="exclude",id="ldap-ssl"]
+=== Setting up SSL between Elasticsearch and LDAP
+
+See <<tls-ldap>>. 
+
+[role="exclude",id="configuring-kerberos-realm"]
+=== Configuring a Kerberos realm
+
+See <<kerberos-realm-configuration>>.
+
+[role="exclude",id="beats"]
+=== Beats and Security
+
+See:
+* {auditbeat-ref}/securing-beats.html[{auditbeat}]
+* {filebeat-ref}/securing-beats.html[{filebeat}]
+* {heartbeat-ref}/securing-beats.html[{heartbeat}]
+* {metricbeat-ref}/securing-beats.html[{metricbeat}]
+* {packetbeat-ref}/securing-beats.html[{packetbeat}]
+* {winlogbeat-ref}/securing-beats.html[{winlogbeat}]
+
+[role="exclude",id="configuring-pki-realm"]
+=== Configuring a PKI realm
+
+See <<pki-realm>>.
+
+[role="exclude",id="pki-settings"]
+==== PKI realm settings
+
+See <<ref-pki-settings>>.
+
+[role="exclude",id="configuring-ad-realm"]
+=== Configuring an Active Directory realm
+
+See <<ad-realm-configuration>>.
+
+[role="exclude",id="ad-settings"]
+=== Active Directory realm settings
+
+See <<ref-ad-settings>>.
+
+[role="exclude",id="mapping-roles-ad"]
+=== Mapping Active Directory users and groups to roles
+
+See <<ad-realm-configuration>>. 
+
+[role="exclude",id="how-security-works"]
+=== How security works
+
+See <<elasticsearch-security>>.
+
+[role="exclude",id="rollup-job-config"]
+=== Rollup job configuration
+
+See <<rollup-put-job-api-request-body>>.

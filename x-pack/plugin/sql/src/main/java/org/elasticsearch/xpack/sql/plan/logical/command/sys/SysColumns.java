@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -97,14 +97,14 @@ public class SysColumns extends Command {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public void execute(SqlSession session, ActionListener<Page> listener) {
         Mode mode = session.configuration().mode();
         List<Attribute> output = output(mode == Mode.ODBC);
         String cluster = session.indexResolver().clusterName();
 
         // bail-out early if the catalog is present but differs
         if (Strings.hasText(catalog) && cluster.equals(catalog) == false) {
-            listener.onResponse(Rows.empty(output));
+            listener.onResponse(Page.last(Rows.empty(output)));
             return;
         }
 
@@ -125,7 +125,7 @@ public class SysColumns extends Command {
                     fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
                 }
 
-                listener.onResponse(Rows.of(output, rows));
+                listener.onResponse(of(session, rows));
             }, listener::onFailure));
         }
         // otherwise use a merged mapping
@@ -138,7 +138,7 @@ public class SysColumns extends Command {
                     fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
                 }
 
-                listener.onResponse(Rows.of(output, rows));
+                listener.onResponse(of(session, rows));
             }, listener::onFailure));
         }
     }

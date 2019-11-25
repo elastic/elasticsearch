@@ -141,7 +141,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     public void insertBaseDocumentsAsAdmin() throws Exception {
         // indices: a,b,c,abc
         for (String index : new String[] {"a", "b", "c", "abc"}) {
-            Request request = new Request("PUT", "/" + index + "/foo/1");
+            Request request = new Request("PUT", "/" + index + "/_doc/1");
             request.setJsonEntity(jsonDoc);
             request.addParameter("refresh", "true");
             assertAccessIsAllowed("admin", request);
@@ -356,7 +356,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
         assertAccessIsAllowed("u13",
                 "GET", "/" + randomIndex() + "/_msearch", "{}\n{ \"query\" : { \"match_all\" : {} } }\n");
-        assertAccessIsAllowed("u13", "POST", "/" + randomIndex() + "/foo/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
+        assertAccessIsAllowed("u13", "POST", "/" + randomIndex() + "/_mget", "{ \"ids\" : [ \"1\", \"2\" ] } ");
         assertAccessIsAllowed("u13", "PUT", "/a/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertBodyHasAccessIsDenied("u13", "PUT", "/b/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u13",
@@ -522,10 +522,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             case "index" :
                 if (userIsAllowed) {
                 assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
-                assertAccessIsAllowed(user, "POST", "/" + index + "/_doc/321/_update", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                 } else {
                 assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
-                assertAccessIsDenied(user, "POST", "/" + index + "/_doc/321/_update", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                assertAccessIsDenied(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                 }
                 break;
 

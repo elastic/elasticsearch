@@ -5,9 +5,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.internal.jvm.Jvm;
-import org.gradle.process.ExecResult;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -16,16 +14,23 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.stream.Stream;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final String GLOBAL_INFO_EXTENSION_NAME = "globalInfo";
@@ -45,6 +50,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
 
+        String testSeedProperty = System.getProperty("tests.seed");
+        final String testSeed;
+        if (testSeedProperty == null) {
+            long seed = new Random(System.currentTimeMillis()).nextLong();
+            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT);
+        } else {
+            testSeed = testSeedProperty;
+        }
+
         final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
             if (System.getenv(getJavaHomeEnvVarName(Integer.toString(version))) != null) {
@@ -62,38 +76,41 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
                 task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
                 task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
-                task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
             });
 
         PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
             task.getBuildInfoFile().set(generateTask.getOutputFile());
             task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
             task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
-            task.getFipsJvmFile().set(generateTask.getFipsJvmFile());
             task.setGlobalInfoListeners(extension.listeners);
         });
 
-        project.getExtensions().getByType(ExtraPropertiesExtension.class).set("defaultParallel", findDefaultParallel(project));
+        // Initialize global build parameters
+        BuildParams.init(params -> {
+            params.reset();
+            params.setCompilerJavaHome(compilerJavaHome);
+            params.setRuntimeJavaHome(runtimeJavaHome);
+            params.setIsRutimeJavaHomeSet(compilerJavaHome.equals(runtimeJavaHome) == false);
+            params.setJavaVersions(javaVersions);
+            params.setMinimumCompilerVersion(minimumCompilerVersion);
+            params.setMinimumRuntimeVersion(minimumRuntimeVersion);
+            params.setGradleJavaVersion(Jvm.current().getJavaVersion());
+            params.setGitRevision(gitRevision(project.getRootProject().getRootDir()));
+            params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
+            params.setTestSeed(testSeed);
+            params.setIsCi(System.getenv("JENKINS_URL") != null);
+            params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
+            params.setDefaultParallel(findDefaultParallel(project));
+            params.setInFipsJvm(isInFipsJvm());
+        });
 
         project.allprojects(p -> {
             // Make sure than any task execution generates and prints build info
-            p.getTasks().all(task -> {
+            p.getTasks().configureEach(task -> {
                 if (task != generateTask && task != printTask) {
                     task.dependsOn(printTask);
                 }
             });
-
-            ExtraPropertiesExtension ext = p.getExtensions().getByType(ExtraPropertiesExtension.class);
-
-            ext.set("compilerJavaHome", compilerJavaHome);
-            ext.set("runtimeJavaHome", runtimeJavaHome);
-            ext.set("isRuntimeJavaHomeSet", compilerJavaHome.equals(runtimeJavaHome) == false);
-            ext.set("javaVersions", javaVersions);
-            ext.set("minimumCompilerVersion", minimumCompilerVersion);
-            ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
-            ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
-            ext.set("gitRevision", gitRevision(project));
-            ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
         });
     }
 
@@ -133,6 +150,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static String getJavaHomeEnvVarName(String version) {
         return "JAVA" + version + "_HOME";
+    }
+
+    private static boolean isInFipsJvm() {
+        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 
     private static String getResourceContents(String resourcePath) {
@@ -203,21 +224,84 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-    private String gitRevision(final Project project) {
-        final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-        final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-        final ExecResult result = project.exec(spec -> {
-            spec.setExecutable("git");
-            spec.setArgs(Arrays.asList("rev-parse", "HEAD"));
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stderr);
-            spec.setIgnoreExitValue(true);
-        });
-
-        if (result.getExitValue() != 0) {
-            return "unknown";
+    public static String gitRevision(File rootDir) {
+        try {
+            /*
+             * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The
+             * documentation for this follows from https://git-scm.com/docs/gitrepository-layout and https://git-scm.com/docs/git-worktree.
+             *
+             * There are two cases to consider:
+             *  - a plain repository with .git directory at the root of the working tree
+             *  - a worktree with a plain text .git file at the root of the working tree
+             *
+             * In each case, our goal is to parse the HEAD file to get either a ref or a bare revision (in the case of being in detached
+             * HEAD state).
+             *
+             * In the case of a plain repository, we can read the HEAD file directly, resolved directly from the .git directory.
+             *
+             * In the case of a worktree, we read the gitdir from the plain text .git file. This resolves to a directory from which we read
+             * the HEAD file and resolve commondir to the plain git repository.
+             */
+            final Path dotGit = rootDir.toPath().resolve(".git");
+            final String revision;
+            if (Files.exists(dotGit) == false) {
+                return "unknown";
+            }
+            final Path head;
+            final Path gitDir;
+            if (Files.isDirectory(dotGit)) {
+                // this is a git repository, we can read HEAD directly
+                head = dotGit.resolve("HEAD");
+                gitDir = dotGit;
+            } else {
+                // this is a git worktree, follow the pointer to the repository
+                final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                head = workTree.resolve("HEAD");
+                final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
+                if (commonDir.isAbsolute()) {
+                    gitDir = commonDir;
+                } else {
+                    // this is the common case
+                    gitDir = workTree.resolve(commonDir);
+                }
+            }
+            final String ref = readFirstLine(head);
+            if (ref.startsWith("ref:")) {
+                String refName = ref.substring("ref:".length()).trim();
+                Path refFile = gitDir.resolve(refName);
+                if (Files.exists(refFile)) {
+                    revision = readFirstLine(refFile);
+                } else if (Files.exists(dotGit.resolve("packed-refs"))) {
+                    // Check packed references for commit ID
+                    Pattern p = Pattern.compile("^([a-f0-9]{40}) " + refName + "$");
+                    try (Stream<String> lines = Files.lines(dotGit.resolve("packed-refs"))) {
+                        revision = lines.map(p::matcher)
+                            .filter(Matcher::matches)
+                            .map(m -> m.group(1))
+                            .findFirst()
+                            .orElseThrow(() -> new IOException("Packed reference not found for refName " + refName));
+                    }
+                } else {
+                    throw new GradleException("Can't find revision for refName " + refName);
+                }
+            } else {
+                // we are in detached HEAD state
+                revision = ref;
+            }
+            return revision;
+        } catch (final IOException e) {
+            // for now, do not be lenient until we have better understanding of real-world scenarios where this happens
+            throw new GradleException("unable to read the git revision", e);
         }
-        return stdout.toString(UTF_8).trim();
     }
 
+    private static String readFirstLine(final Path path) throws IOException {
+        String firstLine;
+        try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
+            firstLine = lines
+                .findFirst()
+                .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
+        }
+        return firstLine;
+    }
 }

@@ -21,7 +21,9 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -37,20 +39,25 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class EvaluateDataFrameRequest implements ToXContentObject, Validatable {
 
     private static final ParseField INDEX = new ParseField("index");
+    private static final ParseField QUERY = new ParseField("query");
     private static final ParseField EVALUATION = new ParseField("evaluation");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EvaluateDataFrameRequest, Void> PARSER =
         new ConstructingObjectParser<>(
-            "evaluate_data_frame_request", true, args -> new EvaluateDataFrameRequest((List<String>) args[0], (Evaluation) args[1]));
+            "evaluate_data_frame_request",
+            true,
+            args -> new EvaluateDataFrameRequest((List<String>) args[0], (QueryConfig) args[1], (Evaluation) args[2]));
 
     static {
         PARSER.declareStringArray(constructorArg(), INDEX);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p), QUERY);
         PARSER.declareObject(constructorArg(), (p, c) -> parseEvaluation(p), EVALUATION);
     }
 
@@ -67,14 +74,16 @@ public class EvaluateDataFrameRequest implements ToXContentObject, Validatable {
     }
 
     private List<String> indices;
+    private QueryConfig queryConfig;
     private Evaluation evaluation;
 
-    public EvaluateDataFrameRequest(String index, Evaluation evaluation) {
-        this(Arrays.asList(index), evaluation);
+    public EvaluateDataFrameRequest(String index, @Nullable QueryConfig queryConfig, Evaluation evaluation) {
+        this(Arrays.asList(index), queryConfig, evaluation);
     }
 
-    public EvaluateDataFrameRequest(List<String> indices, Evaluation evaluation) {
+    public EvaluateDataFrameRequest(List<String> indices, @Nullable QueryConfig queryConfig, Evaluation evaluation) {
         setIndices(indices);
+        setQueryConfig(queryConfig);
         setEvaluation(evaluation);
     }
 
@@ -85,6 +94,14 @@ public class EvaluateDataFrameRequest implements ToXContentObject, Validatable {
     public final void setIndices(List<String> indices) {
         Objects.requireNonNull(indices);
         this.indices = new ArrayList<>(indices);
+    }
+
+    public QueryConfig getQueryConfig() {
+        return queryConfig;
+    }
+
+    public final void setQueryConfig(QueryConfig queryConfig) {
+        this.queryConfig = queryConfig;
     }
 
     public Evaluation getEvaluation() {
@@ -111,18 +128,22 @@ public class EvaluateDataFrameRequest implements ToXContentObject, Validatable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder
-            .startObject()
-                .array(INDEX.getPreferredName(), indices.toArray())
-                .startObject(EVALUATION.getPreferredName())
-                    .field(evaluation.getName(), evaluation)
-                .endObject()
+        builder.startObject();
+        builder.array(INDEX.getPreferredName(), indices.toArray());
+        if (queryConfig != null) {
+            builder.field(QUERY.getPreferredName(), queryConfig.getQuery());
+        }
+        builder
+            .startObject(EVALUATION.getPreferredName())
+                .field(evaluation.getName(), evaluation)
             .endObject();
+        builder.endObject();
+        return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indices, evaluation);
+        return Objects.hash(indices, queryConfig, evaluation);
     }
 
     @Override
@@ -131,6 +152,7 @@ public class EvaluateDataFrameRequest implements ToXContentObject, Validatable {
         if (o == null || getClass() != o.getClass()) return false;
         EvaluateDataFrameRequest that = (EvaluateDataFrameRequest) o;
         return Objects.equals(indices, that.indices)
+            && Objects.equals(queryConfig, that.queryConfig)
             && Objects.equals(evaluation, that.evaluation);
     }
 }

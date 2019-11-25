@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-valid-job]]
-=== Validate jobs API
+=== Validate {anomaly-jobs} API
 ++++
 <titleabbrev>Validate jobs</titleabbrev>
 ++++
 
-Validates job configuration information.
+Validates {anomaly-job} configuration information.
 
 [[ml-valid-job-request]]
 ==== {api-request-title}
@@ -18,26 +18,26 @@ Validates job configuration information.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-valid-job-desc]]
 ==== {api-description-title}
 
-The validate jobs API enables you validate the job configuration before you
+This API enables you validate the {anomaly-job} configuration before you
 create the job.
 
 [[ml-valid-job-request-body]]
 ==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
-see <<ml-job-resource,Job Resources>>.
+see <<ml-job-resource>>.
 
 [[ml-valid-job-example]]
 ==== {api-examples-title}
 
 The following example validates job configuration information:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/_validate
 {
@@ -57,14 +57,13 @@ POST _ml/anomaly_detectors/_validate
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 When the validation is complete, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

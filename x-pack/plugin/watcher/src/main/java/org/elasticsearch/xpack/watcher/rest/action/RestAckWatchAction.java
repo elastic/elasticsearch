@@ -6,10 +6,7 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -24,8 +21,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -34,23 +29,11 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestAckWatchAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestAckWatchAction.class));
-
-    public RestAckWatchAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_ack", this,
-            POST, "/_xpack/watcher/watch/{id}/_ack", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_ack", this,
-            PUT, "/_xpack/watcher/watch/{id}/_ack", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, "/_watcher/watch/{id}/_ack/{actions}", this,
-            POST, "/_xpack/watcher/watch/{id}/_ack/{actions}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_watcher/watch/{id}/_ack/{actions}", this,
-            PUT, "/_xpack/watcher/watch/{id}/_ack/{actions}", deprecationLogger);
+    public RestAckWatchAction(RestController controller) {
+        controller.registerHandler(POST, "/_watcher/watch/{id}/_ack", this);
+        controller.registerHandler(PUT, "/_watcher/watch/{id}/_ack", this);
+        controller.registerHandler(POST, "/_watcher/watch/{id}/_ack/{actions}", this);
+        controller.registerHandler(PUT, "/_watcher/watch/{id}/_ack/{actions}", this);
     }
 
     @Override
@@ -59,7 +42,7 @@ public class RestAckWatchAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         AckWatchRequest ackWatchRequest = new AckWatchRequest(request.param("id"));
         String[] actions = request.paramAsStringArray("actions", null);
         if (actions != null) {

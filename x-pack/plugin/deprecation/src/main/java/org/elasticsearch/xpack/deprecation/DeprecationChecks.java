@@ -36,7 +36,7 @@ public class DeprecationChecks {
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = Collections.emptyList();
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
-            Collections.singletonList(IndexDeprecationChecks::oldIndicesCheck);
+            List.of(IndexDeprecationChecks::oldIndicesCheck, IndexDeprecationChecks::translogRetentionSettingCheck);
 
     static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =
             List.of(MlDeprecationChecks::checkDataFeedAggregations, MlDeprecationChecks::checkDataFeedQuery);

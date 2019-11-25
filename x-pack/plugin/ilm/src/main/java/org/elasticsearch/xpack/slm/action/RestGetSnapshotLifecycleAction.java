@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -17,8 +16,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 
 public class RestGetSnapshotLifecycleAction extends BaseRestHandler {
 
-    public RestGetSnapshotLifecycleAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetSnapshotLifecycleAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_slm/policy", this);
         controller.registerHandler(RestRequest.Method.GET, "/_slm/policy/{name}", this);
     }

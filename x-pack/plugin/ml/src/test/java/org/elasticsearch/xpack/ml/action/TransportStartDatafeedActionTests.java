@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Collections;
 import java.util.Date;
@@ -78,7 +78,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         doReturn(Collections.singletonList("Deprecated Agg")).when(config).getAggDeprecations(any(NamedXContentRegistry.class));
         doReturn(Collections.singletonList("Deprecated Query")).when(config).getQueryDeprecations(any(NamedXContentRegistry.class));
 
-        Auditor auditor = mock(Auditor.class);
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
 
         TransportStartDatafeedAction.auditDeprecations(config, job1, auditor, xContentRegistry());
 
@@ -93,7 +93,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         doReturn(Collections.emptyList()).when(config).getAggDeprecations(any(NamedXContentRegistry.class));
         doReturn(Collections.emptyList()).when(config).getQueryDeprecations(any(NamedXContentRegistry.class));
 
-        Auditor auditor = mock(Auditor.class);
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
 
         TransportStartDatafeedAction.auditDeprecations(config, job1, auditor, xContentRegistry());
 

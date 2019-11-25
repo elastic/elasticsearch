@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -53,7 +54,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -265,11 +265,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         new WatcherIndexTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
 
+        final SSLService sslService = getSslService();
         // http client
-        httpClient = new HttpClient(settings, getSslService(), cryptoService, clusterService);
+        httpClient = new HttpClient(settings, sslService, cryptoService, clusterService);
 
         // notification
-        EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
+        EmailService emailService = new EmailService(settings, cryptoService, sslService, clusterService.getClusterSettings());
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
@@ -283,7 +284,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
-        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, templateEngine));
+        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE,
+            new ReportingAttachmentParser(settings, httpClient, templateEngine, clusterService.getClusterSettings()));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);
 
         // conditions
@@ -322,7 +324,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         final InputRegistry inputRegistry = new InputRegistry(inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(inputRegistry));
 
-        bulkProcessor = BulkProcessor.builder(ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN), new BulkProcessor.Listener() {
+        bulkProcessor = BulkProcessor.builder(new OriginSettingClient(client, WATCHER_ORIGIN)::bulk, new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
             }
@@ -469,8 +471,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.addAll(HtmlSanitizer.getSettings());
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
-        settings.add(ReportingAttachmentParser.RETRIES_SETTING);
-        settings.add(ReportingAttachmentParser.INTERVAL_SETTING);
+        settings.addAll(ReportingAttachmentParser.getSettings());
 
         // http settings
         settings.addAll(HttpSettings.getSettings());
@@ -555,14 +556,14 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             return emptyList();
         }
         return Arrays.asList(
-                new RestPutWatchAction(settings, restController),
-                new RestDeleteWatchAction(settings, restController),
-                new RestWatcherStatsAction(settings, restController),
-                new RestGetWatchAction(settings, restController),
-                new RestWatchServiceAction(settings, restController),
-                new RestAckWatchAction(settings, restController),
-                new RestActivateWatchAction(settings, restController),
-                new RestExecuteWatchAction(settings, restController));
+                new RestPutWatchAction(restController),
+                new RestDeleteWatchAction(restController),
+                new RestWatcherStatsAction(restController),
+                new RestGetWatchAction(restController),
+                new RestWatchServiceAction(restController),
+                new RestAckWatchAction(restController),
+                new RestActivateWatchAction(restController),
+                new RestExecuteWatchAction(restController));
     }
 
     @Override

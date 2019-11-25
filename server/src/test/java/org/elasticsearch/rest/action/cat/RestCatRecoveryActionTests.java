@@ -57,7 +57,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
         final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService);
-        final RestCatRecoveryAction action = new RestCatRecoveryAction(settings, restController);
+        final RestCatRecoveryAction action = new RestCatRecoveryAction(restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;

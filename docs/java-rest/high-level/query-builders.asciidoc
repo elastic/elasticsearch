@@ -4,9 +4,10 @@
 This page lists all the available search queries with their corresponding `QueryBuilder` class name and helper method name in the
 `QueryBuilders` utility class.
 
-:query-ref:        {elasticsearch-javadoc}/org/elasticsearch/index/query
-:parentjoin-ref:   {parent-join-client-javadoc}/org/elasticsearch/join/query
-:percolate-ref:    {percolator-client-javadoc}/org/elasticsearch/percolator
+:query-ref:             {elasticsearch-javadoc}/org/elasticsearch/index/query
+:mapper-extras-ref:     {mapper-extras-client-javadoc}/org/elasticsearch/index/query
+:parentjoin-ref:        {parent-join-client-javadoc}/org/elasticsearch/join/query
+:percolate-ref:         {percolator-client-javadoc}/org/elasticsearch/percolator
 
 ==== Match All Query
 [options="header"]
@@ -81,6 +82,8 @@ This page lists all the available search queries with their corresponding `Query
 | {ref}/query-dsl-script-query.html[Script]                           | {query-ref}/ScriptQueryBuilder.html[ScriptQueryBuilder]                             | {query-ref}/QueryBuilders.html#scriptQuery-org.elasticsearch.script.Script-[QueryBuilders.scriptQuery()]
 | {ref}/query-dsl-percolate-query.html[Percolate]                     | {percolate-ref}/PercolateQueryBuilder.html[PercolateQueryBuilder]                   |
 | {ref}/query-dsl-wrapper-query.html[Wrapper]                         | {query-ref}/WrapperQueryBuilder.html[WrapperQueryBuilder]                           | {query-ref}/QueryBuilders.html#wrapperQuery-java.lang.String-[QueryBuilders.wrapperQuery()]
+| {ref}/query-dsl-rank-feature-query.html[Rank Feature]               | {mapper-extras-ref}/RankFeatureQuery.html[RankFeatureQueryBuilder]                  |
+| {ref}/query-dsl-pinned-query.html[Pinned Query]                     | The PinnedQueryBuilder is packaged as part of the xpack-core module                 |
 |======
 
 ==== Span queries

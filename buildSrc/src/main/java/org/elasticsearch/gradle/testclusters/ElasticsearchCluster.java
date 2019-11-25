@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
@@ -28,6 +27,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 
 import java.io.File;
@@ -59,24 +59,23 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final String clusterName;
     private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
     private final File workingDirBase;
-    private final Function<Integer, ElasticsearchDistribution> distributionFactory;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
     private final ReaperService reaper;
+    private int nodeIndex  = 0;
 
-    public ElasticsearchCluster(String path, String clusterName, Project project, ReaperService reaper,
-                                Function<Integer, ElasticsearchDistribution> distributionFactory, File workingDirBase) {
+    public ElasticsearchCluster(String path, String clusterName, Project project,
+                                ReaperService reaper, File workingDirBase) {
         this.path = path;
         this.clusterName = clusterName;
         this.project = project;
         this.reaper = reaper;
-        this.distributionFactory = distributionFactory;
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
                 path, clusterName + "-0",
-                project, reaper, workingDirBase, distributionFactory.apply(0)
+                project, reaper, workingDirBase
                 )
         );
         // configure the cluster name eagerly so nodes know about it
@@ -100,26 +99,39 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
         for (int i = nodes.size() ; i < numberOfNodes; i++) {
             this.nodes.add(new ElasticsearchNode(
-                path, clusterName + "-" + i, project, reaper, workingDirBase, distributionFactory.apply(i)
+                path, clusterName + "-" + i, project, reaper, workingDirBase
                 ));
         }
     }
 
-    private ElasticsearchNode getFirstNode() {
+    @Internal
+    ElasticsearchNode getFirstNode() {
         return nodes.getAt(clusterName + "-0");
     }
 
+    @Internal
     public int getNumberOfNodes() {
         return nodes.size();
     }
 
+    @Internal
     public String getName() {
         return clusterName;
+    }
+
+    @Internal
+    public String getPath() {
+        return path;
     }
 
     @Override
     public void setVersion(String version) {
         nodes.all(each -> each.setVersion(version));
+    }
+
+    @Override
+    public void setVersions(List<String> version) {
+        nodes.all(each -> each.setVersions(version));
     }
 
     @Override
@@ -241,28 +253,75 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void start() {
+        commonNodeConfig();
+        nodes.forEach(ElasticsearchNode::start);
+    }
+
+    private void commonNodeConfig() {
         final String nodeNames;
-        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch( name -> name == null)) {
+        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch(name -> name == null)) {
             nodeNames = null;
         } else {
-            nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
-        };
+            nodeNames = nodes.stream().map(ElasticsearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
+        }
+        ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
+            // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                // Can only configure master nodes if we have node names defined
-                if (node.getVersion().getMajor() >= 7) {
+                if (node.getVersion().onOrAfter("7.0.0")) {
+                    node.defaultConfig.keySet().stream()
+                        .filter(name -> name.startsWith("discovery.zen."))
+                        .collect(Collectors.toList())
+                        .forEach(node.defaultConfig::remove);
                     node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                     node.defaultConfig.put("discovery.seed_providers", "file");
                     node.defaultConfig.put("discovery.seed_hosts", "[]");
+                } else {
+                    node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
+                    if (nodes.size() > 1) {
+                        node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes.size() / 2 + 1));
+                    }
+                    if (node.getVersion().onOrAfter("6.5.0")) {
+                        node.defaultConfig.put("discovery.zen.hosts_provider", "file");
+                        node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
+                    } else {
+                        if (firstNode == null) {
+                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
+                        } else {
+                            firstNode.waitForAllConditions();
+                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[\"" + firstNode.getTransportPortURI() + "\"]");
+                        }
+                    }
                 }
             }
-            node.start();
+            if (firstNode == null) {
+                firstNode = node;
+            }
         }
     }
 
     @Override
     public void restart() {
         nodes.forEach(ElasticsearchNode::restart);
+    }
+
+    public void goToNextVersion() {
+        stop(false);
+        nodes.all(ElasticsearchNode::goToNextVersion);
+        start();
+        writeUnicastHostsFiles();
+    }
+
+    public void nextNodeToNextVersion() {
+        if (nodeIndex + 1 > nodes.size()) {
+            throw new TestClustersException("Ran out of nodes to take to the next version");
+        }
+        ElasticsearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
+        node.stop(false);
+        node.goToNextVersion();
+        commonNodeConfig();
+        nodeIndex += 1;
+        node.start();
     }
 
     @Override
@@ -273,6 +332,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void extraConfigFile(String destination, File from, PropertyNormalization normalization) {
         nodes.all(node -> node.extraConfigFile(destination, from, normalization));
+    }
+
+    @Override
+    public void extraJarFile(File from) {
+        nodes.all(node -> node.extraJarFile(from));
     }
 
     @Override
@@ -292,33 +356,34 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    @Internal
     public String getHttpSocketURI() {
         waitForAllConditions();
         return getFirstNode().getHttpSocketURI();
     }
 
     @Override
+    @Internal
     public String getTransportPortURI() {
         waitForAllConditions();
         return getFirstNode().getTransportPortURI();
     }
 
     @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
     }
 
     @Override
+    @Internal
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
     }
 
     public void waitForAllConditions() {
-        LOGGER.info("Waiting for nodes");
-        nodes.forEach(ElasticsearchNode::waitForAllConditions);
-
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");
@@ -336,6 +401,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    @Internal
     public boolean isProcessAlive() {
         return nodes.stream().noneMatch(node -> node.isProcessAlive() == false);
     }
@@ -359,7 +425,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     nodes.size()
                 );
                 if (httpSslEnabled) {
-
                     getFirstNode().configureHttpWait(wait);
                 }
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();

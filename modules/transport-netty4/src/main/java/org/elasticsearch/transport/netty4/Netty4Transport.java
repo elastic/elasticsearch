@@ -33,8 +33,6 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioChannelOption;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
@@ -58,6 +56,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NettyAllocator;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -109,7 +108,7 @@ public class Netty4Transport extends TcpTransport {
                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                            CircuitBreakerService circuitBreakerService) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
-        Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
+        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         this.workerCount = WORKER_COUNT.get(settings);
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
@@ -148,7 +147,10 @@ public class Netty4Transport extends TcpTransport {
     private Bootstrap createClientBootstrap(NioEventLoopGroup eventLoopGroup) {
         final Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(eventLoopGroup);
-        bootstrap.channel(NioSocketChannel.class);
+
+        // NettyAllocator will return the channel type designed to work with the configured allocator
+        bootstrap.channel(NettyAllocator.getChannelType());
+        bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
@@ -205,7 +207,13 @@ public class Netty4Transport extends TcpTransport {
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
         serverBootstrap.group(eventLoopGroup);
-        serverBootstrap.channel(NioServerSocketChannel.class);
+
+        // NettyAllocator will return the channel type designed to work with the configuredAllocator
+        serverBootstrap.channel(NettyAllocator.getServerChannelType());
+
+        // Set the allocators for both the server channel and the child channels created
+        serverBootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
+        serverBootstrap.childOption(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
         serverBootstrap.childHandler(getServerChannelInitializer(name));
         serverBootstrap.handler(new ServerChannelExceptionHandler());

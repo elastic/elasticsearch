@@ -58,6 +58,7 @@ public class Case extends ConditionalFunction {
                 for (IfConditional conditional : conditions) {
                     dataType = DataTypeConversion.commonType(dataType, conditional.dataType());
                 }
+                dataType = DataTypeConversion.commonType(dataType, elseResult.dataType());
             }
         }
         return dataType;
@@ -115,12 +116,21 @@ public class Case extends ConditionalFunction {
 
     /**
      * All foldable conditions that fold to FALSE should have
-     * been removed by the {@link Optimizer}.
+     * been removed by the {@link Optimizer}#SimplifyCase.
      */
     @Override
     public boolean foldable() {
-        return (conditions.isEmpty() && elseResult.foldable()) ||
-            (conditions.size() == 1 && conditions.get(0).condition().foldable() && conditions.get(0).result().foldable());
+        if (conditions.isEmpty() && elseResult.foldable()) {
+            return true;
+        }
+        if (conditions.size() == 1 && conditions.get(0).condition().foldable()) {
+            if (conditions.get(0).condition().fold() == Boolean.TRUE) {
+                return conditions().get(0).result().foldable();
+            } else {
+                return elseResult().foldable();
+            }
+        }
+        return false;
     }
 
     @Override

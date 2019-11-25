@@ -1,20 +1,28 @@
 {
-  "ml.update_filter": {
-    "stability": "stable",
-    "methods": [ "POST" ],
-    "url": {
-      "paths": [ "/_ml/filters/{filter_id}/_update" ],
-      "parts": {
-        "filter_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the filter to update"
-        }
-      }
+  "ml.update_filter":{
+    "documentation":{
+      "url":null
     },
-    "body": {
-      "description" : "The filter update",
-      "required" : true
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/filters/{filter_id}/_update",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "filter_id":{
+              "type":"string",
+              "description":"The ID of the filter to update"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The filter update",
+      "required":true
     }
   }
 }

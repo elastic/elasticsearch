@@ -175,15 +175,16 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * <p>
      * The blob will be compressed and checksum will be written if required.
      *
-     * @param obj           object to be serialized
-     * @param blobContainer blob container
-     * @param name          blob name
+     * @param obj                 object to be serialized
+     * @param blobContainer       blob container
+     * @param name                blob name
+     * @param failIfAlreadyExists Whether to fail if the blob already exists
      */
-    public void write(T obj, BlobContainer blobContainer, String name) throws IOException {
+    public void write(T obj, BlobContainer blobContainer, String name, boolean failIfAlreadyExists) throws IOException {
         final String blobName = blobName(name);
         writeTo(obj, blobName, bytesArray -> {
             try (InputStream stream = bytesArray.streamInput()) {
-                blobContainer.writeBlob(blobName, stream, bytesArray.length(), true);
+                blobContainer.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
             }
         });
     }

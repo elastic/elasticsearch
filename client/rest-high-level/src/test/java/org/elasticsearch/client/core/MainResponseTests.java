@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MainResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.main.MainResponse, MainResponse> {
     @Override
-    protected org.elasticsearch.action.main.MainResponse createServerTestInstance() {
+    protected org.elasticsearch.action.main.MainResponse createServerTestInstance(XContentType xContentType) {
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);

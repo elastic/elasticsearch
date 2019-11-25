@@ -1,0 +1,47 @@
+---
+setup:
+  - skip:
+      version: " - 7.99.99" #TODO change this after backport
+      reason:  "not backported yet"
+
+  - do:
+        indices.create:
+          index: test
+          body:
+              mappings:
+                properties:
+                  date:
+                    type: date
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  { "date": "2009-11-15T14:12:12" }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+# The inserted document has a field date=2009-11-15T14:12:12 which is Sunday.
+# When aggregating per day of the week this should be considered as last day of the week (7)
+# and this value should be used in 'key_as_string'
+"Date aggregartion per day of week":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              "date_histogram": {
+                "field": "date",
+                "calendar_interval": "day",
+                "format": "e",
+                "offset": 0
+              }
+
+  - match: {hits.total: 1}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key_as_string: "7" }

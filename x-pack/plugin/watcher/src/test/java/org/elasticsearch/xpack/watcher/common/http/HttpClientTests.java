@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.common.http;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.sun.net.httpserver.HttpsServer;
 import org.apache.http.HttpHeaders;
+import org.apache.http.HttpHost;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -16,6 +17,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +47,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -194,6 +197,7 @@ public class HttpClientTests extends ESTestCase {
             // We can't use the client created above for the server since it is only a truststore
             secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
             Settings settings2 = Settings.builder()
+                .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
                 .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
@@ -223,6 +227,7 @@ public class HttpClientTests extends ESTestCase {
             // We can't use the client created above for the server since it only defines a truststore
             secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode-no-subjaltname");
             Settings settings2 = Settings.builder()
+                .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
                 .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
@@ -379,6 +384,7 @@ public class HttpClientTests extends ESTestCase {
         Settings serverSettings = Settings.builder()
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
+            .put("xpack.security.http.ssl.enabled", false)
             .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
             .setSecureSettings(serverSecureSettings)
             .build();
@@ -394,6 +400,7 @@ public class HttpClientTests extends ESTestCase {
                 .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
                 .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
                 .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+                .put("xpack.security.http.ssl.enabled", false)
                 .build();
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
@@ -736,6 +743,19 @@ public class HttpClientTests extends ESTestCase {
     public void testWhitelistEverythingByDefault() {
         CharacterRunAutomaton automaton = HttpClient.createAutomaton(Collections.emptyList());
         assertThat(automaton.run(randomAlphaOfLength(10)), is(true));
+    }
+
+    public void testCreateUri() throws Exception {
+        assertCreateUri("https://example.org/foo/", "/foo/");
+        assertCreateUri("https://example.org/foo", "/foo");
+        assertCreateUri("https://example.org/", "");
+        assertCreateUri("https://example.org", "");
+    }
+
+    private void assertCreateUri(String uri, String expectedPath) {
+        final HttpRequest request = HttpRequest.builder().fromUrl(uri).build();
+        final Tuple<HttpHost, URI> tuple = HttpClient.createURI(request);
+        assertThat(tuple.v2().getRawPath(), is(expectedPath));
     }
 
     public static ClusterService mockClusterService() {

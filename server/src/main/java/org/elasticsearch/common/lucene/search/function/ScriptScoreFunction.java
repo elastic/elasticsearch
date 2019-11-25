@@ -25,6 +25,7 @@ import org.apache.lucene.search.Scorable;
 import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -52,22 +53,15 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     private final int shardId;
     private final String indexName;
+    private final Version indexVersion;
 
-
-    public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script) {
-        super(CombineFunction.REPLACE);
-        this.sScript = sScript;
-        this.script = script;
-        this.indexName = null;
-        this.shardId = -1;
-    }
-
-    public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script, String indexName, int shardId) {
+    public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script, String indexName, int shardId, Version indexVersion) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
         this.script = script;
         this.indexName = indexName;
         this.shardId = shardId;
+        this.indexVersion = indexVersion;
     }
 
     @Override
@@ -77,13 +71,14 @@ public class ScriptScoreFunction extends ScoreFunction {
         leafScript.setScorer(scorer);
         leafScript._setIndexName(indexName);
         leafScript._setShard(shardId);
+        leafScript._setIndexVersion(indexVersion);
         return new LeafScoreFunction() {
             @Override
             public double score(int docId, float subQueryScore) throws IOException {
                 leafScript.setDocument(docId);
                 scorer.docid = docId;
                 scorer.score = subQueryScore;
-                double result = leafScript.execute();
+                double result = leafScript.execute(null);
                 if (result < 0f) {
                     throw new IllegalArgumentException("script score function must not produce negative scores, but got: [" + result + "]");
                 }

@@ -56,8 +56,6 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHandler() throws IOException {
-        TransportLogger transportLogger = new TransportLogger();
-
         final String writePattern =
             ".*\\[length: \\d+" +
                 ", request id: \\d+" +
@@ -84,17 +82,16 @@ public class TransportLoggerTests extends ESTestCase {
         appender.addExpectation(writeExpectation);
         appender.addExpectation(readExpectation);
         BytesReference bytesReference = buildRequest();
-        transportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
-        transportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
+        TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
+        TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
         appender.assertAllExpectationsMatched();
     }
 
     private BytesReference buildRequest() throws IOException {
         try (BytesStreamOutput messageOutput = new BytesStreamOutput()) {
             messageOutput.setVersion(Version.CURRENT);
-            try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
-                context.writeTo(messageOutput);
-            }
+            ThreadContext context = new ThreadContext(Settings.EMPTY);
+            context.writeTo(messageOutput);
             messageOutput.writeString(ClusterStatsAction.NAME);
             new ClusterStatsRequest().writeTo(messageOutput);
             BytesReference messageBody = messageOutput.bytes();

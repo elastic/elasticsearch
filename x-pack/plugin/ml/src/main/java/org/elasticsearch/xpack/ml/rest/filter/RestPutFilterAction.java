@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.rest.filter;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -27,8 +26,7 @@ public class RestPutFilterAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestPutFilterAction.class));
 
-    public RestPutFilterAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutFilterAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
             PUT, MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}", this,

@@ -88,7 +88,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testBasic() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'] + 1").get();
         assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
@@ -97,7 +97,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testFunction() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'] + abs(1)").get();
         assertSearchResponse(rsp);
         assertEquals(1, rsp.getHits().getTotalHits().value);
@@ -107,7 +107,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testBasicUsingDotValue() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'].value + 1").get();
         assertEquals(1, rsp.getHits().getTotalHits().value);
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
@@ -117,9 +117,9 @@ public class MoreExpressionTests extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
-                client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
-                client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
+                client().prepareIndex("test").setId("1").setSource("text", "hello goodbye"),
+                client().prepareIndex("test").setId("2").setSource("text", "hello hello hello goodbye"),
+                client().prepareIndex("test").setId("3").setSource("text", "hello hello goodebye"));
         ScriptScoreFunctionBuilder score = ScoreFunctionBuilders.scriptFunction(
                 new Script(ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap()));
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
@@ -147,8 +147,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
-                client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
+                client().prepareIndex("test").setId("1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
+                client().prepareIndex("test").setId("2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
         SearchResponse rsp = buildRequest("doc['date0'].getSeconds() - doc['date0'].getMinutes()").get();
         assertEquals(2, rsp.getHits().getTotalHits().value);
         SearchHits hits = rsp.getHits();
@@ -175,8 +175,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
-                client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
+                client().prepareIndex("test").setId("1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
+                client().prepareIndex("test").setId("2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
         SearchResponse rsp = buildRequest("doc['date0'].date.secondOfMinute - doc['date0'].date.minuteOfHour").get();
         assertEquals(2, rsp.getHits().getTotalHits().value);
         SearchHits hits = rsp.getHits();
@@ -220,9 +220,9 @@ public class MoreExpressionTests extends ESIntegTestCase {
         doc3.put("double1", 4.0d);
 
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource(doc1),
-                client().prepareIndex("test", "doc", "2").setSource(doc2),
-                client().prepareIndex("test", "doc", "3").setSource(doc3));
+                client().prepareIndex("test").setId("1").setSource(doc1),
+                client().prepareIndex("test").setId("2").setSource(doc2),
+                client().prepareIndex("test").setId("3").setSource(doc3));
 
 
         SearchResponse rsp = buildRequest("doc['double0'].count() + doc['double1'].count()").get();
@@ -303,7 +303,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testInvalidDateMethodCall() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double", "type=double"));
         ensureGreen("test");
-        indexRandom(true, client().prepareIndex("test", "doc", "1").setSource("double", "178000000.0"));
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource("double", "178000000.0"));
         try {
             buildRequest("doc['double'].getYear()").get();
             fail();
@@ -319,8 +319,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("x", 4),
-                client().prepareIndex("test", "doc", "2").setSource("y", 2));
+                client().prepareIndex("test").setId("1").setSource("x", 4),
+                client().prepareIndex("test").setId("2").setSource("y", 2));
         SearchResponse rsp = buildRequest("doc['x'] + 1").get();
         ElasticsearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
@@ -332,7 +332,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testMissingField() throws Exception {
         createIndex("test");
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("x", 4).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("x", 4).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("doc['bogus']").get();
             fail("Expected missing field to cause failure");
@@ -348,9 +348,9 @@ public class MoreExpressionTests extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("x", 10),
-                client().prepareIndex("test", "doc", "2").setSource("x", 3),
-                client().prepareIndex("test", "doc", "3").setSource("x", 5));
+                client().prepareIndex("test").setId("1").setSource("x", 10),
+                client().prepareIndex("test").setId("2").setSource("x", 3),
+                client().prepareIndex("test").setId("3").setSource("x", 5));
         // a = int, b = double, c = long
         String script = "doc['x'] * a + b + ((c + doc['x']) > 5000000009 ? 1 : 0)";
         SearchResponse rsp = buildRequest(script, "a", 2, "b", 3.5, "c", 5000000000L).get();
@@ -362,7 +362,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testCompileFailure() {
-        client().prepareIndex("test", "doc", "1").setSource("x", 1).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("x", 1).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("garbage%@#%@").get();
             fail("Expected expression compilation failure");
@@ -375,7 +375,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testNonNumericParam() {
-        client().prepareIndex("test", "doc", "1").setSource("x", 1).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("x", 1).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("a", "a", "astring").get();
             fail("Expected string parameter to cause failure");
@@ -388,7 +388,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testNonNumericField() {
-        client().prepareIndex("test", "doc", "1").setSource("text", "this is not a number").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("text", "this is not a number").setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("doc['text.keyword']").get();
             fail("Expected text field to cause execution failure");
@@ -401,7 +401,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testInvalidGlobalVariable() {
-        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("bogus").get();
             fail("Expected bogus variable to cause execution failure");
@@ -414,7 +414,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testDocWithoutField() {
-        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("doc").get();
             fail("Expected doc variable without field to cause execution failure");
@@ -427,7 +427,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testInvalidFieldMember() {
-        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("foo", 5).setRefreshPolicy(IMMEDIATE).get();
         try {
             buildRequest("doc['foo'].bogus").get();
             fail("Expected bogus field member to cause execution failure");
@@ -444,9 +444,9 @@ public class MoreExpressionTests extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("x", 5, "y", 1.2),
-                client().prepareIndex("test", "doc", "2").setSource("x", 10, "y", 1.4),
-                client().prepareIndex("test", "doc", "3").setSource("x", 13, "y", 1.8));
+                client().prepareIndex("test").setId("1").setSource("x", 5, "y", 1.2),
+                client().prepareIndex("test").setId("2").setSource("x", 10, "y", 1.4),
+                client().prepareIndex("test").setId("3").setSource("x", 13, "y", 1.8));
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
@@ -487,9 +487,9 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 .addMapping("doc", "text", "type=keyword").get());
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("text", "hello"),
-                client().prepareIndex("test", "doc", "2").setSource("text", "goodbye"),
-                client().prepareIndex("test", "doc", "3").setSource("text", "hello"));
+                client().prepareIndex("test").setId("1").setSource("text", "hello"),
+                client().prepareIndex("test").setId("2").setSource("text", "goodbye"),
+                client().prepareIndex("test").setId("3").setSource("text", "hello"));
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
@@ -519,9 +519,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         try {
             createIndex("test_index");
             ensureGreen("test_index");
-            indexRandom(true, client().prepareIndex("test_index", "doc", "1").setSource("text_field", "text"));
+            indexRandom(true, client().prepareIndex("test_index").setId("1").setSource("text_field", "text"));
             UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
-            urb.setType("doc");
             urb.setId("1");
             urb.setScript(new Script(ScriptType.INLINE, ExpressionScriptEngine.NAME, "0", Collections.emptyMap()));
             urb.get();
@@ -539,11 +538,11 @@ public class MoreExpressionTests extends ESIntegTestCase {
         createIndex("agg_index");
         ensureGreen("agg_index");
         indexRandom(true,
-                client().prepareIndex("agg_index", "doc", "1").setSource("one", 1.0, "two", 2.0, "three", 3.0, "four", 4.0),
-                client().prepareIndex("agg_index", "doc", "2").setSource("one", 2.0, "two", 2.0, "three", 3.0, "four", 4.0),
-                client().prepareIndex("agg_index", "doc", "3").setSource("one", 3.0, "two", 2.0, "three", 3.0, "four", 4.0),
-                client().prepareIndex("agg_index", "doc", "4").setSource("one", 4.0, "two", 2.0, "three", 3.0, "four", 4.0),
-                client().prepareIndex("agg_index", "doc", "5").setSource("one", 5.0, "two", 2.0, "three", 3.0, "four", 4.0));
+                client().prepareIndex("agg_index").setId("1").setSource("one", 1.0, "two", 2.0, "three", 3.0, "four", 4.0),
+                client().prepareIndex("agg_index").setId("2").setSource("one", 2.0, "two", 2.0, "three", 3.0, "four", 4.0),
+                client().prepareIndex("agg_index").setId("3").setSource("one", 3.0, "two", 2.0, "three", 3.0, "four", 4.0),
+                client().prepareIndex("agg_index").setId("4").setSource("one", 4.0, "two", 2.0, "three", 3.0, "four", 4.0),
+                client().prepareIndex("agg_index").setId("5").setSource("one", 5.0, "two", 2.0, "three", 3.0, "four", 4.0));
         SearchResponse response = client()
                 .prepareSearch("agg_index")
                 .addAggregation(
@@ -588,7 +587,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("name", "test")
                 .startObject("location").field("lat", 61.5240).field("lon", 105.3188).endObject()
                 .endObject()).execute().actionGet();
@@ -622,9 +621,9 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("doc", xContentBuilder));
         ensureGreen();
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("price", 1.0, "vip", true),
-                client().prepareIndex("test", "doc", "2").setSource("price", 2.0, "vip", false),
-                client().prepareIndex("test", "doc", "3").setSource("price", 2.0, "vip", false));
+                client().prepareIndex("test").setId("1").setSource("price", 1.0, "vip", true),
+                client().prepareIndex("test").setId("2").setSource("price", 2.0, "vip", false),
+                client().prepareIndex("test").setId("3").setSource("price", 2.0, "vip", false));
         // access .value
         SearchResponse rsp = buildRequest("doc['vip'].value").get();
         assertSearchResponse(rsp);
@@ -653,8 +652,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-            client().prepareIndex("test", "doc", "1").setSource("foo", 1.0),
-            client().prepareIndex("test", "doc", "2").setSource("foo", 0.0));
+            client().prepareIndex("test").setId("1").setSource("foo", 1.0),
+            client().prepareIndex("test").setId("2").setSource("foo", 0.0));
         SearchRequestBuilder builder = buildRequest("doc['foo'].value");
         Script script = new Script(ScriptType.INLINE, "expression", "doc['foo'].value", Collections.emptyMap());
         builder.setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.scriptQuery(script)));

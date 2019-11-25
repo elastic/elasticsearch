@@ -1,0 +1,95 @@
+[role="xpack"]
+[[security-api-delegate-pki-authentication]]
+=== Delegate PKI authentication API
+++++
+<titleabbrev>Delegate PKI authentication</titleabbrev>
+++++
+
+Implements the exchange of an _X509Certificate_ chain into an {es} access
+token.
+
+[[security-api-delegate-pki-authentication-request]]
+==== {api-request-title}
+
+`POST /_security/delegate_pki`
+
+[[security-api-delegate-pki-authentication-prereqs]]
+==== {api-prereq-title}
+
+* To call this API, the (proxy) user must have the `delegate_pki` or the `all`
+cluster privilege. The `kibana_system` built-in role already grants this
+privilege. See <<security-privileges>>.
+
+[[security-api-delegate-pki-authentication-desc]]
+==== {api-description-title}
+
+This API implements the exchange of an _X509Certificate_ chain for an {es}
+access token. The certificate chain is validated, according to RFC 5280, by
+sequentially considering the trust configuration of every installed PKI realm
+that has `delegation.enabled` set to `true` (default is `false`). A
+successfully trusted client certificate is also subject to the validation of
+the subject distinguished name according to that respective's realm
+`username_pattern`.
+
+This API is called by *smart* and *trusted* proxies, such as {kib}, which
+terminate the user's TLS session but still want to authenticate the user
+by using a PKI realm--as if the user connected directly to {es}. For more
+details, see <<pki-realm-for-proxied-clients>>.
+
+IMPORTANT: The association between the subject public key in the target
+certificate and the corresponding private key is *not* validated. This is part
+of the TLS authentication process and it is delegated to the proxy that calls
+this API. The proxy is *trusted* to have performed the TLS authentication and
+this API translates that authentication into an {es} access token.
+
+[[security-api-delegate-pki-authentication-request-body]]
+==== {api-request-body-title}
+
+`x509_certificate_chain`::
+(Required, list of strings) The _X509Certificate_ chain, which is represented as
+an ordered string array. Each string in the array is a base64-encoded
+(Section 4 of RFC4648 - not base64url-encoded) of the certificate's DER encoding.
++
+The first element is the target certificate contains the subject distinguished
+name that is requesting access. This may be followed by additional certificates;
+each subsequent certificate is used to certify the previous one.
+
+
+[[security-api-delegate-pki-authentication-response-body]]
+==== {api-response-body-title}
+
+`access_token`::
+(string) An access token associated to the subject distinguished name of the
+client's certificate.
+
+`expires_in`::
+(time units) The amount of time (in seconds) that the token expires in.
+
+`type`::
+(string) The type of token.
+
+[[security-api-delegate-pki-authentication-example]]
+==== {api-examples-title}
+
+The following is an example request:
+
+[source,console]
+------------------------------------------------------------
+POST /_security/delegate_pki
+{
+  "x509_certificate_chain": ["MIIDbTCCAlWgAwIBAgIJAIxTS7Qdho9jMA0GCSqGSIb3DQEBCwUAMFMxKzApBgNVBAMTIkVsYXN0aWNzZWFyY2ggVGVzdCBJbnRlcm1lZGlhdGUgQ0ExFjAUBgNVBAsTDUVsYXN0aWNzZWFyY2gxDDAKBgNVBAoTA29yZzAeFw0xOTA3MTkxMzMzNDFaFw0yMzA3MTgxMzMzNDFaMEoxIjAgBgNVBAMTGUVsYXN0aWNzZWFyY2ggVGVzdCBDbGllbnQxFjAUBgNVBAsTDUVsYXN0aWNzZWFyY2gxDDAKBgNVBAoTA29yZzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANHgMX2aX8t0nj4sGLNuKISmmXIYCj9RwRqS7L03l9Nng7kOKnhHu/nXDt7zMRJyHj+q6FAt5khlavYSVCQyrDybRuA5z31gOdqXerrjs2OXS5HSHNvoDAnHFsaYX/5geMewVTtc/vqpd7Ph/QtaKfmG2FK0JNQo0k24tcgCIcyMtBh6BA70yGBM0OT8GdOgd/d/mA7mRhaxIUMNYQzRYRsp4hMnnWoOTkR5Q8KSO3MKw9dPSpPe8EnwtJE10S3s5aXmgytru/xQqrFycPBNj4KbKVmqMP0G60CzXik5pr2LNvOFz3Qb6sYJtqeZF+JKgGWdaTC89m63+TEnUHqk0lcCAwEAAaNNMEswCQYDVR0TBAIwADAdBgNVHQ4EFgQU/+aAD6Q4mFq1vpHorC25/OY5zjcwHwYDVR0jBBgwFoAU8siFCiMiYZZm/95qFC75AG/LRE0wDQYJKoZIhvcNAQELBQADggEBAIRpCgDLpvXcgDHUk10uhxev21mlIbU+VP46ANnCuj0UELhTrdTuWvO1PAI4z+WbDUxryQfOOXO9R6D0dE5yR56L/J7d+KayW34zU7yRDZM7+rXpocdQ1Ex8mjP9HJ/Bf56YZTBQJpXeDrKow4FvtkI3bcIMkqmbG16LHQXeG3RS4ds4S4wCnE2nA6vIn9y+4R999q6y1VSBORrYULcDWxS54plHLEdiMr1vVallg82AGobS9GMcTL2U4Nx5IYZG7sbTk3LrDxVpVg/S2wLofEdOEwqCeHug/iOihNLJBabEW6z4TDLJAVW5KCY1DfhkYlBfHn7vxKkfKoCUK/yLWWI="] <1>
+}
+------------------------------------------------------------
+<1>  A one element certificate chain.
+
+Which returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+  "type" : "Bearer",
+  "expires_in" : 1200
+}
+--------------------------------------------------
+// TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 
 import java.io.IOException;
@@ -15,8 +15,7 @@ import java.time.ZoneId;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
-public class NonIsoDateTimeProcessorTests extends AbstractWireSerializingTestCase<NonIsoDateTimeProcessor> {
-    
+public class NonIsoDateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<NonIsoDateTimeProcessor> {
 
     public static NonIsoDateTimeProcessor randomNonISODateTimeProcessor() {
         return new NonIsoDateTimeProcessor(randomFrom(NonIsoDateTimeExtractor.values()), UTC);
@@ -38,8 +37,15 @@ public class NonIsoDateTimeProcessorTests extends AbstractWireSerializingTestCas
         return new NonIsoDateTimeProcessor(replaced, UTC);
     }
 
+    @Override
+    protected ZoneId instanceZoneId(NonIsoDateTimeProcessor instance) {
+        return instance.zoneId();
+    }
+
     public void testNonISOWeekOfYearInUTC() {
         NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.WEEK_OF_YEAR, UTC);
+        // 1 Jan 1988 is Friday - under Sunday,1 rule it is the first week of the year (under ISO rule it would be 53 of the previous year
+        // hence the 5th Jan 1988 Tuesday is the second week of a year
         assertEquals(2, proc.process(dateTime(568372930000L)));  //1988-01-05T09:22:10Z[UTC]
         assertEquals(6, proc.process(dateTime(981278530000L)));  //2001-02-04T09:22:10Z[UTC]
         assertEquals(7, proc.process(dateTime(224241730000L)));  //1977-02-08T09:22:10Z[UTC]

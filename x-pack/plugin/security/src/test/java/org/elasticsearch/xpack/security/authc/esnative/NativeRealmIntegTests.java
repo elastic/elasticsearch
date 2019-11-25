@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -201,7 +202,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"query\": {\"match_all\": {}}}"), randomBoolean())
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .metadata(metadata)
                 .get();
         logger.error("--> waiting for .security index");
@@ -218,13 +219,13 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"query\": {\"match_all\": {}}}"), randomBoolean())
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
         preparePutRole("test_role3")
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"query\": {\"match_all\": {}}}"), randomBoolean())
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
 
         logger.info("--> retrieving all roles");
@@ -263,7 +264,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
 
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
@@ -284,7 +285,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
@@ -319,7 +320,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         createIndex("idx");
         ensureGreen("idx");
         // Index a document with the default test user
-        client().prepareIndex("idx", "doc", "1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("idx").setId("1").setSource("body", "foo").setRefreshPolicy(IMMEDIATE).get();
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit"));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
@@ -369,10 +370,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             }
         } else {
             final TransportRequest request = mock(TransportRequest.class);
+            final Authentication authentication = mock(Authentication.class);
             GetRolesResponse getRolesResponse = new GetRolesRequestBuilder(client()).names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue("any cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/foo", request));
+                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/foo", request, authentication));
 
             preparePutRole("test_role")
                     .cluster("none")
@@ -383,7 +385,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
 
             assertFalse("no cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/bar", request));
+                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/bar", request, authentication));
         }
     }
 
@@ -571,7 +573,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testUsersAndRolesDoNotInterfereWithIndicesStats() throws Exception {
-        client().prepareIndex("foo", "bar").setSource("ignore", "me").get();
+        client().prepareIndex("foo").setSource("ignore", "me").get();
 
         if (randomBoolean()) {
             preparePutUser("joe", "s3krit", hasher,

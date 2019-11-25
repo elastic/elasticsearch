@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -43,8 +42,8 @@ import static java.util.Map.entry;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
-    public RestNodesStatsAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestNodesStatsAction(RestController controller) {
         controller.registerHandler(GET, "/_nodes/stats", this);
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
 
@@ -174,9 +173,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
         }
         if (nodesStatsRequest.indices().isSet(Flag.Search) && (request.hasParam("groups"))) {
             nodesStatsRequest.indices().groups(request.paramAsStringArray("groups", null));
-        }
-        if (nodesStatsRequest.indices().isSet(Flag.Indexing) && (request.hasParam("types"))) {
-            nodesStatsRequest.indices().types(request.paramAsStringArray("types", null));
         }
         if (nodesStatsRequest.indices().isSet(Flag.Segments)) {
             nodesStatsRequest.indices().includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));

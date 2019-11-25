@@ -1,19 +1,55 @@
 [[cluster-stats]]
-=== Cluster Stats
+=== Cluster stats API
+++++
+<titleabbrev>Cluster stats</titleabbrev>
+++++
 
-The Cluster Stats API allows to retrieve statistics from a cluster wide perspective.
-The API returns basic index metrics (shard numbers, store size, memory usage) and
-information about the current nodes that form the cluster (number, roles, os, jvm
-versions, memory usage, cpu and installed plugins).
+Returns cluster statistics.
 
-[source,js]
+
+[[cluster-stats-api-request]]
+==== {api-request-title}
+
+`GET /_cluster/stats` +
+
+`GET /_cluster/stats/nodes/<node_id>`
+
+
+[[cluster-stats-api-desc]]
+==== {api-description-title}
+
+The Cluster Stats API allows to retrieve statistics from a cluster wide 
+perspective. The API returns basic index metrics (shard numbers, store size, 
+memory usage) and information about the current nodes that form the cluster 
+(number, roles, os, jvm versions, memory usage, cpu and installed plugins).
+
+
+[[cluster-stats-api-path-params]]
+==== {api-path-parms-title}
+
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
+
+
+[[cluster-stats-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[cluster-stats-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 GET /_cluster/stats?human&pretty
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
-Will return, for example:
+The API returns the following response:
+
 ["source","js",subs="attributes,callouts"]
 --------------------------------------------------
 {
@@ -191,6 +227,12 @@ Will return, for example:
         },
         ...
       ],
+      "ingest": {
+        "number_of_pipelines" : 1,
+        "processor_stats": {
+          ...
+        }
+      },
       "network_types": {
         ...
       },
@@ -208,6 +250,7 @@ Will return, for example:
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
 // TESTRESPONSE[s/"network_types": \{[^\}]*\}/"network_types": $body.$_path/]
 // TESTRESPONSE[s/"discovery_types": \{[^\}]*\}/"discovery_types": $body.$_path/]
+// TESTRESPONSE[s/"processor_stats": \{[^\}]*\}/"processor_stats": $body.$_path/]
 // TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/: true|false/: $body.$_path/]
@@ -229,8 +272,7 @@ Will return, for example:
 This API can be restricted to a subset of the nodes using <<cluster-nodes,node
 filters>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/stats/nodes/node1,node*,master:false
 --------------------------------------------------
-// CONSOLE

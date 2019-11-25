@@ -70,7 +70,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -111,7 +112,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -139,7 +141,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -174,7 +177,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                                     .stream()
                                     .collect(Collectors.toMap(RetentionLease::id, RetentionLease::retainingSequenceNumber)),
                             equalTo(retainingSequenceNumbers));
-                });
+                },
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         reference.set(replicationTracker);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -210,7 +214,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -266,7 +271,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 assertFalse(Thread.holdsLock(replicationTrackerRef.get()));
                 assertTrue(synced.compareAndSet(false, true));
                 listener.onResponse(new ReplicationResponse());
-            });
+            },
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTrackerRef.set(replicationTracker);
         replicationTracker.updateFromMaster(
             randomNonNegativeLong(),
@@ -309,7 +315,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             UNASSIGNED_SEQ_NO,
             value -> {},
             () -> 0L,
-            (leases, listener) -> { });
+            (leases, listener) -> { },
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
@@ -331,7 +338,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             UNASSIGNED_SEQ_NO,
             value -> {},
             () -> 0L,
-            (leases, listener) -> { });
+            (leases, listener) -> { },
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
             randomNonNegativeLong(),
             Collections.singleton(allocationId.getId()),
@@ -357,7 +365,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -392,7 +401,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                                     .stream()
                                     .collect(Collectors.toMap(RetentionLease::id, RetentionLease::retainingSequenceNumber)),
                             equalTo(retainingSequenceNumbers));
-                });
+                },
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         reference.set(replicationTracker);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
@@ -445,7 +455,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 currentTimeMillis::get,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -519,7 +530,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -572,7 +584,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -605,7 +618,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -653,7 +667,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
-                (leases, listener) -> {});
+                (leases, listener) -> {},
+                OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
@@ -702,6 +717,36 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             throw new AssertionError(e);
         }
         assertThat(replicationTracker.loadRetentionLeases(path), equalTo(replicationTracker.getRetentionLeases()));
+    }
+
+    public void testRenewLeaseWithLowerRetainingSequenceNumber() throws Exception {
+        final AllocationId allocationId = AllocationId.newInitializing();
+        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final ReplicationTracker replicationTracker = new ReplicationTracker(
+            new ShardId("test", "_na", 0),
+            allocationId.getId(),
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+            primaryTerm,
+            UNASSIGNED_SEQ_NO,
+            value -> {},
+            () -> 0L,
+            (leases, listener) -> {},
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE);
+        replicationTracker.updateFromMaster(
+            randomNonNegativeLong(),
+            Collections.singleton(allocationId.getId()),
+            routingTable(Collections.emptySet(), allocationId));
+        replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+        final String id = randomAlphaOfLength(8);
+        final long retainingSequenceNumber = randomNonNegativeLong();
+        final String source = randomAlphaOfLength(8);
+        replicationTracker.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.wrap(() -> {}));
+        final long lowerRetainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, retainingSequenceNumber - 1);
+        final RetentionLeaseInvalidRetainingSeqNoException e = expectThrows(RetentionLeaseInvalidRetainingSeqNoException.class,
+            () -> replicationTracker.renewRetentionLease(id, lowerRetainingSequenceNumber, source));
+        assertThat(e, hasToString(containsString("the current retention lease with [" + id + "]" +
+            " is retaining a higher sequence number [" + retainingSequenceNumber + "]" +
+            " than the new retaining sequence number [" + lowerRetainingSequenceNumber + "] from [" + source + "]")));
     }
 
     private void assertRetentionLeases(

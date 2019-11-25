@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -32,24 +33,20 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -69,7 +66,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
-public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest, ToXContentObject {
+public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
 
     public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");
@@ -81,7 +78,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private Settings settings = EMPTY_SETTINGS;
 
-    private final Map<String, String> mappings = new HashMap<>();
+    private String mappings = "{}";
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -92,11 +89,18 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            final String type = in.readString();
-            String source = in.readString();
-            mappings.put(type, source);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            int size = in.readVInt();
+            assert size <= 1 : "Expected to read 0 or 1 mappings, but received " + size;
+            if (size == 1) {
+                String type = in.readString();
+                if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+                    throw new IllegalArgumentException("Expected to receive mapping type of [_doc] but got [" + type + "]");
+                }
+                mappings = in.readString();
+            }
+        } else {
+            mappings = in.readString();
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -215,6 +219,19 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
+     * Set the mapping for this index
+     *
+     * The mapping should be in the form of a JSON string, with an outer _doc key
+     * <pre>
+     *     .mapping("{\"_doc\":{\"properties\": ... }}")
+     * </pre>
+     */
+    public CreateIndexRequest mapping(String mapping) {
+        this.mappings = mapping;
+        return this;
+    }
+
+    /**
      * Adds mapping that will be added when the index gets created.
      *
      * @param type   The mapping type
@@ -233,16 +250,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param xContentType the content type of the mapping source
      */
     private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
-        if (mappings.containsKey(type)) {
-            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
-        }
         Objects.requireNonNull(xContentType);
-        try {
-            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert to json", e);
-        }
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+        return mapping(type, mappingAsMap);
     }
 
     /**
@@ -270,17 +280,18 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        if (mappings.containsKey(type)) {
-            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
-        }
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
-            source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
+            source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
+        }
+        else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+            // if it has a different type name, then unwrap and rewrap with _doc
+            source = Map.of(MapperService.SINGLE_MAPPING_NAME, source.get(type));
         }
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return mapping(type, builder);
+            return mapping(Strings.toString(builder));
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -393,6 +404,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
+                if (entry.getValue() instanceof Map == false) {
+                    throw new ElasticsearchParseException("key [settings] must be an object");
+                }
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
@@ -408,7 +422,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    public Map<String, String> mappings() {
+    public String mappings() {
         return this.mappings;
     }
 
@@ -454,10 +468,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(cause);
         out.writeString(index);
         writeSettingsToStream(settings, out);
-        out.writeVInt(mappings.size());
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            if ("{}".equals(mappings)) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(1);
+                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                out.writeString(mappings);
+            }
+        } else {
+            out.writeString(mappings);
         }
         out.writeVInt(aliases.size());
         for (Alias alias : aliases) {
@@ -466,32 +486,4 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         waitForActiveShards.writeTo(out);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(SETTINGS.getPreferredName());
-        settings.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject(MAPPINGS.getPreferredName());
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            try (InputStream stream = new BytesArray(entry.getValue()).streamInput()) {
-                builder.rawField(entry.getKey(), stream, XContentType.JSON);
-            }
-        }
-        builder.endObject();
-
-        builder.startObject(ALIASES.getPreferredName());
-        for (Alias alias : aliases) {
-            alias.toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
-    }
 }

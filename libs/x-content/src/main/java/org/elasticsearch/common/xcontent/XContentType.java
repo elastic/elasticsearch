@@ -149,6 +149,10 @@ public enum XContentType {
                 return type;
             }
         }
+        // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
+        if (lowercaseMediaType.toLowerCase(Locale.ROOT).equals("application/x-ndjson")) {
+            return XContentType.JSON;
+        }
 
         return null;
     }

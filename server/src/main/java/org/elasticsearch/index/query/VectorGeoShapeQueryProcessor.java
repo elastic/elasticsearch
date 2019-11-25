@@ -28,15 +28,16 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -105,9 +106,9 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         }
 
         @Override
-        public Query visit(org.elasticsearch.geo.geometry.Line line) {
+        public Query visit(org.elasticsearch.geometry.Line line) {
             validateIsGeoShapeFieldType();
-            return LatLonShape.newLineQuery(fieldName, relation.getLuceneRelation(), new Line(line.getLats(), line.getLons()));
+            return LatLonShape.newLineQuery(fieldName, relation.getLuceneRelation(), new Line(line.getY(), line.getX()));
         }
 
         @Override
@@ -120,7 +121,7 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
             validateIsGeoShapeFieldType();
             Line[] lines = new Line[multiLine.size()];
             for (int i = 0; i < multiLine.size(); i++) {
-                lines[i] = new Line(multiLine.get(i).getLats(), multiLine.get(i).getLons());
+                lines[i] = new Line(multiLine.get(i).getY(), multiLine.get(i).getX());
             }
             return LatLonShape.newLineQuery(fieldName, relation.getLuceneRelation(), lines);
         }
@@ -144,18 +145,18 @@ public class VectorGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         public Query visit(Point point) {
             validateIsGeoShapeFieldType();
             return LatLonShape.newBoxQuery(fieldName, relation.getLuceneRelation(),
-                point.getLat(), point.getLat(), point.getLon(), point.getLon());
+                point.getY(), point.getY(), point.getX(), point.getX());
         }
 
         @Override
-        public Query visit(org.elasticsearch.geo.geometry.Polygon polygon) {
+        public Query visit(org.elasticsearch.geometry.Polygon polygon) {
             return LatLonShape.newPolygonQuery(fieldName, relation.getLuceneRelation(), toLucenePolygon(polygon));
         }
 
         @Override
-        public Query visit(org.elasticsearch.geo.geometry.Rectangle r) {
+        public Query visit(Rectangle r) {
             return LatLonShape.newBoxQuery(fieldName, relation.getLuceneRelation(),
-                r.getMinLat(), r.getMaxLat(), r.getMinLon(), r.getMaxLon());
+                r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
         }
 
         private void validateIsGeoShapeFieldType() {

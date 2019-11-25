@@ -25,7 +25,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader.CacheHelper;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
@@ -44,6 +43,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -186,6 +186,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CircuitBreakerService circuitBreakerService;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
     private final Client client;
     private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
@@ -213,7 +214,7 @@ public class IndicesService extends AbstractLifecycleComponent
                           AnalysisRegistry analysisRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
-                          ScriptService scriptService, Client client, MetaStateService metaStateService,
+                          ScriptService scriptService, ClusterService clusterService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
                           Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories) {
         this.settings = settings;
@@ -235,6 +236,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.circuitBreakerService = circuitBreakerService;
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
         this.client = client;
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             @Override
@@ -327,48 +329,36 @@ public class IndicesService extends AbstractLifecycleComponent
         return closeLatch.await(timeout, timeUnit);
     }
 
-    /**
-     * Returns the node stats indices stats. The {@code includePrevious} flag controls
-     * if old shards stats will be aggregated as well (only for relevant stats, such as
-     * refresh and indexing, not for docs/store).
-     */
-    public NodeIndicesStats stats(boolean includePrevious) {
-        return stats(includePrevious, new CommonStatsFlags().all());
-    }
-
-    public NodeIndicesStats stats(boolean includePrevious, CommonStatsFlags flags) {
-        CommonStats oldStats = new CommonStats(flags);
-
-        if (includePrevious) {
-            Flag[] setFlags = flags.getFlags();
-            for (Flag flag : setFlags) {
-                switch (flag) {
-                    case Get:
-                        oldStats.get.add(oldShardsStats.getStats);
-                        break;
-                    case Indexing:
-                        oldStats.indexing.add(oldShardsStats.indexingStats);
-                        break;
-                    case Search:
-                        oldStats.search.add(oldShardsStats.searchStats);
-                        break;
-                    case Merge:
-                        oldStats.merge.add(oldShardsStats.mergeStats);
-                        break;
-                    case Refresh:
-                        oldStats.refresh.add(oldShardsStats.refreshStats);
-                        break;
-                    case Recovery:
-                        oldStats.recoveryStats.add(oldShardsStats.recoveryStats);
-                        break;
-                    case Flush:
-                        oldStats.flush.add(oldShardsStats.flushStats);
-                        break;
-                }
+    public NodeIndicesStats stats(CommonStatsFlags flags) {
+        CommonStats commonStats = new CommonStats(flags);
+        // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
+        for (Flag flag : flags.getFlags()) {
+            switch (flag) {
+                case Get:
+                    commonStats.get.add(oldShardsStats.getStats);
+                    break;
+                case Indexing:
+                    commonStats.indexing.add(oldShardsStats.indexingStats);
+                    break;
+                case Search:
+                    commonStats.search.add(oldShardsStats.searchStats);
+                    break;
+                case Merge:
+                    commonStats.merge.add(oldShardsStats.mergeStats);
+                    break;
+                case Refresh:
+                    commonStats.refresh.add(oldShardsStats.refreshStats);
+                    break;
+                case Recovery:
+                    commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
+                    break;
+                case Flush:
+                    commonStats.flush.add(oldShardsStats.flushStats);
+                    break;
             }
         }
 
-        return new NodeIndicesStats(oldStats, statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByShard(this, flags));
     }
 
     Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -563,6 +553,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 bigArrays,
                 threadPool,
                 scriptService,
+                clusterService,
                 client,
                 indicesQueryCache,
                 mapperRegistry,
@@ -661,12 +652,11 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
-            (type, mapping) -> {
+            mapping -> {
                 assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS:
                     "mapping update consumer only required by local shards recovery";
                 client.admin().indices().preparePutMapping()
                     .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                    .setType(type)
                     .setSource(mapping.source().string(), XContentType.JSON)
                     .get();
             }, this);
@@ -734,12 +724,18 @@ public class IndicesService extends AbstractLifecycleComponent
             if (indexShard != null) {
                 getStats.addTotals(indexShard.getStats());
                 indexingStats.addTotals(indexShard.indexingStats());
-                searchStats.addTotals(indexShard.searchStats());
+                // if this index was closed or deleted, we should eliminate the effect of the current scroll for this shard
+                searchStats.addTotalsForClosingShard(indexShard.searchStats());
                 mergeStats.addTotals(indexShard.mergeStats());
                 refreshStats.addTotals(indexShard.refreshStats());
                 flushStats.addTotals(indexShard.flushStats());
                 recoveryStats.addTotals(indexShard.recoveryStats());
             }
+        }
+
+        @Override
+        public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+
         }
     }
 
@@ -812,7 +808,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
             }
             success = true;
-        } catch (LockObtainFailedException ex) {
+        } catch (ShardLockObtainFailedException ex) {
             logger.debug(() -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index),
                 ex);
         } catch (Exception ex) {
@@ -1246,6 +1242,11 @@ public class IndicesService extends AbstractLifecycleComponent
         // (because an other shard was updated) you would get wrong results because of the scores
         // (think about top_hits aggs or scripts using the score)
         if (SearchType.QUERY_THEN_FETCH != context.searchType()) {
+            return false;
+        }
+
+        // Profiled queries should not use the cache
+        if (request.source() != null && request.source().profile()) {
             return false;
         }
 

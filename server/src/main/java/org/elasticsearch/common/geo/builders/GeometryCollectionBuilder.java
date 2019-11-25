@@ -27,7 +27,8 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.geo.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
-    org.elasticsearch.geo.geometry.GeometryCollection<org.elasticsearch.geo.geometry.Geometry>, GeometryCollectionBuilder> {
+    GeometryCollection<Geometry>, GeometryCollectionBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
@@ -186,17 +187,17 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
     }
 
     @Override
-    public org.elasticsearch.geo.geometry.GeometryCollection<org.elasticsearch.geo.geometry.Geometry> buildGeometry() {
+    public GeometryCollection<Geometry> buildGeometry() {
         if (this.shapes.isEmpty()) {
             return GeometryCollection.EMPTY;
         }
-        List<org.elasticsearch.geo.geometry.Geometry> shapes = new ArrayList<>(this.shapes.size());
+        List<Geometry> shapes = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder shape : this.shapes) {
             shapes.add(shape.buildGeometry());
         }
 
-        return new org.elasticsearch.geo.geometry.GeometryCollection<>(shapes);
+        return new GeometryCollection<>(shapes);
     }
 
     @Override

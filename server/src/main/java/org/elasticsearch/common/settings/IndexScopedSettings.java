@@ -117,7 +117,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexSettings.MAX_NGRAM_DIFF_SETTING,
             IndexSettings.MAX_SHINGLE_DIFF_SETTING,
             IndexSettings.MAX_RESCORE_WINDOW_SETTING,
-            IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
             IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
             IndexSettings.MAX_TERMS_COUNT_SETTING,
             IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
@@ -137,6 +136,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
             EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
             EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
+            IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
             IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
@@ -158,10 +158,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
             IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
             FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
-            Store.FORCE_RAM_TERM_DICT,
             EngineConfig.INDEX_CODEC_SETTING,
             IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
             IndexSettings.DEFAULT_PIPELINE,
+            IndexSettings.FINAL_PIPELINE,
             MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
 
             // validate that built-in similarities don't get redefined
@@ -194,7 +194,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     @Override
-    protected void validateSettingKey(Setting setting) {
+    protected void validateSettingKey(Setting<?> setting) {
         if (setting.getKey().startsWith("index.") == false) {
             throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "] must start with [index.]");
         }

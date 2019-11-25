@@ -34,9 +34,15 @@ public final class ValuesSourceParserHelper {
     private ValuesSourceParserHelper() {} // utility class, no instantiation
 
     public static <T> void declareAnyFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
-            boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, null);
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
+        boolean scriptable, boolean formattable) {
+        declareAnyFields(objectParser, scriptable, formattable, false);
+    }
+
+    public static <T> void declareAnyFields(
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
+        boolean scriptable, boolean formattable, boolean timezoneAware) {
+        declareFields(objectParser, scriptable, formattable, timezoneAware, null);
     }
 
     public static <T> void declareNumericFields(

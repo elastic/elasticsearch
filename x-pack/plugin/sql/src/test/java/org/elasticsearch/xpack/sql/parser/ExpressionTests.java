@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
@@ -202,10 +203,39 @@ public class ExpressionTests extends ESTestCase {
         Expression expr = parser.createExpression("- 6");
         assertEquals(Literal.class, expr.getClass());
         assertEquals("- 6", expr.sourceText());
+        assertEquals(-6, expr.fold());
+
+        expr = parser.createExpression("- ( 6.134 )");
+        assertEquals(Literal.class, expr.getClass());
+        assertEquals("- ( 6.134 )", expr.sourceText());
+        assertEquals(-6.134, expr.fold());
+
+        expr = parser.createExpression("- ( ( (1.25) )    )");
+        assertEquals(Literal.class, expr.getClass());
+        assertEquals("- ( ( (1.25) )    )", expr.sourceText());
+        assertEquals(-1.25, expr.fold());
+
+        int numberOfParentheses = randomIntBetween(3, 10);
+        double value = randomDouble();
+        StringBuilder sb = new StringBuilder("-");
+        for (int i = 0; i < numberOfParentheses; i++) {
+            sb.append("(").append(TestUtils.randomWhitespaces());
+        }
+        sb.append(value);
+        for (int i = 0; i < numberOfParentheses; i++) {
+            sb.append(")");
+            if (i < numberOfParentheses - 1) {
+                sb.append(TestUtils.randomWhitespaces());
+            }
+        }
+        expr = parser.createExpression(sb.toString());
+        assertEquals(Literal.class, expr.getClass());
+        assertEquals(sb.toString(), expr.sourceText());
+        assertEquals(- value, expr.fold());
     }
 
     public void testComplexArithmetic() {
-        String sql = "-(((a-2)-(-3))+b)";
+        String sql = "-(((a-2)- (( - ( (  3)  )) )  )+ b)";
         Expression expr = parser.createExpression(sql);
         assertEquals(Neg.class, expr.getClass());
         Neg neg = (Neg) expr;
@@ -213,15 +243,15 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(1, neg.children().size());
         assertEquals(Add.class, neg.children().get(0).getClass());
         Add add = (Add) neg.children().get(0);
-        assertEquals("((a-2)-(-3))+b", add.sourceText());
+        assertEquals("((a-2)- (( - ( (  3)  )) )  )+ b", add.sourceText());
         assertEquals(2, add.children().size());
         assertEquals("?b", add.children().get(1).toString());
         assertEquals(Sub.class, add.children().get(0).getClass());
         Sub sub1 = (Sub) add.children().get(0);
-        assertEquals("(a-2)-(-3)", sub1.sourceText());
+        assertEquals("(a-2)- (( - ( (  3)  )) )", sub1.sourceText());
         assertEquals(2, sub1.children().size());
         assertEquals(Literal.class, sub1.children().get(1).getClass());
-        assertEquals("-3", sub1.children().get(1).sourceText());
+        assertEquals("- ( (  3)  )", sub1.children().get(1).sourceText());
         assertEquals(Sub.class, sub1.children().get(0).getClass());
         Sub sub2 = (Sub) sub1.children().get(0);
         assertEquals(2, sub2.children().size());

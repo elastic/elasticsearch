@@ -252,7 +252,7 @@ public final class DateFieldMapper extends FieldMapper {
         protected DateMathParser dateMathParser;
         protected Resolution resolution;
 
-        DateFieldType() {
+        public DateFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);
@@ -327,7 +327,7 @@ public final class DateFieldMapper extends FieldMapper {
             return dateMathParser;
         }
 
-        long parse(String value) {
+        public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value)).toInstant());
         }
 

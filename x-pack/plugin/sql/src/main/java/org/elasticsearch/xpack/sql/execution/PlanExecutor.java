@@ -23,8 +23,7 @@ import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.RowSet;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.stats.QueryMetric;
@@ -91,7 +90,7 @@ public class PlanExecutor {
         }, listener::onFailure));
     }
 
-    public void sql(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
+    public void sql(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {
         QueryMetric metric = QueryMetric.from(cfg.mode(), cfg.clientId());
         metrics.total(metric);
 
@@ -101,7 +100,7 @@ public class PlanExecutor {
         }));
     }
 
-    public void nextPage(Configuration cfg, Cursor cursor, ActionListener<RowSet> listener) {
+    public void nextPage(Configuration cfg, Cursor cursor, ActionListener<Page> listener) {
         QueryMetric metric = QueryMetric.from(cfg.mode(), cfg.clientId());
         metrics.total(metric);
         metrics.paging(metric);

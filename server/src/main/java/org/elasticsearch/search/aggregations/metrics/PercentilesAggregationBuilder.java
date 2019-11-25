@@ -25,9 +25,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -35,8 +37,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -132,7 +132,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     private boolean keyed = true;
 
     public PercentilesAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,
@@ -154,7 +154,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
      * Read from a stream.
      */
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();
@@ -263,15 +263,17 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext,
+                                                                    ValuesSourceConfig<Numeric> config,
+                                                                    AggregatorFactory parent,
+                                                                    Builder subFactoriesBuilder) throws IOException {
         switch (method) {
         case TDIGEST:
-            return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, context, parent,
+            return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, queryShardContext, parent,
                     subFactoriesBuilder, metaData);
         case HDR:
-            return new HDRPercentilesAggregatorFactory(name, config, percents, numberOfSignificantValueDigits, keyed, context, parent,
-                    subFactoriesBuilder, metaData);
+            return new HDRPercentilesAggregatorFactory(name, config, percents,
+                numberOfSignificantValueDigits, keyed, queryShardContext, parent, subFactoriesBuilder, metaData);
         default:
             throw new IllegalStateException("Illegal method [" + method + "]");
         }

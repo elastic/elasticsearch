@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.BucketTests;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
 import org.elasticsearch.xpack.ml.job.results.ModelPlotTests;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -87,7 +87,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        Auditor auditor = new Auditor(client(), "test_node");
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), "test_node");
         jobResultsProvider = new JobResultsProvider(client(), builder.build());
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);

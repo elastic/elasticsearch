@@ -22,7 +22,7 @@ Deletes forecasts from a {ml} job.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-delete-forecast-desc]]
 ==== {api-description-title}
@@ -58,24 +58,23 @@ For more information, see
   error. The default value is `true`.
 
 `timeout`::
-  (Optional, time units) Specifies the period of time to wait for the completion
-  of the delete operation. When this period of time elapses, the API fails and
-  returns an error. The default value is `30s`. For more information about time
-  units, see <<time-units>>.
+  (Optional, <<time-units, time units>>) Specifies the period of time to wait 
+  for the completion of the delete operation. When this period of time elapses, 
+  the API fails and returns an error. The default value is `30s`.
 
 [[ml-delete-forecast-example]]
 ==== {api-examples-title}
 
 The following example deletes all forecasts from the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/total-requests/_forecast/_all
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
 
 If the request does not encounter errors, you receive the following result:
+
 [source,js]
 ----
 {

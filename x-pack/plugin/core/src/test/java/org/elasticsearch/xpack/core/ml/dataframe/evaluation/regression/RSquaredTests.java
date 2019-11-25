@@ -18,9 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -54,8 +52,9 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
         ));
 
         RSquared rSquared = new RSquared();
-        EvaluationMetricResult result = rSquared.evaluate(aggs);
+        rSquared.process(aggs);
 
+        EvaluationMetricResult result = rSquared.getResult().get();
         String expected = "{\"value\":0.9348643947690524}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
@@ -69,8 +68,25 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
         ));
 
         RSquared rSquared = new RSquared();
-        EvaluationMetricResult result = rSquared.evaluate(aggs);
-        assertThat(result, is(nullValue()));
+        rSquared.process(aggs);
+
+        EvaluationMetricResult result = rSquared.getResult().get();
+        assertThat(result, equalTo(new RSquared.Result(0.0)));
+    }
+
+    public void testEvaluateWithSingleCountZeroVariance() {
+        Aggregations aggs = new Aggregations(Arrays.asList(
+            createSingleMetricAgg("residual_sum_of_squares", 1),
+            createExtendedStatsAgg("extended_stats_actual", 0.0, 1),
+            createExtendedStatsAgg("some_other_extended_stats",99.1, 10_000),
+            createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
+        ));
+
+        RSquared rSquared = new RSquared();
+        rSquared.process(aggs);
+
+        EvaluationMetricResult result = rSquared.getResult().get();
+        assertThat(result, equalTo(new RSquared.Result(0.0)));
     }
 
     public void testEvaluate_GivenMissingAggs() {
@@ -79,24 +95,36 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
         ));
 
         RSquared rSquared = new RSquared();
-        EvaluationMetricResult result = rSquared.evaluate(aggs);
-        assertThat(result, is(nullValue()));
+        rSquared.process(aggs);
 
-        aggs = new Aggregations(Arrays.asList(
+        EvaluationMetricResult result = rSquared.getResult().get();
+        assertThat(result, equalTo(new RSquared.Result(0.0)));
+    }
+
+    public void testEvaluate_GivenMissingExtendedStatsAgg() {
+        Aggregations aggs = new Aggregations(Arrays.asList(
             createSingleMetricAgg("some_other_single_metric_agg", 0.2377),
             createSingleMetricAgg("residual_sum_of_squares", 0.2377)
         ));
 
-        result = rSquared.evaluate(aggs);
-        assertThat(result, is(nullValue()));
+        RSquared rSquared = new RSquared();
+        rSquared.process(aggs);
 
-        aggs = new Aggregations(Arrays.asList(
+        EvaluationMetricResult result = rSquared.getResult().get();
+        assertThat(result, equalTo(new RSquared.Result(0.0)));
+    }
+
+    public void testEvaluate_GivenMissingResidualSumOfSquaresAgg() {
+        Aggregations aggs = new Aggregations(Arrays.asList(
             createSingleMetricAgg("some_other_single_metric_agg", 0.2377),
             createExtendedStatsAgg("extended_stats_actual",100, 50)
         ));
 
-        result = rSquared.evaluate(aggs);
-        assertThat(result, is(nullValue()));
+        RSquared rSquared = new RSquared();
+        rSquared.process(aggs);
+
+        EvaluationMetricResult result = rSquared.getResult().get();
+        assertThat(result, equalTo(new RSquared.Result(0.0)));
     }
 
     private static NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, double value) {

@@ -40,6 +40,7 @@ import org.elasticsearch.http.HttpRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -248,13 +249,6 @@ public class RestRequest implements ToXContent.Params {
         return xContentType.get();
     }
 
-    /**
-     * Sets the {@link XContentType}
-     */
-    final void setXContentType(XContentType xContentType) {
-        this.xContentType.set(xContentType);
-    }
-
     public HttpChannel getHttpChannel() {
         return httpChannel;
     }
@@ -294,7 +288,7 @@ public class RestRequest implements ToXContent.Params {
      * @return the list of currently consumed parameters.
      */
     List<String> consumedParams() {
-        return consumedParams.stream().collect(Collectors.toList());
+        return new ArrayList<>(consumedParams);
     }
 
     /**

@@ -22,7 +22,9 @@ package org.elasticsearch.gradle.precommit;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,20 +42,20 @@ public class UpdateShasTask extends DefaultTask {
     private final Logger logger = Logging.getLogger(getClass());
 
     /** The parent dependency licenses task to use configuration from */
-    private DependencyLicensesTask parentTask;
+    private TaskProvider<DependencyLicensesTask> parentTask;
 
     public UpdateShasTask() {
         setDescription("Updates the sha files for the dependencyLicenses check");
-        setOnlyIf(element -> parentTask.getLicensesDir() != null);
+        setOnlyIf(element -> parentTask.get().getLicensesDir() != null);
     }
 
     @TaskAction
     public void updateShas() throws NoSuchAlgorithmException, IOException {
-        Set<File> shaFiles = parentTask.getShaFiles();
+        Set<File> shaFiles = parentTask.get().getShaFiles();
 
-        for (File dependency : parentTask.getDependencies()) {
+        for (File dependency : parentTask.get().getDependencies()) {
             String jarName = dependency.getName();
-            File shaFile = parentTask.getShaFile(jarName);
+            File shaFile = parentTask.get().getShaFile(jarName);
 
             if (shaFile.exists() == false) {
                 createSha(dependency, jarName, shaFile);
@@ -71,16 +73,17 @@ public class UpdateShasTask extends DefaultTask {
     private void createSha(File dependency, String jarName, File shaFile) throws IOException, NoSuchAlgorithmException {
         logger.lifecycle("Adding sha for " + jarName);
 
-        String sha = parentTask.getSha1(dependency);
+        String sha = parentTask.get().getSha1(dependency);
 
         Files.write(shaFile.toPath(), sha.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
     }
 
+    @Internal
     public DependencyLicensesTask getParentTask() {
-        return parentTask;
+        return parentTask.get();
     }
 
-    public void setParentTask(DependencyLicensesTask parentTask) {
+    public void setParentTask(TaskProvider<DependencyLicensesTask> parentTask) {
         this.parentTask = parentTask;
     }
 }

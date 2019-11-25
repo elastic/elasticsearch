@@ -42,6 +42,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
@@ -94,6 +95,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
+import static org.mockito.Mockito.mock;
 
 @ClusterScope(scope = SUITE, numClientNodes = 0, maxNumDataNodes = 3)
 public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase {
@@ -261,7 +263,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
         GetIndexResponse index = client().admin().indices().prepareGetIndex().setIndices(originalIndexOrAlias).get();
-        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]).get(MapperService.SINGLE_MAPPING_NAME);
+        MappingMetaData mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
         Settings.Builder newSettings = Settings.builder().put(settings);
@@ -518,9 +520,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             WatcherStatsResponse watcherStatsResponse = new WatcherStatsRequestBuilder(client()).get();
             assertThat(watcherStatsResponse.hasFailures(), is(false));
             List<Tuple<String, WatcherState>> currentStatesFromStatsRequest = watcherStatsResponse.getNodes().stream()
-                    .map(response -> Tuple.tuple(response.getNode().getName(), response.getWatcherState()))
-                    .collect(Collectors.toList());
+                    .map(response -> Tuple.tuple(response.getNode().getName() + " (" + response.getThreadPoolQueueSize() + ")",
+                        response.getWatcherState())).collect(Collectors.toList());
             List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
+
+
 
             logger.info("waiting to stop watcher, current states {}", currentStatesFromStatsRequest);
 
@@ -546,13 +550,14 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             throw new AssertionError("unexpected state, retrying with next run");
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     public static class NoopEmailService extends EmailService {
 
         public NoopEmailService() {
-            super(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+            super(Settings.EMPTY, null, mock(SSLService.class),
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
         }
 
         @Override

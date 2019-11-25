@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.dataframe;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +19,7 @@ import java.io.IOException;
 
 public class RestPutDataFrameAnalyticsAction extends BaseRestHandler {
 
-    public RestPutDataFrameAnalyticsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutDataFrameAnalyticsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, MachineLearning.BASE_PATH + "data_frame/analytics/{"
             + DataFrameAnalyticsConfig.ID.getPreferredName() + "}", this);
     }

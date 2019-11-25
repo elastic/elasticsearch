@@ -34,8 +34,13 @@ import org.elasticsearch.client.ilm.StartILMRequest;
 import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecycleRetentionRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
 import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.SnapshotLifecycleManagementStatusRequest;
+import org.elasticsearch.client.slm.StartSLMRequest;
+import org.elasticsearch.client.slm.StopSLMRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -203,7 +208,7 @@ final class IndexLifecycleRequestConverters {
     }
 
     static Request executeSnapshotLifecyclePolicy(ExecuteSnapshotLifecyclePolicyRequest executeSnapshotLifecyclePolicyRequest) {
-        Request request = new Request(HttpPut.METHOD_NAME,
+        Request request = new Request(HttpPost.METHOD_NAME,
             new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_slm/policy")
                 .addPathPartAsIs(executeSnapshotLifecyclePolicyRequest.getPolicyId())
@@ -212,6 +217,67 @@ final class IndexLifecycleRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(executeSnapshotLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(executeSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request executeSnapshotLifecycleRetention(ExecuteSnapshotLifecycleRetentionRequest executeSnapshotLifecycleRetentionRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME,
+            new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_slm/_execute_retention")
+                .build());
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(executeSnapshotLifecycleRetentionRequest.masterNodeTimeout());
+        params.withTimeout(executeSnapshotLifecycleRetentionRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getSnapshotLifecycleStats(GetSnapshotLifecycleStatsRequest getSnapshotLifecycleStatsRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_slm/stats").build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(getSnapshotLifecycleStatsRequest.masterNodeTimeout());
+        params.withTimeout(getSnapshotLifecycleStatsRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request snapshotLifecycleManagementStatus(SnapshotLifecycleManagementStatusRequest snapshotLifecycleManagementStatusRequest){
+        Request request = new Request(HttpGet.METHOD_NAME,
+            new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_slm")
+                .addPathPartAsIs("status")
+                .build());
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(snapshotLifecycleManagementStatusRequest.masterNodeTimeout());
+        params.withTimeout(snapshotLifecycleManagementStatusRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request startSLM(StartSLMRequest startSLMRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME,
+            new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_slm")
+                .addPathPartAsIs("start")
+                .build());
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(startSLMRequest.masterNodeTimeout());
+        params.withTimeout(startSLMRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request stopSLM(StopSLMRequest stopSLMRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME,
+            new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_slm")
+                .addPathPartAsIs("stop")
+                .build());
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(stopSLMRequest.masterNodeTimeout());
+        params.withTimeout(stopSLMRequest.timeout());
         request.addParameters(params.asMap());
         return request;
     }

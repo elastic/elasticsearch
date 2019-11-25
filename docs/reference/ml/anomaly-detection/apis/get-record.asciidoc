@@ -20,8 +20,7 @@ Retrieves anomaly records for an {anomaly-job}.
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
 need `read` index privilege on the index that stores the results. The
 `machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. See {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+privileges. See <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-get-record-path-parms]]
 ==== {api-path-parms-title}
@@ -73,7 +72,7 @@ The API returns the following information:
 
 The following example gets record information for the `it-ops-kpi` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/it-ops-kpi/results/records
 {
@@ -82,7 +81,6 @@ GET _ml/anomaly_detectors/it-ops-kpi/results/records
   "start": "1454944100000"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 In this example, the API returns twelve results for the specified

@@ -275,7 +275,7 @@ public class QueryPhase implements SearchPhase {
 
                 if (searchContext.request().allowPartialSearchResults() == false) {
                     // Can't rethrow TimeExceededException because not serializable
-                    throw new QueryPhaseExecutionException(searchContext, "Time exceeded");
+                    throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
                 }
                 queryResult.searchTimedOut(true);
             } finally {
@@ -302,7 +302,7 @@ public class QueryPhase implements SearchPhase {
             }
             return topDocsFactory.shouldRescore();
         } catch (Exception e) {
-            throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
+            throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
         }
     }
 

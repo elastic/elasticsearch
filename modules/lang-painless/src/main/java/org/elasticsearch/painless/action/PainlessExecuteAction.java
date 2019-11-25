@@ -30,9 +30,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -50,7 +50,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -528,7 +527,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         scoreScript.setScorer(scorer);
                     }
 
-                    double result = scoreScript.execute();
+                    double result = scoreScript.execute(null);
                     return new Response(result);
                 }, indexService);
             } else {
@@ -545,16 +544,17 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             try (RAMDirectory ramDirectory = new RAMDirectory()) {
                 try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(defaultAnalyzer))) {
                     String index = indexService.index().getName();
-                    String type = indexService.mapperService().documentMapper().type();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse(index, type, "_id", document, xContentType);
+                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
                     ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
+                        final IndexSearcher searcher = new IndexSearcher(indexReader);
+                        searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
-                            indexService.newQueryShardContext(0, indexReader, () -> absoluteStartMillis, null);
+                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }
@@ -564,8 +564,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
     public static class RestAction extends BaseRestHandler {
 
-        public RestAction(Settings settings, RestController controller) {
-            super(settings);
+        public RestAction(RestController controller) {
             controller.registerHandler(GET, "/_scripts/painless/_execute", this);
             controller.registerHandler(POST, "/_scripts/painless/_execute", this);
         }

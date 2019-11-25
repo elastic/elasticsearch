@@ -11,8 +11,8 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -70,7 +70,7 @@ public class SysTables extends Command {
     }
 
     @Override
-    public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public final void execute(SqlSession session, ActionListener<Page> listener) {
         String cluster = session.indexResolver().clusterName();
 
         // first check if where dealing with ODBC enumeration
@@ -85,7 +85,7 @@ public class SysTables extends Command {
                 Object[] enumeration = new Object[10];
                 // send only the cluster, everything else null
                 enumeration[0] = cluster;
-                listener.onResponse(Rows.singleton(output(), enumeration));
+                listener.onResponse(Page.last(Rows.singleton(output(), enumeration)));
                 return;
             }
         }
@@ -111,7 +111,7 @@ public class SysTables extends Command {
                 }
 
                 values.sort(Comparator.comparing(l -> l.get(3).toString()));
-                listener.onResponse(Rows.of(output(), values));
+                listener.onResponse(of(session, values));
                 return;
             }
         }
@@ -122,7 +122,7 @@ public class SysTables extends Command {
 
         // if the catalog doesn't match, don't return any results
         if (cRegex != null && !Pattern.matches(cRegex, cluster)) {
-            listener.onResponse(Rows.empty(output()));
+            listener.onResponse(Page.last(Rows.empty(output())));
             return;
         }
 
@@ -141,12 +141,12 @@ public class SysTables extends Command {
         }
 
         session.indexResolver().resolveNames(idx, regex, tableTypes, ActionListener.wrap(result -> listener.onResponse(
-                Rows.of(output(), result.stream()
+                of(session, result.stream()
                  // sort by type (which might be legacy), then by name
                  .sorted(Comparator.<IndexInfo, String> comparing(i -> legacyName(i.type()))
                            .thenComparing(Comparator.comparing(i -> i.name())))
                  .map(t -> asList(cluster,
-                         EMPTY,
+                         null,
                          t.name(),
                          legacyName(t.type()),
                          EMPTY,

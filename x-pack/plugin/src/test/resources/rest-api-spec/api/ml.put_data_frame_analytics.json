@@ -1,22 +1,28 @@
 {
-  "ml.put_data_frame_analytics": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/put-dfanalytics.html",
-    "stability": "experimental",
-    "methods": [ "PUT" ],
-    "url": {
-      "path": "/_ml/data_frame/analytics/{id}",
-      "paths": [ "/_ml/data_frame/analytics/{id}" ],
-      "parts": {
-        "id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the data frame analytics to create"
-        }
-      }
+  "ml.put_data_frame_analytics":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/put-dfanalytics.html"
     },
-    "body": {
-      "description" : "The data frame analytics configuration",
-      "required" : true
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/data_frame/analytics/{id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the data frame analytics to create"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The data frame analytics configuration",
+      "required":true
     }
   }
 }

@@ -151,13 +151,13 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
                 .addMapping("type", "time", "type=date")
                 .get();
 
-        IndexRequest indexRequest = new IndexRequest("data", "type");
+        IndexRequest indexRequest = new IndexRequest("data");
         indexRequest.source("time", 1407081600L);
         client().index(indexRequest).get();
-        indexRequest = new IndexRequest("data", "type");
+        indexRequest = new IndexRequest("data");
         indexRequest.source("time", 1407082600L);
         client().index(indexRequest).get();
-        indexRequest = new IndexRequest("data", "type");
+        indexRequest = new IndexRequest("data");
         indexRequest.source("time", 1407083600L);
         client().index(indexRequest).get();
         refresh();

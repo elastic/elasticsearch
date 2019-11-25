@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -16,8 +15,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 
 public class RestGetStatusAction extends BaseRestHandler {
 
-    public RestGetStatusAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetStatusAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_ilm/status", this);
     }
 

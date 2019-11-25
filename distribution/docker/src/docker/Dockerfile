@@ -11,9 +11,14 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM centos:7 AS builder
+FROM ${base_image} AS builder
 
-ENV PATH /usr/share/elasticsearch/bin:$PATH
+RUN for iter in {1..10}; do ${package_manager} update --setopt=tsflags=nodocs -y && \
+    ${package_manager} install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
+    ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10; done; \
+    (exit \$exit_code)
+
+ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 RUN groupadd -g 1000 elasticsearch && \
     adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
@@ -35,14 +40,14 @@ COPY config/elasticsearch.yml config/log4j2.properties config/
 # Add entrypoint
 ################################################################################
 
-FROM centos:7
+FROM ${base_image}
 
 ENV ELASTIC_CONTAINER true
 
-RUN for iter in {1..10}; do yum update -y && \
-    yum install -y nc && \
-    yum clean all && exit_code=0 && break || exit_code=$? && echo "yum error: retry $iter in 10s" && sleep 10; done; \
-    (exit $exit_code)
+RUN for iter in {1..10}; do ${package_manager} update --setopt=tsflags=nodocs -y && \
+    ${package_manager} install --setopt=tsflags=nodocs -y nc shadow-utils && \
+    ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10; done; \
+    (exit \$exit_code)
 
 RUN groupadd -g 1000 elasticsearch && \
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \
@@ -57,7 +62,7 @@ COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticse
 # REF: https://github.com/elastic/elasticsearch-docker/issues/171
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 
-ENV PATH /usr/share/elasticsearch/bin:$PATH
+ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
 COPY --chown=1000:0 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 

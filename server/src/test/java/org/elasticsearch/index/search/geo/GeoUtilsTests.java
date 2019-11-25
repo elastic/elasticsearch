@@ -28,7 +28,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.spatial4j.context.SpatialContext;
 import org.locationtech.spatial4j.distance.DistanceUtils;
@@ -386,6 +386,10 @@ public class GeoUtilsTests extends ESTestCase {
         assertNormalizedPoint(new GeoPoint(180.0, 360.0), new GeoPoint(0.0, 180.0));
         assertNormalizedPoint(new GeoPoint(-90.0, -180.0), new GeoPoint(-90.0, -180.0));
         assertNormalizedPoint(new GeoPoint(90.0, 180.0), new GeoPoint(90.0, 180.0));
+        assertNormalizedPoint(new GeoPoint(100.0, 180.0), new GeoPoint(80.0, 0.0));
+        assertNormalizedPoint(new GeoPoint(100.0, -180.0), new GeoPoint(80.0, 0.0));
+        assertNormalizedPoint(new GeoPoint(-100.0, 180.0), new GeoPoint(-80.0, 0.0));
+        assertNormalizedPoint(new GeoPoint(-100.0, -180.0), new GeoPoint(-80.0, 0.0));
     }
 
     public void testParseGeoPoint() throws IOException {

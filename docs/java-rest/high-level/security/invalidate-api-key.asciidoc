@@ -3,7 +3,7 @@
 :request: InvalidateApiKeyRequest
 :response: InvalidateApiKeyResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Invalidate API Key API
 
@@ -20,6 +20,8 @@ The +{request}+ supports invalidating
 . All API keys for a specific user
 
 . All API keys for a specific user in a specific realm
+
+. A specific key or all API keys owned by the current authenticated user
 
 ===== Specific API key by API key id
 ["source","java",subs="attributes,callouts,macros"]
@@ -49,6 +51,12 @@ include-tagged::{doc-tests-file}[invalidate-user-api-keys-request]
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[invalidate-user-realm-api-keys-request]
+--------------------------------------------------
+
+===== Retrieve all API keys for the current authenticated user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-api-keys-owned-by-authenticated-user-request]
 --------------------------------------------------
 
 include::../execution.asciidoc[]

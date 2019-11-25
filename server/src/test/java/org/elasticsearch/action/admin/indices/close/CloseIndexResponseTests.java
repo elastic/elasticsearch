@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -113,6 +114,17 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                             assertThat(actualFailure.getNodeId(), equalTo(expectedFailure.getNodeId()));
                             assertThat(actualFailure.index(), equalTo(expectedFailure.index()));
                             assertThat(actualFailure.shardId(), equalTo(expectedFailure.shardId()));
+
+                            // Serialising and deserialising an exception seems to remove the "java.base/" part from the stack trace
+                            // in the `reason` property, so we don't compare it directly. Instead, check that the first lines match,
+                            // and that the stack trace has the same number of lines.
+                            List<String> expectedReasonLines = expectedFailure.reason().lines().collect(Collectors.toList());
+                            List<String> actualReasonLines = actualFailure.reason().lines().collect(Collectors.toList());
+                            assertThat(actualReasonLines.get(0), equalTo(expectedReasonLines.get(0)));
+                            assertThat("Exceptions have a different number of lines",
+                                actualReasonLines,
+                                hasSize(expectedReasonLines.size()));
+
                             assertThat(actualFailure.getCause().getMessage(), equalTo(expectedFailure.getCause().getMessage()));
                             assertThat(actualFailure.getCause().getClass(), equalTo(expectedFailure.getCause().getClass()));
                             assertArrayEquals(actualFailure.getCause().getStackTrace(), expectedFailure.getCause().getStackTrace());

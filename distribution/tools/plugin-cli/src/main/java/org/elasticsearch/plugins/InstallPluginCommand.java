@@ -23,6 +23,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.Constants;
 import org.bouncycastle.bcpg.ArmoredInputStream;
 import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.bouncycastle.openpgp.PGPException;
@@ -706,7 +707,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 Locale.ROOT,
                 "plugin directory [%s] already exists; if you need to update the plugin, " +
                     "uninstall it first using command 'remove %s'",
-                destination.toAbsolutePath(),
+                destination,
                 pluginName);
             throw new UserException(PLUGIN_EXISTS, message);
         }
@@ -836,7 +837,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Files.walkFileTree(destination, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
-                if ("bin".equals(file.getParent().getFileName().toString())) {
+                final String parentDirName = file.getParent().getFileName().toString();
+                if ("bin".equals(parentDirName)
+                    // "MacOS" is an alternative to "bin" on macOS
+                    || (Constants.MAC_OS_X && "MacOS".equals(parentDirName))) {
                     setFileAttributes(file, BIN_FILES_PERMS);
                 } else {
                     setFileAttributes(file, PLUGIN_FILES_PERMS);

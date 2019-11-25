@@ -42,8 +42,9 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
@@ -65,6 +66,28 @@ public abstract class ValuesSource {
         return false;
     }
 
+    public static class Range extends ValuesSource {
+        private final RangeType rangeType;
+        protected final IndexFieldData<?> indexFieldData;
+
+        public Range(IndexFieldData<?> indexFieldData, RangeType rangeType) {
+            this.indexFieldData = indexFieldData;
+            this.rangeType = rangeType;
+        }
+
+        @Override
+        public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            return indexFieldData.load(context).getBytesValues();
+        }
+
+        @Override
+        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
+            final SortedBinaryDocValues bytes = bytesValues(context);
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
+        }
+
+        public RangeType rangeType() { return rangeType; }
+    }
     public abstract static class Bytes extends ValuesSource {
 
         @Override
@@ -193,8 +216,12 @@ public abstract class ValuesSource {
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
+
         }
 
+        /**
+         * {@link ValuesSource} implementation for stand alone scripts returning a Bytes value
+         */
         public static class Script extends Bytes {
 
             private final AggregationScript.LeafFactory script;
@@ -211,6 +238,69 @@ public abstract class ValuesSource {
             @Override
             public boolean needsScores() {
                 return script.needs_score();
+            }
+        }
+
+        // No need to implement ReaderContextAware here, the delegate already takes care of updating data structures
+        /**
+         * {@link ValuesSource} subclass for Bytes fields with a Value Script applied
+         */
+        public static class WithScript extends Bytes {
+
+            private final ValuesSource delegate;
+            private final AggregationScript.LeafFactory script;
+
+            public WithScript(ValuesSource delegate, AggregationScript.LeafFactory script) {
+                this.delegate = delegate;
+                this.script = script;
+            }
+
+            @Override
+            public boolean needsScores() {
+                return script.needs_score();
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return new BytesValues(delegate.bytesValues(context), script.newInstance(context));
+            }
+
+            static class BytesValues extends SortingBinaryDocValues implements ScorerAware {
+
+                private final SortedBinaryDocValues bytesValues;
+                private final AggregationScript script;
+
+                BytesValues(SortedBinaryDocValues bytesValues, AggregationScript script) {
+                    this.bytesValues = bytesValues;
+                    this.script = script;
+                }
+
+                @Override
+                public void setScorer(Scorable scorer) {
+                    script.setScorer(scorer);
+                }
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    if (bytesValues.advanceExact(doc)) {
+                        count = bytesValues.docValueCount();
+                        grow();
+                        script.setDocument(doc);
+                        for (int i = 0; i < count; ++i) {
+                            final BytesRef value = bytesValues.nextValue();
+                            script.setNextAggregationValue(value.utf8ToString());
+                            Object run = script.execute();
+                            CollectionUtils.ensureNoSelfReferences(run, "ValuesSource.BytesValues script");
+                            values[i].copyChars(run.toString());
+                        }
+                        sort();
+                        return true;
+                    } else {
+                        count = 0;
+                        grow();
+                        return false;
+                    }
+                }
             }
         }
     }
@@ -261,6 +351,9 @@ public abstract class ValuesSource {
             }
         }
 
+        /**
+         * {@link ValuesSource} subclass for Numeric fields with a Value Script applied
+         */
         public static class WithScript extends Numeric {
 
             private final Numeric delegate;
@@ -283,7 +376,7 @@ public abstract class ValuesSource {
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return new ValuesSource.WithScript.BytesValues(delegate.bytesValues(context), script.newInstance(context));
+                return new Bytes.WithScript.BytesValues(delegate.bytesValues(context), script.newInstance(context));
             }
 
             @Override
@@ -388,6 +481,9 @@ public abstract class ValuesSource {
             }
         }
 
+        /**
+         * {@link ValuesSource} implementation for stand alone scripts returning a Numeric value
+         */
         public static class Script extends Numeric {
             private final AggregationScript.LeafFactory script;
             private final ValueType scriptValueType;
@@ -423,66 +519,6 @@ public abstract class ValuesSource {
             }
         }
 
-    }
-
-    // No need to implement ReaderContextAware here, the delegate already takes care of updating data structures
-    public static class WithScript extends Bytes {
-
-        private final ValuesSource delegate;
-        private final AggregationScript.LeafFactory script;
-
-        public WithScript(ValuesSource delegate, AggregationScript.LeafFactory script) {
-            this.delegate = delegate;
-            this.script = script;
-        }
-
-        @Override
-        public boolean needsScores() {
-            return script.needs_score();
-        }
-
-        @Override
-        public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-            return new BytesValues(delegate.bytesValues(context), script.newInstance(context));
-        }
-
-        static class BytesValues extends SortingBinaryDocValues implements ScorerAware {
-
-            private final SortedBinaryDocValues bytesValues;
-            private final AggregationScript script;
-
-            BytesValues(SortedBinaryDocValues bytesValues, AggregationScript script) {
-                this.bytesValues = bytesValues;
-                this.script = script;
-            }
-
-            @Override
-            public void setScorer(Scorable scorer) {
-                script.setScorer(scorer);
-            }
-
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                if (bytesValues.advanceExact(doc)) {
-                    count = bytesValues.docValueCount();
-                    grow();
-                    script.setDocument(doc);
-                    for (int i = 0; i < count; ++i) {
-                        final BytesRef value = bytesValues.nextValue();
-                        script.setNextAggregationValue(value.utf8ToString());
-                        Object run = script.execute();
-                        CollectionUtils.ensureNoSelfReferences(run, "ValuesSource.BytesValues script");
-                        values[i].copyChars(run.toString());
-                    }
-                    sort();
-                    return true;
-                } else {
-                    count = 0;
-                    grow();
-                    return false;
-                }
-            }
-        }
     }
 
     public abstract static class GeoPoint extends ValuesSource {

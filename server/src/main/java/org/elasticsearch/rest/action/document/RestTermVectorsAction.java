@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -43,11 +42,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
-            "Specifying types in term vector requests is deprecated.";
 
-    public RestTermVectorsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestTermVectorsAction(RestController controller) {
         controller.registerHandler(GET, "/{index}/_termvectors", this);
         controller.registerHandler(POST, "/{index}/_termvectors", this);
         controller.registerHandler(GET, "/{index}/_termvectors/{id}", this);

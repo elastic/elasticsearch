@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -41,12 +42,14 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -63,6 +66,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -72,6 +76,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
@@ -92,6 +97,9 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -121,12 +129,15 @@ import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
+import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteDataFrameAnalyticsAction;
@@ -136,6 +147,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteForecastAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFindFileStructureAction;
@@ -156,6 +168,9 @@ import org.elasticsearch.xpack.ml.action.TransportGetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetRecordsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.ml.action.TransportInternalInferModelAction;
 import org.elasticsearch.xpack.ml.action.TransportIsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportKillProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportMlInfoAction;
@@ -190,7 +205,15 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
+import org.elasticsearch.xpack.ml.dataframe.process.MemoryUsageEstimationProcessManager;
 import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.inference.persistence.InferenceInternalIndex;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
@@ -209,7 +232,9 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.DummyController;
 import org.elasticsearch.xpack.ml.process.MlController;
 import org.elasticsearch.xpack.ml.process.MlControllerHolder;
@@ -236,6 +261,7 @@ import org.elasticsearch.xpack.ml.rest.datafeeds.RestPutDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestUpdateDatafeedAction;
+import org.elasticsearch.xpack.ml.rest.dataframe.RestExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestDeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
@@ -247,6 +273,9 @@ import org.elasticsearch.xpack.ml.rest.filter.RestDeleteFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestGetFiltersAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteForecastAction;
 import org.elasticsearch.xpack.ml.rest.job.RestDeleteJobAction;
@@ -280,13 +309,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
-public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
+public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, IngestPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
@@ -300,12 +330,47 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public static final Setting<Boolean> ML_ENABLED =
             Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.NodeScope);
+
+    public static final DiscoveryNodeRole ML_ROLE = new DiscoveryNodeRole("ml", "l") {
+
+        @Override
+        protected Setting<Boolean> roleSetting() {
+            return ML_ENABLED;
+        }
+
+    };
+
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        if (this.enabled == false) {
+            return Collections.emptyMap();
+        }
+
+        InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(parameters.client,
+            parameters.ingestService.getClusterService(),
+            this.settings,
+            parameters.ingestService);
+        parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
+        return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
+    }
+
+    @Override
+    public Set<DiscoveryNodeRole> getRoles() {
+        return Collections.singleton(ML_ROLE);
+    }
+
     // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
     private static final String PRE_V7_ML_ENABLED_NODE_ATTR = "ml.enabled";
     public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
+    /**
+     * The amount of memory needed to load the ML native code shared libraries. The assumption is that the first
+     * ML job to run on a given node will do this, and then subsequent ML jobs on the same node will reuse the
+     * same already-loaded code.
+     */
+    public static final ByteSizeValue NATIVE_EXECUTABLE_CODE_OVERHEAD = new ByteSizeValue(30, ByteSizeUnit.MB);
     // Values higher than 100% are allowed to accommodate use cases where swapping has been determined to be acceptable.
     // Anomaly detector jobs only use their full model memory during background persistence, and this is deliberately
     // staggered, so with large numbers of jobs few will generally be persisting state at the same time.
@@ -345,6 +410,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
+    private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
@@ -377,7 +443,11 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
                 MAX_OPEN_JOBS_PER_NODE,
                 MIN_DISK_SPACE_OFF_HEAP,
-                MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION);
+                MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION,
+                InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE,
+                ModelLoadingService.INFERENCE_MODEL_CACHE_TTL
+            );
     }
 
     public Settings additionalSettings() {
@@ -446,7 +516,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             return Collections.singletonList(new JobManagerHolder());
         }
 
-        Auditor auditor = new Auditor(client, clusterService.getNodeName());
+        AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
+        DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService.getNodeName());
+        InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService.getNodeName());
+        this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
@@ -458,7 +531,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             jobResultsProvider,
             jobResultsPersister,
             clusterService,
-            auditor,
+            anomalyDetectionAuditor,
             threadPool,
             client,
             notifier,
@@ -472,7 +545,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         MlController mlController;
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
-        AnalyticsProcessFactory analyticsProcessFactory;
+        AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory;
+        AnalyticsProcessFactory<MemoryUsageEstimationResult> memoryEstimationProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
             try {
                 NativeController nativeController = NativeController.makeNativeController(clusterService.getNodeName(), environment);
@@ -483,7 +557,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     client,
                     clusterService);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController, clusterService);
-                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, nativeController, clusterService);
+                analyticsProcessFactory = new NativeAnalyticsProcessFactory(environment, client, nativeController, clusterService,
+                    xContentRegistry);
+                memoryEstimationProcessFactory =
+                    new NativeMemoryUsageEstimationProcessFactory(environment, nativeController, clusterService);
                 mlController = nativeController;
             } catch (IOException e) {
                 // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
@@ -498,37 +575,53 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         } else {
             mlController = new DummyController();
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
-                    new BlackHoleAutodetectProcess(job.getId());
+                    new BlackHoleAutodetectProcess(job.getId(), onProcessCrash);
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
-            analyticsProcessFactory = (jobId, analyticsProcessConfig, executorService, onProcessCrash) -> null;
+            analyticsProcessFactory = (jobId, analyticsProcessConfig, state, executorService, onProcessCrash) -> null;
+            memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, state, executorService, onProcessCrash) -> null;
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(env, settings, client, threadPool,
-                xContentRegistry, auditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister,
-                autodetectProcessFactory, normalizerFactory, nativeStorageProvider);
+                xContentRegistry, anomalyDetectionAuditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister,
+                jobDataCountsPersister, autodetectProcessFactory, normalizerFactory, nativeStorageProvider);
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder =
             new DatafeedJobBuilder(
                 client,
                 xContentRegistry,
-                auditor,
+                anomalyDetectionAuditor,
                 System::currentTimeMillis,
                 jobConfigProvider,
                 jobResultsProvider,
                 datafeedConfigProvider,
-                jobResultsPersister);
+                jobResultsPersister,
+                settings,
+                clusterService.getNodeName());
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
-                System::currentTimeMillis, auditor, autodetectProcessManager);
+                System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
 
+        // Inference components
+        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, xContentRegistry);
+        final ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
+            inferenceAuditor,
+            threadPool,
+            clusterService,
+            xContentRegistry,
+            settings);
+
         // Data frame analytics components
-        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory);
-        DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client);
+        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,
+            dataFrameAnalyticsAuditor, trainedModelProvider);
+        MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
+            new MemoryUsageEstimationProcessManager(
+                threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
+        DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client, xContentRegistry);
         assert client instanceof NodeClient;
-        DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager((NodeClient) client,
-            dataFrameAnalyticsConfigProvider, analyticsProcessManager);
+        DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(
+            (NodeClient) client, dataFrameAnalyticsConfigProvider, analyticsProcessManager, dataFrameAnalyticsAuditor);
         this.dataFrameAnalyticsManager.set(dataFrameAnalyticsManager);
 
         // Components shared by anomaly detection and data frame analytics
@@ -537,6 +630,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         this.memoryTracker.set(memoryTracker);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(clusterService, datafeedManager, mlController,
             autodetectProcessManager, memoryTracker);
+        MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
+            new MlConfigMigrator(settings, client, clusterService), clusterService);
 
         // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
         final InvalidLicenseEnforcer enforcer =
@@ -556,15 +651,20 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobManager,
                 jobManagerHolder,
                 autodetectProcessManager,
-                new MlInitializationService(settings, threadPool, clusterService, client),
+                new MlInitializationService(settings, threadPool, clusterService, client, mlAssignmentNotifier),
                 jobDataCountsPersister,
                 datafeedManager,
-                auditor,
-                new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
+                anomalyDetectionAuditor,
+                dataFrameAnalyticsAuditor,
+                inferenceAuditor,
+                mlAssignmentNotifier,
                 memoryTracker,
                 analyticsProcessManager,
+                memoryEstimationProcessManager,
                 dataFrameAnalyticsConfigProvider,
-                nativeStorageProvider
+                nativeStorageProvider,
+                modelLoadingService,
+                trainedModelProvider
         );
     }
 
@@ -581,7 +681,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     memoryTracker.get(), client),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get()),
                 new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings, client, clusterService, dataFrameAnalyticsManager.get(),
-                    memoryTracker.get())
+                    dataFrameAnalyticsAuditor.get(), memoryTracker.get())
         );
     }
 
@@ -594,59 +694,63 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             return emptyList();
         }
         return Arrays.asList(
-            new RestGetJobsAction(settings, restController),
-            new RestGetJobStatsAction(settings, restController),
-            new RestMlInfoAction(settings, restController),
-            new RestPutJobAction(settings, restController),
-            new RestPostJobUpdateAction(settings, restController),
-            new RestDeleteJobAction(settings, restController),
-            new RestOpenJobAction(settings, restController),
-            new RestGetFiltersAction(settings, restController),
-            new RestPutFilterAction(settings, restController),
-            new RestUpdateFilterAction(settings, restController),
-            new RestDeleteFilterAction(settings, restController),
-            new RestGetInfluencersAction(settings, restController),
-            new RestGetRecordsAction(settings, restController),
-            new RestGetBucketsAction(settings, restController),
-            new RestGetOverallBucketsAction(settings, restController),
-            new RestPostDataAction(settings, restController),
-            new RestCloseJobAction(settings, restController),
-            new RestFlushJobAction(settings, restController),
-            new RestValidateDetectorAction(settings, restController),
-            new RestValidateJobConfigAction(settings, restController),
-            new RestGetCategoriesAction(settings, restController),
-            new RestGetModelSnapshotsAction(settings, restController),
-            new RestRevertModelSnapshotAction(settings, restController),
-            new RestUpdateModelSnapshotAction(settings, restController),
-            new RestGetDatafeedsAction(settings, restController),
-            new RestGetDatafeedStatsAction(settings, restController),
-            new RestPutDatafeedAction(settings, restController),
-            new RestUpdateDatafeedAction(settings, restController),
-            new RestDeleteDatafeedAction(settings, restController),
-            new RestPreviewDatafeedAction(settings, restController),
-            new RestStartDatafeedAction(settings, restController),
-            new RestStopDatafeedAction(settings, restController),
-            new RestDeleteModelSnapshotAction(settings, restController),
-            new RestDeleteExpiredDataAction(settings, restController),
-            new RestForecastJobAction(settings, restController),
-            new RestDeleteForecastAction(settings, restController),
-            new RestGetCalendarsAction(settings, restController),
-            new RestPutCalendarAction(settings, restController),
-            new RestDeleteCalendarAction(settings, restController),
-            new RestDeleteCalendarEventAction(settings, restController),
-            new RestDeleteCalendarJobAction(settings, restController),
-            new RestPutCalendarJobAction(settings, restController),
-            new RestGetCalendarEventsAction(settings, restController),
-            new RestPostCalendarEventAction(settings, restController),
-            new RestFindFileStructureAction(settings, restController),
-            new RestSetUpgradeModeAction(settings, restController),
-            new RestGetDataFrameAnalyticsAction(settings, restController),
-            new RestGetDataFrameAnalyticsStatsAction(settings, restController),
-            new RestPutDataFrameAnalyticsAction(settings, restController),
-            new RestDeleteDataFrameAnalyticsAction(settings, restController),
-            new RestStartDataFrameAnalyticsAction(settings, restController),
-            new RestStopDataFrameAnalyticsAction(settings, restController),
-            new RestEvaluateDataFrameAction(settings, restController)
+            new RestGetJobsAction(restController),
+            new RestGetJobStatsAction(restController),
+            new RestMlInfoAction(restController),
+            new RestPutJobAction(restController),
+            new RestPostJobUpdateAction(restController),
+            new RestDeleteJobAction(restController),
+            new RestOpenJobAction(restController),
+            new RestGetFiltersAction(restController),
+            new RestPutFilterAction(restController),
+            new RestUpdateFilterAction(restController),
+            new RestDeleteFilterAction(restController),
+            new RestGetInfluencersAction(restController),
+            new RestGetRecordsAction(restController),
+            new RestGetBucketsAction(restController),
+            new RestGetOverallBucketsAction(restController),
+            new RestPostDataAction(restController),
+            new RestCloseJobAction(restController),
+            new RestFlushJobAction(restController),
+            new RestValidateDetectorAction(restController),
+            new RestValidateJobConfigAction(restController),
+            new RestGetCategoriesAction(restController),
+            new RestGetModelSnapshotsAction(restController),
+            new RestRevertModelSnapshotAction(restController),
+            new RestUpdateModelSnapshotAction(restController),
+            new RestGetDatafeedsAction(restController),
+            new RestGetDatafeedStatsAction(restController),
+            new RestPutDatafeedAction(restController),
+            new RestUpdateDatafeedAction(restController),
+            new RestDeleteDatafeedAction(restController),
+            new RestPreviewDatafeedAction(restController),
+            new RestStartDatafeedAction(restController),
+            new RestStopDatafeedAction(restController),
+            new RestDeleteModelSnapshotAction(restController),
+            new RestDeleteExpiredDataAction(restController),
+            new RestForecastJobAction(restController),
+            new RestDeleteForecastAction(restController),
+            new RestGetCalendarsAction(restController),
+            new RestPutCalendarAction(restController),
+            new RestDeleteCalendarAction(restController),
+            new RestDeleteCalendarEventAction(restController),
+            new RestDeleteCalendarJobAction(restController),
+            new RestPutCalendarJobAction(restController),
+            new RestGetCalendarEventsAction(restController),
+            new RestPostCalendarEventAction(restController),
+            new RestFindFileStructureAction(restController),
+            new RestSetUpgradeModeAction(restController),
+            new RestGetDataFrameAnalyticsAction(restController),
+            new RestGetDataFrameAnalyticsStatsAction(restController),
+            new RestPutDataFrameAnalyticsAction(restController),
+            new RestDeleteDataFrameAnalyticsAction(restController),
+            new RestStartDataFrameAnalyticsAction(restController),
+            new RestStopDataFrameAnalyticsAction(restController),
+            new RestEvaluateDataFrameAction(restController),
+            new RestExplainDataFrameAnalyticsAction(restController),
+            new RestGetTrainedModelsAction(restController),
+            new RestDeleteTrainedModelAction(restController),
+            new RestGetTrainedModelsStatsAction(restController)
         );
     }
 
@@ -717,6 +821,11 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(StartDataFrameAnalyticsAction.INSTANCE, TransportStartDataFrameAnalyticsAction.class),
                 new ActionHandler<>(StopDataFrameAnalyticsAction.INSTANCE, TransportStopDataFrameAnalyticsAction.class),
                 new ActionHandler<>(EvaluateDataFrameAction.INSTANCE, TransportEvaluateDataFrameAction.class),
+                new ActionHandler<>(ExplainDataFrameAnalyticsAction.INSTANCE, TransportExplainDataFrameAnalyticsAction.class),
+                new ActionHandler<>(InternalInferModelAction.INSTANCE, TransportInternalInferModelAction.class),
+                new ActionHandler<>(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class),
+                new ActionHandler<>(DeleteTrainedModelAction.INSTANCE, TransportDeleteTrainedModelAction.class),
+                new ActionHandler<>(GetTrainedModelsStatsAction.INSTANCE, TransportGetTrainedModelsStatsAction.class),
                 usageAction,
                 infoAction);
     }
@@ -763,7 +872,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
-                IndexTemplateMetaData notificationMessageTemplate = IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
+                IndexTemplateMetaData notificationMessageTemplate =
+                    IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(auditMapping))
                         .patterns(Collections.singletonList(AuditorField.NOTIFICATIONS_INDEX))
                         .version(Version.CURRENT.id)
@@ -780,7 +890,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder docMapping = MlMetaIndex.docMapping()) {
-                IndexTemplateMetaData metaTemplate = IndexTemplateMetaData.builder(MlMetaIndex.INDEX_NAME)
+                IndexTemplateMetaData metaTemplate =
+                    IndexTemplateMetaData.builder(MlMetaIndex.INDEX_NAME)
                         .patterns(Collections.singletonList(MlMetaIndex.INDEX_NAME))
                         .settings(Settings.builder()
                                 // Our indexes are small and one shard puts the
@@ -797,7 +908,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder configMapping = ElasticsearchMappings.configMapping()) {
-                IndexTemplateMetaData configTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.configIndexName())
+                IndexTemplateMetaData configTemplate =
+                    IndexTemplateMetaData.builder(AnomalyDetectorsIndex.configIndexName())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.configIndexName()))
                         .settings(Settings.builder()
                                 // Our indexes are small and one shard puts the
@@ -816,7 +928,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder stateMapping = ElasticsearchMappings.stateMapping()) {
-                IndexTemplateMetaData stateTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
+                IndexTemplateMetaData stateTemplate =
+                    IndexTemplateMetaData.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexPattern()))
                         // TODO review these settings
                         .settings(Settings.builder()
@@ -831,8 +944,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 logger.error("Error loading the template for the " + AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + " index", e);
             }
 
-            try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping(SINGLE_MAPPING_NAME)) {
-                IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
+            try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping()) {
+                IndexTemplateMetaData jobResultsTemplate =
+                    IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -851,14 +965,25 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 logger.error("Error loading the template for the " + AnomalyDetectorsIndex.jobResultsIndexPrefix() + " indices", e);
             }
 
+            try {
+                templates.put(InferenceIndexConstants.LATEST_INDEX_NAME, InferenceInternalIndex.getIndexTemplateMetaData());
+            } catch (IOException e) {
+                logger.error("Error loading the template for the " + InferenceIndexConstants.LATEST_INDEX_NAME + " index", e);
+            }
+
             return templates;
         };
     }
 
     public static boolean allTemplatesInstalled(ClusterState clusterState) {
         boolean allPresent = true;
-        List<String> templateNames = Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
-                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
+        List<String> templateNames =
+            Arrays.asList(
+                AuditorField.NOTIFICATIONS_INDEX,
+                MlMetaIndex.INDEX_NAME,
+                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+                AnomalyDetectorsIndex.jobResultsIndexPrefix(),
+                InferenceIndexConstants.LATEST_INDEX_NAME);
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }
@@ -892,6 +1017,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         return namedXContent;
     }
+
 }

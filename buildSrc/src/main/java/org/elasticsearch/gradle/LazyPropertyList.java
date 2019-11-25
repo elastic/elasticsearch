@@ -1,7 +1,6 @@
 package org.elasticsearch.gradle;
 
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Nested;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -171,8 +170,7 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
     }
 
     @Override
-    @Nested
-    List<? extends Object> getNormalizedCollection() {
+    public List<? extends Object> getNormalizedCollection() {
         return delegate.stream()
             .peek(this::validate)
             .filter(entry -> entry.getNormalization() != PropertyNormalization.IGNORE_VALUE)

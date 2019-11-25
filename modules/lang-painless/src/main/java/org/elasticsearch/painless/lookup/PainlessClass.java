@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.lookup;
 
 import java.lang.invoke.MethodHandle;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -44,16 +43,16 @@ public final class PainlessClass {
             Map<String, PainlessMethod> runtimeMethods,
             Map<String, MethodHandle> getterMethodHandles, Map<String, MethodHandle> setterMethodHandles) {
 
-        this.constructors = Collections.unmodifiableMap(constructors);
-        this.staticMethods = Collections.unmodifiableMap(staticMethods);
-        this.methods = Collections.unmodifiableMap(methods);
-        this.staticFields = Collections.unmodifiableMap(staticFields);
-        this.fields = Collections.unmodifiableMap(fields);
+        this.constructors = Map.copyOf(constructors);
+        this.staticMethods = Map.copyOf(staticMethods);
+        this.methods = Map.copyOf(methods);
+        this.staticFields = Map.copyOf(staticFields);
+        this.fields = Map.copyOf(fields);
         this.functionalInterfaceMethod = functionalInterfaceMethod;
 
-        this.getterMethodHandles = Collections.unmodifiableMap(getterMethodHandles);
-        this.setterMethodHandles = Collections.unmodifiableMap(setterMethodHandles);
-        this.runtimeMethods = Collections.unmodifiableMap(runtimeMethods);
+        this.getterMethodHandles = Map.copyOf(getterMethodHandles);
+        this.setterMethodHandles = Map.copyOf(setterMethodHandles);
+        this.runtimeMethods = Map.copyOf(runtimeMethods);
     }
 
     @Override

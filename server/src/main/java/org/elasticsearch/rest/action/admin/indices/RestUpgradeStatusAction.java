@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -35,8 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestUpgradeStatusAction extends BaseRestHandler {
 
-    public RestUpgradeStatusAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestUpgradeStatusAction(RestController controller) {
         controller.registerHandler(GET, "/_upgrade", this);
         controller.registerHandler(GET, "/{index}/_upgrade", this);
     }

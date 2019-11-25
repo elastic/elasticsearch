@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.CommitStats;
@@ -60,8 +59,8 @@ import java.util.function.Function;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends AbstractCatAction {
-    public RestShardsAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestShardsAction(RestController controller) {
         controller.registerHandler(GET, "/_cat/shards", this);
         controller.registerHandler(GET, "/_cat/shards/{index}", this);
     }

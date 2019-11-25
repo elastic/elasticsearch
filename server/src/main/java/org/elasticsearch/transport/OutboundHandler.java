@@ -51,16 +51,13 @@ final class OutboundHandler {
     private final Version version;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
-    private final TransportLogger transportLogger;
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, ThreadPool threadPool, BigArrays bigArrays,
-                    TransportLogger transportLogger) {
+    OutboundHandler(String nodeName, Version version, ThreadPool threadPool, BigArrays bigArrays) {
         this.nodeName = nodeName;
         this.version = version;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
-        this.transportLogger = transportLogger;
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
@@ -197,7 +194,7 @@ final class OutboundHandler {
             try {
                 message = messageSupplier.get();
                 messageSize = message.length();
-                transportLogger.logOutboundMessage(channel, message);
+                TransportLogger.logOutboundMessage(channel, message);
                 return message;
             } catch (Exception e) {
                 onFailure(e);

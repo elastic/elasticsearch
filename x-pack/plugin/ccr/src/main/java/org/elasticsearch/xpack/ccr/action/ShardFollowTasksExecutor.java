@@ -44,7 +44,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
-import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -143,14 +143,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                 CcrRequests.getIndexMetadata(remoteClient, leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
                     indexMetaData -> {
-                        if (indexMetaData.getMappings().isEmpty()) {
+                        if (indexMetaData.mapping() == null) {
                             assert indexMetaData.getMappingVersion() == 1;
                             handler.accept(indexMetaData.getMappingVersion());
                             return;
                         }
-                        assert indexMetaData.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
-                            indexMetaData.getMappings().size() + "]";
-                        MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
+                        MappingMetaData mappingMetaData = indexMetaData.mapping();
                         PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
                         followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
                             putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),
@@ -439,7 +437,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                      * going on. Log it, and renew again after another renew interval has passed.
                                                      */
                                                     final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
-                                                    assert innerCause instanceof RetentionLeaseAlreadyExistsException == false;
                                                     logRetentionLeaseFailure(retentionLeaseId, innerCause);
                                                 }));
                             } else {
@@ -471,11 +468,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             private void logRetentionLeaseFailure(final String retentionLeaseId, final Throwable cause) {
                 assert cause instanceof ElasticsearchSecurityException == false : cause;
-                logger.warn(new ParameterizedMessage(
-                                "{} background management of retention lease [{}] failed while following",
-                                params.getFollowShardId(),
-                                retentionLeaseId),
+                if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
+                    logger.warn(new ParameterizedMessage(
+                            "{} background management of retention lease [{}] failed while following",
+                            params.getFollowShardId(),
+                            retentionLeaseId),
                         cause);
+                }
             }
 
         };
@@ -510,7 +509,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 return;
             }
 
-            if (ShardFollowNodeTask.shouldRetry(params.getRemoteCluster(), e)) {
+            if (ShardFollowNodeTask.shouldRetry(e)) {
                 logger.debug(new ParameterizedMessage("failed to fetch follow shard global {} checkpoint and max sequence number",
                     shardFollowNodeTask), e);
                 threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);

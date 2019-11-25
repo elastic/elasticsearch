@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -179,10 +179,10 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         final BulkByScrollResponse response = highLevelClient().reindex(reindexRequest, RequestOptions.DEFAULT);
 
         assertThat(response.getVersionConflicts(), equalTo(2L));
-        assertThat(response.getBulkFailures(), empty());
-        assertThat(response.getSearchFailures(), hasSize(2));
+        assertThat(response.getSearchFailures(), empty());
+        assertThat(response.getBulkFailures(), hasSize(2));
         assertThat(
-            response.getSearchFailures().stream().map(ScrollableHitSource.SearchFailure::toString).collect(Collectors.toSet()),
+            response.getBulkFailures().stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.toSet()),
             everyItem(containsString("version conflict"))
         );
 
@@ -292,7 +292,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
             assertEquals(Float.toString(requestsPerSecond),
                 ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
-            taskFinished.await(2, TimeUnit.SECONDS);
+            assertTrue(taskFinished.await(10, TimeUnit.SECONDS));
 
             // any rethrottling after the update-by-query is done performed with the same taskId should result in a failure
             response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
@@ -328,10 +328,10 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         final BulkByScrollResponse response = highLevelClient().updateByQuery(updateByQueryRequest, RequestOptions.DEFAULT);
 
         assertThat(response.getVersionConflicts(), equalTo(1L));
-        assertThat(response.getBulkFailures(), empty());
-        assertThat(response.getSearchFailures(), hasSize(1));
+        assertThat(response.getSearchFailures(), empty());
+        assertThat(response.getBulkFailures(), hasSize(1));
         assertThat(
-            response.getSearchFailures().stream().map(ScrollableHitSource.SearchFailure::toString).collect(Collectors.toSet()),
+            response.getBulkFailures().stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.toSet()),
             everyItem(containsString("version conflict"))
         );
 
@@ -423,7 +423,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
             assertEquals(Float.toString(requestsPerSecond),
                 ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
-            taskFinished.await(2, TimeUnit.SECONDS);
+            assertTrue(taskFinished.await(10, TimeUnit.SECONDS));
 
             // any rethrottling after the delete-by-query is done performed with the same taskId should result in a failure
             response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
@@ -433,6 +433,47 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertEquals(1, response.getNodeFailures().size());
             assertEquals("Elasticsearch exception [type=resource_not_found_exception, reason=task [" + taskIdToRethrottle + "] is missing]",
                 response.getNodeFailures().get(0).getCause().getMessage());
+        }
+    }
+
+    public void testDeleteByQueryTask() throws Exception {
+        final String sourceIndex = "source456";
+        {
+            // Prepare
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            createIndex(sourceIndex, settings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex).id("1")
+                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex).id("2")
+                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex).id("3")
+                            .source(Collections.singletonMap("foo", 3), XContentType.JSON))
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // tag::submit-delete_by_query-task
+            DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
+            deleteByQueryRequest.indices(sourceIndex);
+            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
+            deleteByQueryRequest.setRefresh(true);
+
+            TaskSubmissionResponse deleteByQuerySubmission = highLevelClient()
+                .submitDeleteByQueryTask(deleteByQueryRequest, RequestOptions.DEFAULT);
+
+            String taskId = deleteByQuerySubmission.getTask();
+            // end::submit-delete_by_query-task
+
+            assertBusy(checkCompletionStatus(client(), taskId));
         }
     }
 

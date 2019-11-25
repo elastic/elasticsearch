@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -39,26 +40,39 @@ class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
     private final int numberOfSignificantValueDigits;
     private final boolean keyed;
 
-    HDRPercentilesAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double[] percents,
-            int numberOfSignificantValueDigits, boolean keyed, SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    HDRPercentilesAggregatorFactory(String name,
+                                        ValuesSourceConfig<Numeric> config,
+                                        double[] percents,
+                                        int numberOfSignificantValueDigits,
+                                        boolean keyed,
+                                        QueryShardContext queryShardContext,
+                                        AggregatorFactory parent,
+                                        AggregatorFactories.Builder subFactoriesBuilder,
+                                        Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.percents = percents;
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
         this.keyed = keyed;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData)
             throws IOException {
-        return new HDRPercentilesAggregator(name, null, context, parent, percents, numberOfSignificantValueDigits, keyed,
+        return new HDRPercentilesAggregator(name, null, searchContext, parent, percents, numberOfSignificantValueDigits, keyed,
                 config.format(), pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new HDRPercentilesAggregator(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed,
+    protected Aggregator doCreateInternal(Numeric valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new HDRPercentilesAggregator(name, valuesSource, searchContext, parent, percents, numberOfSignificantValueDigits, keyed,
                 config.format(), pipelineAggregators, metaData);
     }
 

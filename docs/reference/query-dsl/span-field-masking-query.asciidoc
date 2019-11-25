@@ -12,7 +12,7 @@ Span field masking query is invaluable in conjunction with *multi-fields* when s
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -41,6 +41,5 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Note: as span field masking query returns the masked field, scoring will be done using the norms of the field name supplied. This may lead to unexpected scoring behaviour.

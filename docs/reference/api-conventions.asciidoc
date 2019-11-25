@@ -21,33 +21,11 @@ ability to "exclude" (`-`), for example: `test*,-test3`.
 
 All multi index APIs support the following url query string parameters:
 
-[horizontal]
-`ignore_unavailable`::
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-Controls whether to ignore if any specified indices are unavailable, 
-including indices that don't exist or closed indices. Either `true` or `false`
-can be specified.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
-`allow_no_indices`::
-
-Controls whether to fail if a wildcard indices expression results in no
-concrete indices. Either `true` or `false` can be specified. For example if
-the wildcard expression `foo*` is specified and no indices are available that
-start with `foo`, then depending on this setting the request will fail. This
-setting is also applicable when `_all`, `*`, or no index has been specified. This
-settings also applies for aliases, in case an alias points to a closed index.
-
-`expand_wildcards`::
-
-Controls what kind of concrete indices that wildcard indices expressions can expand
-to. If `open` is specified then the wildcard expression is expanded to only
-open indices. If `closed` is specified then the wildcard expression is
-expanded only to closed indices. Also both values (`open,closed`) can be
-specified to expand to all indices.
-+
-If `none` is specified then wildcard expansion will be disabled. If `all`
-is specified, wildcard expressions will expand to all indices (this is equivalent
-to specifying `open,closed`).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 The defaults settings for the above parameters depend on the API being used.
 
@@ -92,7 +70,7 @@ calendars than the Gregorian calendar.
 You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------
 # GET /<logstash-{now/d}>/_search
 GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
@@ -104,7 +82,6 @@ GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
   }
 }
 ----------------------------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT logstash-2016.09.20\n/]
 // TEST[s/now/2016.09.20||/]
 
@@ -147,7 +124,7 @@ The following example shows a search request that searches the Logstash indices 
 three days, assuming the indices use the default Logstash index name format,
 `logstash-YYYY.MM.dd`.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------
 # GET /<logstash-{now/d-2d}>,<logstash-{now/d-1d}>,<logstash-{now/d}>/_search
 GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogstash-%7Bnow%2Fd%7D%3E/_search
@@ -159,7 +136,6 @@ GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogs
   }
 }
 ----------------------------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
 // TEST[s/now/2016.09.20||/]
 
@@ -235,16 +211,15 @@ All REST APIs accept a `filter_path` parameter that can be used to reduce
 the response returned by Elasticsearch. This parameter takes a comma
 separated list of filters expressed with the dot notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 3,
@@ -264,16 +239,15 @@ Responds:
 It also supports the `*` wildcard character to match any field or part
 of a field's name:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.stat*
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n/]
 
 Responds:
 
-[source,sh]
+[source,console-result]
 --------------------------------------------------
 {
   "metadata" : {
@@ -283,22 +257,20 @@ Responds:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 And the `**` wildcard can be used to include fields without knowing the
 exact path of the field. For example, we can return the Lucene version
 of every segment with this request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state?filter_path=routing_table.indices.**.state
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n/]
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "routing_table": {
@@ -312,41 +284,37 @@ Responds:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 It is also possible to exclude one or more fields by prefixing the filter with the char `-`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_count?filter_path=-_shards
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "count" : 5
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 And for more control, both inclusive and exclusive filters can be combined in the same expression. In
 this case, the exclusive filters will be applied first and the result will be filtered again using the
 inclusive filters:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logstash-*
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT index-1\nPUT index-2\nPUT index-3\nPUT logstash-2016.01\n/]
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "metadata" : {
@@ -358,7 +326,6 @@ Responds:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Note that Elasticsearch sometimes returns directly the raw value of a field,
 like the `_source` field. If you want to filter `_source` fields, you should
@@ -366,19 +333,18 @@ consider combining the already existing `_source` parameter (see
 <<get-source-filtering,Get API>> for more details) with the `filter_path`
 parameter like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-POST /library/book?refresh
+POST /library/_doc?refresh
 {"title": "Book #1", "rating": 200.1}
-POST /library/book?refresh
+POST /library/_doc?refresh
 {"title": "Book #2", "rating": 1.7}
-POST /library/book?refresh
+POST /library/_doc?refresh
 {"title": "Book #3", "rating": 0.1}
 GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "hits" : {
@@ -392,7 +358,6 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 [float]
@@ -401,16 +366,15 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
 The `flat_settings` flag affects rendering of the lists of settings. When the 
 `flat_settings` flag is `true`, settings are returned in a flat format:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_settings?flat_settings=true
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "twitter" : {
@@ -432,16 +396,15 @@ Returns:
 When the `flat_settings` flag is `false`, settings are returned in a more
 human readable structured format:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_settings?flat_settings=false
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "twitter" : {
@@ -597,17 +560,16 @@ stack trace of the error. You can enable that behavior by setting the
 `error_trace` url parameter to `true`. For example, by default when you send an
 invalid `size` parameter to the `_search` API:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------
 POST /twitter/_search?size=surprise_me
 ----------------------------------------------------------------------
-// CONSOLE
 // TEST[s/surprise_me/surprise_me&error_trace=false/ catch:bad_request]
 // Since the test system sends error_trace=true by default we have to override
 
 The response looks like:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------------
 {
   "error" : {
@@ -627,20 +589,18 @@ The response looks like:
   "status" : 400
 }
 ----------------------------------------------------------------------
-// TESTRESPONSE
 
 But if you set `error_trace=true`:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------
 POST /twitter/_search?size=surprise_me&error_trace=true
 ----------------------------------------------------------------------
-// CONSOLE
 // TEST[catch:bad_request]
 
 The response looks like:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------------
 {
   "error": {

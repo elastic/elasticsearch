@@ -271,11 +271,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        OrdBucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public Number getKeyAsNumber() {
             throw new UnsupportedOperationException();
         }

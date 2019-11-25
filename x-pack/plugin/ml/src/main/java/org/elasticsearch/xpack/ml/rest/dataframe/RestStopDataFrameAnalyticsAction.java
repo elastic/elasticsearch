@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.dataframe;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import java.io.IOException;
 
 public class RestStopDataFrameAnalyticsAction extends BaseRestHandler {
 
-    public RestStopDataFrameAnalyticsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestStopDataFrameAnalyticsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "data_frame/analytics/{"
             + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stop", this);
     }

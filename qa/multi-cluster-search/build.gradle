@@ -39,8 +39,8 @@ testClusters.'remote-cluster' {
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
-  useCluster testClusters.'remote-cluster'
   runner {
+    useCluster testClusters.'remote-cluster'
     dependsOn 'remote-cluster'
     systemProperty 'tests.rest.suite', 'multi_cluster'
   }
@@ -48,7 +48,7 @@ task mixedClusterTest(type: RestIntegTestTask) {
 
 testClusters.mixedClusterTest {
   setting 'cluster.remote.my_remote_cluster.seeds',
-          { "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\"" }
+    { "\"${testClusters.'remote-cluster'.getAllTransportPortURI().get(0)}\"" }
   setting 'cluster.remote.connections_per_cluster', '1'
   setting 'cluster.remote.connect', 'true'
 }

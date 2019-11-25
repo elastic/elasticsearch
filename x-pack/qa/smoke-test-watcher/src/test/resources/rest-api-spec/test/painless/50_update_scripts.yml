@@ -3,8 +3,7 @@
 ---
 "Test transform scripts are updated on execution":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/43975"
+      features: warnings
 
   - do:
       cluster.health:

@@ -43,6 +43,27 @@ public class DataLoader {
         loadEmpDatasetIntoEs(client);
     }
 
+    public static void createEmptyIndex(RestClient client, String index) throws Exception {
+        Request request = new Request("PUT", "/" + index);
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client.performRequest(request);
+    }
+
     protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "test_emp", "employees");
         loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");

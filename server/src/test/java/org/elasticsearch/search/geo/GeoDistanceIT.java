@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -114,7 +114,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testDistanceScript() throws Exception {
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject()
                         .field("name", "TestPosition")
                         .startObject("location")
@@ -169,7 +169,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testGeoDistanceAggregation() throws IOException {
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject()
                 .field("name", "TestPosition")
                 .startObject("location")

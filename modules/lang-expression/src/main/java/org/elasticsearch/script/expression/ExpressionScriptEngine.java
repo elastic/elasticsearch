@@ -282,7 +282,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
             return new FilterScript(vars, lookup, ctx) {
                 @Override
                 public boolean execute() {
-                    return script.execute() != 0.0;
+                    return script.execute(null) != 0.0;
                 }
                 @Override
                 public void setDocument(int docid) {

@@ -36,24 +36,24 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import java.util.HashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
@@ -86,33 +86,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(index.getCreationDate(), allOf(lessThanOrEqualTo(timeAfterRequest), greaterThanOrEqualTo(timeBeforeRequest)));
     }
 
-    public void testDoubleAddMapping() throws Exception {
-        try {
-            prepareCreate("test")
-                    .addMapping("type1", "date", "type=date")
-                    .addMapping("type1", "num", "type=integer");
-            fail("did not hit expected exception");
-        } catch (IllegalStateException ise) {
-            // expected
-        }
-        try {
-            prepareCreate("test")
-                    .addMapping("type1", new HashMap<String,Object>())
-                    .addMapping("type1", new HashMap<String,Object>());
-            fail("did not hit expected exception");
-        } catch (IllegalStateException ise) {
-            // expected
-        }
-        try {
-            prepareCreate("test")
-                    .addMapping("type1", jsonBuilder())
-                    .addMapping("type1", jsonBuilder());
-            fail("did not hit expected exception");
-        } catch (IllegalStateException ise) {
-            // expected
-        }
-    }
-
     public void testNonNestedMappings() throws Exception {
         assertAcked(prepareCreate("test")
             .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
@@ -125,12 +98,9 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        MappingMetaData mappings = response.mappings().get("test");
         assertNotNull(mappings);
-
-        MappingMetaData metadata = mappings.get("_doc");
-        assertNotNull(metadata);
-        assertFalse(metadata.sourceAsMap().isEmpty());
+        assertFalse(mappings.sourceAsMap().isEmpty());
     }
 
     public void testEmptyNestedMappings() throws Exception {
@@ -139,12 +109,17 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        MappingMetaData mappings = response.mappings().get("test");
         assertNotNull(mappings);
+        assertTrue(mappings.sourceAsMap().isEmpty());
+    }
 
-        MappingMetaData metadata = mappings.get("_doc");
-        assertNotNull(metadata);
-        assertTrue(metadata.sourceAsMap().isEmpty());
+    public void testMappingParamAndNestedMismatch() throws Exception {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> prepareCreate("test")
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject()
+                        .startObject("type2").endObject()
+                    .endObject()).get());
+        assertThat(e.getMessage(), startsWith("Failed to parse mapping: Root mapping definition has unsupported parameters"));
     }
 
     public void testEmptyMappings() throws Exception {
@@ -155,12 +130,9 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        MappingMetaData mappings = response.mappings().get("test");
         assertNotNull(mappings);
-
-        MappingMetaData metadata = mappings.get("_doc");
-        assertNotNull(metadata);
-        assertTrue(metadata.sourceAsMap().isEmpty());
+        assertTrue(mappings.sourceAsMap().isEmpty());
     }
 
     public void testInvalidShardCountSettings() throws Exception {
@@ -245,7 +217,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
+            client().prepareIndex("test").setSource("index_version", indexVersion.get()).get();
         }
         synchronized (indexVersionLock) { // not necessarily needed here but for completeness we lock here too
             indexVersion.incrementAndGet();
@@ -258,7 +230,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                     public void run() {
                          try {
                              // recreate that index
-                             client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
+                             client().prepareIndex("test").setSource("index_version", indexVersion.get()).get();
                              synchronized (indexVersionLock) {
                                  // we sync here since we have to ensure that all indexing operations below for a given ID are done before
                                  // we increment the index version otherwise a doc that is in-flight could make it into an index that it
@@ -285,7 +257,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 synchronized (indexVersionLock) {
-                    client().prepareIndex("test", "test").setSource("index_version", indexVersion.get())
+                    client().prepareIndex("test").setSource("index_version", indexVersion.get())
                         .setTimeout(TimeValue.timeValueSeconds(10)).get();
                 }
             } catch (IndexNotFoundException inf) {

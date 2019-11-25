@@ -279,9 +279,9 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new RestXPackInfoAction(settings, restController));
-        handlers.add(new RestXPackUsageAction(settings, restController));
-        handlers.add(new RestReloadAnalyzersAction(settings, restController));
+        handlers.add(new RestXPackInfoAction(restController));
+        handlers.add(new RestXPackUsageAction(restController));
+        handlers.add(new RestReloadAnalyzersAction(restController));
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;

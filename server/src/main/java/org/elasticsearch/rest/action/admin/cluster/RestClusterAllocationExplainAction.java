@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,8 +39,8 @@ import java.io.IOException;
  * Class handling cluster allocation explanation at the REST level
  */
 public class RestClusterAllocationExplainAction extends BaseRestHandler {
-    public RestClusterAllocationExplainAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestClusterAllocationExplainAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/allocation/explain", this);
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/allocation/explain", this);
     }

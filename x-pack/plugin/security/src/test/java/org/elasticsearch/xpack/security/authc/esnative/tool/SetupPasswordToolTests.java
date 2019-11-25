@@ -12,19 +12,15 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -350,7 +346,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.OK, e.exitCode);
-            assertThat(terminal.getOutput(), Matchers.containsString("Your cluster health is currently RED."));
+            assertThat(terminal.getErrorOutput(), Matchers.containsString("Your cluster health is currently RED."));
         }
     }
 
@@ -441,21 +437,6 @@ public class SetupPasswordToolTests extends CommandTestCase {
                     passwordCaptor.capture(), any(CheckedFunction.class));
             assertThat(passwordCaptor.getValue().get(), CoreMatchers.containsString(user + "-password"));
         }
-    }
-
-    private String parsePassword(String value) throws IOException {
-        try (XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, value)) {
-            XContentParser.Token token = parser.nextToken();
-            if (token == XContentParser.Token.START_OBJECT) {
-                if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                    if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-                        return parser.text();
-                    }
-                }
-            }
-        }
-        throw new RuntimeException("Did not properly parse password.");
     }
 
     private URL authenticateUrl(URL url) throws MalformedURLException, URISyntaxException {

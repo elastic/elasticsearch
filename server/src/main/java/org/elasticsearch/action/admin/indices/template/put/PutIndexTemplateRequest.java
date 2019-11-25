@@ -35,20 +35,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -59,14 +55,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContentObject {
+public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PutIndexTemplateRequest.class));
 
@@ -270,12 +266,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest mapping(String type, BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        try {
-            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert source to json", e);
-        }
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+        return mapping(type, mappingAsMap);
     }
 
     /**
@@ -290,9 +282,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
         }
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return mapping(type, builder);
+            mappings.put(type, Strings.toString(builder));
+            return this;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -343,7 +336,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                     List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
                     patterns(elements);
                 } else {
-                    throw new IllegalArgumentException("Malformed [template] value, should be a string or a list of strings");
+                    throw new IllegalArgumentException("Malformed [index_patterns] value, should be a string or a list of strings");
                 }
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
@@ -493,39 +486,5 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.writeTo(out);
         }
         out.writeOptionalVInt(version);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.field("index_patterns", indexPatterns);
-            builder.field("order", order);
-            if (version != null) {
-                builder.field("version", version);
-            }
-
-            builder.startObject("settings");
-            settings.toXContent(builder, params);
-            builder.endObject();
-
-            builder.startObject("mappings");
-            for (Map.Entry<String, String> entry : mappings.entrySet()) {
-                builder.field(entry.getKey());
-                try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue())) {
-                    builder.copyCurrentStructure(parser);
-                }
-            }
-            builder.endObject();
-
-            builder.startObject("aliases");
-            for (Alias alias : aliases) {
-                alias.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
     }
 }

@@ -33,10 +33,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedSupplier;
@@ -152,8 +153,7 @@ public class RecoverySourceHandler {
                 IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
             };
 
-            final boolean useRetentionLeases = shard.indexSettings().isSoftDeleteEnabled()
-                && shard.indexSettings().getIndexMetaData().getState() != IndexMetaData.State.CLOSE;
+            final boolean softDeletesEnabled = shard.indexSettings().isSoftDeleteEnabled();
             final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
 
             runUnderPrimaryPermit(() -> {
@@ -165,7 +165,7 @@ public class RecoverySourceHandler {
                     throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
                 }
                 assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
-                retentionLeaseRef.set(useRetentionLeases ? shard.getRetentionLeases().get(
+                retentionLeaseRef.set(softDeletesEnabled ? shard.getRetentionLeases().get(
                     ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting)) : null);
             }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ",
                 shard, cancellableThreads, logger);
@@ -176,7 +176,7 @@ public class RecoverySourceHandler {
                 = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                 && isTargetSameHistory()
                 && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo())
-                && (useRetentionLeases == false
+                && (softDeletesEnabled == false
                 || (retentionLeaseRef.get() != null && retentionLeaseRef.get().retainingSequenceNumber() <= request.startingSeqNo()));
             // NB check hasCompleteHistoryOperations when computing isSequenceNumberBasedRecovery, even if there is a retention lease,
             // because when doing a rolling upgrade from earlier than 7.4 we may create some leases that are initially unsatisfied. It's
@@ -184,7 +184,7 @@ public class RecoverySourceHandler {
             // Also it's pretty cheap when soft deletes are enabled, and it'd be a disaster if we tried a sequence-number-based recovery
             // without having a complete history.
 
-            if (isSequenceNumberBasedRecovery && useRetentionLeases) {
+            if (isSequenceNumberBasedRecovery && softDeletesEnabled) {
                 // all the history we need is retained by an existing retention lease, so we do not need a separate retention lock
                 retentionLock.close();
                 logger.trace("history is retained by {}", retentionLeaseRef.get());
@@ -223,15 +223,14 @@ public class RecoverySourceHandler {
                 // advances and not when creating a new safe commit. In any case this is a best-effort thing since future recoveries can
                 // always fall back to file-based ones, and only really presents a problem if this primary fails before things have settled
                 // down.
-                startingSeqNo = useRetentionLeases
+                startingSeqNo = softDeletesEnabled
                     ? Long.parseLong(safeCommitRef.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L
                     : 0;
                 logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
 
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
-                    shard.store().incRef();
-                    final Releasable releaseStore = Releasables.releaseOnce(shard.store()::decRef);
+                    final Releasable releaseStore = acquireStore(shard.store());
                     resources.add(releaseStore);
                     sendFileStep.whenComplete(r -> IOUtils.close(safeCommitRef, releaseStore), e -> {
                         try {
@@ -242,7 +241,7 @@ public class RecoverySourceHandler {
                     });
 
                     final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
-                    if (useRetentionLeases) {
+                    if (softDeletesEnabled) {
                         runUnderPrimaryPermit(() -> {
                                 try {
                                     // If the target previously had a copy of this shard then a file-based recovery might move its global
@@ -265,7 +264,7 @@ public class RecoverySourceHandler {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
 
                         final Consumer<ActionListener<RetentionLease>> createRetentionLeaseAsync;
-                        if (useRetentionLeases) {
+                        if (softDeletesEnabled) {
                             createRetentionLeaseAsync = l -> createRetentionLease(startingSeqNo, l);
                         } else {
                             createRetentionLeaseAsync = l -> l.onResponse(null);
@@ -303,7 +302,7 @@ public class RecoverySourceHandler {
                 final Translog.Snapshot phase2Snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo);
                 resources.add(phase2Snapshot);
 
-                if (useRetentionLeases == false || isSequenceNumberBasedRecovery == false) {
+                if (softDeletesEnabled == false || isSequenceNumberBasedRecovery == false) {
                     // we can release the retention lock here because the snapshot itself will retain the required operations.
                     retentionLock.close();
                 }
@@ -390,6 +389,23 @@ public class RecoverySourceHandler {
                     }
                 });
             }
+        });
+    }
+
+    /**
+     * Increases the store reference and returns a {@link Releasable} that will decrease the store reference using the generic thread pool.
+     * We must never release the store using an interruptible thread as we can risk invalidating the node lock.
+     */
+    private Releasable acquireStore(Store store) {
+        store.incRef();
+        return Releasables.releaseOnce(() -> {
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            assert threadPool.generic().isShutdown() == false;
+            // TODO: We shouldn't use the generic thread pool here as we already execute this from the generic pool.
+            //       While practically unlikely at a min pool size of 128 we could technically block the whole pool by waiting on futures
+            //       below and thus make it impossible for the store release to execute which in turn would block the futures forever
+            threadPool.generic().execute(ActionRunnable.run(future, store::decRef));
+            FutureUtils.get(future);
         });
     }
 
@@ -496,9 +512,9 @@ public class RecoverySourceHandler {
                 final StepListener<Void> sendFilesStep = new StepListener<>();
                 final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
                 final StepListener<Void> cleanFilesStep = new StepListener<>();
-                cancellableThreads.execute(() ->
-                    recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
-                        phase1ExistingFileSizes, translogOps.getAsInt(), sendFileInfoStep));
+                cancellableThreads.checkForCancel();
+                recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
+                        phase1ExistingFileSizes, translogOps.getAsInt(), sendFileInfoStep);
 
                 sendFileInfoStep.whenComplete(r ->
                     sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps, sendFilesStep), listener::onFailure);
@@ -613,8 +629,8 @@ public class RecoverySourceHandler {
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
         logger.trace("recovery [phase1]: prepare remote engine for translog");
-        cancellableThreads.execute(() ->
-            recoveryTarget.prepareForTranslogOperations(totalTranslogOps, wrappedListener));
+        cancellableThreads.checkForCancel();
+        recoveryTarget.prepareForTranslogOperations(totalTranslogOps, wrappedListener);
     }
 
     /**
@@ -720,30 +736,29 @@ public class RecoverySourceHandler {
         final List<Translog.Operation> operations = nextBatch.get();
         // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
         if (operations.isEmpty() == false || firstBatch) {
-            cancellableThreads.execute(() -> {
-                recoveryTarget.indexTranslogOperations(
-                        operations,
-                        totalTranslogOps,
-                        maxSeenAutoIdTimestamp,
-                        maxSeqNoOfUpdatesOrDeletes,
-                        retentionLeases,
-                        mappingVersionOnPrimary,
-                        ActionListener.wrap(
-                                newCheckpoint -> {
-                                    sendBatch(
-                                            nextBatch,
-                                            false,
-                                            SequenceNumbers.max(targetLocalCheckpoint, newCheckpoint),
-                                            totalTranslogOps,
-                                            maxSeenAutoIdTimestamp,
-                                            maxSeqNoOfUpdatesOrDeletes,
-                                            retentionLeases,
-                                            mappingVersionOnPrimary,
-                                            listener);
-                                },
-                                listener::onFailure
-                        ));
-            });
+            cancellableThreads.checkForCancel();
+            recoveryTarget.indexTranslogOperations(
+                operations,
+                totalTranslogOps,
+                maxSeenAutoIdTimestamp,
+                maxSeqNoOfUpdatesOrDeletes,
+                retentionLeases,
+                mappingVersionOnPrimary,
+                ActionListener.wrap(
+                    newCheckpoint -> {
+                        sendBatch(
+                            nextBatch,
+                            false,
+                            SequenceNumbers.max(targetLocalCheckpoint, newCheckpoint),
+                            totalTranslogOps,
+                            maxSeenAutoIdTimestamp,
+                            maxSeqNoOfUpdatesOrDeletes,
+                            retentionLeases,
+                            mappingVersionOnPrimary,
+                            listener);
+                    },
+                    listener::onFailure
+                ));
         } else {
             listener.onResponse(targetLocalCheckpoint);
         }
@@ -766,7 +781,8 @@ public class RecoverySourceHandler {
             shardId + " marking " + request.targetAllocationId() + " as in sync", shard, cancellableThreads, logger);
         final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
-        cancellableThreads.executeIO(() -> recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener));
+        cancellableThreads.checkForCancel();
+        recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
         finalizeListener.whenComplete(r -> {
             runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
                 shardId + " updating " + request.targetAllocationId() + "'s global checkpoint", shard, cancellableThreads, logger);
@@ -872,9 +888,10 @@ public class RecoverySourceHandler {
                 }
 
                 @Override
-                protected void sendChunkRequest(FileChunk request, ActionListener<Void> listener) {
-                    cancellableThreads.execute(() -> recoveryTarget.writeFileChunk(
-                        request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(), listener));
+                protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
+                    cancellableThreads.checkForCancel();
+                    recoveryTarget.writeFileChunk(
+                        request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(), listener);
                 }
 
                 @Override
@@ -901,13 +918,14 @@ public class RecoverySourceHandler {
         // Once the files have been renamed, any other files that are not
         // related to this recovery (out of date segments, for example)
         // are deleted
-        cancellableThreads.execute(() -> recoveryTarget.cleanFiles(translogOps.getAsInt(), globalCheckpoint, sourceMetadata,
+        cancellableThreads.checkForCancel();
+        recoveryTarget.cleanFiles(translogOps.getAsInt(), globalCheckpoint, sourceMetadata,
             ActionListener.delegateResponse(listener, (l, e) -> ActionListener.completeWith(l, () -> {
                 StoreFileMetaData[] mds = StreamSupport.stream(sourceMetadata.spliterator(), false).toArray(StoreFileMetaData[]::new);
                 ArrayUtil.timSort(mds, Comparator.comparingLong(StoreFileMetaData::length)); // check small files first
                 handleErrorOnSendFiles(store, e, mds);
                 throw e;
-            }))));
+            })));
     }
 
     private void handleErrorOnSendFiles(Store store, Exception e, StoreFileMetaData[] mds) throws Exception {

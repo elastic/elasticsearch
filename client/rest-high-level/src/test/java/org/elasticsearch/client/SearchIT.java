@@ -43,14 +43,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.join.aggregations.Children;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -81,6 +82,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.xpack.core.index.query.PinnedQueryBuilder;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -92,7 +94,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -108,24 +113,19 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     @Before
     public void indexDocuments() throws IOException {
         {
-            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/type/1");
-            doc1.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
             doc1.setJsonEntity("{\"type\":\"type1\", \"num\":10, \"num2\":50}");
             client().performRequest(doc1);
-            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/type/2");
-            doc2.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/_doc/2");
             doc2.setJsonEntity("{\"type\":\"type1\", \"num\":20, \"num2\":40}");
             client().performRequest(doc2);
-            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/type/3");
-            doc3.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/_doc/3");
             doc3.setJsonEntity("{\"type\":\"type1\", \"num\":50, \"num2\":35}");
             client().performRequest(doc3);
-            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/type/4");
-            doc4.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/_doc/4");
             doc4.setJsonEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}");
             client().performRequest(doc4);
-            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/type/5");
-            doc5.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+            Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/_doc/5");
             doc5.setJsonEntity("{\"type\":\"type2\", \"num\":100, \"num2\":10}");
             client().performRequest(doc5);
         }
@@ -221,7 +221,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(5, searchResponse.getHits().getHits().length);
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
             assertEquals("index", searchHit.getIndex());
-            assertEquals("type", searchHit.getType());
             assertThat(Integer.valueOf(searchHit.getId()), both(greaterThan(0)).and(lessThan(6)));
             assertEquals(1.0f, searchHit.getScore(), 0);
             assertEquals(-1L, searchHit.getVersion());
@@ -246,7 +245,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertThat(searchResponse.getHits().getMaxScore(), greaterThan(0f));
         SearchHit searchHit = searchResponse.getHits().getHits()[0];
         assertEquals("index", searchHit.getIndex());
-        assertEquals("type", searchHit.getType());
         assertEquals("1", searchHit.getId());
         assertThat(searchHit.getScore(), greaterThan(0f));
         assertEquals(-1L, searchHit.getVersion());
@@ -888,14 +886,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchTemplateRequest.setRequest(new SearchRequest("index"));
 
         searchTemplateRequest.setScriptType(ScriptType.INLINE);
-        searchTemplateRequest.setScript(
-            "{" +
-            "  \"query\": {" +
-            "    \"match\": {" +
-            "      \"num\": {{number}}" +
-            "    }" +
-            "  }" +
-            "}");
+        searchTemplateRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
@@ -943,14 +934,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
 
         searchTemplateRequest.setScriptType(ScriptType.INLINE);
-        searchTemplateRequest.setScript(
-            "{" +
-            "  \"query\": {" +
-            "    \"match\": {" +
-            "      \"num\": {{number}}" +
-            "    }" +
-            "  }" +
-            "}");
+        searchTemplateRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
@@ -987,14 +971,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest goodRequest = new SearchTemplateRequest();
         goodRequest.setRequest(new SearchRequest("index"));
         goodRequest.setScriptType(ScriptType.INLINE);
-        goodRequest.setScript(
-            "{" +
-            "  \"query\": {" +
-            "    \"match\": {" +
-            "      \"num\": {{number}}" +
-            "    }" +
-            "  }" +
-            "}");
+        goodRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
         goodRequest.setScriptParams(scriptParams);
@@ -1046,14 +1023,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest badRequest1 = new SearchTemplateRequest();
         badRequest1.setRequest(new SearchRequest("index"));
         badRequest1.setScriptType(ScriptType.INLINE);
-        badRequest1.setScript(
-                "{" +
-                        "  \"query\": {" +
-                        "    \"match\": {" +
-                        "      \"num\": {{number}}" +
-                        "    }" +
-                        "  }" +
-                        "}");
+        badRequest1.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", "BAD NUMBER");
         badRequest1.setScriptParams(scriptParams);
@@ -1087,7 +1057,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1102,7 +1071,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1117,7 +1085,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1133,7 +1100,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1161,7 +1127,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(explainResponse.getId(), equalTo("999"));
             assertFalse(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1347,9 +1312,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testCountMultipleIndicesMatchQueryUsingConstructor() throws IOException {
-
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1"));
-        CountRequest countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, sourceBuilder);
+        CountRequest countRequest;
+        if (randomBoolean()) {
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1"));
+            countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, sourceBuilder);
+        } else {
+            QueryBuilder query = new MatchQueryBuilder("field", "value1");
+            countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, query);
+        }
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
@@ -1357,9 +1327,12 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testCountMultipleIndicesMatchQuery() throws IOException {
-
         CountRequest countRequest = new CountRequest("index1", "index2", "index3");
-        countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        if (randomBoolean()) {
+            countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        } else {
+            countRequest.query(new MatchQueryBuilder("field", "value1"));
+        }
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
@@ -1372,6 +1345,18 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
+    }
+
+    public void testSearchWithBasicLicensedQuery() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index");
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        PinnedQueryBuilder pinnedQuery = new PinnedQueryBuilder(new MatchAllQueryBuilder(), "2", "1");
+        searchSourceBuilder.query(pinnedQuery);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertFirstHit(searchResponse, hasId("2"));
+        assertSecondHit(searchResponse, hasId("1"));
     }
 
     private static void assertCountHeader(CountResponse countResponse) {

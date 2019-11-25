@@ -20,7 +20,6 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -95,7 +94,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
     }
 
     public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() {
-        RestAnalyzeAction action = new RestAnalyzeAction(Settings.EMPTY, mock(RestController.class));
+        RestAnalyzeAction action = new RestAnalyzeAction(mock(RestController.class));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray("{invalid_json}"), XContentType.JSON).build();
         IOException e = expectThrows(IOException.class, () -> action.handleRequest(request, null, null));

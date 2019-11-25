@@ -1,5 +1,8 @@
 [[cat-alias]]
-=== cat aliases
+=== cat aliases API
+++++
+<titleabbrev>cat aliases</titleabbrev>
+++++
 
 Returns information about currently configured aliases to indices, including
 filter and routing information.
@@ -8,12 +11,16 @@ filter and routing information.
 [[cat-alias-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/aliases/{name}`
+`GET /_cat/aliases/<alias>`
+
+`GET /_cat/aliases`
 
 [[cat-alias-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=name]
+`<alias>`::
+(Optional, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias]
 
 
 [[cat-alias-api-query-params]]
@@ -27,8 +34,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
@@ -39,7 +44,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 ////
 Hidden setup for example:
-[source,js]
+[source,console,id=cat-aliases-example]
 --------------------------------------------------
 PUT test1
 {
@@ -62,25 +67,23 @@ PUT test1
   }
 }
 --------------------------------------------------
-// CONSOLE
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/aliases?v
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-alias  index filter routing.index routing.search
-alias1 test1 -      -            -
-alias2 test1 *      -            -
-alias3 test1 -      1            1
-alias4 test1 -      2            1,2
+alias  index filter routing.index routing.search is_write_index
+alias1 test1 -      -            -              -
+alias2 test1 *      -            -              -
+alias3 test1 -      1            1              -
+alias4 test1 -      2            1,2            -
 --------------------------------------------------
 // TESTRESPONSE[s/[*]/[*]/ non_json]
 

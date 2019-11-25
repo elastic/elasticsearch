@@ -25,6 +25,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -152,8 +153,8 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
 
                 try (IndexReader readerThatCrosses = DirectoryReader.open(w)) {
 
-                    QueryShardContext shardContextThatDoesntCross = createShardContext(readerThatDoesntCross);
-                    QueryShardContext shardContextThatCrosses = createShardContext(readerThatCrosses);
+                    QueryShardContext shardContextThatDoesntCross = createShardContext(new IndexSearcher(readerThatDoesntCross));
+                    QueryShardContext shardContextThatCrosses = createShardContext(new IndexSearcher(readerThatCrosses));
 
                     DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("my_date_histo");
                     builder.field(DATE_FIELD_NAME);

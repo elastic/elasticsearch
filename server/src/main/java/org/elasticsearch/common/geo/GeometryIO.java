@@ -21,18 +21,19 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +50,10 @@ public final class GeometryIO {
         geometry.visit(new GeometryVisitor<Void, IOException>() {
             @Override
             public Void visit(Circle circle) throws IOException {
-                throw new UnsupportedOperationException("circle is not supported");
+                writeCoordinate(circle.getLat(), circle.getLon(), circle.getAlt());
+                out.writeDouble(circle.getRadiusMeters());
+                DistanceUnit.METERS.writeTo(out);
+                return null;
             }
 
             @Override
@@ -86,7 +90,7 @@ public final class GeometryIO {
                 out.writeVInt(multiPoint.size());
                 for (int i = 0; i < multiPoint.size(); i++) {
                     Point point = multiPoint.get(i);
-                    writeCoordinate(point.getLat(), point.getLon(), point.getAlt());
+                    writeCoordinate(point.getY(), point.getX(), point.getZ());
                 }
                 return null;
             }
@@ -104,7 +108,7 @@ public final class GeometryIO {
             @Override
             public Void visit(Point point) throws IOException {
                 out.writeVInt(1); // Number of points For BWC with Shape Builder
-                writeCoordinate(point.getLat(), point.getLon(), point.getAlt());
+                writeCoordinate(point.getY(), point.getX(), point.getZ());
                 return null;
             }
 
@@ -121,8 +125,8 @@ public final class GeometryIO {
 
             @Override
             public Void visit(Rectangle rectangle) throws IOException {
-                writeCoordinate(rectangle.getMaxLat(), rectangle.getMinLon(), rectangle.getMinAlt()); // top left
-                writeCoordinate(rectangle.getMinLat(), rectangle.getMaxLon(), rectangle.getMaxAlt()); // bottom right
+                writeCoordinate(rectangle.getMaxY(), rectangle.getMinX(), rectangle.getMinZ()); // top left
+                writeCoordinate(rectangle.getMinY(), rectangle.getMaxX(), rectangle.getMaxZ()); // bottom right
                 return null;
             }
 
@@ -135,7 +139,7 @@ public final class GeometryIO {
             private void writeCoordinates(Line line) throws IOException {
                 out.writeVInt(line.length());
                 for (int i = 0; i < line.length(); i++) {
-                    writeCoordinate(line.getLat(i), line.getLon(i), line.getAlt(i));
+                    writeCoordinate(line.getY(i), line.getX(i), line.getZ(i));
                 }
             }
 
@@ -161,6 +165,8 @@ public final class GeometryIO {
                 return readMultiPolygon(in);
             case "envelope":
                 return readRectangle(in);
+            case "circle":
+                return readCircle(in);
             default:
                 throw new UnsupportedOperationException("unsupported shape type " + type);
         }
@@ -224,9 +230,9 @@ public final class GeometryIO {
             reverse(arr);
         }
         if (arr.length == 3) {
-            return new LinearRing(arr[0], arr[1], arr[2]);
+            return new LinearRing(arr[1], arr[0], arr[2]);
         } else {
-            return new LinearRing(arr[0], arr[1]);
+            return new LinearRing(arr[1], arr[0]);
         }
     }
 
@@ -238,15 +244,15 @@ public final class GeometryIO {
         double lon = in.readDouble();
         double lat = in.readDouble();
         double alt = readAlt(in);
-        return new Point(lat, lon, alt);
+        return new Point(lon, lat, alt);
     }
 
     private static Line readLine(StreamInput in) throws IOException {
         double[][] coords = readLineComponents(in);
         if (coords.length == 3) {
-            return new Line(coords[0], coords[1], coords[2]);
+            return new Line(coords[1], coords[0], coords[2]);
         } else {
-            return new Line(coords[0], coords[1]);
+            return new Line(coords[1], coords[0]);
         }
     }
 
@@ -266,7 +272,7 @@ public final class GeometryIO {
             double lon = in.readDouble();
             double lat = in.readDouble();
             double alt = readAlt(in);
-            points.add(new Point(lat, lon, alt));
+            points.add(new Point(lon, lat, alt));
         }
         return new MultiPoint(points);
     }
@@ -293,7 +299,7 @@ public final class GeometryIO {
         double minLat = in.readDouble();
         double maxAlt = readAlt(in);
 
-        return new Rectangle(minLat, maxLat, minLon, maxLon, minAlt, maxAlt);
+        return new Rectangle(minLon, maxLon, maxLat, minLat, minAlt, maxAlt);
     }
 
     private static double readAlt(StreamInput in) throws IOException {
@@ -303,5 +309,14 @@ public final class GeometryIO {
         } else {
             return alt;
         }
+    }
+
+    private static Circle readCircle(StreamInput in) throws IOException {
+        double lon = in.readDouble();
+        double lat = in.readDouble();
+        double alt = readAlt(in);
+        double radius = in.readDouble();
+        DistanceUnit distanceUnit = DistanceUnit.readFromStream(in);
+        return new Circle(lon, lat, alt, distanceUnit.toMeters(radius));
     }
 }

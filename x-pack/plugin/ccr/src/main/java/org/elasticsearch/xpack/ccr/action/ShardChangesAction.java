@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.MissingHistoryOperationsException;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.ccr.Ccr;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -529,8 +531,10 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 }
             }
         } catch (MissingHistoryOperationsException e) {
-            String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
-                IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
+            final Collection<RetentionLease> retentionLeases = indexShard.getRetentionLeases().leases();
+            final String message = "Operations are no longer available for replicating. " +
+                "Existing retention leases [" + retentionLeases + "]; maybe increase the retention lease period setting " +
+                "[" + IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey() + "]?";
             // Make it easy to detect this error in ShardFollowNodeTask:
             // (adding a metadata header instead of introducing a new exception that extends ElasticsearchException)
             ResourceNotFoundException wrapper = new ResourceNotFoundException(message, e);

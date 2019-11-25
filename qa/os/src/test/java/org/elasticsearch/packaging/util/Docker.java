@@ -290,7 +290,7 @@ public class Docker {
      * @param localPath The local path where shellCmd will be executed on (inside a container).
      * @param containerPath The path to mount localPath inside the container.
      */
-    public static void executePrivilegeEscalatedShellCmd(String shellCmd, Path localPath, Path containerPath) {
+    private static void executePrivilegeEscalatedShellCmd(String shellCmd, Path localPath, Path containerPath) {
         final List<String> args = new ArrayList<>();
 
         args.add("docker run");
@@ -312,11 +312,17 @@ public class Docker {
         sh.run(command);
     }
 
-
-    public static void executePrivilegeEscalatedShellCmd(String shellCmd, Path localPath) {
-        executePrivilegeEscalatedShellCmd(shellCmd, localPath, Paths.get("/containerPath"));
+    private static void executePrivilegeEscalatedShellCmd(String shellCmd, Path localPath) {
+        final Path relativeLocalPath = Paths.get("/").relativize(localPath);
+        executePrivilegeEscalatedShellCmd(shellCmd, localPath, Paths.get("/containerPath").resolve(relativeLocalPath));
     }
 
+    /**
+     * Create a directory with specified uid/gid using Docker backed privilege escalation.
+     * @param localPath The path to the directory to create.
+     * @param uid The numeric id for localPath
+     * @param gid The numeric id for localPath
+     */
     public static void mkDirWithPrivilegeEscalation(Path localPath, Integer uid, Integer gid) {
         final Path containerBasePath = Paths.get("/mount");
         final Path containerPath = containerBasePath.resolve(Paths.get("/").relativize(localPath));
@@ -337,6 +343,10 @@ public class Docker {
         assertEquals(localPath.toString() + " has wrong permissions", dirAttributes.permissions(), p770);
     }
 
+    /**
+     * Delete a directory using Docker backed privilege escallation.
+     * @param localPath The path to the directory to delete.
+     */
     public static void rmDirWithPrivilegeEscalation(Path localPath) {
         final Path containerBasePath = Paths.get("/mount");
         final Path containerPath = containerBasePath.resolve(Paths.get("/").relativize(localPath));
@@ -347,18 +357,6 @@ public class Docker {
         args.add("rm -rf " + localPath.getFileName());
         final String command = String.join(" ", args);
         executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
-    }
-
-    public static void recursiveChownWithPrivilegeEscalation(Path dir, Integer uid, Integer gid){
-        final Path containerBasePath = Paths.get("/mount");
-        final Path containerPath = containerBasePath.resolve(dir);
-        final List<String> args = new ArrayList<>();
-
-        args.add("cd " + containerPath.toAbsolutePath());
-        args.add("&&");
-        args.add("chown -R " + uid + ":" + gid + " " + dir.toString());
-        final String command = String.join(" ", args);
-        executePrivilegeEscalatedShellCmd(command, dir, containerBasePath);
     }
 
     /**

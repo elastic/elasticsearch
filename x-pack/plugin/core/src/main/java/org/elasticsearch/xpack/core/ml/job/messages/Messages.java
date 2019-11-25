@@ -114,7 +114,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
     public static final String JOB_AUDIT_DELETED = "Job deleted";
     public static final String JOB_AUDIT_KILLING = "Killing job";
-    public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {1}";
+    public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {0}";
     public static final String JOB_AUDIT_REVERTED = "Job model snapshot reverted to ''{0}''";
     public static final String JOB_AUDIT_SNAPSHOT_DELETED = "Model snapshot [{0}] with description ''{1}'' deleted";
     public static final String JOB_AUDIT_FILTER_UPDATED_ON_PROCESS = "Updated filter [{0}] in running process";

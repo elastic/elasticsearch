@@ -5,7 +5,7 @@ Just like the dedicated <<search-aggregations-bucket-daterange-aggregation,date>
 
 Example:
 
-[source,console]
+[source,console,id=ip-range-example]
 --------------------------------------------------
 GET /ip_addresses/_search
 {
@@ -54,7 +54,7 @@ Response:
 
 IP ranges can also be defined as CIDR masks:
 
-[source,console]
+[source,console,id=ip-range-cidr-example]
 --------------------------------------------------
 GET /ip_addresses/_search
 {
@@ -107,7 +107,7 @@ Response:
 
 Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
 
-[source,console]
+[source,console,id=ip-range-keyed-example]
 --------------------------------------------------
 GET /ip_addresses/_search
 {
@@ -155,7 +155,7 @@ Response:
 
 It is also possible to customize the key for each range:
 
-[source,console]
+[source,console,id=ip-range-keyed-customized-keys-example]
 --------------------------------------------------
 GET /ip_addresses/_search
 {

@@ -105,6 +105,7 @@ Character classes may be any of the following:
     setting this to `+-_` will make the tokenizer treat the plus, minus and
     underscore sign  as part of a token.
 
+[float]
 [[max-gram-limits]]
 === Limitations of the `max_gram` parameter
 

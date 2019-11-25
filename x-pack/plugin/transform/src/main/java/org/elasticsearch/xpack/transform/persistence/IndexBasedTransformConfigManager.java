@@ -262,6 +262,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
+            .setAllowPartialSearchResults(false)
             .request();
 
         executeAsyncWithOrigin(
@@ -293,6 +294,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
+            .setAllowPartialSearchResults(false)
             .request();
 
         executeAsyncWithOrigin(
@@ -327,6 +329,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
+            .setAllowPartialSearchResults(false)
             .seqNoAndPrimaryTerm(true)
             .request();
 
@@ -506,6 +509,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
+            .setAllowPartialSearchResults(false)
             .seqNoAndPrimaryTerm(true)
             .request();
 

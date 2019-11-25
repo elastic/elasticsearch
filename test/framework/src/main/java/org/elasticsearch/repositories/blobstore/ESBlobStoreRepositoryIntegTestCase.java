@@ -19,6 +19,8 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
@@ -60,6 +62,13 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     public static RepositoryData getRepositoryData(Repository repository) {
         return PlainActionFuture.get(repository::getRepositoryData);
+    }
+
+    public static SnapshotMissingException expectSnapshotMissingException(ThrowingRunnable runnable) {
+        final ElasticsearchException ex = expectThrows(ElasticsearchException.class, runnable);
+        final Throwable sme = ExceptionsHelper.unwrap(ex, SnapshotMissingException.class);
+        assertThat(sme, notNullValue());
+        return (SnapshotMissingException) sme;
     }
 
     protected abstract String repositoryType();
@@ -153,7 +162,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         logger.info("-->  delete snapshot {}:{}", repoName, snapshotName);
         assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
 
-        expectThrows(SnapshotMissingException.class, () ->
+        expectSnapshotMissingException(() ->
             client().admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotName).get().getSnapshots(repoName));
 
         expectThrows(SnapshotMissingException.class, () ->

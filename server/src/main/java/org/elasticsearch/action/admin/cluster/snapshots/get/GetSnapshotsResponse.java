@@ -162,7 +162,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         if (error == null) {
             throw new IllegalArgumentException("No such repository");
         }
-        throw error;
+        throw new ElasticsearchException(error);
     }
 
     /**

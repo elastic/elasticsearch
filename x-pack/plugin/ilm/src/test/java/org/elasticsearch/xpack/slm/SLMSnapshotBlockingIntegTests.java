@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -53,6 +55,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for Snapshot Lifecycle Management that require a slow or blocked snapshot repo (using {@link MockRepository}
@@ -297,7 +300,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                         .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
                     SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO).get(0);
                     assertEquals(expectedUnsuccessfulState, snapshotInfo.state());
-                } catch (SnapshotMissingException ex) {
+                } catch (ElasticsearchException ex) {
                     logger.info("failed to find snapshot {}, retrying", failedSnapshotName);
                     throw new AssertionError(ex);
                 }
@@ -358,7 +361,8 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                             .prepareGetSnapshots(REPO).setSnapshots(failedSnapshotName.get()).get();
                         assertThat(snapshotsStatusResponse.getSnapshots(REPO), empty());
-                    } catch (SnapshotMissingException e) {
+                    } catch (ElasticsearchException e) {
+                        assertThat(ExceptionsHelper.unwrap(e, SnapshotMissingException.class), notNullValue());
                         // This is what we want to happen
                     }
                     logger.info("--> {} snapshot [{}] has been deleted, checking successful snapshot [{}] still exists",

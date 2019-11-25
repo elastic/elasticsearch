@@ -120,6 +120,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTI
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.shard.IndexShardTests.getEngineFromShard;
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.expectSnapshotMissingException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -1405,7 +1406,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .get();
 
         for (String repo : repoList) {
-            expectThrows(SnapshotMissingException.class, () -> getSnapshotsResponse2.getSnapshots(repo));
+            expectSnapshotMissingException(() -> getSnapshotsResponse2.getSnapshots(repo));
         }
 
 
@@ -1470,8 +1471,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> make sure snapshot doesn't exist");
 
-        expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots("test-repo")
-                .addSnapshots("test-snap-1").get().getSnapshots("test-repo"));
+        expectSnapshotMissingException(
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().getSnapshots("test-repo"));
 
         for (String index : indices) {
             assertTrue(Files.notExists(indicesPath.resolve(indexIds.get(index).getId())));
@@ -1510,7 +1511,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots("test-repo")
+        expectSnapshotMissingException(() -> client.admin().cluster().prepareGetSnapshots("test-repo")
                 .addSnapshots("test-snap-1").get().getSnapshots("test-repo"));
     }
 
@@ -1547,9 +1548,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        expectThrows(SnapshotMissingException.class,
+        final ElasticsearchException ex = expectThrows(ElasticsearchException.class,
                 () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().
                         getSnapshots("test-repo"));
+        assertThat(ExceptionsHelper.unwrap(ex, SnapshotMissingException.class), notNullValue());
 
         logger.info("--> make sure that we can create the snapshot again");
         createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
@@ -1606,10 +1608,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotStatusResponse.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo("test-snap"));
 
         assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get());
-        expectThrows(SnapshotMissingException.class, () -> client().admin().cluster()
-                .prepareGetSnapshots("test-repo").addSnapshots("test-snap").get().getSnapshots("test-repo"));
-        assertThrows(client().admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap"),
-            SnapshotMissingException.class);
+        expectSnapshotMissingException(
+            () -> client().admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap").get().getSnapshots("test-repo"));
+        expectSnapshotMissingException(
+            () -> client().admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap").get());
 
         createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
             .setIncludeGlobalState(true)
@@ -2756,13 +2758,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         expectThrows(InvalidSnapshotNameException.class,
                      () -> client.admin().cluster().prepareCreateSnapshot("test-repo", "_foo").get());
-        expectThrows(SnapshotMissingException.class,
-                () -> client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("_foo")
-                        .get().getSnapshots("test-repo"));
-        expectThrows(SnapshotMissingException.class,
-                     () -> client.admin().cluster().prepareDeleteSnapshot("test-repo", "_foo").get());
-        expectThrows(SnapshotMissingException.class,
-                     () -> client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("_foo").get());
+        expectSnapshotMissingException(
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("_foo").get().getSnapshots("test-repo"));
+        expectSnapshotMissingException(() -> client.admin().cluster().prepareDeleteSnapshot("test-repo", "_foo").get());
+        expectSnapshotMissingException(() -> client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("_foo").get());
     }
 
     public void testListCorruptedSnapshot() throws Exception {
@@ -2811,8 +2810,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo("test-snap-1"));
 
-        final SnapshotException ex = expectThrows(SnapshotException.class, () ->
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, () ->
                 client.admin().cluster().prepareGetSnapshots("test-repo").setIgnoreUnavailable(false).get().getSnapshots("test-repo"));
+        final SnapshotException ex = (SnapshotException) ExceptionsHelper.unwrap(e, SnapshotException.class);
         assertThat(ex.getRepositoryName(), equalTo("test-repo"));
         assertThat(ex.getSnapshotName(), equalTo("test-snap-2"));
     }
@@ -3131,12 +3131,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                                                .put("wait_after_unblock", 200)));
 
         logger.info("--> get snapshots on an empty repository");
-        expectThrows(SnapshotMissingException.class, () -> client.admin()
-                                                                 .cluster()
-                                                                 .prepareGetSnapshots(repositoryName)
-                                                                 .addSnapshots("non-existent-snapshot")
-                .get()
-                .getSnapshots(repositoryName));
+        expectSnapshotMissingException(() -> client.admin()
+            .cluster()
+            .prepareGetSnapshots(repositoryName)
+            .addSnapshots("non-existent-snapshot")
+            .get()
+            .getSnapshots(repositoryName));
         // with ignore unavailable set to true, should not throw an exception
         GetSnapshotsResponse getSnapshotsResponse = client.admin()
                                                           .cluster()

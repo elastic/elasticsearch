@@ -37,6 +37,18 @@ public class AnalyticsResultProcessor {
 
     private static final Logger LOGGER = LogManager.getLogger(AnalyticsResultProcessor.class);
 
+    /**
+     * While we report progress as we read row results there are other things we need to account for
+     * to report completion. There are other types of results we can't predict the number of like
+     * progress objects and the inference model. Thus, we report a max progress until we know we have
+     * completed processing results.
+     *
+     * It is critical to ensure we do not report complete progress too soon as restarting a job
+     * uses the progress to determine which state to restart from. If we report full progress too soon
+     * we cannot restart a job as we will think the job was finished.
+     */
+    private static final int MAX_PROGRESS_BEFORE_COMPLETION = 98;
+
     private final DataFrameAnalyticsConfig analytics;
     private final DataFrameRowsJoiner dataFrameRowsJoiner;
     private final ProgressTracker progressTracker;
@@ -91,13 +103,8 @@ public class AnalyticsResultProcessor {
                 processResult(result, resultsJoiner);
                 if (result.getRowResults() != null) {
                     processedRows++;
-                    progressTracker.writingResultsPercent.set(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
+                    updateResultsProgress(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
                 }
-            }
-            if (isCancelled == false) {
-                // This means we completed successfully so we need to set the progress to 100.
-                // This is because due to skipped rows, it is possible the processed rows will not reach the total rows.
-                progressTracker.writingResultsPercent.set(100);
             }
         } catch (Exception e) {
             if (isCancelled) {
@@ -107,9 +114,20 @@ public class AnalyticsResultProcessor {
                 failure = "error parsing data frame analytics output: [" + e.getMessage() + "]";
             }
         } finally {
+            if (isCancelled == false) {
+                completeResultsProgress();
+            }
             completionLatch.countDown();
             process.consumeAndCloseOutputStream();
         }
+    }
+
+    private void updateResultsProgress(int progress) {
+        progressTracker.writingResultsPercent.set(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
+    }
+
+    private void completeResultsProgress() {
+        progressTracker.writingResultsPercent.set(100);
     }
 
     private void processResult(AnalyticsResult result, DataFrameRowsJoiner resultsJoiner) {

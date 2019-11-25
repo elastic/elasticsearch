@@ -13,10 +13,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-
-import static java.lang.String.format;
 
 // unfortunately we can't use UnresolvedNamedExpression
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
@@ -37,7 +34,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         this(source, name, qualifier, null, unresolvedMessage, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String qualifier, ExpressionId id, String unresolvedMessage,
+    public UnresolvedAttribute(Source source, String name, String qualifier, NameId id, String unresolvedMessage,
             Object resolutionMetadata) {
         super(source, name, qualifier, id);
         this.customMessage = unresolvedMessage != null;
@@ -66,7 +63,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected Attribute clone(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
-                              ExpressionId id, boolean synthetic) {
+                              NameId id, boolean synthetic) {
         return this;
     }
 
@@ -77,11 +74,6 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     @Override
     public DataType dataType() {
         throw new UnresolvedException("dataType", this);
-    }
-
-    @Override
-    public String nodeString() {
-        return format(Locale.ROOT, "unknown column '%s'", name());
     }
 
     @Override

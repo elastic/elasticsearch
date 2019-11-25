@@ -28,10 +28,8 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
@@ -60,7 +58,6 @@ import org.elasticsearch.xpack.sql.util.Holder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -815,49 +812,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    // to avoid creating duplicate functions
-    // this rule does two iterations
-    // 1. collect all functions
-    // 2. search unresolved functions and first try resolving them from already 'seen' functions
     private class ResolveFunctions extends AnalyzeRule<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            Map<String, List<Function>> seen = new LinkedHashMap<>();
-            // collect (and replace duplicates)
-            LogicalPlan p = plan.transformExpressionsUp(e -> collectResolvedAndReplace(e, seen));
-            // resolve based on seen
-            return resolve(p, seen);
-        }
-
-        private Expression collectResolvedAndReplace(Expression e, Map<String, List<Function>> seen) {
-            if (e instanceof Function && e.resolved()) {
-                Function f = (Function) e;
-                String fName = f.functionName();
-                // the function is resolved and its name normalized already
-                List<Function> list = getList(seen, fName);
-                for (Function seenFunction : list) {
-                    if (seenFunction != f && f.arguments().equals(seenFunction.arguments())) {
-                        // TODO: we should move to always compare the functions directly
-                        // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
-                        // matches the one from the unresolved function to be checked.
-                        // Same for LIKE/RLIKE: the equals function also compares the pattern of LIKE/RLIKE
-                        if (seenFunction instanceof Count || seenFunction instanceof RegexMatch) {
-                            if (seenFunction.equals(f)){
-                                return seenFunction;
-                            }
-                        } else {
-                            return seenFunction;
-                        }
-                    }
-                }
-                list.add(f);
-            }
-
-            return e;
-        }
-
-        protected LogicalPlan resolve(LogicalPlan plan, Map<String, List<Function>> seen) {
             return plan.transformExpressionsUp(e -> {
                 if (e instanceof UnresolvedFunction) {
                     UnresolvedFunction uf = (UnresolvedFunction) e;
@@ -880,47 +838,16 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
 
                     String functionName = functionRegistry.resolveAlias(name);
-
-                    List<Function> list = getList(seen, functionName);
-                    // first try to resolve from seen functions
-                    if (!list.isEmpty()) {
-                        for (Function seenFunction : list) {
-                            if (uf.arguments().equals(seenFunction.arguments())) {
-                                // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
-                                // matches the one from the unresolved function to be checked.
-                                if (seenFunction instanceof Count) {
-                                    if (uf.sameAs((Count) seenFunction)) {
-                                        return seenFunction;
-                                    }
-                                } else {
-                                    return seenFunction;
-                                }
-                            }
-                        }
-                    }
-
-                    // not seen before, use the registry
-                    if (!functionRegistry.functionExists(functionName)) {
+                    if (functionRegistry.functionExists(functionName) == false) {
                         return uf.missing(functionName, functionRegistry.listFunctions());
                     }
                     // TODO: look into Generator for significant terms, etc..
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                     Function f = uf.buildResolved(configuration, def);
-
-                    list.add(f);
                     return f;
                 }
                 return e;
             });
-        }
-
-        private List<Function> getList(Map<String, List<Function>> seen, String name) {
-            List<Function> list = seen.get(name);
-            if (list == null) {
-                list = new ArrayList<>();
-                seen.put(name, list);
-            }
-            return list;
         }
     }
 
@@ -1103,11 +1030,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             Set<NamedExpression> missing = new LinkedHashSet<>();
 
             for (Expression filterAgg : from.collect(Functions::isAggregate)) {
-                if (!Expressions.anyMatch(target.aggregates(),
-                        a -> {
-                            Attribute attr = Expressions.attribute(a);
-                            return attr != null && attr.semanticEquals(Expressions.attribute(filterAgg));
-                        })) {
+                if (Expressions.anyMatch(target.aggregates(), a -> {
+                    if (a instanceof Alias) {
+                        a = ((Alias) a).child();
+                    }
+                    return a.equals(filterAgg);
+                }) == false) {
                     missing.add(Expressions.wrapAsNamed(filterAgg));
                 }
             }
@@ -1135,10 +1063,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             List<Order> orders = ob.order();
 
             // 1. collect aggs inside an order by
-            List<NamedExpression> aggs = new ArrayList<>();
+            List<Expression> aggs = new ArrayList<>();
             for (Order order : orders) {
                 if (Functions.isAggregate(order.child())) {
-                    aggs.add(Expressions.wrapAsNamed(order.child()));
+                    aggs.add(order.child());
                 }
             }
             if (aggs.isEmpty()) {
@@ -1154,9 +1082,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
                     List<NamedExpression> missing = new ArrayList<>();
 
-                    for (NamedExpression orderedAgg : aggs) {
-                        if (Expressions.anyMatch(a.aggregates(), e -> Expressions.equalsAsAttribute(e, orderedAgg)) == false) {
-                            missing.add(orderedAgg);
+                    for (Expression orderedAgg : aggs) {
+                        if (Expressions.anyMatch(a.aggregates(), e -> {
+                            if (e instanceof Alias) {
+                                e = ((Alias) e).child();
+                            }
+                            return e.equals(orderedAgg);
+                        }) == false) {
+                            missing.add(Expressions.wrapAsNamed(orderedAgg));
                         }
                     }
                     // agg already contains all aggs
@@ -1173,39 +1106,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 return new Project(ob.source(), plan, ob.output());
             }
             return ob;
-        }
-    }
-
-    private class PruneDuplicateFunctions extends AnalyzeRule<LogicalPlan> {
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-
-        @Override
-        public LogicalPlan rule(LogicalPlan plan) {
-            List<Function> seen = new ArrayList<>();
-            LogicalPlan p = plan.transformExpressionsUp(e -> rule(e, seen));
-            return p;
-        }
-
-        private Expression rule(Expression e, List<Function> seen) {
-            if (e instanceof Function) {
-                Function f = (Function) e;
-                for (Function seenFunction : seen) {
-                    if (seenFunction != f && functionsEquals(f, seenFunction)) {
-                        return seenFunction;
-                    }
-                }
-                seen.add(f);
-            }
-
-            return e;
-        }
-
-        private boolean functionsEquals(Function f, Function seenFunction) {
-            return f.sourceText().equals(seenFunction.sourceText()) && f.arguments().equals(seenFunction.arguments());
         }
     }
 
@@ -1282,7 +1182,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
-                // aliases inside GROUP BY are irellevant so remove all of them
+                // aliases inside GROUP BY are irelevant so remove all of them
                 // however aggregations are important (ultimately a projection)
                 return new Aggregate(a.source(), a.child(), cleanAllAliases(a.groupings()), cleanChildrenAliases(a.aggregates()));
             }

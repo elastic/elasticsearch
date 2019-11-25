@@ -1,5 +1,5 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+* Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.AttributeMap;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -15,18 +16,16 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
-import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
@@ -78,7 +77,7 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
  */
 public final class Verifier {
     private final Metrics metrics;
-
+    
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
     }
@@ -215,8 +214,19 @@ public final class Verifier {
         // if there are no (major) unresolved failures, do more in-depth analysis
 
         if (failures.isEmpty()) {
-            // collect Function to better reason about encountered attributes
-            Map<String, Function> resolvedFunctions = Functions.collectFunctions(plan);
+            final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
+
+            // collect Attribute sources
+            // only Aliases are interesting since these are the only ones that hide expressions
+            // FieldAttribute for example are self replicating.
+            plan.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                if (e instanceof Alias) {
+                    Alias a = (Alias) e;
+                    collectRefs.put(a.toAttribute(), a.child());
+                }
+            }));
+
+            AttributeMap<Expression> attributeRefs = new AttributeMap<>(collectRefs);
 
             // for filtering out duplicated errors
             final Set<LogicalPlan> groupingFailures = new LinkedHashSet<>();
@@ -234,17 +244,17 @@ public final class Verifier {
                 Set<Failure> localFailures = new LinkedHashSet<>();
 
                 checkGroupingFunctionInGroupBy(p, localFailures);
-                checkFilterOnAggs(p, localFailures);
-                checkFilterOnGrouping(p, localFailures);
+                checkFilterOnAggs(p, localFailures, attributeRefs);
+                checkFilterOnGrouping(p, localFailures, attributeRefs);
 
-                if (!groupingFailures.contains(p)) {
-                    checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
+                if (groupingFailures.contains(p) == false) {
+                    checkGroupBy(p, localFailures, attributeRefs, groupingFailures);
                 }
 
                 checkForScoreInsideFunctions(p, localFailures);
                 checkNestedUsedInGroupByOrHaving(p, localFailures);
                 checkForGeoFunctionsOnDocValues(p, localFailures);
-                checkPivot(p, localFailures);
+                checkPivot(p, localFailures, attributeRefs);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -255,7 +265,7 @@ public final class Verifier {
                 failures.addAll(localFailures);
             });
         }
-
+        
         // gather metrics
         if (failures.isEmpty()) {
             BitSet b = new BitSet(FeatureMetric.values().length);
@@ -297,17 +307,18 @@ public final class Verifier {
      * 2a. HAVING also requires an Aggregate function
      * 3. composite agg (used for GROUP BY) allows ordering only on the group keys
      */
-    private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures,
-            Map<String, Function> resolvedFunctions, Set<LogicalPlan> groupingFailures) {
+    private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs,
+            Set<LogicalPlan> groupingFailures) {
         return checkGroupByInexactField(p, localFailures)
-                && checkGroupByAgg(p, localFailures, resolvedFunctions)
-                && checkGroupByOrder(p, localFailures, groupingFailures)
-                && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions)
+                && checkGroupByAgg(p, localFailures, attributeRefs)
+                && checkGroupByOrder(p, localFailures, groupingFailures, attributeRefs)
+                && checkGroupByHaving(p, localFailures, groupingFailures, attributeRefs)
                 && checkGroupByTime(p, localFailures);
     }
 
     // check whether an orderBy failed or if it occurs on a non-key
-    private static boolean checkGroupByOrder(LogicalPlan p, Set<Failure> localFailures, Set<LogicalPlan> groupingFailures) {
+    private static boolean checkGroupByOrder(LogicalPlan p, Set<Failure> localFailures, Set<LogicalPlan> groupingFailures,
+            AttributeMap<Expression> attributeRefs) {
         if (p instanceof OrderBy) {
             OrderBy o = (OrderBy) p;
             LogicalPlan child = o.child();
@@ -328,7 +339,7 @@ public final class Verifier {
                     Expression e = oe.child();
 
                     // aggregates are allowed
-                    if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
+                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
                         return;
                     }
 
@@ -375,7 +386,7 @@ public final class Verifier {
     }
 
     private static boolean checkGroupByHaving(LogicalPlan p, Set<Failure> localFailures,
-            Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
+            Set<LogicalPlan> groupingFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter f = (Filter) p;
             if (f.child() instanceof Aggregate) {
@@ -385,7 +396,7 @@ public final class Verifier {
                 Set<Expression> unsupported = new LinkedHashSet<>();
                 Expression condition = f.condition();
                 // variation of checkGroupMatch customized for HAVING, which requires just aggregations
-                condition.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, functions));
+                condition.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, attributeRefs));
 
                 if (!missing.isEmpty()) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
@@ -411,17 +422,11 @@ public final class Verifier {
 
 
     private static boolean checkGroupByHavingHasOnlyAggs(Expression e, Set<Expression> missing,
-                                                         Set<Expression> unsupported, Map<String, Function> functions) {
+            Set<Expression> unsupported, AttributeMap<Expression> attributeRefs) {
 
         // resolve FunctionAttribute to backing functions
-        if (e instanceof FunctionAttribute) {
-            FunctionAttribute fa = (FunctionAttribute) e;
-            Function function = functions.get(fa.functionId());
-            // TODO: this should be handled by a different rule
-            if (function == null) {
-                return false;
-            }
-            e = function;
+        if (e instanceof ReferenceAttribute) {
+            e = attributeRefs.get(e);
         }
 
         // scalar functions can be a binary tree
@@ -432,7 +437,7 @@ public final class Verifier {
 
             // unwrap function to find the base
             for (Expression arg : sf.arguments()) {
-                arg.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, functions));
+                arg.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, attributeRefs));
             }
             return true;
 
@@ -449,7 +454,7 @@ public final class Verifier {
                 // Min & Max on a Keyword field will be translated to First & Last respectively
                 unsupported.add(e);
                 return true;
-        }
+            }
         }
 
         // skip literals / foldable
@@ -477,30 +482,34 @@ public final class Verifier {
         return true;
     }
 
-    // The grouping can not be an aggregate function or an inexact field (e.g. text without a keyword)
+            // The grouping can not be an aggregate function or an inexact field (e.g. text without a keyword)
     private static boolean onlyExactFields(List<Expression> expressions, Set<Failure> localFailures) {
         Holder<Boolean> onlyExact = new Holder<>(Boolean.TRUE);
 
         expressions.forEach(e -> e.forEachUp(c -> {
-            EsField.Exact exact = c.getExactInfo();
-            if (exact.hasExact() == false) {
+                EsField.Exact exact = c.getExactInfo();
+                if (exact.hasExact() == false) {
                 localFailures.add(fail(c, "Field [{}] of data type [{}] cannot be used for grouping; {}", c.sourceText(),
                         c.dataType().typeName, exact.errorMsg()));
                 onlyExact.set(Boolean.FALSE);
-            }
-        }, FieldAttribute.class));
+                }
+            }, FieldAttribute.class));
 
         return onlyExact.get();
-    }
+        }
 
-    private static boolean onlyRawFields(Iterable<? extends Expression> expressions, Set<Failure> localFailures) {
+    private static boolean onlyRawFields(Iterable<? extends Expression> expressions, Set<Failure> localFailures, 
+            AttributeMap<Expression> attributeRefs) {
         Holder<Boolean> onlyExact = new Holder<>(Boolean.TRUE);
 
         expressions.forEach(e -> e.forEachDown(c -> {
-            if (c instanceof Function || c instanceof FunctionAttribute) {
+            if (c instanceof ReferenceAttribute) {
+                c = attributeRefs.getOrDefault(c, c);
+            }
+            if (c instanceof Function) {
                 localFailures.add(fail(c, "No functions allowed (yet); encountered [{}]", c.sourceText()));
                 onlyExact.set(Boolean.FALSE);
-            }
+    }
         }));
         return onlyExact.get();
     }
@@ -522,7 +531,7 @@ public final class Verifier {
     }
 
     // check whether plain columns specified in an agg are mentioned in the group-by
-    private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures, Map<String, Function> functions) {
+    private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Aggregate) {
             Aggregate a = (Aggregate) p;
 
@@ -566,7 +575,7 @@ public final class Verifier {
 
             Map<Expression, Node<?>> missing = new LinkedHashMap<>();
             a.aggregates().forEach(ne ->
-                ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, functions)));
+                ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, attributeRefs)));
 
             if (!missing.isEmpty()) {
                 String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
@@ -581,23 +590,16 @@ public final class Verifier {
     }
 
     private static boolean checkGroupMatch(Expression e, Node<?> source, List<Expression> groupings,
-            Map<Expression, Node<?>> missing, Map<String, Function> functions) {
+            Map<Expression, Node<?>> missing, AttributeMap<Expression> attributeRefs) {
 
         // 1:1 match
         if (Expressions.match(groupings, e::semanticEquals)) {
             return true;
         }
 
-
         // resolve FunctionAttribute to backing functions
-        if (e instanceof FunctionAttribute) {
-            FunctionAttribute fa = (FunctionAttribute) e;
-            Function function = functions.get(fa.functionId());
-            // TODO: this should be handled by a different rule
-            if (function == null) {
-                return false;
-            }
-            e = function;
+        if (e instanceof ReferenceAttribute) {
+            e = attributeRefs.get(e);
         }
 
         // scalar functions can be a binary tree
@@ -613,7 +615,7 @@ public final class Verifier {
 
             // unwrap function to find the base
             for (Expression arg : sf.arguments()) {
-                arg.collectFirstChildren(c -> checkGroupMatch(c, source, groupings, missing, functions));
+                arg.collectFirstChildren(c -> checkGroupMatch(c, source, groupings, missing, attributeRefs));
             }
 
             return true;
@@ -632,7 +634,7 @@ public final class Verifier {
         if (Functions.isAggregate(e)) {
             return true;
         }
-
+        
         // left without leaves which have to match; if not there's a failure
         // make sure to match directly on the expression and not on the tree
         // (since otherwise exp might match the function argument which would be incorrect)
@@ -645,7 +647,7 @@ public final class Verifier {
         }
         return false;
     }
-
+    
     private static void checkGroupingFunctionInGroupBy(LogicalPlan p, Set<Failure> localFailures) {
         // check if the query has a grouping function (Histogram) but no GROUP BY
         if (p instanceof Project) {
@@ -653,12 +655,12 @@ public final class Verifier {
             proj.projections().forEach(e -> e.forEachDown(f ->
                 localFailures.add(fail(f, "[{}] needs to be part of the grouping", Expressions.name(f))), GroupingFunction.class));
         }
-        // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms)
+            // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms)
         else if (p instanceof Aggregate) {
             Aggregate a = (Aggregate) p;
             a.aggregates().forEach(agg -> agg.forEachDown(e -> {
                 if (a.groupings().size() == 0
-                        || Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.functionEquals((Function) g)) == false) {
+                        || Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.equals(g)) == false) {
                     localFailures.add(fail(e, "[{}] needs to be part of the grouping", Expressions.name(e)));
                 }
                 else {
@@ -681,12 +683,12 @@ public final class Verifier {
         });
     }
 
-    private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures) {
+    private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
             if ((filter.child() instanceof Aggregate) == false) {
                 filter.condition().forEachDown(e -> {
-                    if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
+                    if (Functions.isAggregate(attributeRefs.getOrDefault(e, e)) == true) {
                         localFailures.add(
                                 fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead", Expressions.name(e)));
                     }
@@ -696,11 +698,11 @@ public final class Verifier {
     }
 
 
-    private static void checkFilterOnGrouping(LogicalPlan p, Set<Failure> localFailures) {
+    private static void checkFilterOnGrouping(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
             filter.condition().forEachDown(e -> {
-                if (Functions.isGrouping(e) || e instanceof GroupingFunctionAttribute) {
+                if (Functions.isGrouping(attributeRefs.getOrDefault(e, e))) {
                     localFailures
                             .add(fail(e, "Cannot filter on grouping function [{}], use its argument instead", Expressions.name(e)));
                 }
@@ -735,14 +737,14 @@ public final class Verifier {
                     fail(nested.get(0), "Grouping isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
         }
-
+        
         // check in having
         p.forEachDown(f -> {
             if (f.child() instanceof Aggregate) {
                 f.condition().forEachUp(match, FieldAttribute.class);
             }
         }, Filter.class);
-
+        
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
@@ -787,11 +789,11 @@ public final class Verifier {
         }, FieldAttribute.class)), OrderBy.class);
     }
 
-    private static void checkPivot(LogicalPlan p, Set<Failure> localFailures) {
+    private static void checkPivot(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         p.forEachDown(pv -> {
             // check only exact fields are used inside PIVOTing
             if (onlyExactFields(combine(pv.groupingSet(), pv.column()), localFailures) == false
-                    || onlyRawFields(pv.groupingSet(), localFailures) == false) {
+                    || onlyRawFields(pv.groupingSet(), localFailures, attributeRefs) == false) {
                 // if that is not the case, no need to do further validation since the declaration is fundamentally wrong
                 return;
             }

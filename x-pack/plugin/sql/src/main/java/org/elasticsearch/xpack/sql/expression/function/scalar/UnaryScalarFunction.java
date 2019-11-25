@@ -58,6 +58,12 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
     }
 
     @Override
+    public Object fold() {
+        return makeProcessor().process(field().fold());
+    }
+
+
+    @Override
     public ScriptTemplate asScript() {
         return asScript(field);
     }

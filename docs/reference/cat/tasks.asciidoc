@@ -13,7 +13,7 @@ similar to the <<tasks,task management>> API.
 [[cat-tasks-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/_tasks`
+`GET /_cat/tasks`
 
 
 [[cat-tasks-api-desc]]

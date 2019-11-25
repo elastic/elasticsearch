@@ -30,11 +30,10 @@ import java.util.Map;
  * A processor that breaks line from CSV file into separate fields.
  * If there's more fields requested than there is in the CSV, extra field will not be present in the document after processing.
  * In the same way this processor will skip any field that is empty in CSV.
- * <p>
- * <p>
+ *
  * By default it uses rules according to <a href="https://tools.ietf.org/html/rfc4180">RCF 4180</a>,
  * but it can be tweaked with following parameters:
- * <p>
+ *
  * quote: set custom quote character (defaults to ")
  * separator: set custom separator (defaults to ,)
  * trim: trim leading whitespaces in each field (allows also whitespaces before quoted fields, defaults to false)

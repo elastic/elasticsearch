@@ -1022,3 +1022,27 @@ See <<pki-realm>>.
 
 See <<ref-pki-settings>>.
 
+[role="exclude",id="configuring-ad-realm"]
+=== Configuring an Active Directory realm
+
+See <<ad-realm-configuration>>.
+
+[role="exclude",id="ad-settings"]
+=== Active Directory realm settings
+
+See <<ref-ad-settings>>.
+
+[role="exclude",id="mapping-roles-ad"]
+=== Mapping Active Directory users and groups to roles
+
+See <<ad-realm-configuration>>. 
+
+[role="exclude",id="how-security-works"]
+=== How security works
+
+See <<elasticsearch-security>>.
+
+[role="exclude",id="rollup-job-config"]
+=== Rollup job configuration
+
+See <<rollup-put-job-api-request-body>>.

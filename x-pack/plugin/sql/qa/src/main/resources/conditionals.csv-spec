@@ -286,9 +286,9 @@ SELECT bytes_in, bytes_out, IIF(bytes_in < 10, IIF(bytes_in = 0, NULL, bytes_in 
 ---------------+---------------+---------------
 0              |128            |null
 0              |null           |null
-8              |null           |null
-8              |null           |null
-8              |null           |null
+8              |null           |80
+8              |null           |80
+8              |null           |80
 ;
 
 iifWhere

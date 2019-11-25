@@ -203,7 +203,7 @@ public class ExtractedFieldsDetector {
                 .expand(includes, false);
             // If the exclusion set does not match anything, that means the fields are already not present
             // no need to raise if nothing matched
-            Set<String> excludedSet = NameResolver.newUnaliased(fields,
+            Set<String> excludedSet = NameResolver.newUnaliased(fieldCapabilitiesResponse.get().keySet(),
                 (ex) -> new ResourceNotFoundException(
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex)))
                 .expand(excludes, true);

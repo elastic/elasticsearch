@@ -65,14 +65,14 @@ model bounds for each entity that is being analyzed.
 See <<ml-apimodelplotconfig>>. | No
 
 |`model_snapshot_retention_days` |The time in days that model snapshots are
-retained for the job. See <<ml-job-resource>>. | Yes
+retained for the job. See <<ml-job-resource>>. | No
 
 |`renormalization_window_days` |Advanced configuration option. The period over
 which adjustments to the score are applied, as new data is seen.
 See <<ml-job-resource>>. | Yes
 
 |`results_retention_days` |Advanced configuration option. The number of days
-for which job results are retained. See <<ml-job-resource>>. | Yes
+for which job results are retained. See <<ml-job-resource>>. | No
 
 |=======================================================================
 

@@ -25,6 +25,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
@@ -833,6 +834,14 @@ public class MLRequestConvertersTests extends ESTestCase {
                 hasEntry("decompress_definition", "true"),
                 hasEntry("include_model_definition", "false")
             ));
+        assertNull(request.getEntity());
+    }
+
+    public void testDeleteTrainedModel() {
+        DeleteTrainedModelRequest deleteRequest = new DeleteTrainedModelRequest(randomAlphaOfLength(10));
+        Request request = MLRequestConverters.deleteTrainedModel(deleteRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/inference/" + deleteRequest.getId(), request.getEndpoint());
         assertNull(request.getEntity());
     }
 

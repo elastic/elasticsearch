@@ -57,8 +57,7 @@ public class SearchShard implements Comparable<SearchShard> {
 
     @Override
     public int compareTo(SearchShard o) {
-        int cmp = Objects.compare(clusterAlias, o.clusterAlias,
-            Comparator.nullsFirst(Comparator.naturalOrder()));
+        int cmp = Objects.compare(clusterAlias, o.clusterAlias, Comparator.nullsFirst(Comparator.naturalOrder()));
         return cmp != 0 ? cmp : shardId.compareTo(o.shardId);
     }
 
@@ -67,8 +66,8 @@ public class SearchShard implements Comparable<SearchShard> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchShard that = (SearchShard) o;
-        return Objects.equals(clusterAlias, that.clusterAlias) &&
-            shardId.equals(that.shardId);
+        return Objects.equals(clusterAlias, that.clusterAlias)
+            && shardId.equals(that.shardId);
     }
 
     @Override

@@ -40,6 +40,8 @@ import java.util.stream.StreamSupport;
 abstract class SearchProgressListener {
     private static final Logger logger = LogManager.getLogger(SearchProgressListener.class);
 
+    public static final SearchProgressListener NOOP = new SearchProgressListener() {};
+
     /**
      * Executed when shards are ready to be queried.
      *
@@ -131,7 +133,7 @@ abstract class SearchProgressListener {
         }
     }
 
-    public void notifyFetchResult(FetchSearchResult result) {
+    final void notifyFetchResult(FetchSearchResult result) {
         try {
             onFetchResult(result);
         } catch (Exception e) {
@@ -139,7 +141,6 @@ abstract class SearchProgressListener {
                 result.getSearchShardTarget().getShardId().getId()), e);
         }
     }
-
 
     final List<SearchShard> searchShards(List<? extends SearchPhaseResult> results) {
         return results.stream()
@@ -154,6 +155,4 @@ abstract class SearchProgressListener {
             .map(e -> new SearchShard(e.getClusterAlias(), e.shardId()))
             .collect(Collectors.toList());
     }
-
-    public static final SearchProgressListener NOOP = new SearchProgressListener() {};
 }

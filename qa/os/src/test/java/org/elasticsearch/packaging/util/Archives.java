@@ -321,12 +321,7 @@ public class Archives {
 
         final Shell sh = new Shell();
         Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + "; tail --pid=" + pid + " -f /dev/null"));
-        Platforms.onWindows(() -> {
-            sh.run("Get-Process -Id " + pid + " | Stop-Process -Force");
-            Shell.Result result = sh.run("openfiles /query");
-            logger.warn("Killed elasticsearch process:\n" + result.stdout);
-            sh.run("Wait-Process -Id " + pid);
-        });
+        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid + " | Stop-Process -Force; Wait-Process -Id " + pid));
         if (Files.exists(pidFile)) {
             Files.delete(pidFile);
         }

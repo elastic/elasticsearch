@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -284,15 +286,101 @@ public class JobResultsPersisterTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    @SuppressWarnings({"unchecked"})
+    public void testBulkRequesChangeOnFailures() throws Exception {
+        Bucket bucket = new Bucket("foo", new Date(), 123456);
+        bucket.setAnomalyScore(99.9);
+        bucket.setEventCount(57);
+        bucket.setInitialAnomalyScore(88.8);
+        bucket.setProcessingTimeMs(8888);
+
+        BucketInfluencer bi = new BucketInfluencer(JOB_ID, new Date(), 600);
+        bi.setAnomalyScore(14.15);
+        bi.setInfluencerFieldName("biOne");
+        bi.setInitialAnomalyScore(18.12);
+        bi.setProbability(0.0054);
+        bi.setRawAnomalyScore(19.19);
+        bucket.addBucketInfluencer(bi);
+
+        AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600);
+        bucket.setRecords(Collections.singletonList(record));
+
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+        BulkItemResponse failureItem = new BulkItemResponse(0,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared",
+                bucket.getId(),
+                new Exception("something")));
+        BulkItemResponse successItem = new BulkItemResponse(1,
+            DocWriteRequest.OpType.INDEX,
+            new IndexResponse(new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
+                bi.getId(),
+                0,
+                0,
+                1,
+                true));
+        BulkResponse withFailure = new BulkResponse(new BulkItemResponse[]{ failureItem, successItem }, 0L);
+        Client client = mockClientWithResponse(captor, withFailure, new BulkResponse(new BulkItemResponse[0], 0L));
+
+        JobResultsPersister persister = new JobResultsPersister(client);
+        JobResultsPersister.Builder bulkPersister = persister.bulkPersisterBuilder(JOB_ID);
+        expectThrows(JobResultsPersister.BulkIndexException.class, () -> bulkPersister.persistBucket(bucket).executeRequest());
+        BulkRequest bulkRequest = captor.getValue();
+        assertEquals(2, bulkRequest.numberOfActions());
+
+        String s = ((IndexRequest)bulkRequest.requests().get(0)).source().utf8ToString();
+        assertTrue(s.matches(".*anomaly_score.:99\\.9.*"));
+        assertTrue(s.matches(".*initial_anomaly_score.:88\\.8.*"));
+        assertTrue(s.matches(".*event_count.:57.*"));
+        assertTrue(s.matches(".*bucket_span.:123456.*"));
+        assertTrue(s.matches(".*processing_time_ms.:8888.*"));
+        // There should NOT be any nested records
+        assertFalse(s.matches(".*records*"));
+
+        s = ((IndexRequest)bulkRequest.requests().get(1)).source().utf8ToString();
+        assertTrue(s.matches(".*probability.:0\\.0054.*"));
+        assertTrue(s.matches(".*influencer_field_name.:.biOne.*"));
+        assertTrue(s.matches(".*initial_anomaly_score.:18\\.12.*"));
+        assertTrue(s.matches(".*anomaly_score.:14\\.15.*"));
+        assertTrue(s.matches(".*raw_anomaly_score.:19\\.19.*"));
+
+        bulkPersister.executeRequest();
+        bulkRequest = captor.getValue();
+        assertEquals(1, bulkRequest.numberOfActions());
+        s = ((IndexRequest)bulkRequest.requests().get(0)).source().utf8ToString();
+        assertTrue(s.matches(".*anomaly_score.:99\\.9.*"));
+        assertTrue(s.matches(".*initial_anomaly_score.:88\\.8.*"));
+        assertTrue(s.matches(".*event_count.:57.*"));
+        assertTrue(s.matches(".*bucket_span.:123456.*"));
+        assertTrue(s.matches(".*processing_time_ms.:8888.*"));
+        // There should NOT be any nested records
+        assertFalse(s.matches(".*records*"));
+
+        assertEquals(0, bulkPersister.getBulkRequest().numberOfActions());
+    }
+
     private Client mockClient(ArgumentCaptor<BulkRequest> captor) {
+        return mockClientWithResponse(captor, new BulkResponse(new BulkItemResponse[0], 0L));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Client mockClientWithResponse(ArgumentCaptor<BulkRequest> captor, BulkResponse... responses) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        ActionFuture<BulkResponse> future = mock(ActionFuture.class);
-        when(future.actionGet()).thenReturn(new BulkResponse(new BulkItemResponse[0], 0L));
-        when(client.bulk(captor.capture())).thenReturn(future);
+        List<ActionFuture<BulkResponse>> futures = new ArrayList<>(responses.length - 1);
+        ActionFuture<BulkResponse> future1 = makeFuture(responses[0]);
+        for (int i = 1; i < responses.length; i++) {
+            futures.add(makeFuture(responses[i]));
+        }
+        when(client.bulk(captor.capture())).thenReturn(future1, futures.toArray(ActionFuture[]::new));
         return client;
+    }
+
+    @SuppressWarnings("unchecked")
+    private ActionFuture<BulkResponse> makeFuture(BulkResponse response) {
+        ActionFuture<BulkResponse> future = mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(response);
+        return future;
     }
 }

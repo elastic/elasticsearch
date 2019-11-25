@@ -459,7 +459,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         // Hax as memory persister needs to be verified before @After
         verify(this.persister).bulkPersisterBuilder(JOB_ID);
-        verify(bulkBuilder, times(2)).executeRequest();
+        verify(bulkBuilder, times(3)).executeRequest();
     }
 
     public void testBulkPersistWithRetry_withDeadProcess() throws Exception {

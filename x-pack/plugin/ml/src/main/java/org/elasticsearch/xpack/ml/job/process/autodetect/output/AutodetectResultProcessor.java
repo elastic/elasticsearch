@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -46,6 +47,7 @@ import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -77,11 +79,16 @@ public class AutodetectResultProcessor {
         "xpack.ml.persist_results_max_retries",
         2,
         0,
-        Integer.MAX_VALUE - 2,
+        15,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope);
 
+    private static final int MAX_RETRY_SLEEP_MILLIS = 5 * 1000;
+    private static final int MIN_RETRY_SLEEP_MILLIS = 50;
+
     private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
+
+    private final Random random = Randomness.get();
 
     private final Client client;
     private final AnomalyDetectionAuditor auditor;
@@ -325,7 +332,7 @@ public class AutodetectResultProcessor {
 
     void bulkPersistWithRetry(CheckedRunnable<JobResultsPersister.BulkIndexException> bulkRunnable) {
         int attempts = 0;
-        while(attempts < maximumFailureRetries) {
+        while(attempts <= maximumFailureRetries) {
             try {
                 bulkRunnable.run();
                 return;
@@ -341,12 +348,19 @@ public class AutodetectResultProcessor {
                 attempts++;
                 try {
                     double backOff = ((1 << attempts) - 1) / 2.0;
-                    Thread.sleep((int)(backOff * 100));
+                    int max = (int)(backOff * 100);
+                    // Random Int between [0-Math.max(max, MAX_RETRY_SLEEP_MILLIS))
+                    int randSleep = random.nextInt(Math.max(max, MAX_RETRY_SLEEP_MILLIS));
+                    Thread.sleep(randSleep + MIN_RETRY_SLEEP_MILLIS);
                 } catch (InterruptedException interrupt) {
                     LOGGER.warn(
-                        () -> new ParameterizedMessage("[{}] failed bulk indexing of results after [{}] attempts", jobId, currentAttempt),
+                        () -> new ParameterizedMessage("[{}] failed bulk indexing of results after [{}] attempts due to interrupt",
+                            jobId,
+                            currentAttempt),
                         ex
                     );
+                    // propagate the interrupt
+                    Thread.currentThread().interrupt();
                     return;
                 }
             } catch (Exception e) {

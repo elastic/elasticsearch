@@ -42,8 +42,10 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -217,7 +219,21 @@ public class JobResultsPersister {
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
                 if (addRecordsResponse.hasFailures()) {
+                    // If we failed, lets set the bulkRequest to be a collection of the failed requests
+                    BulkRequest bulkRequestOfFailures = new BulkRequest();
+                    Set<String> failedDocIds = new HashSet<>();
+                    addRecordsResponse.forEach(itemResponse -> {
+                        if (itemResponse.isFailed()) {
+                            failedDocIds.add(itemResponse.getId());
+                        }
+                    });
+                    bulkRequest.requests().forEach(docWriteRequest -> {
+                        if (failedDocIds.contains(docWriteRequest.id())) {
+                            bulkRequestOfFailures.add(docWriteRequest);
+                        }
+                    });
                     logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+                    bulkRequest = bulkRequestOfFailures;
                     throw new BulkIndexException(addRecordsResponse);
                 }
             }

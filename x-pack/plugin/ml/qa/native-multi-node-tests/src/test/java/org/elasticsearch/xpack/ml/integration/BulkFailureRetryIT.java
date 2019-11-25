@@ -121,7 +121,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
                 .put("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output", "TRACE")
-                .put("xpack.ml.persist_results_max_retries", "10000")
+                .put("xpack.ml.persist_results_max_retries", "15")
                 .build()).get();
 
         setAnomaliesReadOnlyBlock();

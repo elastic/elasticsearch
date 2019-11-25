@@ -39,7 +39,7 @@ import java.util.Map;
  * separator: set custom separator (defaults to ,)
  * trim: trim leading whitespaces in each field (allows also whitespaces before quoted fields, defaults to false)
  */
-public class CsvProcessor extends AbstractProcessor {
+public final class CsvProcessor extends AbstractProcessor {
 
     public static final String TYPE = "csv";
 
@@ -50,7 +50,7 @@ public class CsvProcessor extends AbstractProcessor {
     private final char separator;
     private final boolean ignoreMissing;
 
-    public CsvProcessor(String tag, String field, String[] headers, boolean trim, char separator, char quote, boolean ignoreMissing) {
+    CsvProcessor(String tag, String field, String[] headers, boolean trim, char separator, char quote, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.headers = headers;

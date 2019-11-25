@@ -24,6 +24,7 @@ import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -39,9 +40,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -49,6 +52,8 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -89,7 +94,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        FIELD_TYPES = new MappedFieldType[7];
+        FIELD_TYPES = new MappedFieldType[8];
         FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType();
         FIELD_TYPES[0].setName("keyword");
         FIELD_TYPES[0].setHasDocValues(true);
@@ -119,6 +124,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         FIELD_TYPES[6] = new IpFieldMapper.IpFieldType();
         FIELD_TYPES[6].setName("ip");
         FIELD_TYPES[6].setHasDocValues(true);
+
+        FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType();
+        FIELD_TYPES[7].setName("geo_point");
+        FIELD_TYPES[7].setHasDocValues(true);
     }
 
     @Override
@@ -1788,6 +1797,47 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testWithGeoPoint() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("geo_point", new GeoPoint(48.934059, 41.610741)),
+                createDocument("geo_point", new GeoPoint(-23.065941, 113.610741)),
+                createDocument("geo_point", new GeoPoint(90.0, 0.0)),
+                createDocument("geo_point", new GeoPoint(37.2343, -115.8067)),
+                createDocument("geo_point", new GeoPoint(90.0, 0.0))
+            )
+        );
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("geo_point")), dataset,
+            () -> {
+                GeoTileGridValuesSourceBuilder geoTile = new GeoTileGridValuesSourceBuilder("geo_point")
+                    .field("geo_point");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(geoTile));
+            }, (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{geo_point=7/64/56}", result.afterKey().toString());
+                assertEquals("{geo_point=7/32/56}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{geo_point=7/64/56}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(3L, result.getBuckets().get(1).getDocCount());
+            }
+        );
+
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("geo_point")), dataset,
+            () -> {
+                GeoTileGridValuesSourceBuilder geoTile = new GeoTileGridValuesSourceBuilder("geo_point")
+                    .field("geo_point");
+                return new CompositeAggregationBuilder("name", Collections.singletonList(geoTile))
+                    .aggregateAfter(Collections.singletonMap("geo_point", "7/32/56"));
+            }, (result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{geo_point=7/64/56}", result.afterKey().toString());
+                assertEquals("{geo_point=7/64/56}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(3L, result.getBuckets().get(0).getDocCount());
+            }
+        );
+    }
+
     private void testSearchCase(List<Query> queries,
                                 List<Map<String, List<Object>>> dataset,
                                 Supplier<CompositeAggregationBuilder> create,
@@ -1845,6 +1895,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 } else if (value instanceof InetAddress) {
                     doc.add(new SortedSetDocValuesField(name, new BytesRef(InetAddressPoint.encode((InetAddress) value))));
                     doc.add(new InetAddressPoint(name, (InetAddress) value));
+                } else if (value instanceof GeoPoint) {
+                    GeoPoint point = (GeoPoint)value;
+                    doc.add(new SortedNumericDocValuesField(name,
+                        GeoTileUtils.longEncode(point.lon(), point.lat(), GeoTileGridAggregationBuilder.DEFAULT_PRECISION)));
+                    doc.add(new LatLonPoint(name, point.lat(), point.lon()));
                 } else {
                     throw new AssertionError("invalid object: " + value.getClass().getSimpleName());
                 }

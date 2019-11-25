@@ -25,7 +25,7 @@ The query then returns exact matches for each expansion.
 [[fuzzy-query-ex-simple]]
 ===== Simple example
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -38,12 +38,11 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[fuzzy-query-ex-advanced]]
 ===== Example using advanced parameters
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -61,7 +60,6 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[fuzzy-query-top-level-params]]
 ==== Top-level parameters for `fuzzy`

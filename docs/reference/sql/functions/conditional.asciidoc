@@ -248,7 +248,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[ifNullReturnSecond]
 ----
 
 [[sql-functions-conditional-iif]]
-==== `IFF`
+==== `IIF`
 
 .Synopsis:
 [source, sql]

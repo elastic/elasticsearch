@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,10 +60,12 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final String bucket;
     private final String clientName;
 
-    GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
-                                        NamedXContentRegistry namedXContentRegistry,
-                                        GoogleCloudStorageService storageService, ThreadPool threadPool) {
-        super(metadata, environment.settings(), namedXContentRegistry, threadPool, buildBasePath(metadata));
+    GoogleCloudStorageRepository(
+        final RepositoryMetaData metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final GoogleCloudStorageService storageService,
+        final ThreadPool threadPool) {
+        super(metadata, namedXContentRegistry, threadPool, buildBasePath(metadata));
         this.storageService = storageService;
 
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);

@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent;
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -1206,11 +1205,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     private static void expectNonNullFieldException(ThrowingRunnable runnable) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
         assertThat(e.getMessage(), containsString("Field name cannot be null"));
-    }
-
-    private static void expectNonNullFormatterException(ThrowingRunnable runnable) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
-        assertThat(e.getMessage(), containsString("DateTimeFormatter cannot be null"));
     }
 
     private static void expectObjectException(ThrowingRunnable runnable) {

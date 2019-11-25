@@ -10,7 +10,9 @@ Returns high-level information about indices in a cluster.
 [[cat-indices-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/indices/{index}`
+`GET /_cat/indices/<index>`
+
+`GET /_cat/indices`
 
 
 [[cat-indices-api-desc]]
@@ -77,6 +79,8 @@ primary shards. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
@@ -84,11 +88,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ==== {api-examples-title}
 
 [[examples]]
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/indices/twi*?v&s=index
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:huge_twitter]
 // TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
 

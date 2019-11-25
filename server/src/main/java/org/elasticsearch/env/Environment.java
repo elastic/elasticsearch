@@ -60,7 +60,7 @@ public class Environment {
     public static final Setting<List<String>> PATH_REPO_SETTING =
         Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
-    public static final Setting<String> PIDFILE_SETTING = Setting.simpleString("pidfile", Property.NodeScope);
+    public static final Setting<String> NODE_PIDFILE_SETTING = Setting.simpleString("node.pidfile", Property.NodeScope);
 
     private final Settings settings;
 
@@ -154,8 +154,8 @@ public class Environment {
             logsFile = homeFile.resolve("logs");
         }
 
-        if (PIDFILE_SETTING.exists(settings)) {
-            pidFile = PathUtils.get(PIDFILE_SETTING.get(settings)).toAbsolutePath().normalize();
+        if (NODE_PIDFILE_SETTING.exists(settings)) {
+            pidFile = PathUtils.get(NODE_PIDFILE_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
             pidFile = null;
         }
@@ -179,9 +179,9 @@ public class Environment {
             assert sharedDataFile != null;
             finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
-        if (PIDFILE_SETTING.exists(settings)) {
+        if (NODE_PIDFILE_SETTING.exists(settings)) {
             assert pidFile != null;
-            finalSettings.put(Environment.PIDFILE_SETTING.getKey(), pidFile.toString());
+            finalSettings.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile.toString());
         }
         this.settings = finalSettings.build();
     }

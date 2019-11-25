@@ -1,12 +1,15 @@
 [[cluster-state]]
-=== Cluster State
+=== Cluster state API
+++++
+<titleabbrev>Cluster state</titleabbrev>
+++++
 
 Returns metadata about the state of the cluster.
 
 [[cluster-state-api-request]]
 ==== {api-request-title}
 
-`GET /_cluster/state/{metrics}/{index}`
+`GET /_cluster/state/<metrics>/<index>`
 
 [[cluster-state-api-desc]]
 ==== {api-description-title}
@@ -50,7 +53,7 @@ including their mappings, as well as templates and other metadata. This means it
 can sometimes be quite large. To avoid the need to process all this information
 you can request only the part of the cluster state that you need:
 
-`{metrics}`::
+`<metrics>`::
     (Optional, string) A comma-separated list of the following options:
 +
 --
@@ -124,26 +127,21 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 The following example returns only `metadata` and `routing_table` data for the
 `foo` and `bar` indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state/metadata,routing_table/foo,bar
 --------------------------------------------------
-// CONSOLE
 
 The next example returns everything for the `foo` and `bar` indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state/_all/foo,bar
 --------------------------------------------------
-// CONSOLE
 
 This example returns only the `blocks` metadata:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state/blocks
 --------------------------------------------------
-// CONSOLE
-
-

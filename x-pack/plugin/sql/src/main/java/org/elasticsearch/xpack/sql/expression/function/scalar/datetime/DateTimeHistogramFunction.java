@@ -22,7 +22,13 @@ public abstract class DateTimeHistogramFunction extends DateTimeFunction {
     }
 
     /**
-     * used for aggregration (date histogram)
+     * used for aggregation (date histogram)
      */
-    public abstract long interval();
+    public long fixedInterval() {
+        return -1;
+    }
+    
+    public String calendarInterval() {
+        return null;
+    }
 }

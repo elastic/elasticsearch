@@ -12,12 +12,15 @@ pools.
 [[cat-thread-pool-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/thread_pool/{thread_pool}`
+`GET /_cat/thread_pool/<thread_pool>`
+
+`GET /_cat/thread_pool`
+
 
 [[cat-thread-pool-path-params]]
 ==== {api-path-parms-title}
 
-`{thread_pool}`::
+`<thread_pool>`::
 (Optional, string) Comma-separated list of thread pool names used to limit the
 request. Accepts wildcard expressions.
 
@@ -118,11 +121,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-thread-pool-api-ex-default]]
 ===== Example with default columns
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/thread_pool
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following response:
 
@@ -155,11 +157,10 @@ The following API request returns the `id`, `name`, `active`, `rejected`, and
 `completed` columns. The request limits returned information to the `generic`
 thread pool.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/thread_pool/generic?v&h=id,name,active,rejected,completed
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following response:
 

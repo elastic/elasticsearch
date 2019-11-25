@@ -43,7 +43,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.time.IsoLocale;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -136,7 +135,7 @@ public final class DateFieldMapper extends FieldMapper {
         public Builder(String name) {
             super(name, new DateFieldType(), new DateFieldType());
             builder = this;
-            locale = IsoLocale.ROOT;
+            locale = Locale.ROOT;
         }
 
         @Override
@@ -253,7 +252,7 @@ public final class DateFieldMapper extends FieldMapper {
         protected DateMathParser dateMathParser;
         protected Resolution resolution;
 
-        DateFieldType() {
+        public DateFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);
@@ -328,7 +327,7 @@ public final class DateFieldMapper extends FieldMapper {
             return dateMathParser;
         }
 
-        long parse(String value) {
+        public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value)).toInstant());
         }
 

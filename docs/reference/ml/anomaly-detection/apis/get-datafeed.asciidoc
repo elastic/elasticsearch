@@ -26,7 +26,7 @@ Retrieves configuration information for {dfeeds}.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-get-datafeed-desc]]
 ==== {api-description-title}
@@ -85,15 +85,15 @@ The API returns the following information:
 The following example gets configuration information for the
 `datafeed-total-requests` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/datafeeds/datafeed-total-requests
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_datafeed]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count": 1,

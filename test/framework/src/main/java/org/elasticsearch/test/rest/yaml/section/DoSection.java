@@ -292,11 +292,8 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = matcher.group(1);
-                if (message.startsWith("[types removal]")) {
-                    /*
-                     * We skip warnings related to types deprecation so that we can continue to run the many
-                     * mixed-version tests that used typed APIs.
-                     */
+                if (message.startsWith("[_data_frame/transforms/] is deprecated")) {
+                    // We skip warnings related to the transform rename so that we can continue to run the many mixed-version tests.
                 } else if (expected.remove(message) == false) {
                     unexpected.add(header);
                 }

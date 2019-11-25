@@ -94,6 +94,10 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
             this.lifecycles = in.readList(SnapshotLifecyclePolicyItem::new);
         }
 
+        public List<SnapshotLifecyclePolicyItem> getPolicies() {
+            return this.lifecycles;
+        }
+
         @Override
         public String toString() {
             return Strings.toString(this);

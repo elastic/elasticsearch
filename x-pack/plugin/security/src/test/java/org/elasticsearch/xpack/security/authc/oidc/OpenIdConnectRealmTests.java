@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
@@ -68,6 +67,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
     public void testAuthentication() throws Exception {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        final String principal = randomAlphaOfLength(12);
         AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
         doAnswer(invocation -> {
             assert invocation.getArguments().length == 2;
@@ -78,10 +78,17 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
 
         final boolean notPopulateMetadata = randomBoolean();
-
-        AuthenticationResult result = authenticateWithOidc(roleMapper, notPopulateMetadata, false);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        AuthenticationResult result = authenticateWithOidc(principal, roleMapper, notPopulateMetadata, false, authenticatingRealm);
+        assertThat(result, notNullValue());
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser().principal(), equalTo(principal));
+        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
         assertThat(result.getUser().roles(), arrayContainingInAnyOrder("kibana_user", "role1"));
-        if (notPopulateMetadata == false) {
+        if (notPopulateMetadata) {
+            assertThat(result.getUser().metadata().size(), equalTo(0));
+        } else {
             assertThat(result.getUser().metadata().get("oidc(iss)"), equalTo("https://op.company.org"));
             assertThat(result.getUser().metadata().get("oidc(name)"), equalTo("Clinton Barton"));
         }
@@ -89,22 +96,35 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
     public void testWithAuthorizingRealm() throws Exception {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        final String principal = randomAlphaOfLength(12);
         doAnswer(invocation -> {
             assert invocation.getArguments().length == 2;
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
             listener.onFailure(new RuntimeException("Role mapping should not be called"));
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
-
-        AuthenticationResult result = authenticateWithOidc(roleMapper, randomBoolean(), true);
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("lookup_user_role"));
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        AuthenticationResult result = authenticateWithOidc(principal, roleMapper, randomBoolean(), true, authenticatingRealm);
+        assertThat(result, notNullValue());
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser().principal(), equalTo(principal));
+        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
         assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("lookup_user_role"));
         assertThat(result.getUser().metadata().entrySet(), Matchers.iterableWithSize(1));
         assertThat(result.getUser().metadata().get("is_lookup"), Matchers.equalTo(true));
         assertNotNull(result.getMetadata().get(CONTEXT_TOKEN_DATA));
         assertThat(result.getMetadata().get(CONTEXT_TOKEN_DATA), instanceOf(Map.class));
         Map<String, Object> tokenMetadata = (Map) result.getMetadata().get(CONTEXT_TOKEN_DATA);
         assertThat(tokenMetadata.get("id_token_hint"), equalTo("thisis.aserialized.jwt"));
+    }
+
+    public void testAuthenticationWithWrongRealm() throws Exception{
+        final String principal = randomAlphaOfLength(12);
+        AuthenticationResult result = authenticateWithOidc(principal, mock(UserRoleMapper.class), randomBoolean(), true,
+            REALM_NAME+randomAlphaOfLength(8));
+        assertThat(result, notNullValue());
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
     }
 
     public void testClaimPatternParsing() throws Exception {
@@ -126,7 +146,8 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
     public void testInvalidPrincipalClaimPatternParsing() {
         final OpenIdConnectAuthenticator authenticator = mock(OpenIdConnectAuthenticator.class);
-        final OpenIdConnectToken token = new OpenIdConnectToken("", new State(), new Nonce());
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final OpenIdConnectToken token = new OpenIdConnectToken("", new State(), new Nonce(), authenticatingRealm);
         final Settings.Builder builder = getBasicRealmSettings();
         builder.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getPattern()), "^OIDC-(.+)");
         final RealmConfig config = buildConfig(builder.build(), threadContext);
@@ -278,17 +299,17 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             state + "&nonce=" + nonce + "&client_id=rp-my"));
     }
 
-    private AuthenticationResult authenticateWithOidc(UserRoleMapper roleMapper, boolean notPopulateMetadata, boolean useAuthorizingRealm)
+    private AuthenticationResult authenticateWithOidc(String principal, UserRoleMapper roleMapper, boolean notPopulateMetadata,
+                                                      boolean useAuthorizingRealm
+        ,String authenticatingRealm)
         throws Exception {
-
-        final String principal = "324235435454";
         final MockLookupRealm lookupRealm = new MockLookupRealm(
             new RealmConfig(new RealmConfig.RealmIdentifier("mock", "mock_lookup"), globalSettings, env, threadContext));
         final OpenIdConnectAuthenticator authenticator = mock(OpenIdConnectAuthenticator.class);
 
         final Settings.Builder builder = getBasicRealmSettings();
         if (notPopulateMetadata) {
-            builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.POPULATE_USER_METADATA),
+            builder.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.POPULATE_USER_METADATA),
                 false);
         }
         if (useAuthorizingRealm) {
@@ -300,7 +321,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final RealmConfig config = buildConfig(builder.build(), threadContext);
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(config, authenticator, roleMapper);
         initializeRealms(realm, lookupRealm);
-        final OpenIdConnectToken token = new OpenIdConnectToken("", new State(), new Nonce());
+        final OpenIdConnectToken token = new OpenIdConnectToken("", new State(), new Nonce(), authenticatingRealm);
         final JWTClaimsSet claims = new JWTClaimsSet.Builder()
             .subject(principal)
             .audience("https://rp.elastic.co/cb")
@@ -322,14 +343,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
 
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(token, future);
-        final AuthenticationResult result = future.get();
-        assertThat(result, notNullValue());
-        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(principal));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
-
-        return result;
+        return future.get();
     }
 
     private void initializeRealms(Realm... realms) {

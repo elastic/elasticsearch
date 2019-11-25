@@ -74,9 +74,10 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
         assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.Standard));
         assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.Standard));
 
-        // it should accept [standard, standard_ia, reduced_redundancy, intelligent_tiering]
+        // it should accept [standard, standard_ia, onezone_ia, reduced_redundancy, intelligent_tiering]
         assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.Standard));
         assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.StandardInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("onezone_ia"), equalTo(StorageClass.OneZoneInfrequentAccess));
         assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.ReducedRedundancy));
         assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.IntelligentTiering));
     }
@@ -84,6 +85,7 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
     public void testCaseInsensitiveStorageClass() {
         assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.Standard));
         assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.StandardInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA"), equalTo(StorageClass.OneZoneInfrequentAccess));
         assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.ReducedRedundancy));
         assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.IntelligentTiering));
     }

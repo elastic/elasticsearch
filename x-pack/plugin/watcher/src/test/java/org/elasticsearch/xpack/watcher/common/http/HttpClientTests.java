@@ -197,6 +197,7 @@ public class HttpClientTests extends ESTestCase {
             // We can't use the client created above for the server since it is only a truststore
             secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
             Settings settings2 = Settings.builder()
+                .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
                 .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
@@ -226,6 +227,7 @@ public class HttpClientTests extends ESTestCase {
             // We can't use the client created above for the server since it only defines a truststore
             secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode-no-subjaltname");
             Settings settings2 = Settings.builder()
+                .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
                 .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
@@ -382,6 +384,7 @@ public class HttpClientTests extends ESTestCase {
         Settings serverSettings = Settings.builder()
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
+            .put("xpack.security.http.ssl.enabled", false)
             .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
             .setSecureSettings(serverSecureSettings)
             .build();
@@ -397,6 +400,7 @@ public class HttpClientTests extends ESTestCase {
                 .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
                 .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
                 .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+                .put("xpack.security.http.ssl.enabled", false)
                 .build();
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
@@ -751,7 +755,7 @@ public class HttpClientTests extends ESTestCase {
     private void assertCreateUri(String uri, String expectedPath) {
         final HttpRequest request = HttpRequest.builder().fromUrl(uri).build();
         final Tuple<HttpHost, URI> tuple = HttpClient.createURI(request);
-        assertThat(tuple.v2().getPath(), is(expectedPath));
+        assertThat(tuple.v2().getRawPath(), is(expectedPath));
     }
 
     public static ClusterService mockClusterService() {

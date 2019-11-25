@@ -19,7 +19,7 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
@@ -62,6 +62,8 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
         // index random shapes
         numDocs = randomIntBetween(25, 50);
+        // reset query geometry to make sure we pick one from the indexed shapes
+        queryGeometry = null;
         Geometry geometry;
         for (int i = 0; i < numDocs; ++i) {
             geometry = ShapeTestUtils.randomGeometry(false);
@@ -73,10 +75,14 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
                 .startObject().field(FIELD), null).endObject();
 
             try {
-                client().prepareIndex(INDEX, FIELD_TYPE).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
-                client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
+                client().prepareIndex(INDEX).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
+                client().prepareIndex(IGNORE_MALFORMED_INDEX).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
             } catch (Exception e) {
                 // sometimes GeoTestUtil will create invalid geometry; catch and continue:
+                if (queryGeometry == geometry) {
+                    // reset query geometry as it didn't get indexed
+                    queryGeometry = null;
+                }
                 --i;
                 continue;
             }
@@ -86,7 +92,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
 
-        client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE, "Big_Rectangle").setSource(jsonBuilder().startObject()
+        client().prepareIndex(IGNORE_MALFORMED_INDEX).setId("Big_Rectangle").setSource(jsonBuilder().startObject()
             .field(FIELD, shape).endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch(IGNORE_MALFORMED_INDEX)
@@ -102,13 +108,13 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
         String location = "\"location\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
 
-        client().prepareIndex(indexName, "type", "1")
+        client().prepareIndex(indexName).setId("1")
             .setSource(
                 String.format(
                     Locale.ROOT, "{ %s, \"1\" : { %s, \"2\" : { %s, \"3\" : { %s } }} }", location, location, location, location
                 ), XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex(searchIndex, "type", "1")
+        client().prepareIndex(searchIndex).setId("1")
             .setSource(jsonBuilder().startObject().startObject("location")
                 .field("type", "polygon")
                 .startArray("coordinates").startArray()
@@ -178,7 +184,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(SpatialPlugin.class, XPackPlugin.class);
+        return pluginList(SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     /**
@@ -200,7 +206,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
             "    }\n" +
             "}";
 
-        client().prepareIndex(INDEX, FIELD_TYPE, "0").setSource(source, XContentType.JSON).setRouting("ABC").get();
+        client().prepareIndex(INDEX).setId("0").setSource(source, XContentType.JSON).setRouting("ABC").get();
         client().admin().indices().prepareRefresh(INDEX).get();
 
         SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(
@@ -212,11 +218,11 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testNullShape() {
         // index a null shape
-        client().prepareIndex(INDEX, FIELD_TYPE, "aNullshape").setSource("{\"" + FIELD + "\": null}", XContentType.JSON)
+        client().prepareIndex(INDEX).setId("aNullshape").setSource("{\"" + FIELD + "\": null}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE, "aNullshape").setSource("{\"" + FIELD + "\": null}",
+        client().prepareIndex(IGNORE_MALFORMED_INDEX).setId("aNullshape").setSource("{\"" + FIELD + "\": null}",
             XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        GetResponse result = client().prepareGet(INDEX, FIELD_TYPE, "aNullshape").get();
+        GetResponse result = client().prepareGet(INDEX, "aNullshape").get();
         assertThat(result.getField(FIELD), nullValue());
     }
 
@@ -227,7 +233,6 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
         assertHitCount(result, numDocs);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45628")
     public void testFieldAlias() {
         SearchResponse response = client().prepareSearch(INDEX)
             .setQuery(new ShapeQueryBuilder("alias", queryGeometry).relation(ShapeRelation.INTERSECTS))

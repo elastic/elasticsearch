@@ -60,7 +60,7 @@ params['_source']['actors'].length;                        <1>
 
 Submit the following request:
 
-[source,js]
+[source,console]
 ----
 GET seats/_search
 {
@@ -81,5 +81,4 @@ GET seats/_search
     }
 }
 ----
-// CONSOLE
 // TEST[skip: requires setup from other pages]

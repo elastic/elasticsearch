@@ -24,11 +24,10 @@ the available commands.
 Each of the commands accepts a query string parameter `v` to turn on
 verbose output. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/master?v
 --------------------------------------------------
-// CONSOLE
 
 Might respond with:
 
@@ -46,11 +45,10 @@ u_n93zwxThWHi1PDBJAGAg 127.0.0.1 127.0.0.1 u_n93zw
 Each of the commands accepts a query string parameter `help` which will
 output its available columns. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/master?help
 --------------------------------------------------
-// CONSOLE
 
 Might respond with:
 
@@ -75,11 +73,10 @@ instead.
 Each of the commands accepts a query string parameter `h` which forces
 only those columns to appear. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/nodes?h=ip,port,heapPercent,name
 --------------------------------------------------
-// CONSOLE
 
 Responds with:
 
@@ -232,6 +229,8 @@ include::cat/plugins.asciidoc[]
 include::cat/recovery.asciidoc[]
 
 include::cat/repositories.asciidoc[]
+
+include::cat/tasks.asciidoc[]
 
 include::cat/thread_pool.asciidoc[]
 

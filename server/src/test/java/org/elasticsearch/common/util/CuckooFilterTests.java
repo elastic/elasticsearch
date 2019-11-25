@@ -30,8 +30,8 @@ public class CuckooFilterTests extends AbstractWireSerializingTestCase<CuckooFil
 
     @Override
     protected CuckooFilter createTestInstance() {
-        CuckooFilter filter = new CuckooFilter(randomIntBetween(1, 100000),
-            ((float)randomIntBetween(1, 50)) / 100.0, Randomness.get());
+        CuckooFilter filter = new CuckooFilter(randomIntBetween(10000, 100000),
+            ((float)randomIntBetween(1, 20)) / 100.0, Randomness.get());
 
         int num = randomIntBetween(0, 10);
         for (int i = 0; i < num; i++) {
@@ -52,6 +52,15 @@ public class CuckooFilterTests extends AbstractWireSerializingTestCase<CuckooFil
         int num = randomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
             newInstance.add(hash(randomLong()));
+        }
+        int attempts = 0;
+        while (newInstance.getCount() == instance.getCount() && attempts < 100) {
+            newInstance.add(hash(randomLong()));
+            attempts += 1;
+        }
+        if (newInstance.equals(instance)) {
+            fail("Unable to mutate filter enough to generate a different version. " +
+                "Are capacity/precision defaults too low?");
         }
         return newInstance;
     }

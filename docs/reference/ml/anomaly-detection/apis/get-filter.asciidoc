@@ -20,7 +20,7 @@ Retrieves filters.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-get-filter-desc]]
 ==== {api-description-title}
@@ -66,15 +66,15 @@ The API returns the following information:
 The following example gets configuration information for the `safe_domains`
 filter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/filters/safe_domains
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:ml_filter_safe_domains]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count": 1,
@@ -90,4 +90,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE

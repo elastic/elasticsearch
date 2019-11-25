@@ -35,7 +35,7 @@ The `simple_pattern_split` tokenizer accepts the following parameters:
 This example configures the `simple_pattern_split` tokenizer to split the input
 text on underscores.
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -62,11 +62,10 @@ POST my_index/_analyze
   "text": "an_underscored_phrase"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens" : [
@@ -94,7 +93,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 

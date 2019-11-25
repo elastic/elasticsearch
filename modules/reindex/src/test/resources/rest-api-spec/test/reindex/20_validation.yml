@@ -246,7 +246,7 @@
       indices.refresh: {}
 
   - do:
-      catch: /\[test\]\[_doc\]\[1\] didn't store _source/
+      catch: /\[test\]\[1\] didn't store _source/
       reindex:
         body:
           source:

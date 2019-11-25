@@ -26,7 +26,9 @@ operations, but you can still explore and navigate results.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
+* Before you can close an {anomaly-job}, you must stop its {dfeed}. See
+<<ml-stop-datafeed>>.
 
 [[ml-close-job-desc]]
 ==== {api-description-title}
@@ -98,18 +100,17 @@ when there are no matches or only partial matches.
 
 The following example closes the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_close
 --------------------------------------------------
-// CONSOLE
-// TEST[skip:setup:server_metrics_openjob]
+// TEST[skip:sometimes fails due to https://github.com/elastic/elasticsearch/pull/48583#issuecomment-552991325 - on unmuting use setup:server_metrics_openjob-raw]
 
 When the job is closed, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "closed": true
 }
 ----
-// TESTRESPONSE

@@ -197,7 +197,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
-            .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
             .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
             .put(Node.NODE_DATA_SETTING.getKey(), true)

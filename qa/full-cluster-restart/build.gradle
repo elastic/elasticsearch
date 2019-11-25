@@ -19,14 +19,13 @@
 
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
-apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-test'
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
+tasks.register("bwcTest") {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
 }
@@ -36,13 +35,13 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
 
   testClusters {
     "${baseName}" {
-      versions = [ bwcVersion.toString(), project.version ]
+      versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 2
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '20m'
       setting 'http.content_type.required', 'true'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = project.file(project.ext.runtimeJavaHome)
+      javaHome = BuildParams.runtimeJavaHome
     }
   }
 
@@ -68,22 +67,19 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
     it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
+    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
   if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(
-            tasks.register("${baseName}#bwcTest") {
-              dependsOn tasks.named("${baseName}#upgradedClusterTest")
-            }
+      tasks.register("${baseName}#bwcTest") {
+        dependsOn tasks.named("${baseName}#upgradedClusterTest")
+      }
     )
   }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
-
-// basic integ tests includes testing bwc against the most recent version
 task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {
     for (final def version : bwcVersions.unreleasedIndexCompatible) {
@@ -106,3 +102,5 @@ task testJar(type: Jar) {
 artifacts {
   testArtifacts testJar
 }
+
+test.enabled = false

@@ -42,7 +42,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
@@ -54,7 +54,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < secondBatchNumDocs; i++) {
-            client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -67,7 +67,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         final long thirdBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
-            client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+            client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
         client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
@@ -109,7 +109,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
         createIndex("logs-20200101", leaderIndexSettings);
-        client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
             assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
@@ -126,7 +126,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         // This new index should be picked up by auto follow coordinator
         createIndex("logs-20200102", leaderIndexSettings);
         // This new document should be replicated to follower index:
-        client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
             assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),

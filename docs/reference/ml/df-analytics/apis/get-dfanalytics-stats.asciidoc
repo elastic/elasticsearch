@@ -24,12 +24,13 @@ experimental[]
 
 `GET _ml/data_frame/analytics/*/_stats`
 
+
 [[ml-get-dfanalytics-stats-prereq]]
 ==== {api-prereq-title}
 
 * You must have `monitor_ml` privilege to use this API. For more 
-information, see {stack-ov}/security-privileges.html[Security privileges] and 
-{stack-ov}/built-in-roles.html[Built-in roles].
+information, see <<security-privileges>> and <<built-in-roles>>.
+
 
 [[ml-get-dfanalytics-stats-path-params]]
 ==== {api-path-parms-title}
@@ -38,6 +39,7 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
   (Optional, string)Identifier for the {dfanalytics-job}. If you do not specify
   one of these options, the API returns information for the first hundred
   {dfanalytics-jobs}.
+
 
 [[ml-get-dfanalytics-stats-query-params]]
 ==== {api-query-parms-title}
@@ -64,6 +66,7 @@ when there are no matches or only partial matches.
   (Optional, integer) Specifies the maximum number of {dfanalytics-jobs} to
   obtain. The default value is `100`.
 
+
 [[ml-get-dfanalytics-stats-response-body]]
 ==== {api-response-body-title}
 
@@ -72,6 +75,24 @@ The API returns the following information:
 `data_frame_analytics`::
   (array) An array of statistics objects for {dfanalytics-jobs}, which are
   sorted by the `id` value in ascending order.
+  
+  `id`::
+    (string) The unique identifier of the {dfanalytics-job}.
+    
+  `state`::
+    (string) Current state of the {dfanalytics-job}.
+    
+  `progress`::
+    (array) The progress report of the {dfanalytics-job} by phase.
+    
+    `phase`::
+      (string) Defines the phase of the {dfanalytics-job}. Possible phases: 
+      `reindexing`, `loading_data`, `analyzing`, and `writing_results`.
+      
+    `progress_percent`::
+      (integer) The progress that the {dfanalytics-job} has made expressed in 
+      percentage.
+
 
 [[ml-get-dfanalytics-stats-response-codes]]
 ==== {api-response-codes-title}
@@ -80,28 +101,46 @@ The API returns the following information:
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request.
 
+
 [[ml-get-dfanalytics-stats-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/data_frame/analytics/loganalytics/_stats
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
+
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
     "count": 1,
     "data_frame_analytics": [
         {
             "id": "loganalytics",
-            "state": "stopped"
+            "state": "stopped",
+            "progress": [
+              {
+                "phase": "reindexing",
+                "progress_percent": 0
+              },
+              {
+                "phase": "loading_data",
+                "progress_percent": 0
+              },
+              {
+                "phase": "analyzing",
+                "progress_percent": 0
+              },
+              {
+                "phase": "writing_results",
+                "progress_percent": 0
+              }
+            ]
         }
     ]
 }
 ----
-// TESTRESPONSE

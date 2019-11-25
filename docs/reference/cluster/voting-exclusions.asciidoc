@@ -1,7 +1,7 @@
 [[voting-config-exclusions]]
 === Voting configuration exclusions API
 ++++
-<titleabbrev>Voting Configuration Exclusions</titleabbrev>
+<titleabbrev>Voting configuration exclusions</titleabbrev>
 ++++
 
 Adds or removes master-eligible nodes from the
@@ -11,7 +11,7 @@ Adds or removes master-eligible nodes from the
 [[voting-config-exclusions-api-request]]
 ==== {api-request-title}
 
-`POST _cluster/voting_config_exclusions/{node_name}` +
+`POST _cluster/voting_config_exclusions/<node_name>` +
 
 `DELETE _cluster/voting_config_exclusions`
 
@@ -46,7 +46,7 @@ For more information, see <<modules-discovery-removing-nodes>>.
 [[voting-config-exclusions-api-path-params]]
 ==== {api-path-parms-title}
 
-`{node_name}`::
+`<node_name>`::
   A <<cluster-nodes,node filter>> that identifies {es} nodes.
 
 
@@ -69,18 +69,16 @@ For more information, see <<modules-discovery-removing-nodes>>.
 
 Add `nodeId1` to the voting configuration exclusions list:
 
-[source,js]
+[source,console]
 -------------------------------------------------- 
 POST /_cluster/voting_config_exclusions/nodeId1
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:bad_request]
 
 
 Remove all exclusions from the list:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_cluster/voting_config_exclusions
 --------------------------------------------------
-// CONSOLE

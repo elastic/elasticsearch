@@ -10,15 +10,20 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class RegressionTests extends AbstractSerializingTestCase<Regression> {
 
@@ -40,13 +45,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         if (randomBoolean()) {
             metrics.add(RSquaredTests.createRandom());
         }
-        return new Regression(randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomBoolean() ?
-                null :
-                metrics.isEmpty() ?
-                    null :
-                    metrics);
+        return new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
 
     @Override
@@ -68,5 +67,25 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new Regression("foo", "bar", Collections.emptyList()));
         assertThat(e.getMessage(), equalTo("[regression] must have one or more metrics"));
+    }
+
+    public void testBuildSearch() {
+        QueryBuilder userProvidedQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery("act"))
+                .filter(QueryBuilders.existsQuery("pred"))
+                .filter(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+
+        Regression evaluation = new Regression("act", "pred", Arrays.asList(new MeanSquaredError()));
+
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(userProvidedQuery);
+        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
+        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }
 }

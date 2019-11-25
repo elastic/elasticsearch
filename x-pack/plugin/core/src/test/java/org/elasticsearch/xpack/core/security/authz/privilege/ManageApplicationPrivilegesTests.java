@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 
@@ -40,6 +41,7 @@ import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPO
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class ManageApplicationPrivilegesTests extends ESTestCase {
 
@@ -97,14 +99,15 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
         assertThat(kibanaAndLogstashPermission, notNullValue());
         assertThat(cloudAndSwiftypePermission, notNullValue());
 
+        final Authentication authentication = mock(Authentication.class);
         final GetPrivilegesRequest getKibana1 = new GetPrivilegesRequest();
         getKibana1.application("kibana-1");
-        assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", getKibana1));
-        assertFalse(cloudAndSwiftypePermission.check("cluster:admin/xpack/security/privilege/get", getKibana1));
+        assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", getKibana1, authentication));
+        assertFalse(cloudAndSwiftypePermission.check("cluster:admin/xpack/security/privilege/get", getKibana1, authentication));
 
         final DeletePrivilegesRequest deleteLogstash = new DeletePrivilegesRequest("logstash", new String[]{"all"});
-        assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", deleteLogstash));
-        assertFalse(cloudAndSwiftypePermission.check("cluster:admin/xpack/security/privilege/get", deleteLogstash));
+        assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", deleteLogstash, authentication));
+        assertFalse(cloudAndSwiftypePermission.check("cluster:admin/xpack/security/privilege/get", deleteLogstash, authentication));
 
         final PutPrivilegesRequest putKibana = new PutPrivilegesRequest();
 
@@ -114,11 +117,12 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
                 randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT), Collections.emptySet(), Collections.emptyMap()));
         }
         putKibana.setPrivileges(kibanaPrivileges);
-        assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", putKibana));
-        assertFalse(cloudAndSwiftypePermission.check("cluster:admin/xpack/security/privilege/get", putKibana));
+        assertTrue(kibanaAndLogstashPermission.check("cluster:admin/xpack/security/privilege/get", putKibana, authentication));
+        assertFalse(cloudAndSwiftypePermission.check("cluster:admin/xpack/security/privilege/get", putKibana, authentication));
     }
 
     public void testSecurityForGetAllApplicationPrivileges() {
+        final Authentication authentication = mock(Authentication.class);
         final GetPrivilegesRequest getAll = new GetPrivilegesRequest();
         getAll.application(null);
         getAll.privileges(new String[0]);
@@ -130,8 +134,8 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
 
         final ClusterPermission kibanaOnlyPermission = kibanaOnly.buildPermission(ClusterPermission.builder()).build();
         final ClusterPermission allAppsPermission = allApps.buildPermission(ClusterPermission.builder()).build();
-        assertFalse(kibanaOnlyPermission.check("cluster:admin/xpack/security/privilege/get", getAll));
-        assertTrue(allAppsPermission.check("cluster:admin/xpack/security/privilege/get", getAll));
+        assertFalse(kibanaOnlyPermission.check("cluster:admin/xpack/security/privilege/get", getAll, authentication));
+        assertTrue(allAppsPermission.check("cluster:admin/xpack/security/privilege/get", getAll, authentication));
     }
 
     private ManageApplicationPrivileges clone(ManageApplicationPrivileges original) {

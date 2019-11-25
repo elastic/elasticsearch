@@ -773,11 +773,10 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::render-search-template-response
 
         assertNotNull(source);
-        assertEquals((
-            "{" +
-            "  \"size\" : \"5\"," +
-            "  \"query\": { \"match\" : { \"title\" : \"elasticsearch\" } }" +
-            "}").replaceAll("\\s+", ""), source.utf8ToString());
+        assertEquals(
+            ("{  \"size\" : \"5\",  \"query\": { \"match\" : { \"title\" : \"elasticsearch\" } }}").replaceAll("\\s+", ""),
+            source.utf8ToString()
+        );
     }
 
     public void testSearchTemplateWithStoredScript() throws Exception {

@@ -3,6 +3,8 @@
 :request: RevertModelSnapshotRequest
 :response: RevertModelSnapshotResponse
 --
+[role="xpack"]
+
 [id="{upid}-{api}"]
 === Revert Model Snapshot API
 

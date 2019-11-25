@@ -83,7 +83,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         String transportAddress = (String) nodesResponse.get("transport_address");
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(Collections.singletonMap("cluster.remote.local_cluster.seeds", transportAddress));
+        updateSettingsRequest.transientSettings(Collections.singletonMap("cluster.remote.local_cluster.sniff.seeds", transportAddress));
         ClusterUpdateSettingsResponse updateSettingsResponse =
             highLevelClient().cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
@@ -111,7 +111,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
         assertThat(putFollowResponse.isIndexFollowingStarted(), is(true));
 
-        IndexRequest indexRequest = new IndexRequest("leader", "_doc")
+        IndexRequest indexRequest = new IndexRequest("leader")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .source("{}", XContentType.JSON);
         highLevelClient().index(indexRequest, RequestOptions.DEFAULT);

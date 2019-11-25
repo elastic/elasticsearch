@@ -23,6 +23,11 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -36,6 +41,7 @@ public class AbstractAuditorTests extends ESTestCase {
 
     private Client client;
     private ArgumentCaptor<IndexRequest> indexRequestCaptor;
+    private long startMillis;
 
     @Before
     public void setUpMocks() {
@@ -45,6 +51,8 @@ public class AbstractAuditorTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
         indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
+
+        startMillis = System.currentTimeMillis();
     }
 
     public void testInfo() throws IOException {
@@ -53,12 +61,15 @@ public class AbstractAuditorTests extends ESTestCase {
 
         verify(client).index(indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
-        assertArrayEquals(new String[] {TEST_INDEX}, indexRequest.indices());
-        assertEquals(TimeValue.timeValueSeconds(5), indexRequest.timeout());
+        assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
+        assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
         AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
-        assertEquals("foo", auditMessage.getResourceId());
-        assertEquals("Here is my info", auditMessage.getMessage());
-        assertEquals(Level.INFO, auditMessage.getLevel());
+        assertThat(auditMessage.getResourceId(), equalTo("foo"));
+        assertThat(auditMessage.getMessage(), equalTo("Here is my info"));
+        assertThat(auditMessage.getLevel(), equalTo(Level.INFO));
+        assertThat(auditMessage.getTimestamp().getTime(),
+            allOf(greaterThanOrEqualTo(startMillis), lessThanOrEqualTo(System.currentTimeMillis())));
+        assertThat(auditMessage.getNodeName(), equalTo(TEST_NODE_NAME));
     }
 
     public void testWarning() throws IOException {
@@ -67,12 +78,15 @@ public class AbstractAuditorTests extends ESTestCase {
 
         verify(client).index(indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
-        assertArrayEquals(new String[] {TEST_INDEX}, indexRequest.indices());
-        assertEquals(TimeValue.timeValueSeconds(5), indexRequest.timeout());
+        assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
+        assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
         AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
-        assertEquals("bar", auditMessage.getResourceId());
-        assertEquals("Here is my warning", auditMessage.getMessage());
-        assertEquals(Level.WARNING, auditMessage.getLevel());
+        assertThat(auditMessage.getResourceId(), equalTo("bar"));
+        assertThat(auditMessage.getMessage(), equalTo("Here is my warning"));
+        assertThat(auditMessage.getLevel(), equalTo(Level.WARNING));
+        assertThat(auditMessage.getTimestamp().getTime(),
+            allOf(greaterThanOrEqualTo(startMillis), lessThanOrEqualTo(System.currentTimeMillis())));
+        assertThat(auditMessage.getNodeName(), equalTo(TEST_NODE_NAME));
     }
 
     public void testError() throws IOException {
@@ -81,23 +95,27 @@ public class AbstractAuditorTests extends ESTestCase {
 
         verify(client).index(indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
-        assertArrayEquals(new String[] {TEST_INDEX}, indexRequest.indices());
-        assertEquals(TimeValue.timeValueSeconds(5), indexRequest.timeout());
+        assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
+        assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
         AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
-        assertEquals("foobar", auditMessage.getResourceId());
-        assertEquals("Here is my error", auditMessage.getMessage());
-        assertEquals(Level.ERROR, auditMessage.getLevel());
+        assertThat(auditMessage.getResourceId(), equalTo("foobar"));
+        assertThat(auditMessage.getMessage(), equalTo("Here is my error"));
+        assertThat(auditMessage.getLevel(), equalTo(Level.ERROR));
+        assertThat(auditMessage.getTimestamp().getTime(),
+            allOf(greaterThanOrEqualTo(startMillis), lessThanOrEqualTo(System.currentTimeMillis())));
+        assertThat(auditMessage.getNodeName(), equalTo(TEST_NODE_NAME));
     }
 
-    private AbstractAuditMessageTests.TestAuditMessage parseAuditMessage(BytesReference msg) throws IOException {
+    private static AbstractAuditMessageTests.TestAuditMessage parseAuditMessage(BytesReference msg) throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(msg))
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, msg.streamInput());
         return AbstractAuditMessageTests.TestAuditMessage.PARSER.apply(parser, null);
     }
 
-    static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
+    private static class TestAuditor extends AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> {
+
         TestAuditor(Client client) {
-            super(client, TEST_NODE_NAME, TEST_INDEX, TEST_ORIGIN, AbstractAuditMessageTests.TestAuditMessage.newBuilder());
+            super(client, TEST_NODE_NAME, TEST_INDEX, TEST_ORIGIN, AbstractAuditMessageTests.TestAuditMessage::new);
         }
     }
 }

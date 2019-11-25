@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationState;
+import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -35,10 +37,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class GatewayMetaStatePersistedStateTests extends ESTestCase {
@@ -63,21 +65,23 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         super.tearDown();
     }
 
-    private MockGatewayMetaState newGateway() throws IOException {
-        MockGatewayMetaState gateway = new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(), localNode);
-        gateway.applyClusterStateUpdaters();
-        return gateway;
+    private CoordinationState.PersistedState newGatewayPersistedState() {
+        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
+        gateway.start(settings, nodeEnvironment, xContentRegistry());
+        final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
+        assertThat(persistedState, not(instanceOf(InMemoryPersistedState.class)));
+        return persistedState;
     }
 
-    private MockGatewayMetaState maybeNew(MockGatewayMetaState gateway) throws IOException {
+    private CoordinationState.PersistedState maybeNew(CoordinationState.PersistedState persistedState) {
         if (randomBoolean()) {
-            return newGateway();
+            return newGatewayPersistedState();
         }
-        return gateway;
+        return persistedState;
     }
 
-    public void testInitialState() throws IOException {
-        MockGatewayMetaState gateway = newGateway();
+    public void testInitialState() {
+        CoordinationState.PersistedState gateway = newGatewayPersistedState();
         ClusterState state = gateway.getLastAcceptedState();
         assertThat(state.getClusterName(), equalTo(clusterName));
         assertTrue(MetaData.isGlobalStateEquals(state.metaData(), MetaData.EMPTY_META_DATA));
@@ -88,8 +92,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         assertThat(currentTerm, equalTo(Manifest.empty().getCurrentTerm()));
     }
 
-    public void testSetCurrentTerm() throws IOException {
-        MockGatewayMetaState gateway = newGateway();
+    public void testSetCurrentTerm() {
+        CoordinationState.PersistedState gateway = newGatewayPersistedState();
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             final long currentTerm = randomNonNegativeLong();
@@ -142,8 +146,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
-    public void testSetLastAcceptedState() throws IOException {
-        MockGatewayMetaState gateway = newGateway();
+    public void testSetLastAcceptedState() {
+        CoordinationState.PersistedState gateway = newGatewayPersistedState();
         final long term = randomNonNegativeLong();
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
@@ -165,8 +169,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
-    public void testSetLastAcceptedStateTermChanged() throws IOException {
-        MockGatewayMetaState gateway = newGateway();
+    public void testSetLastAcceptedStateTermChanged() {
+        CoordinationState.PersistedState gateway = newGatewayPersistedState();
 
         final String indexName = randomAlphaOfLength(10);
         final int numberOfShards = randomIntBetween(1, 5);
@@ -178,7 +182,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         gateway.setLastAcceptedState(state);
 
         gateway = maybeNew(gateway);
-        final long newTerm = randomValueOtherThan(term, () -> randomNonNegativeLong());
+        final long newTerm = randomValueOtherThan(term, ESTestCase::randomNonNegativeLong);
         final int newNumberOfShards = randomValueOtherThan(numberOfShards, () -> randomIntBetween(1,5));
         final IndexMetaData newIndexMetaData = createIndexMetaData(indexName, newNumberOfShards, version);
         final ClusterState newClusterState = createClusterState(randomNonNegativeLong(),
@@ -189,11 +193,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         assertThat(gateway.getLastAcceptedState().metaData().index(indexName), equalTo(newIndexMetaData));
     }
 
-    public void testCurrentTermAndTermAreDifferent() throws IOException {
-        MockGatewayMetaState gateway = newGateway();
+    public void testCurrentTermAndTermAreDifferent() {
+        CoordinationState.PersistedState gateway = newGatewayPersistedState();
 
         long currentTerm = randomNonNegativeLong();
-        long term  = randomValueOtherThan(currentTerm, () -> randomNonNegativeLong());
+        long term  = randomValueOtherThan(currentTerm, ESTestCase::randomNonNegativeLong);
 
         gateway.setCurrentTerm(currentTerm);
         gateway.setLastAcceptedState(createClusterState(randomNonNegativeLong(),
@@ -204,8 +208,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         assertThat(gateway.getLastAcceptedState().coordinationMetaData().term(), equalTo(term));
     }
 
-    public void testMarkAcceptedConfigAsCommitted() throws IOException {
-        MockGatewayMetaState gateway = newGateway();
+    public void testMarkAcceptedConfigAsCommitted() {
+        CoordinationState.PersistedState gateway = newGatewayPersistedState();
 
         //generate random coordinationMetaData with different lastAcceptedConfiguration and lastCommittedConfiguration
         CoordinationMetaData coordinationMetaData;

@@ -338,6 +338,12 @@ the underlying http client. On the server side, this does not automatically
 translate to the execution of that request being cancelled, which needs to be
 specifically implemented in the API itself.
 
+The use of the `Cancellable` instance is optional and you can safely ignore this
+if you don't need it. A typical usecase for this would be using this together with 
+frameworks like Rx Java or the Kotlin's `suspendCancellableCoRoutine`. Cancelling
+no longer needed requests is a good way to avoid putting unnecessary 
+load on Elasticsearch.
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-async-cancel]

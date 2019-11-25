@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -48,6 +47,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -65,15 +65,22 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
+    private final Random random;
+
     private final Context context;
 
     private final NamedXContentRegistry namedXContentRegistry;
 
-    public MockEventuallyConsistentRepository(RepositoryMetaData metadata, Environment environment,
-        NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool, Context context) {
-        super(metadata, environment.settings(), namedXContentRegistry, threadPool, BlobPath.cleanPath());
+    public MockEventuallyConsistentRepository(
+        final RepositoryMetaData metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final ThreadPool threadPool,
+        final Context context,
+        final Random random) {
+        super(metadata, namedXContentRegistry, threadPool, BlobPath.cleanPath());
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
+        this.random = random;
     }
 
     // Filters out all actions that are super-seeded by subsequent actions
@@ -105,6 +112,9 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
      */
     public static final class Context {
 
+        // Eventual consistency is only simulated as long as this flag is false
+        private boolean consistent;
+
         private final List<BlobStoreAction> actions = new ArrayList<>();
 
         /**
@@ -115,6 +125,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                 final List<BlobStoreAction> consistentActions = consistentView(actions);
                 actions.clear();
                 actions.addAll(consistentActions);
+                consistent = true;
             }
         }
     }
@@ -238,14 +249,14 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                 ensureNotClosed();
                 final String thisPath = path.buildAsString();
                 synchronized (context.actions) {
-                    return consistentView(context.actions).stream()
+                    return maybeMissLatestIndexN(consistentView(context.actions).stream()
                         .filter(
                             action -> action.path.startsWith(thisPath) && action.path.substring(thisPath.length()).indexOf('/') == -1
                                 && action.operation == Operation.PUT)
                         .collect(
                             Collectors.toMap(
                                 action -> action.path.substring(thisPath.length()),
-                                action -> new PlainBlobMetaData(action.path.substring(thisPath.length()), action.data.length)));
+                                action -> new PlainBlobMetaData(action.path.substring(thisPath.length()), action.data.length))));
                 }
             }
 
@@ -266,9 +277,21 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             @Override
             public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
-                return Maps.ofEntries(
-                    listBlobs().entrySet().stream().filter(entry -> entry.getKey().startsWith(blobNamePrefix)).collect(Collectors.toList())
-                );
+                return maybeMissLatestIndexN(
+                    Maps.ofEntries(listBlobs().entrySet().stream().filter(entry -> entry.getKey().startsWith(blobNamePrefix))
+                        .collect(Collectors.toList())));
+            }
+
+            // Randomly filter out the latest /index-N blob from a listing to test that tracking of it in latestKnownRepoGen
+            // overrides an inconsistent listing
+            private Map<String, BlobMetaData> maybeMissLatestIndexN(Map<String, BlobMetaData> listing) {
+                // Only filter out latest index-N at the repo root and only as long as we're not in a forced consistent state
+                if (path.parent() == null && context.consistent == false && random.nextBoolean()) {
+                    final Map<String, BlobMetaData> filtered = new HashMap<>(listing);
+                    filtered.remove(BlobStoreRepository.INDEX_FILE_PREFIX + latestKnownRepoGen.get());
+                    return Map.copyOf(filtered);
+                }
+                return listing;
             }
 
             @Override
@@ -285,9 +308,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                     // We do some checks in case there is a consistent state for a blob to prevent turning it inconsistent.
                     final boolean hasConsistentContent =
                         relevantActions.size() == 1 && relevantActions.get(0).operation == Operation.PUT;
-                    if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)
+                        || blobName.startsWith(BlobStoreRepository.METADATA_PREFIX)) {
                         // TODO: Ensure that it is impossible to ever decrement the generation id stored in index.latest then assert that
-                        //       it never decrements here
+                        //       it never decrements here. Same goes for the metadata, ensure that we never overwrite newer with older
+                        //       metadata.
                     } else if (blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)) {
                         if (hasConsistentContent) {
                                 if (basePath().buildAsString().equals(path().buildAsString())) {

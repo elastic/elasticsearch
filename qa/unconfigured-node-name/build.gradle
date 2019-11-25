@@ -29,7 +29,5 @@ testClusters.integTest {
 
 integTest.runner {
   nonInputProperties.systemProperty 'tests.logfile',
-    "${ -> testClusters.integTest.singleNode().getServerLog() }"
-  // https://github.com/elastic/elasticsearch/issues/44656
-  onlyIf { OS.WINDOWS.equals(OS.current()) == false }
+    "${-> testClusters.integTest.singleNode().getServerLog()}"
 }

@@ -355,7 +355,7 @@ public class TransportSearchActionTests extends ESTestCase {
             DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalDiscoNode();
             knownNodes.add(remoteSeedNode);
             nodes[i] = remoteSeedNode;
-            settingsBuilder.put("cluster.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());
+            settingsBuilder.put("cluster.remote.remote" + i + ".sniff.seeds", remoteSeedNode.getAddress().toString());
             remoteIndices.put("remote" + i, new OriginalIndices(new String[]{"index"}, IndicesOptions.lenientExpandOpen()));
         }
         return mockTransportServices;
@@ -492,7 +492,7 @@ public class TransportSearchActionTests extends ESTestCase {
             CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
             RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
                 @Override
-                public void onNodeDisconnected(DiscoveryNode node) {
+                public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                     if (disconnectedNodes.remove(node)) {
                         disconnectedLatch.countDown();
                     }
@@ -662,7 +662,7 @@ public class TransportSearchActionTests extends ESTestCase {
             CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
             RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
                 @Override
-                public void onNodeDisconnected(DiscoveryNode node) {
+                public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                     if (disconnectedNodes.remove(node)) {
                         disconnectedLatch.countDown();
                     }

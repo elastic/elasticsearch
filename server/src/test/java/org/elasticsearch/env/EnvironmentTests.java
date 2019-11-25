@@ -180,7 +180,7 @@ public class EnvironmentTests extends ESTestCase {
             .put(Environment.PATH_LOGS_SETTING.getKey(), "./home/../home/logs")
             .put(Environment.PATH_REPO_SETTING.getKey(), "./home/../home/repo")
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), "./home/../home/shared_data")
-            .put(Environment.PIDFILE_SETTING.getKey(), "./home/../home/pidfile")
+            .put(Environment.NODE_PIDFILE_SETTING.getKey(), "./home/../home/pidfile")
             .build();
 
         // the above paths will be treated as relative to the working directory
@@ -205,6 +205,9 @@ public class EnvironmentTests extends ESTestCase {
 
         final String sharedDataPath = Environment.PATH_SHARED_DATA_SETTING.get(environment.settings());
         assertPath(sharedDataPath, home.resolve("shared_data"));
+
+        final String pidFile = Environment.NODE_PIDFILE_SETTING.get(environment.settings());
+        assertPath(pidFile, home.resolve("pidfile"));
     }
 
     private void assertPath(final String actual, final Path expected) {

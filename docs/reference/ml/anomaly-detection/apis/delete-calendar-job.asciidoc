@@ -18,7 +18,7 @@ Deletes {anomaly-jobs} from a calendar.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-delete-calendar-job-path-parms]]
 ==== {api-path-parms-title}
@@ -36,21 +36,19 @@ Deletes {anomaly-jobs} from a calendar.
 The following example removes the association between the `planned-outages`
 calendar and `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/calendars/planned-outages/jobs/total-requests
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:calendar_outages_addjob]
 
 When the job is removed from the calendar, you receive the following
 results:
 
-[source,js]
+[source,console-result]
 ----
 {
    "calendar_id": "planned-outages",
    "job_ids": []
 }
 ----
-// TESTRESPONSE

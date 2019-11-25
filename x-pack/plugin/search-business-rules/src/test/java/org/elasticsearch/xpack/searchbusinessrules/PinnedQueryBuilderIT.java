@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
@@ -61,22 +62,22 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
                 .addMapping("type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
-                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 2)));
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
 
         int numRelevantDocs = randomIntBetween(1, 100);
         for (int i = 0; i < numRelevantDocs; i++) {
             if (i % 2 == 0) {
                 // add lower-scoring text
-                client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "the quick brown fox").get();
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource("field1", "the quick brown fox").get();
             } else {
                 // add higher-scoring text
-                client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "red fox").get();
+                client().prepareIndex("test").setId(Integer.toString(i)).setSource("field1", "red fox").get();
             }
         }
         // Add docs with no relevance
         int numIrrelevantDocs = randomIntBetween(1, 10);
         for (int i = numRelevantDocs; i <= numRelevantDocs + numIrrelevantDocs; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "irrelevant").get();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field1", "irrelevant").get();
         }
         refresh();
 
@@ -101,6 +102,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             int from = randomIntBetween(0, numRelevantDocs);
             int size = randomIntBetween(10, 100);
             SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSize(size).setFrom(from)
+                    .setSearchType(DFS_QUERY_THEN_FETCH)
                     .get();
 
             long numHits = searchResponse.getHits().getTotalHits().value;
@@ -145,10 +147,10 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                         .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject()));
         ensureGreen();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "pinned").get();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "irrelevant").get();
-        client().prepareIndex("test", "type1", "4").setSource("field1", "slow brown cat").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "pinned").get();
+        client().prepareIndex("test").setId("3").setSource("field1", "irrelevant").get();
+        client().prepareIndex("test").setId("4").setSource("field1", "slow brown cat").get();
         refresh();
 
         PinnedQueryBuilder pqb = new PinnedQueryBuilder(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR), "2");

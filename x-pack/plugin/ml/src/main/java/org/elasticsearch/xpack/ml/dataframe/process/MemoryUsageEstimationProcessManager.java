@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -17,12 +18,10 @@ import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 
 public class MemoryUsageEstimationProcessManager {
 
@@ -59,12 +58,19 @@ public class MemoryUsageEstimationProcessManager {
                                                DataFrameDataExtractorFactory dataExtractorFactory) {
         DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
         DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-        Set<String> categoricalFields = dataExtractor.getCategoricalFields();
         if (dataSummary.rows == 0) {
-            return new MemoryUsageEstimationResult(ByteSizeValue.ZERO, ByteSizeValue.ZERO);
+            throw ExceptionsHelper.badRequestException(
+                "[{}] Unable to estimate memory usage as no documents in the source indices [{}] contained all the fields selected for "
+                    + "analysis. If you are relying on automatic field selection then there are currently mapped fields that do not exist "
+                    + "in any indexed documents, and you will have to switch to explicit field selection and include only fields that "
+                    + "exist in indexed documents.",
+                jobId,
+                Strings.arrayToCommaDelimitedString(config.getSource().getIndex()));
         }
+        Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
         AnalyticsProcessConfig processConfig =
             new AnalyticsProcessConfig(
+                jobId,
                 dataSummary.rows,
                 dataSummary.cols,
                 // For memory estimation the model memory limit here should be set high enough not to trigger an error when C++ code
@@ -74,55 +80,37 @@ public class MemoryUsageEstimationProcessManager {
                 "",
                 categoricalFields,
                 config.getAnalysis());
-        ProcessHolder processHolder = new ProcessHolder();
         AnalyticsProcess<MemoryUsageEstimationResult> process =
             processFactory.createAnalyticsProcess(
-                jobId,
+                config,
                 processConfig,
+                null,
                 executorServiceForProcess,
-                onProcessCrash(jobId, processHolder));
-        processHolder.process = process;
-        if (process.isProcessAlive() == false) {
-            String errorMsg = new ParameterizedMessage("[{}] Error while starting process", jobId).getFormattedMessage();
-            throw ExceptionsHelper.serverError(errorMsg);
-        }
+                // The handler passed here will never be called as AbstractNativeProcess.detectCrash method returns early when
+                // (processInStream == null) which is the case for MemoryUsageEstimationProcess.
+                reason -> {});
         try {
             return readResult(jobId, process);
         } catch (Exception e) {
             String errorMsg =
-                new ParameterizedMessage("[{}] Error while processing result [{}]", jobId, e.getMessage()).getFormattedMessage();
+                new ParameterizedMessage(
+                    "[{}] Error while processing process output [{}], process errors: [{}]",
+                    jobId, e.getMessage(), process.readError()).getFormattedMessage();
             throw ExceptionsHelper.serverError(errorMsg, e);
         } finally {
             process.consumeAndCloseOutputStream();
             try {
-                LOGGER.info("[{}] Closing process", jobId);
+                LOGGER.debug("[{}] Closing process", jobId);
                 process.close();
-                LOGGER.info("[{}] Closed process", jobId);
+                LOGGER.debug("[{}] Closed process", jobId);
             } catch (Exception e) {
                 String errorMsg =
-                    new ParameterizedMessage("[{}] Error while closing process [{}]", jobId, e.getMessage()).getFormattedMessage();
+                    new ParameterizedMessage(
+                        "[{}] Error while closing process [{}], process errors: [{}]",
+                        jobId, e.getMessage(), process.readError()).getFormattedMessage();
                 throw ExceptionsHelper.serverError(errorMsg, e);
             }
         }
-    }
-
-    private static class ProcessHolder {
-        volatile AnalyticsProcess<MemoryUsageEstimationResult> process;
-    }
-
-    private static Consumer<String> onProcessCrash(String jobId, ProcessHolder processHolder) {
-        return reason -> {
-            AnalyticsProcess<MemoryUsageEstimationResult> process = processHolder.process;
-            if (process == null) {
-                LOGGER.error(new ParameterizedMessage("[{}] Process does not exist", jobId));
-                return;
-            }
-            try {
-                process.kill();
-            } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Failed to kill process", jobId), e);
-            }
-        };
     }
 
     /**

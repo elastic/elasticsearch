@@ -125,8 +125,6 @@ public final class ConfigurableClusterPrivileges {
      * of applications (identified by a wildcard-aware application-name).
      */
     public static class ManageApplicationPrivileges implements ConfigurableClusterPrivilege {
-
-        private static final Predicate<String> ACTION_PREDICATE = Automatons.predicate("cluster:admin/xpack/security/privilege/*");
         public static final String WRITEABLE_NAME = "manage-application-privileges";
 
         private final Set<String> applicationNames;
@@ -145,6 +143,7 @@ public final class ConfigurableClusterPrivileges {
                 }
                 return false;
             };
+
         }
 
         @Override
@@ -215,7 +214,7 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
-            return builder.add(this, ACTION_PREDICATE, requestPredicate);
+            return builder.add(this, Set.of("cluster:admin/xpack/security/privilege/*"), requestPredicate);
         }
 
         private interface Fields {

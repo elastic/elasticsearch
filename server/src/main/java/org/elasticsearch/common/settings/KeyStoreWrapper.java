@@ -20,6 +20,8 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
@@ -40,7 +42,6 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -217,7 +218,16 @@ public class KeyStoreWrapper implements SecureSettings {
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         try (IndexInput indexInput = directory.openInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
             ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
-            int formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
+            final int formatVersion;
+            try {
+                formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
+            } catch (IndexFormatTooOldException e) {
+                throw new IllegalStateException("The Elasticsearch keystore [" + keystoreFile + "] format is too old. " +
+                    "You should delete and recreate it in order to upgrade.", e);
+            } catch (IndexFormatTooNewException e) {
+                throw new IllegalStateException("The Elasticsearch keystore [" + keystoreFile + "] format is too new. " +
+                    "Are you trying to downgrade? You should delete and recreate it in order to downgrade.", e);
+            }
             byte hasPasswordByte = input.readByte();
             boolean hasPassword = hasPasswordByte == 1;
             if (hasPassword == false && hasPasswordByte != 0) {
@@ -502,9 +512,10 @@ public class KeyStoreWrapper implements SecureSettings {
 
         } catch (final AccessDeniedException e) {
             final String message = String.format(
-                    Locale.ROOT,
-                    "unable to create temporary keystore at [%s], please check filesystem permissions",
-                    configDir.resolve(tmpFile));
+                Locale.ROOT,
+                "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
+                configDir.resolve(tmpFile),
+                configDir);
             throw new UserException(ExitCodes.CONFIG, message, e);
         }
 

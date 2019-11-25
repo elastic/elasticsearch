@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,14 +22,21 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.Response> {
 
@@ -41,14 +50,20 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
     public static class Request extends ActionRequest implements ToXContentObject {
 
         private static final ParseField INDEX = new ParseField("index");
+        private static final ParseField QUERY = new ParseField("query");
         private static final ParseField EVALUATION = new ParseField("evaluation");
 
-        private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new Request((List<String>) a[0], (Evaluation) a[1]));
+        private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            a -> new Request((List<String>) a[0], (QueryProvider) a[1], (Evaluation) a[2]));
 
         static {
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX);
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> parseEvaluation(p), EVALUATION);
+            PARSER.declareStringArray(constructorArg(), INDEX);
+            PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> QueryProvider.fromXContent(p, true, Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT),
+                QUERY);
+            PARSER.declareObject(constructorArg(), (p, c) -> parseEvaluation(p), EVALUATION);
         }
 
         private static Evaluation parseEvaluation(XContentParser parser) throws IOException {
@@ -64,19 +79,25 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         }
 
         private String[] indices;
+        private QueryProvider queryProvider;
         private Evaluation evaluation;
 
-        private Request(List<String> indices, Evaluation evaluation) {
+        private Request(List<String> indices, @Nullable QueryProvider queryProvider, Evaluation evaluation) {
             setIndices(indices);
+            setQueryProvider(queryProvider);
             setEvaluation(evaluation);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
             indices = in.readStringArray();
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+                if (in.readBoolean()) {
+                    queryProvider = QueryProvider.fromStream(in);
+                }
+            }
             evaluation = in.readNamedWriteable(Evaluation.class);
         }
 
@@ -84,20 +105,31 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             return indices;
         }
 
-        public final void setIndices(List<String> indices) {
+        public final Request setIndices(List<String> indices) {
             ExceptionsHelper.requireNonNull(indices, INDEX);
             if (indices.isEmpty()) {
                 throw ExceptionsHelper.badRequestException("At least one index must be specified");
             }
             this.indices = indices.toArray(new String[indices.size()]);
+            return this;
+        }
+
+        public QueryBuilder getParsedQuery() {
+            return Optional.ofNullable(queryProvider).orElseGet(QueryProvider::defaultQuery).getParsedQuery();
+        }
+
+        public final Request setQueryProvider(QueryProvider queryProvider) {
+            this.queryProvider = queryProvider;
+            return this;
         }
 
         public Evaluation getEvaluation() {
             return evaluation;
         }
 
-        public final void setEvaluation(Evaluation evaluation) {
+        public final Request setEvaluation(Evaluation evaluation) {
             this.evaluation = ExceptionsHelper.requireNonNull(evaluation, EVALUATION);
+            return this;
         }
 
         @Override
@@ -109,6 +141,14 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(indices);
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+                if (queryProvider != null) {
+                    out.writeBoolean(true);
+                    queryProvider.writeTo(out);
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
             out.writeNamedWriteable(evaluation);
         }
 
@@ -116,16 +156,20 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.array(INDEX.getPreferredName(), indices);
-            builder.startObject(EVALUATION.getPreferredName());
-            builder.field(evaluation.getName(), evaluation);
-            builder.endObject();
+            if (queryProvider != null) {
+                builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
+            }
+            builder
+                .startObject(EVALUATION.getPreferredName())
+                    .field(evaluation.getName(), evaluation)
+                .endObject();
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(indices), evaluation);
+            return Objects.hash(Arrays.hashCode(indices), queryProvider, evaluation);
         }
 
         @Override
@@ -133,7 +177,9 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request that = (Request) o;
-            return Arrays.equals(indices, that.indices) && Objects.equals(evaluation, that.evaluation);
+            return Arrays.equals(indices, that.indices)
+                && Objects.equals(queryProvider, that.queryProvider)
+                && Objects.equals(evaluation, that.evaluation);
         }
     }
 
@@ -160,10 +206,18 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             this.metrics = Objects.requireNonNull(metrics);
         }
 
+        public String getEvaluationName() {
+            return evaluationName;
+        }
+
+        public List<EvaluationMetricResult> getMetrics() {
+            return metrics;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(evaluationName);
-            out.writeList(metrics);
+            out.writeNamedWriteableList(metrics);
         }
 
         @Override
@@ -171,7 +225,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             builder.startObject();
             builder.startObject(evaluationName);
             for (EvaluationMetricResult metric : metrics) {
-                builder.field(metric.getName(), metric);
+                builder.field(metric.getMetricName(), metric);
             }
             builder.endObject();
             builder.endObject();
@@ -200,5 +254,4 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             return Strings.toString(this);
         }
     }
-
 }

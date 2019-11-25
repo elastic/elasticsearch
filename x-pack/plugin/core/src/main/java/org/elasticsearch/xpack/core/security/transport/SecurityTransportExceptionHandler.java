@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.transport;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.transport.TcpChannel;
@@ -30,26 +29,13 @@ public final class SecurityTransportExceptionHandler implements BiConsumer<TcpCh
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
         } else if (SSLExceptionHelper.isNotSslRecordException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    new ParameterizedMessage("received plaintext traffic on an encrypted channel, closing connection {}", channel), e);
-            } else {
-                logger.warn("received plaintext traffic on an encrypted channel, closing connection {}", channel);
-            }
+            logger.warn("received plaintext traffic on an encrypted channel, closing connection {}", channel);
             CloseableChannel.closeChannel(channel);
         } else if (SSLExceptionHelper.isCloseDuringHandshakeException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("connection {} closed during ssl handshake", channel), e);
-            } else {
-                logger.debug("connection {} closed during handshake", channel);
-            }
+            logger.debug("connection {} closed during handshake", channel);
             CloseableChannel.closeChannel(channel);
         } else if (SSLExceptionHelper.isReceivedCertificateUnknownException(e)) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("client did not trust server's certificate, closing connection {}", channel), e);
-            } else {
-                logger.warn("client did not trust this server's certificate, closing connection {}", channel);
-            }
+            logger.warn("client did not trust this server's certificate, closing connection {}", channel);
             CloseableChannel.closeChannel(channel);
         } else {
             fallback.accept(channel, e);

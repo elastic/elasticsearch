@@ -24,9 +24,13 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
 public class SettingsModuleTests extends ModuleTestCase {
@@ -185,4 +189,31 @@ public class SettingsModuleTests extends ModuleTestCase {
             assertThat(e.getMessage(), containsString("Cannot register setting [foo.bar] twice"));
         }
     }
+
+    public void testPluginSettingWithoutNamespace() {
+        final String key = randomAlphaOfLength(8);
+        final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
+        runSettingWithoutNamespaceTest(
+            key, () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of()));
+    }
+
+    public void testClusterSettingWithoutNamespace() {
+        final String key = randomAlphaOfLength(8);
+        final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
+        runSettingWithoutNamespaceTest(
+            key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of()));
+    }
+
+    public void testIndexSettingWithoutNamespace() {
+        final String key = randomAlphaOfLength(8);
+        final Setting<String> setting = Setting.simpleString(key, Property.IndexScope);
+        runSettingWithoutNamespaceTest(
+            key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting)));
+    }
+
+    private void runSettingWithoutNamespaceTest(final String key, final Supplier<SettingsModule> supplier) {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, supplier::get);
+        assertThat(e, hasToString(containsString("setting [" + key + "] is not in any namespace, its name must contain a dot")));
+    }
+
 }

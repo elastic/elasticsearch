@@ -20,6 +20,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction.Response;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MlInfoActionResponseTests extends AbstractResponseTestCase<Response, MlInfoResponse> {
 
     @Override
-    protected Response createServerTestInstance() {
+    protected Response createServerTestInstance(XContentType xContentType) {
         int size = randomInt(10);
         Map<String, Object> info = new HashMap<>();
         for (int j = 0; j < size; j++) {

@@ -350,11 +350,15 @@ public class IngestClientIT extends ESIntegTestCase {
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
-            client().prepareIndex("test").setSource("{}", XContentType.JSON).setPipeline("1").get();
+        Exception e = expectThrows(Exception.class, () -> {
+            IndexRequest indexRequest = new IndexRequest("test");
+            indexRequest.source("{}", XContentType.JSON);
+            indexRequest.setPipeline("1");
+            client().index(indexRequest).get();
         });
-        assertThat(e.getHeader("processor_type"), equalTo(List.of("fail")));
-        assertThat(e.getHeader("pipeline_origin"), equalTo(List.of("3", "2", "1")));
+        IngestProcessorException ingestException = (IngestProcessorException) e.getCause();
+        assertThat(ingestException.getHeader("processor_type"), equalTo(List.of("fail")));
+        assertThat(ingestException.getHeader("pipeline_origin"), equalTo(List.of("3", "2", "1")));
     }
 
     public void testPipelineProcessorOnFailure() throws Exception {

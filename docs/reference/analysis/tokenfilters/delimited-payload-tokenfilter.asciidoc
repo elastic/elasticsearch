@@ -258,6 +258,7 @@ The API returns the following response:
 --------------------------------------------------
 {
   "_index": "text_payloads",
+  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "found": true,

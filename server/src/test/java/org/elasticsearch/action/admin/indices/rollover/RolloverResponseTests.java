@@ -19,20 +19,20 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class RolloverResponseTests extends AbstractSerializingTestCase<RolloverResponse> {
+public class RolloverResponseTests extends AbstractWireTestCase<RolloverResponse> {
 
     @Override
     protected RolloverResponse createTestInstance() {
@@ -66,13 +66,8 @@ public class RolloverResponseTests extends AbstractSerializingTestCase<RolloverR
     }
 
     @Override
-    protected RolloverResponse doParseInstance(XContentParser parser) {
-        return RolloverResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.startsWith("conditions");
+    protected RolloverResponse copyInstance(RolloverResponse instance, Version version) throws IOException {
+        return copyWriteable(instance, writableRegistry(), RolloverResponse::new);
     }
 
     @Override

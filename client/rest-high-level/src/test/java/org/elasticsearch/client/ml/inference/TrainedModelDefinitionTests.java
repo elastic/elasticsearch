@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml.inference;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncodingTests;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncodingTests;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -64,7 +65,7 @@ public class TrainedModelDefinitionTests extends AbstractXContentTestCase<Traine
                         TargetMeanEncodingTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
-            .setTrainedModel(randomFrom(TreeTests.createRandom()));
+            .setTrainedModel(randomFrom(TreeTests.createRandom(), EnsembleTests.createRandom()));
     }
 
     @Override

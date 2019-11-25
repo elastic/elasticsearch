@@ -177,15 +177,14 @@ public class RecoverySourceHandler {
                 && isTargetSameHistory()
                 && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo())
                 && (softDeletesEnabled == false
-                    || retentionLeaseRef.get() == null
-                    || retentionLeaseRef.get().retainingSequenceNumber() <= request.startingSeqNo());
+                || (retentionLeaseRef.get() != null && retentionLeaseRef.get().retainingSequenceNumber() <= request.startingSeqNo()));
             // NB check hasCompleteHistoryOperations when computing isSequenceNumberBasedRecovery, even if there is a retention lease,
             // because when doing a rolling upgrade from earlier than 7.4 we may create some leases that are initially unsatisfied. It's
             // possible there are other cases where we cannot satisfy all leases, because that's not a property we currently expect to hold.
             // Also it's pretty cheap when soft deletes are enabled, and it'd be a disaster if we tried a sequence-number-based recovery
             // without having a complete history.
 
-            if (isSequenceNumberBasedRecovery && softDeletesEnabled && retentionLeaseRef.get() != null) {
+            if (isSequenceNumberBasedRecovery && softDeletesEnabled) {
                 // all the history we need is retained by an existing retention lease, so we do not need a separate retention lock
                 retentionLock.close();
                 logger.trace("history is retained by {}", retentionLeaseRef.get());
@@ -204,12 +203,7 @@ public class RecoverySourceHandler {
             if (isSequenceNumberBasedRecovery) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
                 startingSeqNo = request.startingSeqNo();
-                // We can get here via a full cluster restart from a pre-7.4 version where we did not have PPRLs for existing replicas.
-                if (softDeletesEnabled && retentionLeaseRef.get() == null) {
-                    createRetentionLease(startingSeqNo, ActionListener.map(sendFileStep, lease -> SendFileResult.EMPTY));
-                } else {
-                    sendFileStep.onResponse(SendFileResult.EMPTY);
-                }
+                sendFileStep.onResponse(SendFileResult.EMPTY);
             } else {
                 final Engine.IndexCommitRef safeCommitRef;
                 try {

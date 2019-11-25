@@ -300,6 +300,42 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("No field [_id] could be detected"));
     }
 
+    public void testDetect_GivenExcludedFieldIsMissing() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("foo", "float")
+            .build();
+        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[]{"*"}, new String[] {"bar"});
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+
+        assertThat(e.getMessage(), equalTo("No field [bar] could be detected"));
+    }
+
+    public void testDetect_GivenExcludedFieldIsUnsupported() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("numeric", "float")
+            .addAggregatableField("categorical", "keyword")
+            .build();
+        FetchSourceContext analyzedFields = new FetchSourceContext(true, null, new String[] {"categorical"});
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
+
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields.size(), equalTo(1));
+        assertThat(allFields.get(0).getName(), equalTo("numeric"));
+
+        assertFieldSelectionContains(fieldExtraction.v2(),
+            FieldSelection.excluded("categorical", Collections.singleton("keyword"),
+                "unsupported type; supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]"),
+            FieldSelection.included("numeric", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL)
+        );
+    }
+
     public void testDetect_ShouldSortFieldsAlphabetically() {
         int fieldCount = randomIntBetween(10, 20);
         List<String> fields = new ArrayList<>();

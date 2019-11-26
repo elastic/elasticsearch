@@ -46,7 +46,7 @@ public abstract class BucketAggregationScript {
         return params;
     }
 
-    public abstract Number execute();
+    public abstract Number execute(long docCount);
 
     public interface Factory {
         BucketAggregationScript newInstance(Map<String, Object> params);

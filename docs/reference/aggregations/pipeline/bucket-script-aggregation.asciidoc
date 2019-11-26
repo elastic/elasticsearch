@@ -165,7 +165,7 @@ And the following may be the response:
 It is often helpful to have the document count in a bucket script.  This is especially important
 when a bucket is empty and a different value should be generated.
 
-Bucket scripts have access to a special `params.doc_count` property which contains the document count
+Bucket scripts have access to a special `doc_count` property which contains the document count
 for the particular bucket the script is evaluating:
 
 [source,console]
@@ -190,7 +190,7 @@ POST /sales/_search
                         "buckets_path": {
                           "totalSales": "total_sales"
                         },
-                        "script": "params.totalSales / params.doc_count" <1>
+                        "script": "params.totalSales / doc_count" <1>
                     }
                 }
             }
@@ -199,7 +199,7 @@ POST /sales/_search
 }
 --------------------------------------------------
 // TEST[setup:sales]
-<1> `params.doc_count` is a special parameter which contains the bucket's document count
+<1> `doc_count` is a special parameter which contains the bucket's document count
 
 By default, a `bucket_script` has a `skip` gap policy applied.  This means empty buckets (buckets with zero document
 count) are not evaluated by the script.  But if you wish to evaluate an empty bucket, you can use `gap_policy: none`
@@ -228,7 +228,7 @@ POST /sales/_search
                           "totalSales": "total_sales"
                         },
                         "gap_policy": "none",  <1>
-                        "script": "if (params.doc_count == 0) {return -1.0} else {return 1.0}"  <2>
+                        "script": "if (doc_count == 0) {return -1.0} else {return 1.0}"  <2>
                     }
                 }
             }

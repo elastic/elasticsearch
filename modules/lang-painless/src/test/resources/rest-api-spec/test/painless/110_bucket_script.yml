@@ -90,7 +90,7 @@ setup:
                   bucket_script:
                     buckets_path:
                       foo: "the_avg.value"
-                    script: "if (params.doc_count == 0) {return -1.0} else {return 1.0}"
+                    script: "if (doc_count == 0) {return -1.0} else {return 1.0}"
                     gap_policy: "skip"
 
   - match: { hits.total: 8 }
@@ -180,7 +180,7 @@ setup:
                   bucket_script:
                     buckets_path:
                       foo: "the_avg.value"
-                    script: "if (params.doc_count == 0) {return -1.0} else {return 1.0}"
+                    script: "if (doc_count == 0) {return -1.0} else {return 1.0}"
                     gap_policy: "none"
 
   - match: { hits.total: 8 }

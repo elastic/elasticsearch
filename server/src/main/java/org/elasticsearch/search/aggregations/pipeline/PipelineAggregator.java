@@ -57,7 +57,6 @@ public abstract class PipelineAggregator implements NamedWriteable {
                 throws IOException;
     }
 
-    static final String DOC_COUNT_NAME = "doc_count";
     private String name;
     private String[] bucketsPaths;
     private Map<String, Object> metaData;

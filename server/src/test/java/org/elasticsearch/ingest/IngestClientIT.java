@@ -44,9 +44,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -69,7 +70,7 @@ public class IngestClientIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ExtendedIngestTestPlugin.class);
+        return Collections.singleton(ExtendedIngestTestPlugin.class);
     }
 
     public void testSimulate() throws Exception {
@@ -357,8 +358,8 @@ public class IngestClientIT extends ESIntegTestCase {
             client().index(indexRequest).get();
         });
         IngestProcessorException ingestException = (IngestProcessorException) e.getCause();
-        assertThat(ingestException.getHeader("processor_type"), equalTo(List.of("fail")));
-        assertThat(ingestException.getHeader("pipeline_origin"), equalTo(List.of("3", "2", "1")));
+        assertThat(ingestException.getHeader("processor_type"), equalTo(Collections.singletonList("fail")));
+        assertThat(ingestException.getHeader("pipeline_origin"), equalTo(Arrays.asList("3", "2", "1")));
     }
 
     public void testPipelineProcessorOnFailure() throws Exception {
@@ -426,8 +427,8 @@ public class IngestClientIT extends ESIntegTestCase {
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         }
 
-        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
-        Map<String, Object> inserted = client().prepareGet("test", "1")
+        client().prepareIndex("test", "_doc").setId("1").setSource("{}", XContentType.JSON).setPipeline("1").get();
+        Map<String, Object> inserted = client().prepareGet("test", "_doc", "1")
             .get().getSourceAsMap();
         assertThat(inserted.get("readme"), equalTo("pipeline with id [3] is a bad pipeline"));
     }

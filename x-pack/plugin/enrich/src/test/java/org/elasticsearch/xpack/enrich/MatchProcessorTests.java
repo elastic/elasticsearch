@@ -398,7 +398,7 @@ public class MatchProcessorTests extends ESTestCase {
         );
     }
 
-    static TemplateScript.Factory str(String value) {
-        return new TestTemplateService.MockTemplateScript.Factory(value);
+    static TemplateScript.Factory str(String stringLiteral) {
+        return new TestTemplateService.MockTemplateScript.Factory(stringLiteral);
     }
 }

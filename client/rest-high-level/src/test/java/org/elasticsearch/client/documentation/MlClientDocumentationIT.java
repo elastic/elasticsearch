@@ -36,6 +36,7 @@ import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -3592,6 +3593,53 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testDeleteTrainedModel() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            putTrainedModel("my-trained-model");
+            // tag::delete-trained-model-request
+            DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model"); // <1>
+            // end::delete-trained-model-request
+
+            // tag::delete-trained-model-execute
+            AcknowledgedResponse response = client.machineLearning().deleteTrainedModel(request, RequestOptions.DEFAULT);
+            // end::delete-trained-model-execute
+
+            // tag::delete-trained-model-response
+            boolean deleted = response.isAcknowledged();
+            // end::delete-trained-model-response
+
+            assertThat(deleted, is(true));
+        }
+        {
+            putTrainedModel("my-trained-model");
+            DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model");
+
+            // tag::delete-trained-model-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-trained-model-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-trained-model-execute-async
+            client.machineLearning().deleteTrainedModelAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-trained-model-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();

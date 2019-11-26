@@ -61,6 +61,7 @@ import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -743,6 +744,31 @@ final class MLRequestConverters {
         if (getTrainedModelsRequest.getIncludeDefinition() != null) {
             params.putParam(GetTrainedModelsRequest.INCLUDE_MODEL_DEFINITION,
                 Boolean.toString(getTrainedModelsRequest.getIncludeDefinition()));
+        }
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getTrainedModelsStats(GetTrainedModelsStatsRequest getTrainedModelsStatsRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "inference")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getTrainedModelsStatsRequest.getIds()))
+            .addPathPart("_stats")
+            .build();
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (getTrainedModelsStatsRequest.getPageParams() != null) {
+            PageParams pageParams = getTrainedModelsStatsRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        if (getTrainedModelsStatsRequest.getAllowNoMatch() != null) {
+            params.putParam(GetTrainedModelsStatsRequest.ALLOW_NO_MATCH,
+                Boolean.toString(getTrainedModelsStatsRequest.getAllowNoMatch()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());

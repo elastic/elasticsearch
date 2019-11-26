@@ -20,7 +20,7 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 * Document oriented
 ** No need for upfront schema definition.
 ** Schema can be defined for customization of the indexing process.
-* Reliable, Asynchronous Write Behind for long term persistency.
+* Reliable, Asynchronous Write Behind for long-term persistency.
 * (Near) Real Time Search.
 * Built on top of Lucene
 ** Each shard is a fully functional Lucene index
@@ -45,7 +45,7 @@ h3. Installation
 
 h3. Indexing
 
-Let's try and index some twitter like information. First, let's index some tweets (the @twitter@ index will be created automatically):
+Let's try and index some twitter-like information. First, let's index some tweets (the @twitter@ index will be created automatically):
 
 <pre>
 curl -XPUT 'http://localhost:9200/twitter/_doc/1?pretty' -H 'Content-Type: application/json' -d '

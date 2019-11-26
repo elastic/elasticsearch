@@ -73,7 +73,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     /**
      * Construct a geo-IP processor.
-     *  @param tag           the processor tag
+     *
+     * @param tag           the processor tag
      * @param field         the source field to geo-IP map
      * @param lazyLoader    a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
      * @param targetField   the target field
@@ -121,9 +122,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 ingestDocument.setFieldValue(targetField, geoData);
             }
         } else if (ip instanceof List) {
-            List<Object> ipLIst = (List<Object>) ip;
-            List<Map<String, Object>> geoDataList = new ArrayList<>(ipLIst.size());
-            for (Object ipAddr : ipLIst) {
+            List<Map<String, Object>> geoDataList = new ArrayList<>(((List) ip).size());
+            for (Object ipAddr : (List) ip) {
                 if (ipAddr instanceof String == false) {
                     throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                 }
@@ -171,7 +171,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
         } else {
             throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.getDatabaseType()
-                    + "]", new IllegalStateException());
+                + "]", new IllegalStateException());
         }
         return geoData;
     }
@@ -392,9 +392,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         @Override
         public GeoIpProcessor create(
-                final Map<String, Processor.Factory> registry,
-                final String processorTag,
-                final Map<String, Object> config) throws IOException {
+            final Map<String, Processor.Factory> registry,
+            final String processorTag,
+            final Map<String, Object> config) throws IOException {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
@@ -430,7 +430,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     properties = DEFAULT_ASN_PROPERTIES;
                 } else {
                     throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
-                            + databaseType + "]");
+                        + databaseType + "]");
                 }
             }
 
@@ -493,7 +493,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 return property;
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("illegal property value [" + value + "]. valid values are " +
-                        Arrays.toString(validProperties.toArray()));
+                    Arrays.toString(validProperties.toArray()));
             }
         }
     }

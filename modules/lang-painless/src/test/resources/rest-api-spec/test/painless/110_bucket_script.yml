@@ -123,7 +123,7 @@ setup:
 
   - match: { aggregations.the_histo.buckets.6.key_as_string: "2017-01-07T00:00:00.000Z" }
   - match: { aggregations.the_histo.buckets.6.doc_count: 0 }
-  - is_false: aggregation..the_histo.buckets.6.the_bucket_script.value
+  - is_false: aggregation.the_histo.buckets.6.the_bucket_script.value
   - match: { aggregations.the_histo.buckets.6.the_avg.value: null }
 
   - match: { aggregations.the_histo.buckets.7.key_as_string: "2017-01-08T00:00:00.000Z" }

@@ -120,18 +120,23 @@ public final class GeoIpProcessor extends AbstractProcessor {
             if (geoData.isEmpty() == false) {
                 ingestDocument.setFieldValue(targetField, geoData);
             }
-        } else if (ip instanceof Iterable) {
-            List<Map<String, Object>> geoDataList = new ArrayList<>();
-            for (Object ipAddr : (Iterable) ip) {
+        } else if (ip instanceof List) {
+            List ipLIst = (List) ip;
+            List<Map<String, Object>> geoDataList = new ArrayList<>(ipLIst.size());
+            for (Object ipAddr : ipLIst) {
                 if (ipAddr instanceof String == false) {
                     throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                 }
                 Map<String, Object> geoData = getGeoData((String) ipAddr);
-                if (firstOnly && geoData.isEmpty() == false) {
+                if (geoData.isEmpty()) {
+                    geoDataList.add(null);
+                    continue;
+                }
+                if (firstOnly) {
                     ingestDocument.setFieldValue(targetField, geoData);
                     return ingestDocument;
                 }
-                geoDataList.add(geoData.isEmpty() ? null : geoData);
+                geoDataList.add(geoData);
             }
             if (firstOnly == false) {
                 ingestDocument.setFieldValue(targetField, geoDataList);
@@ -395,7 +400,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", false);
+            boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", true);
 
             DatabaseReaderLazyLoader lazyLoader = databaseReaders.get(databaseFile);
             if (lazyLoader == null) {

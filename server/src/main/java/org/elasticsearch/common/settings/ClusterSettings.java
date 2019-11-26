@@ -75,6 +75,7 @@ import org.elasticsearch.gateway.IncrementalClusterStateWriter;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.reindex.ReindexHeaders;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -461,7 +462,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
             ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
             ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
-            LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING);
+            LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
+            ReindexHeaders.REINDEX_INCLUDED_HEADERS);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

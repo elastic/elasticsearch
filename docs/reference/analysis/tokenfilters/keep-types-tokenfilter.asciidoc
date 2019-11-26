@@ -19,6 +19,10 @@ produce a variety of token types, including `<ALPHANUM>`, `<HANGUL>`, and
 `<NUM>`. Simpler analyzers, like the
 <<analysis-lowercase-tokenizer,`lowercase`>> tokenizer, only produce the `word`
 token type.
+
+Certain token filters can also add token types. For example, the 
+<<analysis-synonym-tokenfilter,`synonym`>> filter can add the `<SYNONYM>` token
+type.
 ====
 
 This filter uses Lucene's

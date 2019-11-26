@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -357,7 +358,7 @@ public class IngestClientIT extends ESIntegTestCase {
             indexRequest.setPipeline("1");
             client().index(indexRequest).get();
         });
-        IngestProcessorException ingestException = (IngestProcessorException) e.getCause();
+        IngestProcessorException ingestException = (IngestProcessorException) ExceptionsHelper.unwrap(e, IngestProcessorException.class);
         assertThat(ingestException.getHeader("processor_type"), equalTo(Collections.singletonList("fail")));
         assertThat(ingestException.getHeader("pipeline_origin"), equalTo(Arrays.asList("3", "2", "1")));
     }

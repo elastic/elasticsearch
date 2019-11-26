@@ -78,7 +78,7 @@ output.elasticsearch:
 <1> Replace `MONITORING_ELASTICSEARCH_URL` with the appropriate URL for {esms-init},
 which was provided by the Elastic support team.
 <2> The Elastic support team creates this user in {esms-init} and grants it the
-{stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
+<<built-in-roles,`remote_monitoring_agent` built-in role>>. 
 <3> Replace `MONITORING_AGENT_PASSWORD` with the value provided to you by the
 Elastic support team.
 // end::metricbeat-config[]
@@ -180,7 +180,7 @@ If the Elastic {security-features} are enabled, you must also provide a user
 ID and password so that {metricbeat} can collect metrics successfully: 
 
 .. Create a user on the production cluster that has the 
-`remote_monitoring_collector` {ref}/built-in-roles.html[built-in role]. 
+`remote_monitoring_collector` <<built-in-roles,built-in role>>. 
 Alternatively, use the `remote_monitoring_user` 
 <<built-in-users,built-in user>>.
 
@@ -337,9 +337,9 @@ If the Elastic {security-features} are enabled, you must also provide a user
 ID and password so that {metricbeat} can collect metrics successfully: 
 
 .. Create a user on the production cluster that has the 
-`remote_monitoring_collector` {ref}/built-in-roles.html[built-in role]. 
+`remote_monitoring_collector` <<built-in-roles,built-in role>>. 
 Alternatively, if it's available in your environment, use the
-`remote_monitoring_user` {ref}/built-in-users.html[built-in user].
+`remote_monitoring_user` <<built-in-users,built-in user>>.
 
 .. Add the `username` and `password` settings to the beat module configuration 
 file.

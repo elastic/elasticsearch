@@ -22,6 +22,10 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -31,7 +35,11 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -40,7 +48,9 @@ import java.util.stream.Collectors;
 public class SimpleConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
-    private final ConnectionProfile profile = RemoteClusterConnection.buildConnectionProfileFromSettings(Settings.EMPTY, "cluster");
+    private final String modeKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+    private final Settings settings = Settings.builder().put(modeKey, "simple").build();
+    private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile("cluster", settings);
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Override
@@ -60,7 +70,7 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
             .put("node.name", id)
             .put(settings)
             .build();
-        MockTransportService newService = MockTransportService.createNewService(settings, version, threadPool);
+        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool);
         try {
             newService.start();
             newService.acceptIncomingRequests();
@@ -262,7 +272,68 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    private static List<Supplier<TransportAddress>> addresses(final TransportAddress... addresses) {
-        return Arrays.stream(addresses).map(s -> (Supplier<TransportAddress>) () -> s).collect(Collectors.toList());
+    public void testSimpleStrategyWillResolveAddressesEachConnect() throws Exception {
+        try (MockTransportService transport1 = startTransport("seed_node", Version.CURRENT)) {
+            TransportAddress address = transport1.boundAddress().publishAddress();
+
+            CountDownLatch multipleResolveLatch = new CountDownLatch(2);
+            Supplier<TransportAddress> addressSupplier = () -> {
+                multipleResolveLatch.countDown();
+                return address;
+            };
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                int numOfConnections = randomIntBetween(4, 8);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         numOfConnections,  addresses(address), Collections.singletonList(addressSupplier))) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    remoteConnectionManager.getAnyRemoteConnection().close();
+
+                    assertTrue(multipleResolveLatch.await(30L, TimeUnit.SECONDS));
+                }
+            }
+        }
+    }
+
+    public void testModeSettingsCannotBeUsedWhenInDifferentMode() {
+        List<Tuple<Setting.AffixSetting<?>, String>> restrictedSettings = Arrays.asList(
+            new Tuple<>(SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES, "192.168.0.1:8080"),
+            new Tuple<>(SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS, "3"));
+
+        RemoteConnectionStrategy.ConnectionStrategy sniff = RemoteConnectionStrategy.ConnectionStrategy.SNIFF;
+
+        String clusterName = "cluster_name";
+        Settings settings = Settings.builder()
+            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterName).getKey(), sniff.name())
+            .build();
+
+        Set<Setting<?>> clusterSettings = new HashSet<>();
+        clusterSettings.add(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE);
+        clusterSettings.addAll(restrictedSettings.stream().map(Tuple::v1).collect(Collectors.toList()));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, clusterSettings);
+
+        // Should validate successfully
+        service.validate(settings, true);
+
+        for (Tuple<Setting.AffixSetting<?>, String> restrictedSetting : restrictedSettings) {
+            Setting<?> concreteSetting = restrictedSetting.v1().getConcreteSettingForNamespace(clusterName);
+            Settings invalid = Settings.builder().put(settings).put(concreteSetting.getKey(), restrictedSetting.v2()).build();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> service.validate(invalid, true));
+            String expected = "Setting \"" + concreteSetting.getKey() + "\" cannot be used with the configured " +
+                "\"cluster.remote.cluster_name.mode\" [required=SIMPLE, configured=SNIFF]";
+            assertEquals(expected, iae.getMessage());
+        }
+    }
+
+    private static List<String> addresses(final TransportAddress... addresses) {
+        return Arrays.stream(addresses).map(TransportAddress::toString).collect(Collectors.toList());
     }
 }

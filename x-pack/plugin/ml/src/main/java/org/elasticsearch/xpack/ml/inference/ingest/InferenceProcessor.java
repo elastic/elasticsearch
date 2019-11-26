@@ -62,6 +62,7 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final String FIELD_MAPPINGS = "field_mappings";
     public static final String MODEL_INFO_FIELD = "model_info_field";
     public static final String INCLUDE_MODEL_METADATA = "include_model_metadata";
+    public static final String ALLOW_MISSING_FIELDS = "allow_missing_fields";
 
     private final Client client;
     private final String modelId;
@@ -71,6 +72,7 @@ public class InferenceProcessor extends AbstractProcessor {
     private final InferenceConfig inferenceConfig;
     private final Map<String, String> fieldMapping;
     private final boolean includeModelMetadata;
+    private final boolean allowMissingFields;
     private final InferenceAuditor auditor;
     private volatile boolean previouslyLicensed;
     private final AtomicBoolean shouldAudit = new AtomicBoolean(true);
@@ -83,7 +85,8 @@ public class InferenceProcessor extends AbstractProcessor {
                               InferenceConfig inferenceConfig,
                               Map<String, String> fieldMapping,
                               String modelInfoField,
-                              boolean includeModelMetadata) {
+                              boolean includeModelMetadata,
+                              boolean allowMissingFields) {
         super(tag);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
@@ -93,6 +96,7 @@ public class InferenceProcessor extends AbstractProcessor {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
         this.fieldMapping = ExceptionsHelper.requireNonNull(fieldMapping, FIELD_MAPPINGS);
+        this.allowMissingFields = allowMissingFields;
     }
 
     public String getModelId() {
@@ -138,7 +142,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 }
             });
         }
-        return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed);
+        return new InternalInferModelAction.Request(modelId, fields, inferenceConfig, previouslyLicensed, allowMissingFields);
     }
 
     void auditWarningAboutLicenseIfNecessary() {
@@ -158,6 +162,10 @@ public class InferenceProcessor extends AbstractProcessor {
         if (includeModelMetadata) {
             ingestDocument.setFieldValue(modelInfoField + "." + MODEL_ID, modelId);
         }
+    }
+
+    boolean isAllowMissingFields() {
+        return allowMissingFields;
     }
 
     @Override
@@ -245,6 +253,7 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, String> fieldMapping = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
             InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
             String modelInfoField = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_INFO_FIELD, "ml");
+            boolean allowMissingFields = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, ALLOW_MISSING_FIELDS, true);
             // If multiple inference processors are in the same pipeline, it is wise to tag them
             // The tag will keep metadata entries from stepping on each other
             if (tag != null) {
@@ -258,7 +267,8 @@ public class InferenceProcessor extends AbstractProcessor {
                 inferenceConfig,
                 fieldMapping,
                 modelInfoField,
-                includeModelMetadata);
+                includeModelMetadata,
+                allowMissingFields);
         }
 
         // Package private for testing

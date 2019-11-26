@@ -620,7 +620,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             modelId,
             Collections.singletonList(Collections.emptyMap()),
             new RegressionConfig(),
-            false
+            false,
+            true
         ), inferModelSuccess);
         InternalInferModelAction.Response response = inferModelSuccess.actionGet();
         assertThat(response.getInferenceResults(), is(not(empty())));
@@ -637,7 +638,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 new RegressionConfig(),
-                false
+                false,
+                true
             )).actionGet();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -650,6 +652,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             modelId,
             Collections.singletonList(Collections.emptyMap()),
             new RegressionConfig(),
+            true,
             true
         ), inferModelSuccess);
         response = inferModelSuccess.actionGet();
@@ -666,7 +669,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             modelId,
             Collections.singletonList(Collections.emptyMap()),
             new RegressionConfig(),
-            false
+            false,
+            true
         ), listener);
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
     }

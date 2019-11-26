@@ -39,26 +39,34 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
         private final List<Map<String, Object>> objectsToInfer;
         private final InferenceConfig config;
         private final boolean previouslyLicensed;
+        private final boolean allowMissingFields;
 
         public Request(String modelId, boolean previouslyLicensed) {
-            this(modelId, Collections.emptyList(), new RegressionConfig(), previouslyLicensed);
+            this(modelId, Collections.emptyList(), new RegressionConfig(), previouslyLicensed, true);
         }
 
         public Request(String modelId,
                        List<Map<String, Object>> objectsToInfer,
                        InferenceConfig inferenceConfig,
-                       boolean previouslyLicensed) {
+                       boolean previouslyLicensed,
+                       boolean allowMissingFields) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
             this.config = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
             this.previouslyLicensed = previouslyLicensed;
+            this.allowMissingFields = allowMissingFields;
         }
 
-        public Request(String modelId, Map<String, Object> objectToInfer, InferenceConfig config, boolean previouslyLicensed) {
+        public Request(String modelId,
+                       Map<String, Object> objectToInfer,
+                       InferenceConfig config,
+                       boolean previouslyLicensed,
+                       boolean allowMissingFields) {
             this(modelId,
                 Arrays.asList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
                 config,
-                previouslyLicensed);
+                previouslyLicensed,
+                allowMissingFields);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -67,6 +75,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
             this.config = in.readNamedWriteable(InferenceConfig.class);
             this.previouslyLicensed = in.readBoolean();
+            this.allowMissingFields = in.readBoolean();
         }
 
         public String getModelId() {
@@ -85,6 +94,10 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             return previouslyLicensed;
         }
 
+        public boolean isAllowMissingFields() {
+            return allowMissingFields;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -97,6 +110,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             out.writeCollection(objectsToInfer, StreamOutput::writeMap);
             out.writeNamedWriteable(config);
             out.writeBoolean(previouslyLicensed);
+            out.writeBoolean(allowMissingFields);
         }
 
         @Override
@@ -107,12 +121,13 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             return Objects.equals(modelId, that.modelId)
                 && Objects.equals(config, that.config)
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
+                && Objects.equals(allowMissingFields, that.allowMissingFields)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, objectsToInfer, config, previouslyLicensed);
+            return Objects.hash(modelId, objectsToInfer, config, previouslyLicensed, allowMissingFields);
         }
 
     }

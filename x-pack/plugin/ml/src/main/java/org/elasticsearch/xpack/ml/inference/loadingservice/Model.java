@@ -15,7 +15,17 @@ public interface Model {
 
     String getResultsType();
 
-    void infer(Map<String, Object> fields, InferenceConfig inferenceConfig, ActionListener<InferenceResults> listener);
+    /**
+     * Infers against the defined model and alerts the listener of the result
+     * @param fields The field map indicating the values to infer against
+     * @param inferenceConfig The configuration containing inference type specific parameters
+     * @param allowMissingFields When {@code false}, an error is returned to the listener when fields are missing
+     * @param listener The listener to alert when inference is complete.
+     */
+    void infer(Map<String, Object> fields,
+               InferenceConfig inferenceConfig,
+               boolean allowMissingFields,
+               ActionListener<InferenceResults> listener);
 
     String getModelId();
 }

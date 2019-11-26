@@ -62,7 +62,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                     ex -> true);
                 request.getObjectsToInfer().forEach(stringObjectMap ->
                     typedChainTaskExecutor.add(chainedTask ->
-                        model.infer(stringObjectMap, request.getConfig(), chainedTask)));
+                        model.infer(stringObjectMap, request.getConfig(), request.isAllowMissingFields(), chainedTask)));
 
                 typedChainTaskExecutor.execute(ActionListener.wrap(
                     inferenceResultsInterfaces ->

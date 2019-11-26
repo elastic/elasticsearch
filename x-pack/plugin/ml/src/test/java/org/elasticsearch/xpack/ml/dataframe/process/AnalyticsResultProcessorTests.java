@@ -170,7 +170,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), equalTo(inferenceModel.build()));
-        assertThat(storedModel.getInput().getFieldNames(), equalTo(expectedFieldNames));
+        // The dependent variable `foo` should not be included in the resulting field names
+        assertThat(storedModel.getInput().getFieldNames(), equalTo(Arrays.asList("bar", "baz")));
         assertThat(storedModel.getEstimatedHeapMemory(), equalTo(inferenceModel.build().ramBytesUsed()));
         assertThat(storedModel.getEstimatedOperations(), equalTo(inferenceModel.build().getTrainedModel().estimatedNumOperations()));
         Map<String, Object> metadata = storedModel.getMetadata();

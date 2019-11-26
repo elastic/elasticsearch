@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -13,16 +14,21 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class LocalModel implements Model {
 
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
+    private final Set<String> expectedInputFields;
 
-    public LocalModel(String modelId, TrainedModelDefinition trainedModelDefinition) {
+    public LocalModel(String modelId, List<String> inputFields, TrainedModelDefinition trainedModelDefinition) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
+        this.expectedInputFields = new HashSet<>(inputFields);
     }
 
     long ramBytesUsed() {
@@ -49,8 +55,22 @@ public class LocalModel implements Model {
     }
 
     @Override
-    public void infer(Map<String, Object> fields, InferenceConfig config, ActionListener<InferenceResults> listener) {
+    public void infer(Map<String, Object> fields,
+                      InferenceConfig config,
+                      boolean allowMissingFields,
+                      ActionListener<InferenceResults> listener) {
         try {
+            if (allowMissingFields == false) {
+                Set<String> missingFields = Sets.difference(expectedInputFields, fields.keySet());
+                if (missingFields.isEmpty() == false) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            "Not all expected fields for model [{}] have been supplied. Missing fields {}.",
+                            modelId,
+                            missingFields));
+                    return;
+                }
+            }
             listener.onResponse(trainedModelDefinition.infer(fields, config));
         } catch (Exception e) {
             listener.onFailure(e);

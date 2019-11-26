@@ -141,6 +141,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 trainedModelConfig ->
                     modelActionListener.onResponse(new LocalModel(
                         trainedModelConfig.getModelId(),
+                        trainedModelConfig.getInput().getFieldNames(),
                         trainedModelConfig.ensureParsedDefinition(namedXContentRegistry).getModelDefinition())),
                 modelActionListener::onFailure
             ));
@@ -198,6 +199,7 @@ public class ModelLoadingService implements ClusterStateListener {
         Queue<ActionListener<Model>> listeners;
         LocalModel loadedModel = new LocalModel(
             trainedModelConfig.getModelId(),
+            trainedModelConfig.getInput().getFieldNames(),
             trainedModelConfig.ensureParsedDefinition(namedXContentRegistry).getModelDefinition());
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);

@@ -63,7 +63,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
         TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
-            .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
+            .setInput(new TrainedModelInput(Arrays.asList("foo", "bar")))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
                 .setTrainedModel(buildClassification(true)))
@@ -74,7 +74,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setEstimatedHeapMemory(0)
             .build();
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
-            .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
+            .setInput(new TrainedModelInput(Arrays.asList("foo", "bar")))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
                 .setTrainedModel(buildRegression()))
@@ -119,19 +119,20 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         }});
 
         // Test regression
-        InternalInferModelAction.Request request = new InternalInferModelAction.Request(modelId1, toInfer, new RegressionConfig(), true);
+        InternalInferModelAction.Request request =
+            new InternalInferModelAction.Request(modelId1, toInfer, new RegressionConfig(), true, true);
         InternalInferModelAction.Response response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.3, 1.25));
 
-        request = new InternalInferModelAction.Request(modelId1, toInfer2, new RegressionConfig(), true);
+        request = new InternalInferModelAction.Request(modelId1, toInfer2, new RegressionConfig(), true, true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.65, 1.55));
 
 
         // Test classification
-        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(0), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(0), true, true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults()
                 .stream()
@@ -140,7 +141,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             contains("not_to_be", "to_be"));
 
         // Get top classes
-        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2), true, true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults =
@@ -159,7 +160,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         // Test that top classes restrict the number returned
-        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1), true, true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
@@ -173,12 +174,71 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             model,
             Collections.emptyList(),
             new RegressionConfig(),
+            true,
             true);
         try {
             client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         } catch (ElasticsearchException ex) {
             assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
+    }
+
+    public void testInferMissingFields() throws Exception {
+        String modelId = "test-load-models-regression-missing-fields";
+        Map<String, String> oneHotEncoding = new HashMap<>();
+        oneHotEncoding.put("cat", "animal_cat");
+        oneHotEncoding.put("dog", "animal_dog");
+        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId)
+            .setInput(new TrainedModelInput(Arrays.asList("foo", "bar", "categorical")))
+            .setParsedDefinition(new TrainedModelDefinition.Builder()
+                .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
+                .setTrainedModel(buildRegression()))
+            .setVersion(Version.CURRENT)
+            .setEstimatedOperations(0)
+            .setEstimatedHeapMemory(0)
+            .setCreateTime(Instant.now())
+            .build();
+        AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(listener -> trainedModelProvider.storeTrainedModel(config, listener), putConfigHolder, exceptionHolder);
+        assertThat(putConfigHolder.get(), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+
+
+        List<Map<String, Object>> toInferMissingField = new ArrayList<>();
+        toInferMissingField.add(new HashMap<>() {{
+            put("foo", 1.0);
+            put("bar", 0.5);
+        }});
+
+        InternalInferModelAction.Request request = new InternalInferModelAction.Request(
+            modelId,
+            toInferMissingField,
+            new RegressionConfig(),
+            true,
+            true);
+        try {
+            client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
+        } catch (ElasticsearchException ex) {
+            fail("Should not have thrown. Ex: " + ex.getMessage());
+        }
+
+        request = new InternalInferModelAction.Request(
+            modelId,
+            toInferMissingField,
+            new RegressionConfig(),
+            true,
+            false);
+        try {
+            client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
+            fail("Should not have succeed inference call with missing fields");
+        } catch (ElasticsearchException ex) {
+            assertThat(ex.getMessage(),
+                equalTo("Not all expected fields for model [test-load-models-regression-missing-fields] have been supplied. " +
+                    "Missing fields [categorical]."));
+        }
+
     }
 
     private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {

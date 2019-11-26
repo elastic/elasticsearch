@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -31,11 +29,13 @@ public class InternalInferModelActionRequestTests extends AbstractWireSerializin
                 randomAlphaOfLength(10),
                 Stream.generate(InternalInferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
                 randomInferenceConfig(),
+                randomBoolean(),
                 randomBoolean()) :
             new Request(
                 randomAlphaOfLength(10),
                 randomMap(),
                 randomInferenceConfig(),
+                randomBoolean(),
                 randomBoolean());
     }
 
@@ -56,8 +56,6 @@ public class InternalInferModelActionRequestTests extends AbstractWireSerializin
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        return new NamedWriteableRegistry(entries);
+        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 }

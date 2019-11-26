@@ -54,6 +54,7 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(0),
             Collections.emptyMap(),
             "ml.my_processor",
+            true,
             true);
 
         Map<String, Object> source = new HashMap<>();
@@ -81,6 +82,7 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(2),
             Collections.emptyMap(),
             "ml.my_processor",
+            true,
             true);
 
         Map<String, Object> source = new HashMap<>();
@@ -112,6 +114,7 @@ public class InferenceProcessorTests extends ESTestCase {
             new RegressionConfig(),
             Collections.emptyMap(),
             "ml.my_processor",
+            true,
             true);
 
         Map<String, Object> source = new HashMap<>();
@@ -137,7 +140,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new RegressionConfig(),
             Collections.emptyMap(),
             "ml.my_processor",
-            false);
+            false,
+            true);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -161,6 +165,7 @@ public class InferenceProcessorTests extends ESTestCase {
             new RegressionConfig(),
             Collections.emptyMap(),
             "ml.my_processor",
+            true,
             true);
 
         //cannot use singleton map as attempting to mutate later
@@ -197,7 +202,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(topNClasses),
             Collections.emptyMap(),
             "ml.my_processor",
-            false);
+            false,
+            true);
 
         Map<String, Object> source = new HashMap<>(){{
             put("value1", 1);
@@ -228,7 +234,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(topNClasses),
             fieldMapping,
             "ml.my_processor",
-            false);
+            false,
+            true);
 
         Map<String, Object> source = new HashMap<>(3){{
             put("value1", 1);
@@ -246,6 +253,43 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
     }
 
+    public void testGenerateRequestWithChangingAllowMissingFields() {
+        String modelId = "model";
+        InferenceProcessor processor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "my_field",
+            modelId,
+            new RegressionConfig(),
+            Collections.emptyMap(),
+            "ml.my_processor",
+            false,
+            true);
+
+        Map<String, Object> source = new HashMap<>(){{
+            put("value1", 1);
+            put("value2", 4);
+            put("categorical", "foo");
+        }};
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        assertThat(processor.buildRequest(document).isAllowMissingFields(), is(true));
+
+        processor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "my_field",
+            modelId,
+            new RegressionConfig(),
+            Collections.emptyMap(),
+            "ml.my_processor",
+            false,
+            false);
+
+        assertThat(processor.buildRequest(document).isAllowMissingFields(), is(false));
+    }
+
     public void testHandleResponseLicenseChanged() {
         String targetField = "regression_value";
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
@@ -256,6 +300,7 @@ public class InferenceProcessorTests extends ESTestCase {
             new RegressionConfig(),
             Collections.emptyMap(),
             "ml.my_processor",
+            true,
             true);
 
         Map<String, Object> source = new HashMap<>();

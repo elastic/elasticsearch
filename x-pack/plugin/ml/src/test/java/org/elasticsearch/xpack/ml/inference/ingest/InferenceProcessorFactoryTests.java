@@ -46,6 +46,7 @@ import java.util.HashSet;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -233,6 +234,42 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         try {
             processorFactory.create(Collections.emptyMap(), "my_inference_processor", classification);
+        } catch (Exception ex) {
+            fail(ex.getMessage());
+        }
+    }
+
+    public void testCreateProcessor_DefaultValueForMissingFields() {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
+            clusterService,
+            Settings.EMPTY,
+            ingestService);
+
+        Map<String, Object> regression = new HashMap<>() {{
+            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.MODEL_ID, "my_model");
+            put(InferenceProcessor.TARGET_FIELD, "result");
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME, Collections.emptyMap()));
+        }};
+
+        try {
+            InferenceProcessor processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", regression);
+            assertThat(processor.isAllowMissingFields(), is(true));
+        } catch (Exception ex) {
+            fail(ex.getMessage());
+        }
+
+        regression = new HashMap<>() {{
+            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.MODEL_ID, "my_model");
+            put(InferenceProcessor.TARGET_FIELD, "result");
+            put(InferenceProcessor.ALLOW_MISSING_FIELDS, false);
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME, Collections.emptyMap()));
+        }};
+
+        try {
+            InferenceProcessor processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", regression);
+            assertThat(processor.isAllowMissingFields(), is(false));
         } catch (Exception ex) {
             fail(ex.getMessage());
         }

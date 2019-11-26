@@ -190,16 +190,26 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         @Override
         public void handle(final HttpExchange exchange) throws IOException {
-            final String requestId = requestUniqueId(exchange);
-            assert Strings.hasText(requestId);
+            try {
+                final String requestId = requestUniqueId(exchange);
+                assert Strings.hasText(requestId);
 
-            final boolean canFailRequest = canFailRequest(exchange);
-            final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
-            if (count >= maxErrorsPerRequest || canFailRequest == false) {
-                requests.remove(requestId);
-                delegate.handle(exchange);
-            } else {
-                handleAsError(exchange);
+                final boolean canFailRequest = canFailRequest(exchange);
+                final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
+                if (count >= maxErrorsPerRequest || canFailRequest == false) {
+                    requests.remove(requestId);
+                    delegate.handle(exchange);
+                } else {
+                    handleAsError(exchange);
+                }
+            } finally {
+                try {
+                    int read = exchange.getRequestBody().read();
+                    assert read == -1 : "Request body should have been fully read here but saw [" + read + "]";
+                } catch (IOException e) {
+                    // ignored, stream is assumed to have been closed by previous handler
+                }
+                exchange.close();
             }
         }
 

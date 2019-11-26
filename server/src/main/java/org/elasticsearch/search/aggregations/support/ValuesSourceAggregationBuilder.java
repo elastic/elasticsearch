@@ -34,11 +34,11 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
+public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>>
         extends AbstractAggregationBuilder<AB> {
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
-            extends ValuesSourceAggregationBuilder<VS, AB> {
+    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
+            extends ValuesSourceAggregationBuilder<AB> {
 
         protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, targetValueType);
@@ -88,7 +88,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         this.targetValueType = targetValueType;
     }
 
-    protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<VS, AB> clone,
+    protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<AB> clone,
                                              Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.targetValueType = clone.targetValueType;
@@ -377,7 +377,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
-        ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
+        ValuesSourceAggregationBuilder<?> other = (ValuesSourceAggregationBuilder<?>) obj;
         return Objects.equals(field, other.field)
             && Objects.equals(format, other.format)
             && Objects.equals(missing, other.missing)

@@ -76,7 +76,7 @@ public final class SchemaUtil {
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (agg instanceof ValuesSourceAggregationBuilder) {
-                ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
+                ValuesSourceAggregationBuilder<?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?>) agg;
                 aggregationSourceFieldNames.put(valueSourceAggregation.getName(), valueSourceAggregation.field());
                 aggregationTypes.put(valueSourceAggregation.getName(), valueSourceAggregation.getType());
             } else if(agg instanceof ScriptedMetricAggregationBuilder || agg instanceof MultiValuesSourceAggregationBuilder) {

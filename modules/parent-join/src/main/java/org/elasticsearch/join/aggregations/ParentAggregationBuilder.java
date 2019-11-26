@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -46,7 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class ParentAggregationBuilder
-        extends ValuesSourceAggregationBuilder<WithOrdinals, ParentAggregationBuilder> {
+        extends ValuesSourceAggregationBuilder<ParentAggregationBuilder> {
 
     public static final String NAME = "parent";
 

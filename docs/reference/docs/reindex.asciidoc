@@ -504,6 +504,10 @@ Valid values: `index`, `create`. Defaults to `index`.
 (Optional, enum) The script language: `painless`, `expression`, `mustache`, `java`. 
 For more information, see <<modules-scripting>>.
 
+NOTE: Types in source indices are always ignored, also when not specifying a
+destination `type`. If explicitly specifying destination `type`, the specified
+type must match the type in the destination index or be either unspecified or
+the special value `_doc`. See <<removal-of-types>> for further details.
 
 [[docs-reindex-api-response-body]]
 ==== {api-response-body-title}

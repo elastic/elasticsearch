@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource>
+public abstract class ArrayValuesSourceAggregatorFactory
     extends AggregatorFactory {
 
     protected Map<String, ValuesSourceConfig> configs;

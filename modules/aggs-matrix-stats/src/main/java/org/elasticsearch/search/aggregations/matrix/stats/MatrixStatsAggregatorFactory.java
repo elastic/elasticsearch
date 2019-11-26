@@ -35,7 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFactory {
 
     private final MultiValueMode multiValueMode;
 

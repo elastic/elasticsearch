@@ -239,10 +239,10 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final ArrayValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
-                                                                   Builder subFactoriesBuilder) throws IOException {
+    protected final ArrayValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                               Builder subFactoriesBuilder) throws IOException {
         Map<String, ValuesSourceConfig> configs = resolveConfig(queryShardContext);
-        ArrayValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, configs, parent, subFactoriesBuilder);
+        ArrayValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -255,10 +255,10 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         return configs;
     }
 
-    protected abstract ArrayValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
-                                                                Map<String, ValuesSourceConfig> configs,
-                                                                AggregatorFactory parent,
-                                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract ArrayValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                                     Map<String, ValuesSourceConfig> configs,
+                                                                     AggregatorFactory parent,
+                                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     public ValuesSourceConfig config(QueryShardContext queryShardContext, String field, Script script) {
 

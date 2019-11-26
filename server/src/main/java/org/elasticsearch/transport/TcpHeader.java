@@ -66,6 +66,7 @@ public class TcpHeader {
         output.writeInt(version.id);
         // TODO: Change to 7.6 after backport
         if (version.onOrAfter(Version.V_8_0_0)) {
+            assert variableHeaderSize != -1 : "Variable header size not set";
             output.writeInt(variableHeaderSize);
         }
     }

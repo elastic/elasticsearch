@@ -92,7 +92,7 @@ public final class TransportLogger {
                 if (isRequest) {
                     if (TransportStatus.isCompress(status)) {
                         Compressor compressor;
-                        compressor = InboundMessage.getCompressor(message, version);
+                        compressor = InboundMessage.getCompressor(streamInput);
                         if (compressor == null) {
                             throw new IllegalStateException(new NotCompressedException());
                         }

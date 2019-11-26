@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -45,25 +46,32 @@ abstract class OutboundMessage extends NetworkMessage {
 
         // The compressible bytes stream will not close the underlying bytes stream
         BytesReference reference;
-        int variableHeaderLength;
-        long preHeaderPosition = bytesStream.position();
+        int variableHeaderLength = -1;
+        final long preHeaderPosition = bytesStream.position();
+
+        boolean needToWriteHeader = true;
+        // TODO: Change to 7.6 after backport
+        if (version.onOrAfter(Version.V_8_0_0)) {
+            writeVariableHeader(bytesStream);
+            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
+            needToWriteHeader = false;
+        }
+
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);
-            writeVariableHeader(stream);
-            // We use syncFlush with the deflater so all header bytes will be compressed and written to
-            // bytesStream at this point.
-            stream.flush();
-            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
-
+            if (needToWriteHeader) {
+                writeVariableHeader(stream);
+            }
             reference = writeMessage(stream);
         }
+
         bytesStream.seek(0);
         final int contentSize = reference.length() - TcpHeader.headerSize(version);
         TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
         return reference;
     }
 
-    protected void writeVariableHeader(CompressibleBytesOutputStream stream) throws IOException {
+    protected void writeVariableHeader(StreamOutput stream) throws IOException {
         threadContext.writeTo(stream);
     }
 
@@ -104,7 +112,7 @@ abstract class OutboundMessage extends NetworkMessage {
         }
 
         @Override
-        protected void writeVariableHeader(CompressibleBytesOutputStream stream) throws IOException {
+        protected void writeVariableHeader(StreamOutput stream) throws IOException {
             super.writeVariableHeader(stream);
             if (version.before(Version.V_8_0_0)) {
                 // empty features array

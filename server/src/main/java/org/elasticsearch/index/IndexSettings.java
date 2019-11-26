@@ -245,21 +245,21 @@ public final class IndexSettings {
      * Controls how long translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is enabled.
+     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
         Setting.timeSetting("index.translog.retention.age",
-            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12), TimeValue.MINUS_ONE,
-            Property.Dynamic, Property.IndexScope);
+            settings -> useSoftDeletesInPeerRecovery(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12),
+            TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls how many translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is enabled.
+     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
      **/
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", settings -> INDEX_SOFT_DELETES_SETTING.get(settings) ? "-1" : "512MB",
+        Setting.byteSizeSetting("index.translog.retention.size", settings -> useSoftDeletesInPeerRecovery(settings) ? "-1" : "512MB",
             Property.Dynamic, Property.IndexScope);
 
     /**
@@ -510,8 +510,8 @@ public final class IndexSettings {
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
-        setTranslogRetentionAge(scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING));
-        setTranslogRetentionSize(scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING));
+        translogRetentionAge = scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING);
+        translogRetentionSize = scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
@@ -577,21 +577,11 @@ public final class IndexSettings {
     }
 
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
-        if (softDeleteEnabled && byteSizeValue.getBytes() >= 0) {
-            // ignore the translog retention settings if soft-deletes enabled
-            this.translogRetentionSize = new ByteSizeValue(-1);
-        } else {
-            this.translogRetentionSize = byteSizeValue;
-        }
+        this.translogRetentionSize = byteSizeValue;
     }
 
     private void setTranslogRetentionAge(TimeValue age) {
-        if (softDeleteEnabled && age.millis() >= 0) {
-            // ignore the translog retention settings if soft-deletes enabled
-            this.translogRetentionAge = TimeValue.MINUS_ONE;
-        } else {
-            this.translogRetentionAge = age;
-        }
+        this.translogRetentionAge = age;
     }
 
     private void setGenerationThresholdSize(final ByteSizeValue generationThresholdSize) {
@@ -774,8 +764,11 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
-        assert softDeleteEnabled == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
-        return translogRetentionSize;
+        if (useSoftDeletesInPeerRecovery()) {
+            return ByteSizeValue.MINUS_ONE;
+        } else {
+            return translogRetentionSize;
+        }
     }
 
     /**
@@ -783,8 +776,11 @@ public final class IndexSettings {
      * around
      */
     public TimeValue getTranslogRetentionAge() {
-        assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
-        return translogRetentionAge;
+        if (useSoftDeletesInPeerRecovery()) {
+            return TimeValue.MINUS_ONE;
+        } else {
+            return translogRetentionAge;
+        }
     }
 
     /**
@@ -1024,5 +1020,14 @@ public final class IndexSettings {
 
     private void setSearchThrottled(boolean searchThrottled) {
         this.searchThrottled = searchThrottled;
+    }
+
+    public boolean useSoftDeletesInPeerRecovery() {
+        return useSoftDeletesInPeerRecovery(settings);
+    }
+
+    private static boolean useSoftDeletesInPeerRecovery(Settings settings) {
+        return INDEX_SOFT_DELETES_SETTING.get(settings)
+            && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0);
     }
 }

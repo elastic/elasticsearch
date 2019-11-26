@@ -1884,31 +1884,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public Closeable acquireRetentionLock() {
-        return getEngine().acquireRetentionLock();
+    public Closeable acquireHistoryRetentionLock(Engine.HistorySource source) {
+        return getEngine().acquireHistoryRetentionLock(source);
     }
 
     /**
      * Returns the estimated number of history operations whose seq# at least the provided seq# in this shard.
      */
-    public int estimateNumberOfHistoryOperations(String source, long startingSeqNo) throws IOException {
-        return getEngine().estimateNumberOfHistoryOperations(source, mapperService, startingSeqNo);
+    public int estimateNumberOfHistoryOperations(String reason, Engine.HistorySource source, long startingSeqNo) throws IOException {
+        return getEngine().estimateNumberOfHistoryOperations(reason, source, mapperService, startingSeqNo);
     }
 
     /**
      * Creates a new history snapshot for reading operations since the provided starting seqno (inclusive).
      * The returned snapshot can be retrieved from either Lucene index or translog files.
      */
-    public Translog.Snapshot getHistoryOperations(String source, long startingSeqNo) throws IOException {
-        return getEngine().readHistoryOperations(source, mapperService, startingSeqNo);
+    public Translog.Snapshot getHistoryOperations(String reason, Engine.HistorySource source, long startingSeqNo) throws IOException {
+        return getEngine().readHistoryOperations(reason, source, mapperService, startingSeqNo);
     }
 
     /**
      * Checks if we have a completed history of operations since the given starting seqno (inclusive).
-     * This method should be called after acquiring the retention lock; See {@link #acquireRetentionLock()}
+     * This method should be called after acquiring the retention lock; See {@link #acquireHistoryRetentionLock(Engine.HistorySource)}
      */
-    public boolean hasCompleteHistoryOperations(String source, long startingSeqNo) throws IOException {
-        return getEngine().hasCompleteOperationHistory(source, mapperService, startingSeqNo);
+    public boolean hasCompleteHistoryOperations(String reason, Engine.HistorySource source, long startingSeqNo) throws IOException {
+        return getEngine().hasCompleteOperationHistory(reason, source, mapperService, startingSeqNo);
     }
 
     /**
@@ -2097,9 +2097,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         ensureSoftDeletesEnabled("retention leases");
-        try (Closeable ignore = acquireRetentionLock()) {
+        try (Closeable ignore = acquireHistoryRetentionLock(Engine.HistorySource.INDEX)) {
             final long actualRetainingSequenceNumber =
-                    retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
+                retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
             return replicationTracker.addRetentionLease(id, actualRetainingSequenceNumber, source, listener);
         } catch (final IOException e) {
             throw new AssertionError(e);
@@ -2119,7 +2119,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         ensureSoftDeletesEnabled("retention leases");
-        try (Closeable ignore = acquireRetentionLock()) {
+        try (Closeable ignore = acquireHistoryRetentionLock(Engine.HistorySource.INDEX)) {
             final long actualRetainingSequenceNumber =
                     retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
             return replicationTracker.renewRetentionLease(id, actualRetainingSequenceNumber, source);

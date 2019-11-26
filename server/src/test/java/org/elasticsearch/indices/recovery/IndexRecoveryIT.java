@@ -39,6 +39,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -1202,6 +1203,52 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
     }
 
+    public void testUsesFileBasedRecoveryIfRetentionLeaseMissing() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        String indexName = "test-index";
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "12h")
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(0, 100))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+
+        final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+        final DiscoveryNodes discoveryNodes = clusterService().state().nodes();
+        final IndexShardRoutingTable indexShardRoutingTable = clusterService().state().routingTable().shardRoutingTable(shardId);
+
+        final IndexShard primary = internalCluster().getInstance(IndicesService.class,
+            discoveryNodes.get(indexShardRoutingTable.primaryShard().currentNodeId()).getName()).getShardOrNull(shardId);
+
+        final ShardRouting replicaShardRouting = indexShardRoutingTable.replicaShards().get(0);
+        internalCluster().restartNode(discoveryNodes.get(replicaShardRouting.currentNodeId()).getName(),
+            new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) throws Exception {
+                    assertFalse(client().admin().cluster().prepareHealth()
+                        .setWaitForNodes(Integer.toString(discoveryNodes.getSize() - 1))
+                        .setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+
+                    final PlainActionFuture<ReplicationResponse> future = new PlainActionFuture<>();
+                    primary.removeRetentionLease(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replicaShardRouting), future);
+                    future.get();
+
+                    return super.onNodeStopped(nodeName);
+                }
+            });
+
+        ensureGreen(indexName);
+
+        //noinspection OptionalGetWithoutIsPresent because it fails the test if absent
+        final RecoveryState recoveryState = client().admin().indices().prepareRecoveries(indexName).get()
+            .shardRecoveryStates().get(indexName).stream().filter(rs -> rs.getPrimary() == false).findFirst().get();
+        assertThat(recoveryState.getIndex().totalFileCount(), greaterThan(0));
+    }
+
     public void testUsesFileBasedRecoveryIfRetentionLeaseAheadOfGlobalCheckpoint() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
@@ -1343,9 +1390,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     assertBusy(() -> assertFalse("should no longer have lease for " + replicaShardRouting,
                         client().admin().indices().prepareStats(indexName).get().getShards()[0].getRetentionLeaseStats()
                             .retentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replicaShardRouting))));
-                    // Flush to advance SoftDeletesPolicy#minRetainedSeqNo so primary does not have a complete history
-                    // for replicas without peer recovery retention leases.
-                    client().admin().indices().prepareFlush(indexName).setForce(true).get();
+
                     return super.onNodeStopped(nodeName);
                 }
             });

@@ -38,6 +38,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ByteSizeValue.class));
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1);
 
     private final long size;
     private final ByteSizeUnit unit;

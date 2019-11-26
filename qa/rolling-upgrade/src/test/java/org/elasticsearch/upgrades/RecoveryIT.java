@@ -692,16 +692,16 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean()).build());
             ensureGreen(index);
-            indexDocs(index, 0, randomIntBetween(50, 100));
+            indexDocs(index, 0, randomIntBetween(100, 200));
             flush(index, randomBoolean());
-            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 20));
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 2));
         } else {
             ensureGreen(index);
             assertNoFileBasedRecovery(index, nodeName ->
                 CLUSTER_TYPE == ClusterType.UPGRADED
                 || nodeName.startsWith(CLUSTER_NAME + "-0")
                 || Booleans.parseBoolean(System.getProperty("tests.first_round")) == false && nodeName.startsWith(CLUSTER_NAME + "-1"));
-            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 20));
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 2));
         }
     }
 }

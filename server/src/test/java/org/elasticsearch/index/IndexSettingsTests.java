@@ -549,7 +549,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testIgnoreTranslogRetentionSettingsIfSoftDeletesEnabled() {
         Settings.Builder settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomIndexCompatibleVersion(random()));
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_4_0, Version.CURRENT));
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         }
@@ -558,9 +558,9 @@ public class IndexSettingsTests extends ESTestCase {
         }
         IndexMetaData metaData = newIndexMeta("index", settings.build());
         IndexSettings indexSettings = new IndexSettings(metaData, Settings.EMPTY);
+        assertTrue(indexSettings.useSoftDeletesInPeerRecovery());
         assertThat(indexSettings.getTranslogRetentionAge().millis(), equalTo(-1L));
         assertThat(indexSettings.getTranslogRetentionSize().getBytes(), equalTo(-1L));
-
         Settings.Builder newSettings = Settings.builder().put(settings.build());
         if (randomBoolean()) {
             newSettings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());

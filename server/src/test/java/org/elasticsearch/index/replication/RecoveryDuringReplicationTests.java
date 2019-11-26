@@ -288,7 +288,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 });
                 newPrimary.flush(new FlushRequest().force(true));
                 if (replica.indexSettings().isSoftDeleteEnabled()) {
-                    // We need to make sure that there is no retention lease holding on to any history. The lease for the old primary
+                    // We need an extra flush to advance the min_retained_seqno on the new primary so ops-based won't happen.
+                    // The min_retained_seqno only advances when a merge asks for the retention query.
+                    newPrimary.flush(new FlushRequest().force(true));
+
+                    // We also need to make sure that there is no retention lease holding on to any history. The lease for the old primary
                     // expires since there are no unassigned shards in this replication group).
                     assertBusy(() -> {
                         newPrimary.syncRetentionLeases();
@@ -296,9 +300,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         assertThat(newPrimary.getRetentionLeases().leases().stream().mapToLong(RetentionLease::retainingSequenceNumber)
                             .min().getAsLong(), greaterThan(newPrimary.seqNoStats().getMaxSeqNo()));
                     });
-                    // We also need an extra flush to advance the min_retained_seqno on the new primary so ops-based won't happen.
-                    // The min_retained_seqno only advances when a merge asks for the retention query.
-                    newPrimary.flush(new FlushRequest().force(true));
                 }
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
                 totalDocs += uncommittedOpsOnPrimary;

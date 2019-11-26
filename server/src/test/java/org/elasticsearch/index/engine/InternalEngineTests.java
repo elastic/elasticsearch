@@ -5424,7 +5424,7 @@ public class InternalEngineTests extends EngineTestCase {
             if (rarely()) {
                 engine.forceMerge(randomBoolean());
             }
-            try (Closeable ignored = engine.acquireRetentionLock()) {
+            try (Closeable ignored = engine.acquireHistoryRetentionLock(Engine.HistorySource.INDEX)) {
                 long minRetainSeqNos = engine.getMinRetainedSeqNo();
                 assertThat(minRetainSeqNos, lessThanOrEqualTo(globalCheckpoint.get() + 1));
                 Long[] expectedOps = existingSeqNos.stream().filter(seqno -> seqno >= minRetainSeqNos).toArray(Long[]::new);
@@ -5705,9 +5705,9 @@ public class InternalEngineTests extends EngineTestCase {
                 IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(Settings.builder().
                     put(defaultSettings.getSettings()).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)).build());
             try (InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))) {
-                IllegalStateException error = expectThrows(IllegalStateException.class,
+                AssertionError error = expectThrows(AssertionError.class,
                     () -> engine.newChangesSnapshot("test", createMapperService(), 0, randomNonNegativeLong(), randomBoolean()));
-                assertThat(error.getMessage(), equalTo("accessing changes snapshot requires soft-deletes enabled"));
+                assertThat(error.getMessage(), containsString("does not have soft-deletes enabled"));
             }
         }
     }

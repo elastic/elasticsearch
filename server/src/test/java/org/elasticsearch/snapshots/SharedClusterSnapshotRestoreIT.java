@@ -1548,10 +1548,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        final ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-                () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().
-                        getSnapshots("test-repo"));
-        assertThat(ExceptionsHelper.unwrap(ex, SnapshotMissingException.class), notNullValue());
+        expectSnapshotMissingException(() -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().
+            getSnapshots("test-repo"));
 
         logger.info("--> make sure that we can create the snapshot again");
         createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")

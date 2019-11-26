@@ -114,7 +114,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                     ReindexJobState state = (ReindexJobState) task.getState();
                     if (state.getStatus() == ReindexJobState.Status.ASSIGNMENT_FAILED) {
                         listener.onFailure(new ElasticsearchException("Reindexing failed. Task node could not assign itself as the "
-                            + "coordinating node in the " + ReindexIndexClient.REINDEX_INDEX + " index"));
+                            + "coordinating node in the " + ReindexIndexClient.REINDEX_ALIAS + " index"));
                     } else if (state.getStatus() == ReindexJobState.Status.DONE) {
                         reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
                             @Override

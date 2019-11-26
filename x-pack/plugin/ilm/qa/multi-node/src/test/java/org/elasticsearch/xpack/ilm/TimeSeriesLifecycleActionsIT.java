@@ -26,7 +26,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
-import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -40,7 +39,6 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
-import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -288,40 +286,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertTrue(indexExists(originalIndex)));
         assertBusy(() -> assertFalse(indexExists(secondIndex)));
         assertBusy(() -> assertEquals("true", getOnlyIndexSettings(originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49073")
-    public void testRolloverAlreadyExists() throws Exception {
-        String originalIndex = index + "-000001";
-        String secondIndex = index + "-000002";
-        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
-        );
-
-        // create policy
-        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
-        // update policy on index
-        updatePolicy(originalIndex, policy);
-        // Manually create the new index
-        Request request = new Request("PUT", "/" + secondIndex);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build()) + "}");
-        client().performRequest(request);
-        // wait for the shards to initialize
-        ensureGreen(secondIndex);
-        // index another doc to trigger the policy
-        index(client(), originalIndex, "_id", "foo", "bar");
-        assertBusy(() -> {
-            Map<String, Object> explainIndexResponse = explainIndex(originalIndex);
-            logger.info(originalIndex + ": " + getStepKey(explainIndexResponse));
-            logger.info(secondIndex + ": " + getStepKeyForIndex(secondIndex));
-            assertThat(getStepKey(explainIndexResponse), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
-            assertThat(explainIndexResponse.get("failed_step"), equalTo(WaitForRolloverReadyStep.NAME));
-            @SuppressWarnings("unchecked")
-            String reason = ((Map<String, String>) explainIndexResponse.get("step_info")).get("reason");
-            assertThat(reason, containsString("already exists"));
-        });
     }
 
     public void testAllocateOnlyAllocation() throws Exception {

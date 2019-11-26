@@ -472,15 +472,21 @@ final class StoreRecovery {
             translogState.totalOperations(0);
             translogState.totalOperationsOnStart(0);
             indexShard.prepareForIndexRecovery();
-            ShardId snapshotShardId = shardId;
+            final ShardId snapshotShardId;
             final String indexName = restoreSource.index();
             if (!shardId.getIndexName().equals(indexName)) {
                 snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
+            } else {
+                snapshotShardId = shardId;
             }
-            final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
-            assert indexShard.getEngineOrNull() == null;
-            repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
-                indexShard.recoveryState(), restoreListener);
+            repository.getRepositoryData(ActionListener.wrap(
+                repositoryData -> {
+                    final IndexId indexId = repositoryData.resolveIndexId(indexName);
+                    assert indexShard.getEngineOrNull() == null;
+                    repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(), indexId, snapshotShardId,
+                        indexShard.recoveryState(), restoreListener);
+                }, restoreListener::onFailure
+            ));
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }

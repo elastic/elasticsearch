@@ -1,0 +1,36 @@
+---
+"Verify that reindex completes successfully in a mixed cluster":
+  - do:
+      indices.create:
+        index: reindex_mixed_cluster_source
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "reindex_mixed_cluster_source"}}'
+          - '{"f1": "1"}'
+          - '{"index": {"_index": "reindex_mixed_cluster_source"}}'
+          - '{"f1": "2"}'
+          - '{"index": {"_index": "reindex_mixed_cluster_source"}}'
+          - '{"f1": "3"}'
+          - '{"index": {"_index": "reindex_mixed_cluster_source"}}'
+          - '{"f1": "4"}'
+          - '{"index": {"_index": "reindex_mixed_cluster_source"}}'
+          - '{"f1": "5"}'
+
+  - do:
+      reindex:
+        body:
+          source:
+            index: reindex_mixed_cluster_source
+            size: 1
+          dest:
+            index: reindex_mixed_custer_copy
+  - match: {created: 5}
+  - match: {version_conflicts: 0}
+  - match: {batches: 5}
+  - match: {failures: []}

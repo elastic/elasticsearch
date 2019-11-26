@@ -90,8 +90,6 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
             .mapToObj(i -> client().prepareIndex("test").setId(String.valueOf(i)).setSource("data", i)).collect(Collectors.toList()));
 
         ensureGreen("test");
-        String reindexNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-        NodeClient reindexNodeClient = internalCluster().getInstance(NodeClient.class, reindexNode);
 
         ReindexRequest reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices("test").setSourceBatchSize(1);
@@ -106,12 +104,12 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
 
         TaskId taskId = new TaskId(response.getTaskId());
 
-        Set<String> names = Arrays.stream(internalCluster().getNodeNames())
+        Set<String> reindexNodeNames = Arrays.stream(internalCluster().getNodeNames())
             .map(name -> Tuple.tuple(internalCluster().getInstance(NodeClient.class, name).getLocalNodeId(), name))
             .filter(idAndName -> taskId.getNodeId().equals(idAndName.v1())).map(Tuple::v2).collect(Collectors.toSet());
 
-        assertEquals(1, names.size());
-        String notToRestart = names.iterator().next();
+        assertEquals(1, reindexNodeNames.size());
+        String notToRestart = reindexNodeNames.iterator().next();
 
         internalCluster().getInstances(NodeClient.class);
         assertBusy(() -> {
@@ -123,19 +121,21 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
             assertThat(client().admin().cluster().prepareListTasks().setActions(SearchAction.NAME).get().getTasks(), Matchers.empty());
         }, 30, TimeUnit.SECONDS);
 
+        Set<String> restartableNodes = internalCluster().nodesInclude("test")
+            .stream().filter(id -> id.equals(notToRestart) == false).collect(Collectors.toSet());
         for (int i = 0; i < randomIntBetween(1,5); ++i) {
-            // todo: replace following two lines with below once search fails on RED every time.
-            String nodeToRestart = randomFrom(internalCluster().nodesInclude("test")
-                .stream().filter(id -> id.equals(notToRestart) == false).collect(Collectors.toSet()));
-            internalCluster().restartNode(nodeToRestart, new InternalTestCluster.RestartCallback());
-            ensureGreen();
-//            internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
-//                @Override
-//                public Settings onNodeStopped(String nodeName) throws Exception {
-//                    internalCluster().restartRandomDataNode();
-//                    return super.onNodeStopped(nodeName);
-//                }
-//            });
+            String node1ToRestart = randomFrom(restartableNodes);
+            internalCluster().restartNode(node1ToRestart, new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) throws Exception {
+                    if (restartableNodes.size() > 1) {
+                        String node2ToRestart = randomValueOtherThan(node1ToRestart, () -> randomFrom(restartableNodes));
+                        logger.info("--> restarting second node: " + node2ToRestart);
+                        internalCluster().restartNode(node2ToRestart, new InternalTestCluster.RestartCallback());
+                    }
+                    return super.onNodeStopped(nodeName);
+                }
+            });
         }
 
         rethrottle().setTaskId(taskId)

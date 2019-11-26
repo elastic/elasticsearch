@@ -1,0 +1,98 @@
+== Common uses for analysis
+++++
+<titleabbrev>Common uses</titleabbrev>
+++++
+
+Analyzing full text often means analyzing natural, human language. While each
+language is different, this usually means solving a common set of problems for
+search, such as how to reduce words to their root form.
+
+This section describes how {es} is commonly used to address these problems and
+our recommendations.
+
+[TIP]
+====
+If you'd like to get started quickly, we recommend using {es}'s built-in
+<<analysis-standard-analyzer,`standard`>> analyzer or 
+<<analysis-lang-analyzer,language analyzers>>. These analyzers provide good
+out-of-the-box support for most use cases.
+====
+
+[float]
+[[stemming]]
+=== Stemming
+
+Most natural languages are inflected, meaning words can change
+their form to express differences, such as the following:
+
+* _Number_:      fox, foxes
+* _Tense_:       pay, paid, paying
+* _Person_:      hear, hears
+
+_Stemming_ attempts to remove theses differences and reduce each token to its
+root form. For example, `foxes` can be stemmed to the root `fox`. This often
+aids search retrieval by consolidating near-identical terms.
+
+[float]
+[[stemming-token-filters]]
+==== Stemming token filters
+
+In {es}, stemming is handled by a <<analysis-tokenfilters,token filter>> in
+the <<analyzer-anatomy,analyzer>>.
+
+If you're unsure of which token filter to use for stemming, we recommend
+starting out with the <<analysis-stemmer-tokenfilter,`stemmer`>> filter, which
+supports multiple languages and stemmer types. The
+<<analysis-stemmer-tokenfilter,`stemmer` filter documentation>> page highlights
+the recommended stemmer for each language in bold, based on a reasonable
+compromise between performance and quality.
+
+If the recommended stemmer does not fit your use case, spend some time
+investigating and comparing the other available stemmers to
+find the one that best suits your needs.
+
+Aside from the `stemmer` filter, other stemming token filters include:
+
+* <<analysis-hunspell-tokenfilter,`hunspell`>>
+* <<analysis-kstem-tokenfilter,`kstem`>>
+* <<analysis-porterstem-tokenfilter,`porter_stem`>>
+* <<analysis-snowball-tokenfilter,`snowball`>>
+
+[float]
+[[overriding-stemmers]]
+==== Overridding stemmers
+
+There may be some tokens, such as a proper noun or branded term, you don't want
+stemmed during analysis.
+
+[[stemmer-keyword]]
+In {es}, these tokens are called _keywords_ and marked
+internally using a special attribute. Once marked, keywords are excluded from
+stemming by the above filters.
+
+You can use the following token filters to mark tokens as keywords and leave
+them unstemmed:
+
+<<analysis-keyword-repeat-tokenfilter,`keyword_marker`>>::
+Excludes only specified keywords from stemming.
+
+<<analysis-keyword-repeat-tokenfilter,`keyword_repeat`>>::
++
+--
+Outputs each token in a stream twice:
+
+* Once as a keyword, which is excluded from stemming
+* Once as a non-keyword, which can be stemmed normally
+
+This allows you to preserve both a stemmed and unstemmed version of each token.
+--
+
+<<analysis-stemmer-override-tokenfilter,`stemmer_override`>>::
+Uses a custom mapping to stem certain tokens as specified. These tokens are then
+marked as keywords and excluded from further stemming.
+
+[IMPORTANT]
+====
+These filters must be included in your analyzer configuration _before_ any
+stemmer token filters.
+====

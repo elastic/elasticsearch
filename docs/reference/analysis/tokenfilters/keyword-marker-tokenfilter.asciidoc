@@ -1,137 +1,189 @@
 [[analysis-keyword-marker-tokenfilter]]
-=== Keyword Marker Token Filter
+=== Keyword marker token filter
+++++
+<titleabbrev>Keyword marker</titleabbrev>
+++++
 
-Protects words from being modified by stemmers. Must be placed before
-any stemming filters.
+Excludes specified tokens, called <<stemmer-keyword,keywords>>, from
+<<stemming,stemming>>.
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`keywords` |A list of words to use.
+The `keyword_marker` filter is often used with custom
+<<analysis-lang-analyzer,language analyzers>> to protect specific words from
+stemming. This filter uses Lucene's
+https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/KeywordMarkerFilter.html[KeywordMarkerFilter].
 
-|`keywords_path` |A path (either relative to `config` location, or
-absolute) to a list of words.
+[TIP]
+====
+If you want to preserve both a stemmed and unstemmed version of each token,
+we recommend using the <<analysis-keyword-repeat-tokenfilter,`keyword_repeat`>>
+token filter.
+====
 
-|`keywords_pattern` |A regular expression pattern to match against words
-in the text.
+[[analysis-keyword-marker-tokenfilter-analyze-ex]]
+==== Example
 
-|`ignore_case` |Set to `true` to lower case all words first. Defaults to
-`false`.
-|=======================================================================
-
-You can configure it like:
+The following <<indices-analyze,analyze API>> request uses the `keyword_marker`
+filter to protect the `jumping` keyword in `quick foxes running and jumping`
+from stemming:
 
 [source,console]
 --------------------------------------------------
-PUT /keyword_marker_example
+GET _analyze
+{
+  "tokenizer": "standard",
+  "filter": [
+    {
+      "type": "keyword_marker",
+      "keywords": [ "jumping" ]
+    },
+    {
+      "type": "stemmer",
+      "name": "english"
+    }
+  ],
+  "text": "quick foxes running and jumping"
+}
+--------------------------------------------------
+
+The filter produces the following tokens:
+
+[source,text]
+--------------------------------------------------
+[ quick, fox, run, and, jumping ]
+--------------------------------------------------
+
+/////////////////////
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens": [
+    {
+      "token": "quick",
+      "start_offset": 0,
+      "end_offset": 5,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "fox",
+      "start_offset": 6,
+      "end_offset": 11,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "run",
+      "start_offset": 12,
+      "end_offset": 19,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "and",
+      "start_offset": 20,
+      "end_offset": 23,
+      "type": "<ALPHANUM>",
+      "position": 3
+    },
+    {
+      "token": "jumping",
+      "start_offset": 24,
+      "end_offset": 31,
+      "type": "<ALPHANUM>",
+      "position": 4
+    }
+  ]
+}
+--------------------------------------------------
+/////////////////////
+
+[[analysis-keyword-marker-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+`keywords`::
++
+--
+(Required+++*+++, array of strings)
+List of keywords. Tokens that match these words are not stemmed.
+
+Either this parameter, `keywords_path`, or `keywords_pattern` must be specified.
+--
+
+`keywords_path`::
++
+--
+(Required+++*+++, string)
+Path to a file that contains a list of keywords. Tokens that match these words
+are not stemmed.
+
+This path must be absolute or relative to the `config` location, and the file
+must be UTF-8 encoded. Each word in the file must be separated by a line break.
+
+Either this parameter, `keywords`, or `keywords_pattern` must be specified.
+--
+
+`keywords_pattern`::
++
+--
+(Required+++*+++, string)
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java
+regular expression] used to match tokens. Tokens that match this
+expression are not stemmed.
+
+Either this parameter, `keywords`, or `keywords_path` must be specified.
+
+[WARNING]
+========================================
+A poorly written regular expression could run slowly or result in a stack
+overflow error, causing the running node to suddenly exit.
+
+See http://www.regular-expressions.info/catastrophic.html[How to avoid
+catastrophic backtracking].
+========================================
+--
+
+[[analysis-keyword-marker-tokenfilter-customize]]
+==== Customize and add to an analyzer
+
+To customize the `keyword_marker` filter, duplicate it to create the basis for a
+new custom token filter. You can modify the filter using its configurable
+parameters.
+
+[IMPORTANT]
+====
+To work, the `keyword_marker` filter must be placed _before_ any stemming
+filters, such as the <<analysis-stemmer-tokenfilter,`stemmer`>> or
+<<analysis-porterstem-tokenfilter,`porter_stem`>> token filter, in the
+<<analysis-custom-analyzer,analyzer configuration>>.
+====
+
+For example, the following <<indices-create-index,create index API>> request
+uses a custom `keyword_marker` filter, `protect_keywords`, and the `porter_stem`
+filter to configure a new <<analysis-custom-analyzer,custom analyzer>>.
+
+The custom `protect_keywords` filter protects keywords specified in the
+`analysis/example_word_list.txt` file from stemming by the `porter_stem` filter.
+
+[source,console]
+--------------------------------------------------
+PUT keyword_marker_example
 {
   "settings": {
     "analysis": {
       "analyzer": {
         "protect_cats": {
           "type": "custom",
-          "tokenizer": "standard",
-          "filter": ["lowercase", "protect_cats", "porter_stem"]
-        },
-        "normal": {
-          "type": "custom",
-          "tokenizer": "standard",
-          "filter": ["lowercase", "porter_stem"]
+          "tokenizer": "whitespace",
+          "filter": [ "protect_keywords", "porter_stem" ]
         }
       },
       "filter": {
-        "protect_cats": {
+        "protect_keywords": {
           "type": "keyword_marker",
-          "keywords": ["cats"]
+          "keywords": "analysis/example_word_list.txt"
         }
       }
     }
   }
-}
---------------------------------------------------
-
-And test it with:
-
-[source,console]
---------------------------------------------------
-POST /keyword_marker_example/_analyze
-{
-  "analyzer" : "protect_cats",
-  "text" : "I like cats"
-}
---------------------------------------------------
-// TEST[continued]
-
-And it'd respond:
-
-[source,console-result]
---------------------------------------------------
-{
-  "tokens": [
-    {
-      "token": "i",
-      "start_offset": 0,
-      "end_offset": 1,
-      "type": "<ALPHANUM>",
-      "position": 0
-    },
-    {
-      "token": "like",
-      "start_offset": 2,
-      "end_offset": 6,
-      "type": "<ALPHANUM>",
-      "position": 1
-    },
-    {
-      "token": "cats",
-      "start_offset": 7,
-      "end_offset": 11,
-      "type": "<ALPHANUM>",
-      "position": 2
-    }
-  ]
-}
---------------------------------------------------
-
-As compared to the `normal` analyzer which has `cats` stemmed to `cat`:
-
-[source,console]
---------------------------------------------------
-POST /keyword_marker_example/_analyze
-{
-  "analyzer" : "normal",
-  "text" : "I like cats"
-}
---------------------------------------------------
-// TEST[continued]
-
-Response:
-
-[source,console-result]
---------------------------------------------------
-{
-  "tokens": [
-    {
-      "token": "i",
-      "start_offset": 0,
-      "end_offset": 1,
-      "type": "<ALPHANUM>",
-      "position": 0
-    },
-    {
-      "token": "like",
-      "start_offset": 2,
-      "end_offset": 6,
-      "type": "<ALPHANUM>",
-      "position": 1
-    },
-    {
-      "token": "cat",
-      "start_offset": 7,
-      "end_offset": 11,
-      "type": "<ALPHANUM>",
-      "position": 2
-    }
-  ]
 }
 --------------------------------------------------

@@ -35,35 +35,35 @@ import java.util.Optional;
 public class GeometryTreeReader implements ShapeTreeReader {
 
     private static final int EXTENT_OFFSET = 8;
-    private final int extentPosition;
+    private final int startPosition;
     private final ByteBufferStreamInput input;
     private final CoordinateEncoder coordinateEncoder;
 
     public GeometryTreeReader(BytesRef bytesRef, CoordinateEncoder coordinateEncoder) {
         this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
-        extentPosition = 0;
+        startPosition = 0;
         this.coordinateEncoder = coordinateEncoder;
     }
 
     private GeometryTreeReader(ByteBufferStreamInput input, CoordinateEncoder coordinateEncoder) throws IOException {
         this.input = input;
-        extentPosition = input.position();
+        startPosition = input.position();
         this.coordinateEncoder = coordinateEncoder;
     }
 
     public double getCentroidX() throws IOException {
-        input.position(extentPosition);
+        input.position(startPosition);
         return coordinateEncoder.decodeX(input.readInt());
     }
 
     public double getCentroidY() throws IOException {
-        input.position(extentPosition + 4);
+        input.position(startPosition + 4);
         return coordinateEncoder.decodeY(input.readInt());
     }
 
     @Override
     public Extent getExtent() throws IOException {
-        input.position(extentPosition + EXTENT_OFFSET);
+        input.position(startPosition + EXTENT_OFFSET);
         Extent extent = input.readOptionalWriteable(Extent::new);
         if (extent != null) {
             return extent;
@@ -77,7 +77,7 @@ public class GeometryTreeReader implements ShapeTreeReader {
     @Override
     public GeoRelation relate(Extent extent) throws IOException {
         GeoRelation relation = GeoRelation.QUERY_DISJOINT;
-        input.position(extentPosition + EXTENT_OFFSET);
+        input.position(startPosition + EXTENT_OFFSET);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
             Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(new Extent(input), extent);

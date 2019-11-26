@@ -601,28 +601,28 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
         int numWrapReader = numWrapInvocations.get();
         assertTrue(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)).canMatch());
 
         searchRequest.source(new SearchSourceBuilder());
         assertTrue(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)).canMatch());
 
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         assertTrue(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)).canMatch());
 
         searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
             .aggregation(new TermsAggregationBuilder("test", ValueType.STRING).minDocCount(0)));
         assertTrue(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1,  null, null)));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1,  null, null)).canMatch());
         searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder())
             .aggregation(new GlobalAggregationBuilder("test")));
         assertTrue(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)).canMatch());
 
         searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder()));
         assertFalse(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)).canMatch());
         assertEquals(numWrapReader, numWrapInvocations.get());
 
         // make sure that the wrapper is called when the context is actually created

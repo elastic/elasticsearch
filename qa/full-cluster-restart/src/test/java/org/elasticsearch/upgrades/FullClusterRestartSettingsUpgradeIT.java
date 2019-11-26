@@ -19,6 +19,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
@@ -30,15 +31,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.transport.RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS;
+import static org.elasticsearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS;
 import static org.elasticsearch.transport.RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.hamcrest.Matchers.equalTo;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49587")
 public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRestartTestCase {
 
     public void testRemoteClusterSettingsUpgraded() throws IOException {
@@ -91,9 +94,9 @@ public class FullClusterRestartSettingsUpgradeIT extends AbstractFullClusterRest
                         RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").exists(settings));
                 assertTrue(RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace("foo").get(settings));
                 assertFalse(SEARCH_REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
-                assertTrue(RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
+                assertTrue(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").exists(settings));
                 assertThat(
-                        RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
+                        SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("foo").get(settings),
                         equalTo(Collections.singletonList("localhost:9200")));
             }
         }

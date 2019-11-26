@@ -40,6 +40,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -279,6 +280,23 @@ public class GeoIpProcessorTests extends ESTestCase {
         location.put("lon", -97.822d);
         assertThat(geoData.get(0).get("location"), equalTo(location));
 
+        assertThat(geoData.get(1), nullValue());
+    }
+
+    public void testListNoMatches() throws Exception {
+        GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
+            loader("/GeoLite2-City.mmdb"), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000), false);
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", Arrays.asList("127.0.0.1", "127.0.0.1"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData, hasSize(2));
+        assertThat(geoData.get(0), nullValue());
         assertThat(geoData.get(1), nullValue());
     }
 

@@ -121,7 +121,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 ingestDocument.setFieldValue(targetField, geoData);
             }
         } else if (ip instanceof List) {
-            List ipLIst = (List) ip;
+            List<Object> ipLIst = (List<Object>) ip;
             List<Map<String, Object>> geoDataList = new ArrayList<>(ipLIst.size());
             for (Object ipAddr : ipLIst) {
                 if (ipAddr instanceof String == false) {

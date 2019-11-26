@@ -48,7 +48,8 @@
             "processors": [
               {
                 "geoip" : {
-                  "field" : "field1"
+                  "field" : "field1",
+                  "first_only" : false
                 }
               }
             ]
@@ -89,8 +90,7 @@
             "processors": [
               {
                 "geoip" : {
-                  "field" : "field1",
-                  "first_only" : true
+                  "field" : "field1"
                 }
               }
             ]

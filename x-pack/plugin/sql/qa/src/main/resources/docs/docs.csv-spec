@@ -318,8 +318,9 @@ SIN              |SCALAR
 SINH             |SCALAR         
 SQRT             |SCALAR         
 TAN              |SCALAR         
-TRUNCATE         |SCALAR         
-ASCII            |SCALAR         
+TRUNC            |SCALAR
+TRUNCATE         |SCALAR
+ASCII            |SCALAR
 BIT_LENGTH       |SCALAR         
 CHAR             |SCALAR         
 CHARACTER_LENGTH |SCALAR         
@@ -2031,7 +2032,7 @@ SELECT TRUNCATE(-345.153, -1) AS trimmed;
 
 mathTruncateWithPositiveParameter
 // tag::mathTruncateWithPositiveParameter
-SELECT TRUNCATE(-345.153, 1) AS trimmed;
+SELECT TRUNC(-345.153, 1) AS trimmed;
 
     trimmed
 ---------------

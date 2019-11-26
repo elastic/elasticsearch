@@ -38,7 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int precision;
     private final int requiredSize;

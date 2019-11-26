@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class DateHistogramAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource> {
+        extends ValuesSourceAggregatorFactory {
 
     private final long offset;
     private final BucketOrder order;

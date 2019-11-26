@@ -95,10 +95,10 @@ public class ParentAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<WithOrdinals> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig config,
-                                                                     AggregatorFactory parent,
-                                                                     Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       Builder subFactoriesBuilder) throws IOException {
         return new ParentAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
                 subFactoriesBuilder, metaData);
     }

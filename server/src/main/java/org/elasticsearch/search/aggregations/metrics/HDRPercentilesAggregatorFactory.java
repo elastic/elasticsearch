@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double[] percents;
     private final int numberOfSignificantValueDigits;

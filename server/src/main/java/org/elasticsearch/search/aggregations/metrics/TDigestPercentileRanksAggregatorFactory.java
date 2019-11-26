@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 class TDigestPercentileRanksAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+        extends ValuesSourceAggregatorFactory {
 
     private final double[] percents;
     private final double compression;

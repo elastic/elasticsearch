@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double sigma;
 

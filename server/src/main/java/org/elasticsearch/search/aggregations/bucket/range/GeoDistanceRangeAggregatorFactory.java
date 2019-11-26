@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 public class GeoDistanceRangeAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+        extends ValuesSourceAggregatorFactory {
 
     private final InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory = InternalGeoDistance.FACTORY;
     private final GeoPoint origin;

@@ -84,10 +84,10 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig config,
-                                                                        AggregatorFactory parent,
-                                                                        Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       Builder subFactoriesBuilder) throws IOException {
         return new MissingAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 

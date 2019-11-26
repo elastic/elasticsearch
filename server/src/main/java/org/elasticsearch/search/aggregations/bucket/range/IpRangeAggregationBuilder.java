@@ -364,7 +364,7 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.Bytes> innerBuild(
+    protected ValuesSourceAggregatorFactory innerBuild(
         QueryShardContext queryShardContext, ValuesSourceConfig config,
         AggregatorFactory parent, Builder subFactoriesBuilder)
                     throws IOException {

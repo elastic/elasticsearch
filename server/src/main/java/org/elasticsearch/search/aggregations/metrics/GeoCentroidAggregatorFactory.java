@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     GeoCentroidAggregatorFactory(String name,
                                     ValuesSourceConfig config,

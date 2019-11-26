@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory<WithOrdinals> {
+public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Query parentFilter;
     private final Query childFilter;

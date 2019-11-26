@@ -59,8 +59,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource>
-        implements Releasable {
+public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory
+    implements Releasable {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(SignificantTermsAggregatorFactory.class));
 

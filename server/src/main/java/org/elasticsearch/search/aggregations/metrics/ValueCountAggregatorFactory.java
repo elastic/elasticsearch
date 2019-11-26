@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     ValueCountAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,

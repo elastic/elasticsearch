@@ -299,10 +299,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
-                                                              Builder subFactoriesBuilder) throws IOException {
+    protected final ValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                          Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig config = resolveConfig(queryShardContext);
-        ValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
+        ValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -333,10 +333,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
                 valueType, field, script, missing, timeZone, format, this::resolveScriptAny, this.getType());
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig config,
-                                                                        AggregatorFactory parent,
-                                                                        Builder subFactoriesBuilder) throws IOException;
+    protected abstract ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                                ValuesSourceConfig config,
+                                                                AggregatorFactory parent,
+                                                                Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

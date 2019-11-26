@@ -37,7 +37,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory {
 
     private final InternalRange.Factory<?, ?> rangeFactory;
     private final R[] ranges;

@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final boolean wrapLongitude;
 

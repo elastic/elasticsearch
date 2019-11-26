@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory {
+public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
 
     protected ValuesSourceConfig config;
 

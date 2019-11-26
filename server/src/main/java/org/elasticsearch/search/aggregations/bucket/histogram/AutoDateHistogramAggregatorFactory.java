@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class AutoDateHistogramAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+        extends ValuesSourceAggregatorFactory {
 
     private final int numBuckets;
     private RoundingInfo[] roundingInfos;

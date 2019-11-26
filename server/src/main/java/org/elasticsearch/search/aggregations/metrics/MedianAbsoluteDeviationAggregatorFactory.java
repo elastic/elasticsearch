@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
 

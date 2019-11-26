@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int shardSize;
     private final int maxDocsPerValue;

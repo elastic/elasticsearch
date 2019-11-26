@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class StatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     StatsAggregatorFactory(String name,
                             ValuesSourceConfig config,

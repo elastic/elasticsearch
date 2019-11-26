@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes> {
+class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final boolean showDistribution;
 

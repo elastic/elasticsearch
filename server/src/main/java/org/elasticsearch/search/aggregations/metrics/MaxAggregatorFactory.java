@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class MaxAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     MaxAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,

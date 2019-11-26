@@ -107,10 +107,10 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.Numeric> innerBuild(QueryShardContext queryShardContext,
-                                                                             ValuesSourceConfig config,
-                                                                             AggregatorFactory parent,
-                                                                             AggregatorFactories.Builder subFactoriesBuilder)
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       AggregatorFactories.Builder subFactoriesBuilder)
         throws IOException {
         return new MedianAbsoluteDeviationAggregatorFactory(name, config, queryShardContext,
             parent, subFactoriesBuilder, metaData, compression);

@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class AvgAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     AvgAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,

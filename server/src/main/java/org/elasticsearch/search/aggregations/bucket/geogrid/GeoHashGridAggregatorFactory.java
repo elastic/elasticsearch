@@ -39,7 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final int precision;
     private final int requiredSize;

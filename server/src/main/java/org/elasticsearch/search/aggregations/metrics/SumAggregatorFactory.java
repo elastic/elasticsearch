@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class SumAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     SumAggregatorFactory(String name,
                             ValuesSourceConfig config,

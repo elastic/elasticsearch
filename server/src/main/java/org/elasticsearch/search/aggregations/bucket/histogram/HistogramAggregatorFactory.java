@@ -46,7 +46,7 @@ import java.util.Map;
  * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
  * field type.
  */
-public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double interval, offset;
     private final BucketOrder order;

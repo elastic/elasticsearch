@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 public class BinaryRangeAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Bytes> {
+        extends ValuesSourceAggregatorFactory {
 
     private final List<BinaryRangeAggregator.Range> ranges;
     private final boolean keyed;

@@ -308,12 +308,6 @@ public class GeometryTreeTests extends ESTestCase {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         Geometry preparedGeometry = indexer.prepareForIndexing(geometry);
 
-        // TODO: support multi-polygons
-        assumeTrue("polygon crosses dateline",
-            fold(preparedGeometry, 0, (g, c) -> c + (ShapeType.POLYGON == g.type() ? 1 : 0)).equals(
-                fold(geometry, 0, (g, c) -> c + (ShapeType.POLYGON == g.type() ? 1 : 0)))
-        );
-
         for (int i = 0; i < testPointCount; i++) {
             int cur = i;
             intersects[cur] = fold(preparedGeometry, false, (g, s) -> s || intersects(g, testPoints[cur], extentSize));

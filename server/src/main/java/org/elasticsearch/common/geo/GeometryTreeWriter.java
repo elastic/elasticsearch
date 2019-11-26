@@ -98,7 +98,8 @@ public class GeometryTreeWriter extends ShapeTreeWriter {
                     bytesStream.writeEnum(writer.getShapeType());
                     writer.writeTo(bytesStream);
                     BytesReference bytes = bytesStream.bytes();
-                    out.writeBytesReference(bytes);
+                    out.writeVInt(bytes.length());
+                    bytes.writeTo(out);
                 }
             }
         } else {

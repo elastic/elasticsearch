@@ -20,8 +20,6 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Chars;
-import org.apache.logging.log4j.util.StringBuilders;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,23 +33,31 @@ import java.util.stream.Stream;
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
 public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
-    private final String messagePattern;
+//    private final String messagePattern;
     private final List<Object> arguments = new ArrayList<>();
 
-    public ESLogMessage(String messagePattern, Object... arguments) {
+    public ESLogMessage(String messagePattern, Object... args) {
         super(new LinkedHashMap<>());
-        this.messagePattern = messagePattern;
-        Collections.addAll(this.arguments, arguments);
+//        this.messagePattern = messagePattern;
+        Collections.addAll(this.arguments, args);
+        Object message = new Object() {
+            @Override
+            public String toString() {
+                return ParameterizedMessage.format(messagePattern, arguments.toArray());
+            }
+        };
+        with("construction_message",message);
+        with("message",message);
     }
 
     public ESLogMessage argAndField(String key, Object value) {
         this.arguments.add(value);
-        super.with(key,value);
+        super.with(key, value);
         return this;
     }
 
     public ESLogMessage field(String key, Object value) {
-        super.with(key,value);
+        super.with(key, value);
         return this;
     }
 
@@ -62,28 +68,33 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
 
     @Override
     protected void appendMap(final StringBuilder sb) {
-        String message = ParameterizedMessage.format(messagePattern, arguments.toArray());
-        sb.append(message);
+//        String message = ParameterizedMessage.format(messagePattern, arguments.toArray());
+        Object message = getData().get("construction_message");
+        sb.append(message.toString());
     }
 
-    //taken from super.asJson without the wrapping '{' '}'
     @Override
     protected void asJson(StringBuilder sb) {
-        for (int i = 0; i < getIndexedReadOnlyStringMap().size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append(Chars.DQUOTE);
-            int start = sb.length();
-            sb.append(getIndexedReadOnlyStringMap().getKeyAt(i));
-            StringBuilders.escapeJson(sb, start);
-            sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
-            start = sb.length();
-            sb.append(getIndexedReadOnlyStringMap().getValueAt(i).toString());
-            StringBuilders.escapeJson(sb, start);
-            sb.append(Chars.DQUOTE);
-        }
+        super.asJson(sb);
     }
+    //taken from super.asJson without the wrapping '{' '}'
+//    @Override
+//    protected void asJson(StringBuilder sb) {
+//        for (int i = 0; i < getIndexedReadOnlyStringMap().size(); i++) {
+//            if (i > 0) {
+//                sb.append(", ");
+//            }
+//            sb.append(Chars.DQUOTE);
+//            int start = sb.length();
+//            sb.append(getIndexedReadOnlyStringMap().getKeyAt(i));
+//            StringBuilders.escapeJson(sb, start);
+//            sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
+//            start = sb.length();
+//            sb.append(getIndexedReadOnlyStringMap().getValueAt(i).toString());
+//            StringBuilders.escapeJson(sb, start);
+//            sb.append(Chars.DQUOTE);
+//        }
+//    }
 
     public static String inQuotes(String s) {
         if(s == null)

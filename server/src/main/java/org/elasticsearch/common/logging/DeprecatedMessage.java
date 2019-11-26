@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.logging;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressLoggerChecks;
 
@@ -35,7 +36,15 @@ public class DeprecatedMessage  {
             return new ESLogMessage(messagePattern, args);
         }
 
+        Object value = new Object() {
+            @Override
+            public String toString() {
+                return ParameterizedMessage.format(messagePattern, args);
+
+            }
+        };
         return new ESLogMessage(messagePattern, args)
-                           .field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
+            .field("message", value)
+            .field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
     }
 }

@@ -92,8 +92,8 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "d.test"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
@@ -119,8 +119,8 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "custom"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "c.test"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "custom.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"))
                 )
@@ -144,8 +144,8 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "file"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "some message value0 value1"),
@@ -172,8 +172,8 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "custom"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "c.test"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "custom.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "overriden"))
@@ -205,8 +205,8 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "file"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("field1", "value1"),
@@ -234,16 +234,16 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "d.test"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
                     hasEntry("x-opaque-id", "someId")),
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "d.test"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message2"),
@@ -251,8 +251,8 @@ public class JsonLoggerTests extends ESTestCase {
                 ),
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "d.test"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message3"),
@@ -260,8 +260,8 @@ public class JsonLoggerTests extends ESTestCase {
                 ),
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("level", "INFO"),
-                    hasEntry("component", "d.test"),
+                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message4"),
@@ -305,9 +305,9 @@ public class JsonLoggerTests extends ESTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
-                logLine("file", Level.INFO, "sample-name", "p.shardIdLogger",
+                logLine("file", Level.INFO, "sample-name", "prefix.shardIdLogger",
                     "[indexName][123] This is an info message with a shardId"),
-                logLine("file", Level.INFO, "sample-name", "p.prefixLogger", "PREFIX This is an info message with a prefix")
+                logLine("file", Level.INFO, "sample-name", "prefix.prefixLogger", "PREFIX This is an info message with a prefix")
             ));
         }
     }
@@ -406,8 +406,8 @@ public class JsonLoggerTests extends ESTestCase {
                 assertThat(jsonLogs, contains(
                     allOf(
                         hasEntry("type", "deprecation"),
-                        hasEntry("level", "WARN"),
-                        hasEntry("component", "d.test"),
+                        hasEntry("log.level", "WARN"),
+                        hasEntry("log.logger", "deprecation.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
                         hasEntry("message", "message1"),
@@ -438,8 +438,8 @@ public class JsonLoggerTests extends ESTestCase {
                 assertThat(jsonLogs, contains(
                     allOf(
                         hasEntry("type", "deprecation"),
-                        hasEntry("level", "WARN"),
-                        hasEntry("component", "d.test"),
+                        hasEntry("log.level", "WARN"),
+                        hasEntry("log.logger", "deprecation.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
                         hasEntry("message", "message1"),
@@ -447,8 +447,8 @@ public class JsonLoggerTests extends ESTestCase {
                     ),
                     allOf(
                         hasEntry("type", "deprecation"),
-                        hasEntry("level", "WARN"),
-                        hasEntry("component", "d.test"),
+                        hasEntry("log.level", "WARN"),
+                        hasEntry("log.logger", "deprecation.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
                         hasEntry("message", "message1"),

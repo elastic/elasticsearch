@@ -1312,7 +1312,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 .toQuery(shardContext);
     }
 
-    public void testToQueryExceedingMaxCaluseCountWithMappedFeilds() throws IOException {
+    public void testToQueryMaxClauseWithWeight() throws IOException {
         QueryShardContext shardContext = createShardContext();
         shardContext.getMapperService()
             .merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
@@ -1334,7 +1334,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     }
 
-    public void testToQueryExceedingMaxCaluseCountWithMappedFeildsWithoutWeightAndBoost() throws IOException {
+    public void testToQueryMaxClauseNoWeight() throws IOException {
         QueryShardContext shardContext = createShardContext();
         shardContext.getMapperService()
             .merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",

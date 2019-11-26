@@ -212,6 +212,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     @Before
     public void beforeTest() throws Exception {
+        // we re-initiate serviceHolder for every test as some test cases may alter the state of serviceHolder
+        // and its inner objects, and reusing the same one may cause failure of other test cases.
+        // E.g. some test cases may alter field mapping information in serviceHolder.mapperService
         long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
         RandomizedTest.getContext().runWithPrivateRandomness(masterSeed, (Callable<Void>) () -> {
             serviceHolder = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,

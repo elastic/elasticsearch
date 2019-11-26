@@ -72,7 +72,7 @@ project.ext {
 
 void addCopyDockerContextTask(final boolean oss, final boolean ubi) {
   task(taskName("copy", oss, ubi, "DockerContext"), type: Sync) {
-    expansions(oss, ubi, true).each { k, v ->
+    expansions(oss, ubi, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
     into buildPath(oss, ubi)
@@ -173,6 +173,11 @@ void addBuildDockerImage(final boolean oss, final boolean ubi) {
       dockerArgs.add(tag)
     }
     args dockerArgs.toArray()
+    File markerFile = file("build/markers/${it.name}.marker")
+    outputs.file(markerFile)
+    doLast {
+      markerFile.setText('', 'UTF-8')
+    }
   }
   assemble.dependsOn(buildDockerImageTask)
   BuildPlugin.requireDocker(buildDockerImageTask)

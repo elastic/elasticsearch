@@ -3622,7 +3622,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             GetTrainedModelsStatsRequest request = new GetTrainedModelsStatsRequest("my-trained-model");
 
             // tag::get-trained-models-stats-execute-listener
-            ActionListener<GetTrainedModelsStatsResponse> listener = new ActionListener<>() {
+            ActionListener<GetTrainedModelsStatsResponse> listener = new ActionListener<GetTrainedModelsStatsResponse>() {
                 @Override
                 public void onResponse(GetTrainedModelsStatsResponse response) {
                     // <1>

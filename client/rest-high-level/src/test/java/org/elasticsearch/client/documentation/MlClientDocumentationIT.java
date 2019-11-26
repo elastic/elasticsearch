@@ -3616,7 +3616,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model");
 
             // tag::delete-trained-model-execute-listener
-            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
                     // <1>

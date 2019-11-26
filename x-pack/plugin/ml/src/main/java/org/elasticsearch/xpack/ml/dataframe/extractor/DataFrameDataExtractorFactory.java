@@ -25,15 +25,18 @@ public class DataFrameDataExtractorFactory {
     private final Client client;
     private final String analyticsId;
     private final List<String> indices;
+    private final QueryBuilder sourceQuery;
     private final ExtractedFields extractedFields;
     private final Map<String, String> headers;
     private final boolean includeRowsWithMissingValues;
 
-    private DataFrameDataExtractorFactory(Client client, String analyticsId, List<String> indices, ExtractedFields extractedFields,
-                                          Map<String, String> headers, boolean includeRowsWithMissingValues) {
+    private DataFrameDataExtractorFactory(Client client, String analyticsId, List<String> indices, QueryBuilder sourceQuery,
+                                         ExtractedFields extractedFields, Map<String, String> headers,
+                                         boolean includeRowsWithMissingValues) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.indices = Objects.requireNonNull(indices);
+        this.sourceQuery = Objects.requireNonNull(sourceQuery);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.headers = headers;
         this.includeRowsWithMissingValues = includeRowsWithMissingValues;
@@ -54,7 +57,12 @@ public class DataFrameDataExtractorFactory {
     }
 
     private QueryBuilder createQuery() {
-        return includeRowsWithMissingValues ? QueryBuilders.matchAllQuery() : allExtractedFieldsExistQuery();
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        query.filter(sourceQuery);
+        if (includeRowsWithMissingValues == false) {
+            query.filter(allExtractedFieldsExistQuery());
+        }
+        return query;
     }
 
     private QueryBuilder allExtractedFieldsExistQuery() {
@@ -66,32 +74,19 @@ public class DataFrameDataExtractorFactory {
     }
 
     /**
-     * Validate and create a new extractor factory
+     * Create a new extractor factory
      *
      * The source index must exist and contain at least 1 compatible field or validations will fail.
      *
      * @param client ES Client used to make calls against the cluster
      * @param taskId The task id
-     * @param isTaskRestarting Whether the task is restarting or it is running for the first time
      * @param config The config from which to create the extractor factory
-     * @param listener The listener to notify on creation or failure
+     * @param extractedFields The fields to extract
      */
-    public static void createForSourceIndices(Client client,
-                                              String taskId,
-                                              boolean isTaskRestarting,
-                                              DataFrameAnalyticsConfig config,
-                                              ActionListener<DataFrameDataExtractorFactory> listener) {
-        ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(client);
-        extractedFieldsDetectorFactory.createFromSource(config, isTaskRestarting, ActionListener.wrap(
-            extractedFieldsDetector -> {
-                ExtractedFields extractedFields = extractedFieldsDetector.detect();
-                DataFrameDataExtractorFactory extractorFactory = new DataFrameDataExtractorFactory(client, taskId,
-                    Arrays.asList(config.getSource().getIndex()), extractedFields, config.getHeaders(),
-                    config.getAnalysis().supportsMissingValues());
-                listener.onResponse(extractorFactory);
-            },
-            listener::onFailure
-        ));
+    public static DataFrameDataExtractorFactory createForSourceIndices(Client client, String taskId, DataFrameAnalyticsConfig config,
+                                                                       ExtractedFields extractedFields) {
+        return new DataFrameDataExtractorFactory(client, taskId, Arrays.asList(config.getSource().getIndex()),
+            config.getSource().getParsedQuery(), extractedFields, config.getHeaders(), config.getAnalysis().supportsMissingValues());
     }
 
     /**
@@ -111,10 +106,10 @@ public class DataFrameDataExtractorFactory {
         ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(client);
         extractedFieldsDetectorFactory.createFromDest(config, isTaskRestarting, ActionListener.wrap(
             extractedFieldsDetector -> {
-                ExtractedFields extractedFields = extractedFieldsDetector.detect();
+                ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
                 DataFrameDataExtractorFactory extractorFactory = new DataFrameDataExtractorFactory(client, config.getId(),
-                    Collections.singletonList(config.getDest().getIndex()), extractedFields, config.getHeaders(),
-                    config.getAnalysis().supportsMissingValues());
+                    Collections.singletonList(config.getDest().getIndex()), config.getSource().getParsedQuery(), extractedFields,
+                    config.getHeaders(), config.getAnalysis().supportsMissingValues());
                 listener.onResponse(extractorFactory);
             },
             listener::onFailure

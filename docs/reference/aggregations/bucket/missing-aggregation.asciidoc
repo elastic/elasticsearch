@@ -5,7 +5,7 @@ A field data based single bucket aggregation, that creates a bucket of all docum
 
 Example:
 
-[source,console]
+[source,console,id=missing-aggregation-example]
 --------------------------------------------------
 POST /sales/_search?size=0
 {

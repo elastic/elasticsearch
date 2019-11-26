@@ -206,8 +206,10 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         final Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.field += 1", Collections.emptyMap());
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("1").setScript(script).setScriptedUpsert(true).setUpsert("field", 1))
-            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("2").setScript(script).setScriptedUpsert(true).setUpsert("field", 1))
+            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("1")
+                .setScript(script).setScriptedUpsert(true).setUpsert("field", 1))
+            .add(client().prepareUpdate().setIndex(indexOrAlias()).setId("2")
+                .setScript(script).setScriptedUpsert(true).setUpsert("field", 1))
             .get();
 
         logger.info(bulkResponse.buildFailureMessage());

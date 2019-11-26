@@ -193,7 +193,7 @@ If your monitoring data is exported to a remote monitoring cluster and that
 cluster is configured to only support TLSv1, you must update this setting.
 
 `reindex.ssl.supported_protocols`::
-For reindex from remote. monitoring data.
+For reindex from remote. 
 If you reindex data from a remote {es} cluster which has SSL enabled on the
 `http` interface and that cluster is configured to only support TLSv1, you must
 update this setting.

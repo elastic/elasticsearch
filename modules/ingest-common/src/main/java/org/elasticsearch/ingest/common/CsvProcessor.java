@@ -26,6 +26,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+
 /**
  * A processor that breaks line from CSV file into separate fields.
  * If there's more fields requested than there is in the CSV, extra field will not be present in the document after processing.
@@ -87,17 +89,17 @@ public final class CsvProcessor extends AbstractProcessor {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String quote = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "quote", "\"");
             if (quote.length() != 1) {
-                throw new IllegalArgumentException("quote has to be single character like \" or '");
+                throw newConfigurationException(TYPE, processorTag, "quote", "quote has to be single character like \" or '");
             }
             String separator = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator", ",");
             if (separator.length() != 1) {
-                throw new IllegalArgumentException("separator has to be single character like \" or '");
+                throw newConfigurationException(TYPE, processorTag, "separator", "separator has to be single character like , or ;");
             }
             boolean trim = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trim", false);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             List<String> targetFields = ConfigurationUtils.readList(TYPE, processorTag, config, "target_fields");
             if (targetFields.isEmpty()) {
-                throw new IllegalArgumentException("target fields list can't be empty");
+                throw newConfigurationException(TYPE, processorTag, "target_fields", "target fields list can't be empty");
             }
             return new CsvProcessor(processorTag, field, targetFields.toArray(String[]::new), trim, separator.charAt(0), quote.charAt(0),
                 ignoreMissing);

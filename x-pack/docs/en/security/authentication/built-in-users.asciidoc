@@ -91,6 +91,14 @@ new bootstrap password:
 bin/elasticsearch-keystore add "bootstrap.password"
 ----------------------------------------------------
 
+Alternatively you can set the bootstrap password by passing the password to stdin.
+This can be useful for scripted or automated deployments.
+
+[source,shell]
+------------------------------------------------------------------------------------------
+bash -c 'printf <PASSWORD> | bin/elasticsearch-keystore add bootstrap.password -x -f -v'
+------------------------------------------------------------------------------------------
+
 You can then start {es} and {kib} and use the `elastic` user and bootstrap
 password to log into {kib} and change the passwords. Alternatively, you can
 submit Change Password API requests for each built-in user. These methods are

@@ -69,6 +69,14 @@ public class CompensatedSum {
     }
 
     /**
+     * Resets the internal state to use the new value and compensation delta
+     */
+    public void reset(double value, double delta) {
+        this.value = value;
+        this.delta = delta;
+    }
+
+    /**
      * Increments the Kahan sum by adding two sums, and updating the correction term for reducing numeric errors.
      */
     public CompensatedSum add(double value, double delta) {

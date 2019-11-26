@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;

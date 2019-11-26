@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -43,8 +45,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
 
-    public RestReindexAction(RestController controller) {
+    private final ClusterService clusterService;
+
+    public RestReindexAction(RestController controller, ClusterService clusterService) {
         super(ReindexAction.INSTANCE);
+        this.clusterService = clusterService;
         controller.registerHandler(POST, "/_reindex", this);
     }
 
@@ -55,8 +60,10 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (System.getProperty("es.reindex.resilience", "true").equals("false")) {
-            // todo: remove this escape hatch in 8.0
+        // todo: remove system property escape hatch in 8.0
+        // todo: fix version constant on backport to 7.x
+        if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_0_0)
+                || System.getProperty("es.reindex.resilience", "true").equals("false")) {
             return doPrepareRequest(request, client, true, true);
         }
 

@@ -64,6 +64,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
 
     private final SetOnce<ScriptService> scriptService = new SetOnce<>();
     private final SetOnce<ReindexSslConfig> reindexSslConfig = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -98,7 +99,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-                new RestReindexAction(restController),
+                new RestReindexAction(restController, clusterService.get()),
                 new RestUpdateByQueryAction(restController),
                 new RestDeleteByQueryAction(restController),
                 new RestRethrottleAction(restController, nodesInCluster));
@@ -112,6 +113,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
         this.scriptService.set(scriptService);
         this.reindexSslConfig.set(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
         namedXContentRegistry.set(xContentRegistry);
+        this.clusterService.set(clusterService);
         return Collections.singletonList(reindexSslConfig.get());
     }
 

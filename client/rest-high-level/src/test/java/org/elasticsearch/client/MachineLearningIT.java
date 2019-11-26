@@ -33,6 +33,7 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -2159,6 +2160,32 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testDeleteTrainedModel() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String modelId = "delete-trained-model-test";
+        putTrainedModel(modelId);
+
+        GetTrainedModelsResponse getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest(modelId + "*").setIncludeDefinition(false).setAllowNoMatch(true),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(1L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(1));
+
+        AcknowledgedResponse deleteTrainedModelResponse = execute(
+            new DeleteTrainedModelRequest(modelId),
+            machineLearningClient::deleteTrainedModel, machineLearningClient::deleteTrainedModelAsync);
+        assertTrue(deleteTrainedModelResponse.isAcknowledged());
+
+        getTrainedModelsResponse = execute(
+            new GetTrainedModelsRequest(modelId + "*").setIncludeDefinition(false).setAllowNoMatch(true),
+            machineLearningClient::getTrainedModels,
+            machineLearningClient::getTrainedModelsAsync);
+
+        assertThat(getTrainedModelsResponse.getCount(), equalTo(0L));
+        assertThat(getTrainedModelsResponse.getTrainedModels(), hasSize(0));
+    }
 
     public void testPutFilter() throws Exception {
         String filterId = "filter-job-test";

@@ -25,6 +25,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.CloseJobRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
@@ -825,7 +826,6 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.getTrainedModels(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/inference/" + modelId1 + "," + modelId2 + "," + modelId3, request.getEndpoint());
-        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300"), hasEntry("allow_no_match", "false")));
         assertThat(request.getParameters(),
             allOf(
                 hasEntry("from", "100"),
@@ -854,6 +854,14 @@ public class MLRequestConvertersTests extends ESTestCase {
                 hasEntry("size", "300"),
                 hasEntry("allow_no_match", "false")
             ));
+        assertNull(request.getEntity());
+    }
+
+    public void testDeleteTrainedModel() {
+        DeleteTrainedModelRequest deleteRequest = new DeleteTrainedModelRequest(randomAlphaOfLength(10));
+        Request request = MLRequestConverters.deleteTrainedModel(deleteRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/inference/" + deleteRequest.getId(), request.getEndpoint());
         assertNull(request.getEntity());
     }
 

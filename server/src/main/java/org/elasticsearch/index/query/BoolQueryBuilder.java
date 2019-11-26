@@ -418,7 +418,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         changed |= rewriteClauses(queryRewriteContext, filterClauses, newBuilder::filter);
         changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
         // early termination when must clause is empty and optional clauses is returning MatchNoneQueryBuilder
-        if(mustClauses.size() == 0 && filterClauses.size() == 0
+        if(mustClauses.size() == 0 && filterClauses.size() == 0 && shouldClauses.size() > 0
             && newBuilder.shouldClauses.stream().allMatch(b -> b instanceof MatchNoneQueryBuilder)) {
                 return new MatchNoneQueryBuilder();
         }

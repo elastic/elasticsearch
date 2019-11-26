@@ -185,7 +185,7 @@ public abstract class MultiGeoValues {
             try {
                 Geometry geometry = MISSING_GEOMETRY_PARSER.fromWKT(missing);
                 GeometryTreeWriter writer = new GeometryTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
-                return new GeoShapeValue(writer.extent());
+                return new GeoShapeValue(writer.getExtent());
             } catch (IOException | ParseException e) {
                 throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
             }

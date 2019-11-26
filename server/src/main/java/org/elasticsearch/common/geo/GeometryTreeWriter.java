@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -32,6 +33,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +45,7 @@ import java.util.List;
  * appropriate tree structure for each type of
  * {@link Geometry} into a byte array.
  */
-public class GeometryTreeWriter implements Writeable {
+public class GeometryTreeWriter extends ShapeTreeWriter {
 
     private final GeometryTreeBuilder builder;
     private final CoordinateEncoder coordinateEncoder;
@@ -53,29 +55,55 @@ public class GeometryTreeWriter implements Writeable {
         this.coordinateEncoder = coordinateEncoder;
         this.centroidCalculator = new CentroidCalculator();
         builder = new GeometryTreeBuilder(coordinateEncoder);
-        geometry.visit(builder);
+        if (geometry.type() == ShapeType.GEOMETRYCOLLECTION) {
+            for (Geometry shape : (GeometryCollection<?>) geometry) {
+                shape.visit(builder);
+            }
+        } else {
+            geometry.visit(builder);
+        }
     }
 
-    public Extent extent() {
+    @Override
+    public Extent getExtent() {
         return new Extent(builder.top, builder.bottom, builder.negLeft, builder.negRight, builder.posLeft, builder.posRight);
+    }
+
+    @Override
+    public ShapeType getShapeType() {
+        return ShapeType.GEOMETRYCOLLECTION;
+    }
+
+    @Override
+    public CentroidCalculator getCentroidCalculator() {
+        return centroidCalculator;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // only write a geometry extent for the tree if the tree
         // contains multiple sub-shapes
-        boolean prependExtent = builder.shapeWriters.size() > 1;
+        boolean multiShape = builder.shapeWriters.size() > 1;
         Extent extent = null;
         out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
-        if (prependExtent) {
+        if (multiShape) {
             extent = new Extent(builder.top, builder.bottom, builder.negLeft, builder.negRight, builder.posLeft, builder.posRight);
         }
         out.writeOptionalWriteable(extent);
         out.writeVInt(builder.shapeWriters.size());
-        for (ShapeTreeWriter writer : builder.shapeWriters) {
-            out.writeEnum(writer.getShapeType());
-            writer.writeTo(out);
+        if (multiShape) {
+            for (ShapeTreeWriter writer : builder.shapeWriters) {
+                try(BytesStreamOutput bytesStream = new BytesStreamOutput()) {
+                    bytesStream.writeEnum(writer.getShapeType());
+                    writer.writeTo(bytesStream);
+                    BytesReference bytes = bytesStream.bytes();
+                    out.writeBytesReference(bytes);
+                }
+            }
+        } else {
+            out.writeEnum(builder.shapeWriters.get(0).getShapeType());
+            builder.shapeWriters.get(0).writeTo(out);
         }
     }
 
@@ -110,9 +138,7 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(GeometryCollection<?> collection) {
-            for (Geometry geometry : collection) {
-                geometry.visit(this);
-            }
+            addWriter(new GeometryTreeWriter(collection, coordinateEncoder));
             return null;
         }
 

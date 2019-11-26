@@ -184,42 +184,32 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * Request a checkpoint
      */
     protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
-        checkpointProvider
-            .createNextCheckpoint(
-                getLastCheckpoint(),
-                ActionListener
-                    .wrap(
-                        checkpoint -> transformsConfigManager
-                            .putTransformCheckpoint(
-                                checkpoint,
-                                ActionListener.wrap(putCheckPointResponse -> listener.onResponse(checkpoint), createCheckpointException -> {
-                                    logger
-                                        .warn(
-                                            new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()),
-                                            createCheckpointException
-                                        );
-                                    listener
-                                        .onFailure(
-                                            new RuntimeException(
-                                                "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
-                                                createCheckpointException
-                                            )
-                                        );
-                                })
-                            ),
-                        getCheckPointException -> {
-                            logger
-                                .warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
-                            listener
-                                .onFailure(
-                                    new RuntimeException(
-                                        "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
-                                        getCheckPointException
-                                    )
-                                );
-                        }
-                    )
-            );
+        checkpointProvider.createNextCheckpoint(
+            getLastCheckpoint(),
+            ActionListener.wrap(
+                checkpoint -> transformsConfigManager.putTransformCheckpoint(
+                    checkpoint,
+                    ActionListener.wrap(putCheckPointResponse -> listener.onResponse(checkpoint), createCheckpointException -> {
+                        logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()), createCheckpointException);
+                        listener.onFailure(
+                            new RuntimeException(
+                                "Failed to create checkpoint due to " + createCheckpointException.getMessage(),
+                                createCheckpointException
+                            )
+                        );
+                    })
+                ),
+                getCheckPointException -> {
+                    logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()), getCheckPointException);
+                    listener.onFailure(
+                        new RuntimeException(
+                            "Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
+                            getCheckPointException
+                        )
+                    );
+                }
+            )
+        );
     }
 
     @Override
@@ -397,16 +387,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // Treat this as a "we reached the end".
         // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
         if (aggregations == null) {
-            logger
-                .info("[{}] unexpected null aggregations in search response. " + "Source indices have been deleted or closed.", getJobId());
-            auditor
-                .info(
-                    getJobId(),
-                    "Source indices have been deleted or closed. "
-                        + "Please verify that these indices exist and are open ["
-                        + Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex())
-                        + "]."
-                );
+            logger.info(
+                "[{}] unexpected null aggregations in search response. " + "Source indices have been deleted or closed.",
+                getJobId()
+            );
+            auditor.info(
+                getJobId(),
+                "Source indices have been deleted or closed. "
+                    + "Please verify that these indices exist and are open ["
+                    + Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex())
+                    + "]."
+            );
             return new IterationResult<>(Collections.emptyList(), null, true);
         }
         final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
@@ -492,11 +483,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
                 String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
 
-                auditor
-                    .warning(
-                        getJobId(),
-                        "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
-                    );
+                auditor.warning(
+                    getJobId(),
+                    "Transform encountered an exception: " + message + " Will attempt again at next scheduled trigger."
+                );
                 lastAuditedExceptionMessage = message;
             }
         }
@@ -507,16 +497,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             logger.trace("[{}] change detected [{}].", getJobId(), hasChanged);
             hasChangedListener.onResponse(hasChanged);
         }, e -> {
-            logger
-                .warn(
-                    new ParameterizedMessage("[{}] failed to detect changes for transform. Skipping update till next check.", getJobId()),
-                    e
-                );
-            auditor
-                .warning(
-                    getJobId(),
-                    "Failed to detect changes for transform, skipping update till next check. Exception: " + e.getMessage()
-                );
+            logger.warn(
+                new ParameterizedMessage("[{}] failed to detect changes for transform. Skipping update till next check.", getJobId()),
+                e
+            );
+            auditor.warning(
+                getJobId(),
+                "Failed to detect changes for transform, skipping update till next check. Exception: " + e.getMessage()
+            );
             hasChangedListener.onResponse(false);
         }));
     }
@@ -658,8 +646,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected SearchRequest buildSearchRequest() {
         assert nextCheckpoint != null;
 
-        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex())
-            .allowPartialSearchResults(false)
+        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
 
@@ -691,8 +678,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
         if (isContinuous()) {
-            BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-                .filter(pivotQueryBuilder)
+            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
                 .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
             sourceBuilder.query(filteredQuery);
         } else {
@@ -716,8 +702,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
         TransformConfig config = getConfig();
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-            .filter(pivotQueryBuilder)
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
 
         sourceBuilder.query(filteredQuery);
@@ -736,8 +721,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
 
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-            .filter(pivotQueryBuilder)
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(pivotQueryBuilder)
             .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
         if (changedBuckets != null && changedBuckets.isEmpty() == false) {
@@ -764,11 +748,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * @param circuitBreakingException CircuitBreakingException thrown
      */
     private void handleCircuitBreakingException(CircuitBreakingException circuitBreakingException) {
-        double reducingFactor = Math
-            .min(
-                (double) circuitBreakingException.getByteLimit() / circuitBreakingException.getBytesWanted(),
-                1 - (Math.log10(pageSize) * 0.1)
-            );
+        double reducingFactor = Math.min(
+            (double) circuitBreakingException.getByteLimit() / circuitBreakingException.getBytesWanted(),
+            1 - (Math.log10(pageSize) * 0.1)
+        );
 
         int newPageSize = (int) Math.round(reducingFactor * pageSize);
 
@@ -791,12 +774,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * @param scriptException ScriptException thrown
      */
     private void handleScriptException(ScriptException scriptException) {
-        String message = TransformMessages
-            .getMessage(
-                TransformMessages.LOG_TRANSFORM_PIVOT_SCRIPT_ERROR,
-                scriptException.getDetailedMessage(),
-                scriptException.getScriptStack()
-            );
+        String message = TransformMessages.getMessage(
+            TransformMessages.LOG_TRANSFORM_PIVOT_SCRIPT_ERROR,
+            scriptException.getDetailedMessage(),
+            scriptException.getScriptStack()
+        );
         failIndexer(message);
     }
 

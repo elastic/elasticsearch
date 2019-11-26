@@ -76,7 +76,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private final SignificanceHeuristic significanceHeuristic;
 
     public SignificantTermsAggregatorFactory(String name,
-                                             ValuesSourceConfig<ValuesSource> config,
+                                             ValuesSourceConfig config,
                                              IncludeExclude includeExclude,
                                              String executionHint,
                                              QueryBuilder filterBuilder,

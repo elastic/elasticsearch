@@ -272,10 +272,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      * @param config    The {@link ValuesSourceConfig} for this source.
      */
     protected abstract CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext,
-                                                                ValuesSourceConfig<?> config) throws IOException;
+                                                                ValuesSourceConfig config) throws IOException;
 
     public final CompositeValuesSourceConfig build(QueryShardContext queryShardContext) throws IOException {
-        ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(queryShardContext,
+        ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext,
             valueType, field, script, null,null, format, name());
         return innerBuild(queryShardContext, config);
     }

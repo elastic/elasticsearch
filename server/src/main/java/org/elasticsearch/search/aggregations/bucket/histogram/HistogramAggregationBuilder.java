@@ -304,7 +304,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig<ValuesSource> config,
+                                                                        ValuesSourceConfig config,
                                                                         AggregatorFactory parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
         return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,

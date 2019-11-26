@@ -37,7 +37,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
 
     private final Long precisionThreshold;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
+    CardinalityAggregatorFactory(String name, ValuesSourceConfig config,
                                     Long precisionThreshold,
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,

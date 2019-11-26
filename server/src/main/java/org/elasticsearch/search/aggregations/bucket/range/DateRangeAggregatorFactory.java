@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
@@ -31,7 +30,7 @@ import java.util.Map;
 public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<RangeAggregator.Range> {
 
     public DateRangeAggregatorFactory(String name,
-                                        ValuesSourceConfig<Numeric> config,
+                                        ValuesSourceConfig config,
                                         RangeAggregator.Range[] ranges,
                                         boolean keyed,
                                         InternalRange.Factory<?, ?> rangeFactory,

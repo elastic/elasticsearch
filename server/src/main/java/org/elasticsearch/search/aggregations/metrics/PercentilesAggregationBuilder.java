@@ -264,7 +264,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
 
     @Override
     protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext,
-                                                                    ValuesSourceConfig<Numeric> config,
+                                                                    ValuesSourceConfig config,
                                                                     AggregatorFactory parent,
                                                                     Builder subFactoriesBuilder) throws IOException {
         switch (method) {

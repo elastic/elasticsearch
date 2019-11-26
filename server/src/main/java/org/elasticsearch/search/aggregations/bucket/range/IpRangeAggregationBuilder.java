@@ -365,7 +365,7 @@ public final class IpRangeAggregationBuilder
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.Bytes> innerBuild(
-        QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource.Bytes> config,
+        QueryShardContext queryShardContext, ValuesSourceConfig config,
         AggregatorFactory parent, Builder subFactoriesBuilder)
                     throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();

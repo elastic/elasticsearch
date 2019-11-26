@@ -163,7 +163,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig<ValuesSource> config,
+                                                                     ValuesSourceConfig config,
                                                                      AggregatorFactory parent,
                                                                      Builder subFactoriesBuilder) throws IOException {
         return new RareTermsAggregatorFactory(name, config, includeExclude,

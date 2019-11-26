@@ -74,7 +74,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected StringStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                      ValuesSourceConfig<ValuesSource.Bytes> config,
+                                                      ValuesSourceConfig config,
                                                       AggregatorFactory parent,
                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new StringStatsAggregatorFactory(name, config, showDistribution, queryShardContext, parent, subFactoriesBuilder, metaData);

@@ -167,9 +167,9 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
                                                                    Builder subFactoriesBuilder) throws IOException {
         ValueType finalValueType = this.valueType != null ? this.valueType : targetValueType;
 
-        Map<String, ValuesSourceConfig<VS>> configs = new HashMap<>(fields.size());
+        Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
         fields.forEach((key, value) -> {
-            ValuesSourceConfig<VS> config = ValuesSourceConfig.resolve(queryShardContext, finalValueType,
+            ValuesSourceConfig config = ValuesSourceConfig.resolve(queryShardContext, finalValueType,
                 value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format, getType());
             configs.put(key, config);
         });
@@ -190,7 +190,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     protected abstract MultiValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
-                                                                         Map<String, ValuesSourceConfig<VS>> configs,
+                                                                         Map<String, ValuesSourceConfig> configs,
                                                                          DocValueFormat format, AggregatorFactory parent,
                                                                          Builder subFactoriesBuilder) throws IOException;
 

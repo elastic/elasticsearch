@@ -60,7 +60,7 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> createFactory(
-        String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize,
+        String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
         QueryShardContext queryShardContext, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metaData) throws IOException {
         return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, queryShardContext, parent,

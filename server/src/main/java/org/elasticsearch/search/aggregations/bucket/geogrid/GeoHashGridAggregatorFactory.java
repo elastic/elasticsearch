@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -44,7 +45,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int requiredSize;
     private final int shardSize;
 
-    GeoHashGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
+    GeoHashGridAggregatorFactory(String name, ValuesSourceConfig config, int precision, int requiredSize,
                                  int shardSize, QueryShardContext queryShardContext, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
@@ -69,16 +70,20 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
     }
 
     @Override
-    protected Aggregator doCreateInternal(final GeoPoint valuesSource,
+    protected Aggregator doCreateInternal(final ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
+        if (valuesSource instanceof ValuesSource.GeoPoint  == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, Geohash::longEncode);
+        CellIdSource cellIdSource = new CellIdSource((GeoPoint) valuesSource, precision, Geohash::longEncode);
         return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, searchContext, parent,
                 pipelineAggregators, metaData);
     }

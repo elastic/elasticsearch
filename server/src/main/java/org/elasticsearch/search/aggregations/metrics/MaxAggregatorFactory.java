@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -36,8 +37,9 @@ import java.util.Map;
 
 class MaxAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
-    MaxAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    MaxAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                         Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
@@ -50,12 +52,16 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Nu
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        return new MaxAggregator(name, config, valuesSource, searchContext, parent, pipelineAggregators, metaData);
+        if (valuesSource instanceof Numeric == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
+        return new MaxAggregator(name, config, (Numeric) valuesSource, searchContext, parent, pipelineAggregators, metaData);
     }
 }

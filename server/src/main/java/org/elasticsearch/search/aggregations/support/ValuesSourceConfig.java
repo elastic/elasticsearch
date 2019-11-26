@@ -36,12 +36,12 @@ import java.util.function.Function;
  * A configuration that tells aggregations how to retrieve data from the index
  * in order to run a specific aggregation.
  */
-public class ValuesSourceConfig<VS extends ValuesSource> {
+public class ValuesSourceConfig {
 
     /**
      * Resolve a {@link ValuesSourceConfig} given configuration parameters.
      */
-    public static <VS extends ValuesSource> ValuesSourceConfig<VS> resolve(
+    public static  ValuesSourceConfig resolve(
         QueryShardContext context,
         ValueType valueType,
         String field, Script script,
@@ -54,7 +54,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     /**
      * Resolve a {@link ValuesSourceConfig} given configuration parameters.
      */
-    public static <VS extends ValuesSource> ValuesSourceConfig<VS> resolve(
+    public static  ValuesSourceConfig resolve(
         QueryShardContext context,
         ValueType valueType,
         String field, Script script,
@@ -63,7 +63,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         String format,
         Function<Script, ValuesSourceType> resolveScriptAny,
         String aggregationName) {
-        ValuesSourceConfig<VS> config;
+        ValuesSourceConfig config;
 
         if (field == null) {
             // Stand Alone Script Case
@@ -85,7 +85,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 // on Bytes
                 valuesSourceType = resolveScriptAny.apply(script);
             }
-            config = new ValuesSourceConfig<>(valuesSourceType);
+            config = new ValuesSourceConfig(valuesSourceType);
             config.format(resolveFormat(format, valueType, timeZone));
             config.script(createScript(script, context));
             config.scriptValueType(valueType);
@@ -100,7 +100,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                  */
                 // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
                 ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
-                config = new ValuesSourceConfig<>(valuesSourceType);
+                config = new ValuesSourceConfig(valuesSourceType);
                 config.format(resolveFormat(format, valueType, timeZone));
                 config.unmapped(true);
                 if (valueType != null) {
@@ -111,7 +111,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 IndexFieldData<?> indexFieldData = context.getForField(fieldType);
                 ValuesSourceType valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, indexFieldData,
                     aggregationName, valueType);
-                config = new ValuesSourceConfig<>(valuesSourceType);
+                config = new ValuesSourceConfig(valuesSourceType);
 
                 config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
                 config.script(createScript(script, context));
@@ -180,17 +180,17 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return fieldContext != null || script != null || unmapped;
     }
 
-    public ValuesSourceConfig<VS> fieldContext(FieldContext fieldContext) {
+    public ValuesSourceConfig fieldContext(FieldContext fieldContext) {
         this.fieldContext = fieldContext;
         return this;
     }
 
-    public ValuesSourceConfig<VS> script(AggregationScript.LeafFactory script) {
+    public ValuesSourceConfig script(AggregationScript.LeafFactory script) {
         this.script = script;
         return this;
     }
 
-    public ValuesSourceConfig<VS> scriptValueType(ValueType scriptValueType) {
+    public ValuesSourceConfig scriptValueType(ValueType scriptValueType) {
         this.scriptValueType = scriptValueType;
         return this;
     }
@@ -199,17 +199,17 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this.scriptValueType;
     }
 
-    public ValuesSourceConfig<VS> unmapped(boolean unmapped) {
+    public ValuesSourceConfig unmapped(boolean unmapped) {
         this.unmapped = unmapped;
         return this;
     }
 
-    public ValuesSourceConfig<VS> format(final DocValueFormat format) {
+    public ValuesSourceConfig format(final DocValueFormat format) {
         this.format = format;
         return this;
     }
 
-    public ValuesSourceConfig<VS> missing(final Object missing) {
+    public ValuesSourceConfig missing(final Object missing) {
         this.missing = missing;
         return this;
     }
@@ -218,7 +218,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this.missing;
     }
 
-    public ValuesSourceConfig<VS> timezone(final ZoneId timeZone) {
+    public ValuesSourceConfig timezone(final ZoneId timeZone) {
         this.timeZone = timeZone;
         return this;
     }
@@ -232,42 +232,42 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     }
 
     @Nullable
-    public VS toValuesSource(QueryShardContext context) {
+    public ValuesSource toValuesSource(QueryShardContext context) {
         return toValuesSource(context, value -> ValuesSource.Bytes.WithOrdinals.EMPTY);
     }
 
     /** Get a value source given its configuration. A return value of null indicates that
      *  no value source could be built. */
     @Nullable
-    public VS toValuesSource(QueryShardContext context, Function<Object, ValuesSource> resolveMissingAny) {
+    public ValuesSource toValuesSource(QueryShardContext context, Function<Object, ValuesSource> resolveMissingAny) {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
                     "value source config is invalid; must have either a field context or a script or marked as unwrapped");
         }
 
-        final VS vs;
+        final ValuesSource vs;
         if (unmapped()) {
             if (missing() == null) {
                 // otherwise we will have values because of the missing value
                 vs = null;
             } else if (valueSourceType() == CoreValuesSourceType.ANY) {
                 // TODO: Clean up special cases around CoreValuesSourceType.ANY
-                vs = (VS) resolveMissingAny.apply(missing());
+                vs = resolveMissingAny.apply(missing());
             } else {
-                vs = (VS) valueSourceType().getEmpty();
+                vs = valueSourceType().getEmpty();
             }
         } else {
             if (fieldContext() == null) {
-                vs = (VS) valueSourceType().getScript(script(), scriptValueType());
+                vs = valueSourceType().getScript(script(), scriptValueType());
             } else {
                 if (valueSourceType() == CoreValuesSourceType.ANY) {
                     // TODO: Clean up special cases around CoreValuesSourceType.ANY
                     // falling back to bytes values
-                    vs = (VS) CoreValuesSourceType.BYTES.getField(fieldContext(), script());
+                    vs = CoreValuesSourceType.BYTES.getField(fieldContext(), script());
                 } else {
                     // TODO: Better docs for Scripts vs Scripted Fields
-                    vs = (VS) valueSourceType().getField(fieldContext(), script());
+                    vs = valueSourceType().getField(fieldContext(), script());
                 }
             }
         }
@@ -275,6 +275,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         if (missing() == null) {
             return vs;
         }
-        return (VS) valueSourceType().replaceMissing(vs, missing, format, context::nowInMillis);
+        return valueSourceType().replaceMissing(vs, missing, format, context::nowInMillis);
     }
 }

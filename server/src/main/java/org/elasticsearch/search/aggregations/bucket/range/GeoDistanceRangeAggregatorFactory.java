@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -53,9 +54,11 @@ public class GeoDistanceRangeAggregatorFactory
     private final GeoDistance distanceType;
     private final boolean keyed;
 
-    public GeoDistanceRangeAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, GeoPoint origin,
-            Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    public GeoDistanceRangeAggregatorFactory(String name, ValuesSourceConfig config, GeoPoint origin,
+                                             Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed,
+                                             QueryShardContext queryShardContext, AggregatorFactory parent,
+                                             AggregatorFactories.Builder subFactoriesBuilder,
+                                             Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.origin = origin;
         this.ranges = ranges;
@@ -74,13 +77,17 @@ public class GeoDistanceRangeAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource,
+    protected Aggregator doCreateInternal(final ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
+        if (valuesSource instanceof ValuesSource.GeoPoint  == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
+        DistanceSource distanceSource = new DistanceSource((ValuesSource.GeoPoint) valuesSource, distanceType, origin, unit);
         return new RangeAggregator(name, factories, distanceSource, config.format(), rangeFactory, ranges, keyed, searchContext,
                 parent,
                 pipelineAggregators, metaData);

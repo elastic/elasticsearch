@@ -335,7 +335,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig<ValuesSource> config,
+                                                                        ValuesSourceConfig config,
                                                                         AggregatorFactory parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
         return new TermsAggregatorFactory(name, config, order, includeExclude, executionHint, collectMode,

@@ -96,7 +96,7 @@ public class ParentAggregationBuilder
 
     @Override
     protected ValuesSourceAggregatorFactory<WithOrdinals> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig<WithOrdinals> config,
+                                                                     ValuesSourceConfig config,
                                                                      AggregatorFactory parent,
                                                                      Builder subFactoriesBuilder) throws IOException {
         return new ParentAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
@@ -104,13 +104,13 @@ public class ParentAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceConfig<WithOrdinals> resolveConfig(QueryShardContext queryShardContext) {
-        ValuesSourceConfig<WithOrdinals> config = new ValuesSourceConfig<>(CoreValuesSourceType.BYTES);
+    protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
+        ValuesSourceConfig config = new ValuesSourceConfig(CoreValuesSourceType.BYTES);
         joinFieldResolveConfig(queryShardContext, config);
         return config;
     }
 
-    private void joinFieldResolveConfig(QueryShardContext queryShardContext, ValuesSourceConfig<WithOrdinals> config) {
+    private void joinFieldResolveConfig(QueryShardContext queryShardContext, ValuesSourceConfig config) {
         ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(queryShardContext.getMapperService());
         ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
         if (parentIdFieldMapper != null) {

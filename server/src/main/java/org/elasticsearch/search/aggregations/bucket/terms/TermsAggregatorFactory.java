@@ -60,7 +60,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     private final boolean showTermDocCountError;
 
     TermsAggregatorFactory(String name,
-                                  ValuesSourceConfig<ValuesSource> config,
+                                  ValuesSourceConfig config,
                                   BucketOrder order,
                                   IncludeExclude includeExclude,
                                   String executionHint,

@@ -44,7 +44,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory<Va
     private final int maxDocCount;
     private final double precision;
 
-    RareTermsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
+    RareTermsAggregatorFactory(String name, ValuesSourceConfig config,
                                       IncludeExclude includeExclude,
                                       QueryShardContext queryShardContext,
                                       AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,

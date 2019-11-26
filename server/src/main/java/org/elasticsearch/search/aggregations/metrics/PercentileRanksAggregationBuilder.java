@@ -240,7 +240,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                                 AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         switch (method) {
         case TDIGEST:

@@ -44,7 +44,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory<
     private final int maxDocsPerValue;
     private final String executionHint;
 
-    DiversifiedAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, int shardSize, int maxDocsPerValue,
+    DiversifiedAggregatorFactory(String name, ValuesSourceConfig config, int shardSize, int maxDocsPerValue,
                                  String executionHint, QueryShardContext queryShardContext, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);

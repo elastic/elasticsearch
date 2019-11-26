@@ -184,7 +184,7 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                                 AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)

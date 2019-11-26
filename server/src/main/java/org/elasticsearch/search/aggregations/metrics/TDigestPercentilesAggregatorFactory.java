@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -41,7 +42,7 @@ class TDigestPercentilesAggregatorFactory
     private final double compression;
     private final boolean keyed;
 
-    TDigestPercentilesAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double[] percents,
+    TDigestPercentilesAggregatorFactory(String name, ValuesSourceConfig config, double[] percents,
                                         double compression, boolean keyed, QueryShardContext queryShardContext, AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
@@ -60,14 +61,18 @@ class TDigestPercentilesAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        return new TDigestPercentilesAggregator(name, valuesSource, searchContext, parent, percents, compression, keyed, config.format(),
-                pipelineAggregators, metaData);
+        if (valuesSource instanceof Numeric == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
+        return new TDigestPercentilesAggregator(name, (Numeric) valuesSource, searchContext, parent, percents, compression, keyed,
+            config.format(), pipelineAggregators, metaData);
     }
 
 }

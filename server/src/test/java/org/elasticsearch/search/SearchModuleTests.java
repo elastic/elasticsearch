@@ -389,7 +389,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                            ValuesSourceConfig<ValuesSource> config,
+                                                                            ValuesSourceConfig config,
                                                                             AggregatorFactory parent,
                                                                             Builder subFactoriesBuilder) throws IOException {
             return null;

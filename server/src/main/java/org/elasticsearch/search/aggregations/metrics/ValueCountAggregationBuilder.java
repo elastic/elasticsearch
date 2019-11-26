@@ -85,7 +85,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
 
     @Override
     protected ValueCountAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                        ValuesSourceConfig<ValuesSource> config,
+                                                        ValuesSourceConfig config,
                                                         AggregatorFactory parent,
                                                         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new ValueCountAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);

@@ -103,7 +103,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     public HistogramAggregatorFactory(String name,
-                                        ValuesSourceConfig<ValuesSource> config,
+                                        ValuesSourceConfig config,
                                         double interval,
                                         double offset,
                                         BucketOrder order,

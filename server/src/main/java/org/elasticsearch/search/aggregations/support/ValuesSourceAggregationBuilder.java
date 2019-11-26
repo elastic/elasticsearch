@@ -81,7 +81,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
-    protected ValuesSourceConfig<VS> config;
+    protected ValuesSourceConfig config;
 
     protected ValuesSourceAggregationBuilder(String name, ValueType targetValueType) {
         super(name);
@@ -301,7 +301,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     @Override
     protected final ValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                                               Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig<VS> config = resolveConfig(queryShardContext);
+        ValuesSourceConfig config = resolveConfig(queryShardContext);
         ValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }
@@ -327,14 +327,14 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         return valueType;
     }
 
-    protected ValuesSourceConfig<VS> resolveConfig(QueryShardContext queryShardContext) {
+    protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
         return ValuesSourceConfig.resolve(queryShardContext,
                 valueType, field, script, missing, timeZone, format, this::resolveScriptAny, this.getType());
     }
 
     protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig<VS> config,
+                                                                        ValuesSourceConfig config,
                                                                         AggregatorFactory parent,
                                                                         Builder subFactoriesBuilder) throws IOException;
 

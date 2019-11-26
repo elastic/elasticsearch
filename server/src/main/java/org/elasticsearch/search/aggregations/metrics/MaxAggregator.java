@@ -59,7 +59,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray maxes;
 
     MaxAggregator(String name,
-                    ValuesSourceConfig<ValuesSource.Numeric> config,
+                    ValuesSourceConfig config,
                     ValuesSource.Numeric valuesSource,
                     SearchContext context,
                     Aggregator parent, List<PipelineAggregator> pipelineAggregators,

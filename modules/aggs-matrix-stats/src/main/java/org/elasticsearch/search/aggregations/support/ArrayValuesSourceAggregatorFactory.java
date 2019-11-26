@@ -34,9 +34,9 @@ import java.util.Map;
 public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource>
     extends AggregatorFactory {
 
-    protected Map<String, ValuesSourceConfig<VS>> configs;
+    protected Map<String, ValuesSourceConfig> configs;
 
-    public ArrayValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig<VS>> configs,
+    public ArrayValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
                                               QueryShardContext queryShardContext, AggregatorFactory parent,
                                               AggregatorFactories.Builder subFactoriesBuilder,
                                               Map<String, Object> metaData) throws IOException {
@@ -50,10 +50,10 @@ public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metaData) throws IOException {
-        HashMap<String, VS> valuesSources = new HashMap<>();
+        HashMap<String, ValuesSource> valuesSources = new HashMap<>();
 
-        for (Map.Entry<String, ValuesSourceConfig<VS>> config : configs.entrySet()) {
-            VS vs = config.getValue().toValuesSource(queryShardContext);
+        for (Map.Entry<String, ValuesSourceConfig> config : configs.entrySet()) {
+            ValuesSource vs = config.getValue().toValuesSource(queryShardContext);
             if (vs != null) {
                 valuesSources.put(config.getKey(), vs);
             }
@@ -70,7 +70,7 @@ public abstract class ArrayValuesSourceAggregatorFactory<VS extends ValuesSource
                                                     List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(Map<String, VS> valuesSources,
+    protected abstract Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
                                                     SearchContext searchContext,
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,

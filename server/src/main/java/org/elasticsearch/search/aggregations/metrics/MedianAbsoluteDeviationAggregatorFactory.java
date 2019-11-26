@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -38,7 +39,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     private final double compression;
 
     MedianAbsoluteDeviationAggregatorFactory(String name,
-                                                    ValuesSourceConfig<ValuesSource.Numeric> config,
+                                                    ValuesSourceConfig config,
                                                     QueryShardContext queryShardContext,
                                                     AggregatorFactory parent,
                                                     AggregatorFactories.Builder subFactoriesBuilder,
@@ -68,20 +69,24 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
 
+        if (valuesSource instanceof ValuesSource.Numeric == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
         return new MedianAbsoluteDeviationAggregator(
             name,
             searchContext,
             parent,
             pipelineAggregators,
             metaData,
-            valuesSource,
+            (ValuesSource.Numeric) valuesSource,
             config.format(),
             compression
         );

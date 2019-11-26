@@ -35,8 +35,9 @@ import java.util.Map;
 
 class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
-    ValueCountAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    ValueCountAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+                                AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 

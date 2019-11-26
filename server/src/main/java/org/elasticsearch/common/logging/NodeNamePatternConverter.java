@@ -36,7 +36,7 @@ import org.apache.lucene.util.SetOnce;
  * elasticsearch.yml.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
-@ConverterKeys({"ESnode_name"})
+@ConverterKeys({"ESnode_name","node_name"})
 public final class NodeNamePatternConverter extends LogEventPatternConverter {
     /**
      * The name of this node.

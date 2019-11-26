@@ -214,7 +214,7 @@ public class CompoundProcessor implements Processor {
         ingestMetadata.remove(ON_FAILURE_PIPELINE_FIELD);
     }
 
-    private IngestProcessorException newCompoundProcessorException(Exception e, Processor processor, IngestDocument document) {
+    static IngestProcessorException newCompoundProcessorException(Exception e, Processor processor, IngestDocument document) {
         if (e instanceof IngestProcessorException && ((IngestProcessorException) e).getHeader("processor_type") != null) {
             return (IngestProcessorException) e;
         }

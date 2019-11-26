@@ -317,6 +317,47 @@ public class CompoundProcessorTests extends ESTestCase {
         assertThat(onFailureProcessor.getInvokedCounter(), equalTo(1));
     }
 
+    public void testNewCompoundProcessorException() {
+        TestProcessor processor = new TestProcessor("my_tag", "my_type", new RuntimeException());
+        IngestProcessorException ingestProcessorException1 =
+            CompoundProcessor.newCompoundProcessorException(new RuntimeException(), processor, ingestDocument);
+        assertThat(ingestProcessorException1.getHeader("processor_tag"), equalTo(List.of("my_tag")));
+        assertThat(ingestProcessorException1.getHeader("processor_type"), equalTo(List.of("my_type")));
+        assertThat(ingestProcessorException1.getHeader("pipeline_origin"), nullValue());
+
+        IngestProcessorException ingestProcessorException2 =
+            CompoundProcessor.newCompoundProcessorException(ingestProcessorException1, processor, ingestDocument);
+        assertThat(ingestProcessorException2, sameInstance(ingestProcessorException1));
+    }
+
+    public void testNewCompoundProcessorExceptionPipelineOrigin() {
+        Pipeline pipeline2 = new Pipeline("2", null, null,
+            new CompoundProcessor(new TestProcessor("my_tag", "my_type", new RuntimeException())));
+        Pipeline pipeline1 = new Pipeline("1", null, null, new CompoundProcessor(new AbstractProcessor(null) {
+            @Override
+            public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                ingestDocument.executePipeline(pipeline2, handler);
+            }
+
+            @Override
+            public String getType() {
+                return "my_type2";
+            }
+        }));
+
+        Exception[] holder = new Exception[1];
+        ingestDocument.executePipeline(pipeline1, (document, e) -> holder[0] = e);
+        IngestProcessorException ingestProcessorException = (IngestProcessorException) holder[0];
+        assertThat(ingestProcessorException.getHeader("processor_tag"), equalTo(List.of("my_tag")));
+        assertThat(ingestProcessorException.getHeader("processor_type"), equalTo(List.of("my_type")));
+        assertThat(ingestProcessorException.getHeader("pipeline_origin"), equalTo(List.of("2", "1")));
+    }
+
     private void assertStats(CompoundProcessor compoundProcessor, long count,  long failed, long time) {
         assertStats(0, compoundProcessor, 0L, count, failed, time);
     }

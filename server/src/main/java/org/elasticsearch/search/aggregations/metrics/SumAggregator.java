@@ -69,6 +69,7 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
         }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -81,7 +82,7 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
                     // accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
-                    CompensatedSum kahanSummation = new CompensatedSum(sum, compensation);
+                    kahanSummation.reset(sum, compensation);
 
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();

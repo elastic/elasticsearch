@@ -470,7 +470,7 @@ public class IngestService implements ClusterStateApplier {
         sb.append(processor.getType());
 
         if(processor instanceof PipelineProcessor){
-            String pipelineName = ((PipelineProcessor) processor).getPipelineTemplate().newInstance(Map.of()).execute();
+            String pipelineName = ((PipelineProcessor) processor).getPipelineTemplate().newInstance(Collections.emptyMap()).execute();
             sb.append(":");
             sb.append(pipelineName);
         }

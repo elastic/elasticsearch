@@ -75,12 +75,12 @@
         "description":"The unit in which to display time values",
         "options":[
           "d",
-          "h,
-          "m,
-          "s,
-          "ms,
-          "micros,
-          "nanos
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
         ]
       },
       "v":{

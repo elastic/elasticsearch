@@ -26,12 +26,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
 
@@ -42,8 +40,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
@@ -54,32 +50,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
-
-    private static final ObjectParser<Map<String, Map<String, FieldMappingMetaData>>, String> PARSER =
-        new ObjectParser<>(MAPPINGS.getPreferredName(), true, HashMap::new);
-
-    static {
-        PARSER.declareField((p, typeMappings, index) -> {
-            p.nextToken();
-            while (p.currentToken() == XContentParser.Token.FIELD_NAME) {
-                final String typeName = p.currentName();
-
-                if (p.nextToken() == XContentParser.Token.START_OBJECT) {
-                    final Map<String, FieldMappingMetaData> typeMapping = new HashMap<>();
-                    typeMappings.put(typeName, typeMapping);
-
-                    while (p.nextToken() == XContentParser.Token.FIELD_NAME) {
-                        final String fieldName = p.currentName();
-                        final FieldMappingMetaData fieldMappingMetaData = FieldMappingMetaData.fromXContent(p);
-                        typeMapping.put(fieldName, fieldMappingMetaData);
-                    }
-                } else {
-                    p.skipChildren();
-                }
-                p.nextToken();
-            }
-        }, MAPPINGS, ObjectParser.ValueType.OBJECT);
-    }
 
     // TODO remove the middle `type` level of this
     private final Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings;
@@ -178,17 +148,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 a -> new FieldMappingMetaData((String)a[0], (BytesReference)a[1])
             );
 
-        static {
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> p.text(), FULL_NAME, ObjectParser.ValueType.STRING);
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> {
-                    final XContentBuilder jsonBuilder = jsonBuilder().copyCurrentStructure(p);
-                    final BytesReference bytes = BytesReference.bytes(jsonBuilder);
-                    return bytes;
-                }, MAPPING, ObjectParser.ValueType.OBJECT);
-        }
-
         private String fullName;
         private BytesReference source;
 
@@ -213,10 +172,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         //pkg-private for testing
         BytesReference getSource() {
             return source;
-        }
-
-        public static FieldMappingMetaData fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
         }
 
         @Override

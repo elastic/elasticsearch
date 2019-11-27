@@ -58,7 +58,7 @@ public class RangeHistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    RangeHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
+    public RangeHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
                              BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
                              @Nullable ValuesSource.Range valuesSource, DocValueFormat formatter,
                              SearchContext context, Aggregator parent,

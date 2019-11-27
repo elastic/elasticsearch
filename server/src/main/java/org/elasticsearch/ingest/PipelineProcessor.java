@@ -28,18 +28,18 @@ public class PipelineProcessor extends AbstractProcessor {
 
     public static final String TYPE = "pipeline";
 
-    private final TemplateScript.Factory pipelineName;
+    private final TemplateScript.Factory pipelineTemplate;
     private final IngestService ingestService;
 
-    private PipelineProcessor(String tag, TemplateScript.Factory pipelineName, IngestService ingestService) {
+    private PipelineProcessor(String tag, TemplateScript.Factory pipelineTemplate, IngestService ingestService) {
         super(tag);
-        this.pipelineName = pipelineName;
+        this.pipelineTemplate = pipelineTemplate;
         this.ingestService = ingestService;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        String pipelineName = ingestDocument.renderTemplate(this.pipelineName);
+        String pipelineName = ingestDocument.renderTemplate(this.pipelineTemplate);
         Pipeline pipeline = ingestService.getPipeline(pipelineName);
         if (pipeline != null) {
             ingestDocument.executePipeline(pipeline, handler);
@@ -55,7 +55,7 @@ public class PipelineProcessor extends AbstractProcessor {
     }
 
     Pipeline getPipeline(IngestDocument ingestDocument) {
-        String pipelineName = ingestDocument.renderTemplate(this.pipelineName);
+        String pipelineName = ingestDocument.renderTemplate(this.pipelineTemplate);
         return ingestService.getPipeline(pipelineName);
     }
 
@@ -64,8 +64,8 @@ public class PipelineProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    TemplateScript.Factory getPipelineName() {
-        return pipelineName;
+    TemplateScript.Factory getPipelineTemplate() {
+        return pipelineTemplate;
     }
 
     public static final class Factory implements Processor.Factory {
@@ -79,9 +79,9 @@ public class PipelineProcessor extends AbstractProcessor {
         @Override
         public PipelineProcessor create(Map<String, Processor.Factory> registry, String processorTag,
             Map<String, Object> config) throws Exception {
-            TemplateScript.Factory pipelineName =
+            TemplateScript.Factory pipelineTemplate =
                 ConfigurationUtils.readTemplateProperty(TYPE, processorTag, config, "name", ingestService.getScriptService());
-            return new PipelineProcessor(processorTag, pipelineName, ingestService);
+            return new PipelineProcessor(processorTag, pipelineTemplate, ingestService);
         }
     }
 }

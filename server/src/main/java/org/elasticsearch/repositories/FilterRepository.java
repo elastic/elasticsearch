@@ -68,8 +68,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public RepositoryData getRepositoryData() {
-        return in.getRepositoryData();
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        in.getRepositoryData(listener);
     }
 
     @Override
@@ -123,8 +123,9 @@ public class FilterRepository implements Repository {
         in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
     }
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-        in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState);
+    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
+                             ActionListener<Void> listener) {
+        in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
     }
 
     @Override

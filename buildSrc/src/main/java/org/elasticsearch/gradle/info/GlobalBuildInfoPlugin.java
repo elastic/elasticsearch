@@ -5,7 +5,6 @@ import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.internal.jvm.Jvm;
 
 import java.io.BufferedReader;
@@ -77,18 +76,33 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
                 task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
                 task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
-                task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
             });
 
         PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
             task.getBuildInfoFile().set(generateTask.getOutputFile());
             task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
             task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
-            task.getFipsJvmFile().set(generateTask.getFipsJvmFile());
             task.setGlobalInfoListeners(extension.listeners);
         });
 
-        project.getExtensions().getByType(ExtraPropertiesExtension.class).set("defaultParallel", findDefaultParallel(project));
+        // Initialize global build parameters
+        BuildParams.init(params -> {
+            params.reset();
+            params.setCompilerJavaHome(compilerJavaHome);
+            params.setRuntimeJavaHome(runtimeJavaHome);
+            params.setIsRutimeJavaHomeSet(compilerJavaHome.equals(runtimeJavaHome) == false);
+            params.setJavaVersions(javaVersions);
+            params.setMinimumCompilerVersion(minimumCompilerVersion);
+            params.setMinimumRuntimeVersion(minimumRuntimeVersion);
+            params.setGradleJavaVersion(Jvm.current().getJavaVersion());
+            params.setGitRevision(gitRevision(project.getRootProject().getRootDir()));
+            params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
+            params.setTestSeed(testSeed);
+            params.setIsCi(System.getenv("JENKINS_URL") != null);
+            params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
+            params.setDefaultParallel(findDefaultParallel(project));
+            params.setInFipsJvm(isInFipsJvm());
+        });
 
         project.allprojects(p -> {
             // Make sure than any task execution generates and prints build info
@@ -97,21 +111,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                     task.dependsOn(printTask);
                 }
             });
-
-            ExtraPropertiesExtension ext = p.getExtensions().getByType(ExtraPropertiesExtension.class);
-
-            ext.set("compilerJavaHome", compilerJavaHome);
-            ext.set("runtimeJavaHome", runtimeJavaHome);
-            ext.set("isRuntimeJavaHomeSet", compilerJavaHome.equals(runtimeJavaHome) == false);
-            ext.set("javaVersions", javaVersions);
-            ext.set("minimumCompilerVersion", minimumCompilerVersion);
-            ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
-            ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
-            ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
-            ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
-            ext.set("testSeed", testSeed);
-            ext.set("isCi", System.getenv("JENKINS_URL") != null);
-            ext.set("isInternal", GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
         });
     }
 
@@ -151,6 +150,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static String getJavaHomeEnvVarName(String version) {
         return "JAVA" + version + "_HOME";
+    }
+
+    private static boolean isInFipsJvm() {
+        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
     }
 
     private static String getResourceContents(String resourcePath) {

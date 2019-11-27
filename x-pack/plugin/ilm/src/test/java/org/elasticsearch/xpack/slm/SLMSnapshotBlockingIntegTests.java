@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.slm;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -60,6 +59,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
+    private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
     static final String REPO = "my-repo";
     List<String> dataNodeNames = null;
@@ -89,7 +89,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         initializeRepo(REPO);
 
         logger.info("--> creating policy {}", policyName);
-        createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", REPO, indexName, true);
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true);
 
         logger.info("--> blocking master from completing snapshot");
         blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
@@ -109,7 +109,8 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             SnapshotLifecyclePolicyItem.SnapshotInProgress inProgress = item.getSnapshotInProgress();
             assertThat(inProgress.getSnapshotId().getName(), equalTo(snapshotName));
             assertThat(inProgress.getStartTime(), greaterThan(0L));
-            assertThat(inProgress.getState(), anyOf(equalTo(SnapshotsInProgress.State.INIT), equalTo(SnapshotsInProgress.State.STARTED)));
+            assertThat(inProgress.getState(), anyOf(equalTo(SnapshotsInProgress.State.INIT), equalTo(SnapshotsInProgress.State.STARTED),
+                equalTo(SnapshotsInProgress.State.SUCCESS)));
             assertNull(inProgress.getFailure());
         });
 
@@ -124,7 +125,6 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48441")
     public void testRetentionWhileSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyId = "slm-policy";
@@ -136,7 +136,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         initializeRepo(REPO);
 
         logger.info("--> creating policy {}", policyId);
-        createSnapshotPolicy(policyId, "snap", "1 2 3 4 5 ?", REPO, indexName, true,
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             false, new SnapshotRetentionConfiguration(TimeValue.timeValueSeconds(0), null, null));
 
         // Create a snapshot and wait for it to be complete (need something that can be deleted)
@@ -144,8 +144,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         logger.info("--> kicked off snapshot {}", completedSnapshotName);
         assertBusy(() -> {
             try {
-                SnapshotsStatusResponse s =
-                    client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(completedSnapshotName).get();
+                SnapshotsStatusResponse s = getSnapshotStatus(completedSnapshotName);
                 assertThat("expected a snapshot but none were returned", s.getSnapshots().size(), equalTo(1));
                 SnapshotStatus status = s.getSnapshots().get(0);
                 logger.info("--> waiting for snapshot {} to be completed, got: {}", completedSnapshotName, status.getState());
@@ -213,13 +212,8 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 client().admin().cluster().prepareReroute().get();
                 logger.info("--> waiting for snapshot to be deleted");
                 try {
-                    SnapshotsStatusResponse s =
-                        client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(completedSnapshotName).get();
+                    SnapshotsStatusResponse s = getSnapshotStatus(completedSnapshotName);
                     assertNull("expected no snapshot but one was returned", s.getSnapshots().get(0));
-                } catch (RepositoryException e) {
-                    // Concurrent status calls and write operations may lead to failures in determining the current repository generation
-                    // TODO: Remove this hack once tracking the current repository generation has been made consistent
-                    throw new AssertionError(e);
                 } catch (SnapshotMissingException e) {
                     // Great, we wanted it to be deleted!
                 }
@@ -269,7 +263,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         // Create a snapshot repo
         initializeRepo(REPO);
 
-        createSnapshotPolicy(policyId, "snap", "1 2 3 4 5 ?", REPO, indexName, true,
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             partialSuccess, new SnapshotRetentionConfiguration(null, 1, 2));
 
         // Create a failed snapshot
@@ -380,6 +374,18 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                     throw new AssertionError(re);
                 }
             });
+        }
+    }
+
+    private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {
+        try {
+            return client().admin().cluster().prepareSnapshotStatus(REPO).setSnapshots(snapshotName).get();
+        } catch (RepositoryException e) {
+            // Convert this to an AssertionError so that it can be retried in an assertBusy - this is often a transient error because
+            // concurrent status calls and write operations may lead to failures in determining the current repository generation
+            // TODO: Remove this hack once tracking the current repository generation has been made consistent
+            logger.warn(e);
+            throw new AssertionError(e);
         }
     }
 

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -33,7 +32,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
     protected AnalyticsResult createTestInstance() {
         RowResults rowResults = null;
         Integer progressPercent = null;
-        TrainedModelDefinition inferenceModel = null;
+        TrainedModelDefinition.Builder inferenceModel = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
         }
@@ -41,13 +40,13 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
             progressPercent = randomIntBetween(0, 100);
         }
         if (randomBoolean()) {
-            inferenceModel = TrainedModelDefinitionTests.createRandomBuilder().build();
+            inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         }
         return new AnalyticsResult(rowResults, progressPercent, inferenceModel);
     }
 
     @Override
-    protected AnalyticsResult doParseInstance(XContentParser parser) throws IOException {
+    protected AnalyticsResult doParseInstance(XContentParser parser) {
         return AnalyticsResult.PARSER.apply(parser, null);
     }
 

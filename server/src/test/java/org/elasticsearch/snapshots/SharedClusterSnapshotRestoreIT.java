@@ -63,7 +63,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
@@ -359,7 +358,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
     }
 
-    public void testFreshIndexUUID() throws InterruptedException {
+    public void testFreshIndexUUID() {
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -418,13 +417,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(randomRepoSettings()));
 
-        logger.info("--> create index with foo type");
+        logger.info("--> create index with baz field");
         assertAcked(prepareCreate("test-idx", 2, Settings.builder()
                 .put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)).put("refresh_interval", 10, TimeUnit.SECONDS)));
 
         NumShards numShards = getNumShards("test-idx");
 
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("foo").setSource("baz", "type=text"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("baz", "type=text"));
         ensureGreen();
 
         logger.info("--> snapshot it");
@@ -434,12 +433,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
-        logger.info("--> delete the index and recreate it with bar type");
+        logger.info("--> delete the index and recreate it with foo field");
         cluster().wipeIndices("test-idx");
         assertAcked(prepareCreate("test-idx", 2, Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, numShards.numPrimaries).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
                 .put("refresh_interval", 5, TimeUnit.SECONDS)));
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("bar").setSource("baz", "type=text"));
+        assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("foo", "type=text"));
         ensureGreen();
 
         logger.info("--> close index");
@@ -451,10 +450,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         logger.info("--> assert that old mapping is restored");
-        ImmutableOpenMap<String, MappingMetaData> mappings = client().admin().cluster().prepareState().get().getState().getMetaData()
-            .getIndices().get("test-idx").getMappings();
-        assertThat(mappings.get("foo"), notNullValue());
-        assertThat(mappings.get("bar"), nullValue());
+        MappingMetaData mappings = client().admin().cluster().prepareState().get().getState().getMetaData()
+            .getIndices().get("test-idx").mapping();
+        assertThat(mappings.sourceAsMap().toString(), containsString("baz"));
+        assertThat(mappings.sourceAsMap().toString(), not(containsString("foo")));
 
         logger.info("--> assert that old settings are restored");
         GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings("test-idx").execute().actionGet();
@@ -782,7 +781,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
     }
 
-    public void testSnapshotFileFailureDuringSnapshot() throws InterruptedException {
+    public void testSnapshotFileFailureDuringSnapshot() {
         disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
         Client client = client();
 
@@ -2359,7 +2358,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(prepareCreate("test-idx", 2, indexSettings));
 
         int numberOfShards = getNumShards("test-idx").numPrimaries;
-        assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("type1")
+        assertAcked(client().admin().indices().preparePutMapping("test-idx")
             .setSource("field1", "type=text,analyzer=standard,search_analyzer=my_analyzer"));
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];

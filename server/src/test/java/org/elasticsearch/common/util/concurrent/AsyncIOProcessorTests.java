@@ -21,7 +21,6 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -45,11 +44,6 @@ public class AsyncIOProcessorTests extends ESTestCase {
     @Before
     public void setUpThreadContext() {
         threadContext = new ThreadContext(Settings.EMPTY);
-    }
-
-    @After
-    public void tearDownThreadContext() {
-        threadContext.close();
     }
 
     public void testPut() throws InterruptedException {

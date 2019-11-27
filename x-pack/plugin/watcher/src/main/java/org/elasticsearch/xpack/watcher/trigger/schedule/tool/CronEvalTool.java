@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+import joptsimple.util.KeyValuePair;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.time.Instant;
@@ -23,12 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-/*
- * This class extends EnvironmentAwareCommand so that -E options are accepted,
- * even though they are unused. This makes the CLI interface the same as the
- * other CLI tools.
- */
-public class CronEvalTool extends EnvironmentAwareCommand {
+public class CronEvalTool extends LoggingAwareCommand {
 
     public static void main(String[] args) throws Exception {
         exit(new CronEvalTool().main(args, Terminal.DEFAULT));
@@ -50,13 +45,12 @@ public class CronEvalTool extends EnvironmentAwareCommand {
             "The number of future times this expression will be triggered")
             .withRequiredArg().ofType(Integer.class).defaultsTo(10);
         this.arguments = parser.nonOptions("expression");
+
+        parser.accepts("E", "Unused. Only for compatibility with other CLI tools.").withRequiredArg().ofType(KeyValuePair.class);
     }
 
-    /*
-     * env is not used here, but is part of the EnvironmentAwareCommand contract.
-     */
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
         int count = countOption.value(options);
         List<String> args = arguments.values(options);
         if (args.size() != 1) {

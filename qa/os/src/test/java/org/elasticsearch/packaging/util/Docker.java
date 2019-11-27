@@ -364,7 +364,6 @@ public class Docker {
                 "elasticsearch",
                 "elasticsearch-cli",
                 "elasticsearch-env",
-                "elasticsearch-enve",
                 "elasticsearch-keystore",
                 "elasticsearch-node",
                 "elasticsearch-plugin",

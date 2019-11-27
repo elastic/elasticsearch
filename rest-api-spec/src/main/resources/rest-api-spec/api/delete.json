@@ -89,8 +89,7 @@
         "options":[
           "internal",
           "external",
-          "external_gte",
-          "force"
+          "external_gte"
         ],
         "description":"Specific version type"
       }

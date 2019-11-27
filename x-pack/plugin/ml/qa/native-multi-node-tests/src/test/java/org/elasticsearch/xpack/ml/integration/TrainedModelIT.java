@@ -25,11 +25,13 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.junit.After;
 
 import java.io.IOException;
@@ -66,8 +68,8 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(client().performRequest(model1).getStatusLine().getStatusCode(), equalTo(201));
 
         Request modelDefinition1 = new Request("PUT",
-            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TrainedModelDefinition.docId(modelId));
-        modelDefinition1.setJsonEntity(buildRegressionModelDefinition(modelId));
+            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TrainedModelDefinitionDoc.docId(modelId, 0));
+        modelDefinition1.setJsonEntity(buildRegressionModelDefinitionDoc(modelId));
         assertThat(client().performRequest(modelDefinition1).getStatusLine().getStatusCode(), equalTo(201));
 
         Request model2 = new Request("PUT",
@@ -101,9 +103,20 @@ public class TrainedModelIT extends ESRestTestCase {
 
         response = EntityUtils.toString(getModel.getEntity());
         assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
-        assertThat(response, containsString("\"heap_memory_estimation_bytes\""));
-        assertThat(response, containsString("\"heap_memory_estimation\""));
+        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
+        assertThat(response, containsString("\"estimated_heap_memory_usage\""));
         assertThat(response, containsString("\"definition\""));
+        assertThat(response, containsString("\"count\":1"));
+
+        getModel = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH + "inference/test_regression_model?decompress_definition=false&include_model_definition=true"));
+        assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
+
+        response = EntityUtils.toString(getModel.getEntity());
+        assertThat(response, containsString("\"model_id\":\"test_regression_model\""));
+        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
+        assertThat(response, containsString("\"compressed_definition\""));
+        assertThat(response, not(containsString("\"definition\"")));
         assertThat(response, containsString("\"count\":1"));
 
         ResponseException responseException = expectThrows(ResponseException.class, () ->
@@ -157,8 +170,8 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(client().performRequest(model1).getStatusLine().getStatusCode(), equalTo(201));
 
         Request modelDefinition1 = new Request("PUT",
-            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TrainedModelDefinition.docId(modelId));
-        modelDefinition1.setJsonEntity(buildRegressionModelDefinition(modelId));
+            InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TrainedModelDefinitionDoc.docId(modelId, 0));
+        modelDefinition1.setJsonEntity(buildRegressionModelDefinitionDoc(modelId));
         assertThat(client().performRequest(modelDefinition1).getStatusLine().getStatusCode(), equalTo(201));
 
         adminClient().performRequest(new Request("POST", InferenceIndexConstants.LATEST_INDEX_NAME + "/_refresh"));
@@ -175,7 +188,7 @@ public class TrainedModelIT extends ESRestTestCase {
         responseException = expectThrows(ResponseException.class,
             () -> client().performRequest(
                 new Request("GET",
-                    InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TrainedModelDefinition.docId(modelId))));
+                    InferenceIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TrainedModelDefinitionDoc.docId(modelId, 0))));
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
         responseException = expectThrows(ResponseException.class,
@@ -202,14 +215,20 @@ public class TrainedModelIT extends ESRestTestCase {
         }
     }
 
-    private static String buildRegressionModelDefinition(String modelId) throws IOException {
+    private static String buildRegressionModelDefinitionDoc(String modelId) throws IOException {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            new TrainedModelDefinition.Builder()
+            TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
                 .setPreProcessors(Collections.emptyList())
                 .setTrainedModel(LocalModelTests.buildRegression())
-                .setModelId(modelId)
-                .build()
-                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));
+                .build();
+            String compressedString = InferenceToXContentCompressor.deflate(definition);
+            TrainedModelDefinitionDoc doc = new TrainedModelDefinitionDoc.Builder().setDocNum(0)
+                .setCompressedString(compressedString)
+                .setTotalDefinitionLength(compressedString.length())
+                .setDefinitionLength(compressedString.length())
+                .setCompressionVersion(1)
+                .setModelId(modelId).build();
+            doc.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));
             return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
         }
     }

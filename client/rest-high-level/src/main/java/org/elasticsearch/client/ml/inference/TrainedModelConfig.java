@@ -45,6 +45,7 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField DEFINITION = new ParseField("definition");
+    public static final ParseField COMPRESSED_DEFINITION = new ParseField("compressed_definition");
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
     public static final ParseField INPUT = new ParseField("input");
@@ -67,6 +68,7 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareObject(TrainedModelConfig.Builder::setDefinition,
             (p, c) -> TrainedModelDefinition.fromXContent(p),
             DEFINITION);
+        PARSER.declareString(TrainedModelConfig.Builder::setCompressedDefinition, COMPRESSED_DEFINITION);
         PARSER.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
         PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> TrainedModelInput.fromXContent(p), INPUT);
@@ -75,8 +77,8 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
     }
 
-    public static TrainedModelConfig.Builder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static TrainedModelConfig fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null).build();
     }
 
     private final String modelId;
@@ -85,6 +87,7 @@ public class TrainedModelConfig implements ToXContentObject {
     private final String description;
     private final Instant createTime;
     private final TrainedModelDefinition definition;
+    private final String compressedDefinition;
     private final List<String> tags;
     private final Map<String, Object> metadata;
     private final TrainedModelInput input;
@@ -98,6 +101,7 @@ public class TrainedModelConfig implements ToXContentObject {
                        String description,
                        Instant createTime,
                        TrainedModelDefinition definition,
+                       String compressedDefinition,
                        List<String> tags,
                        Map<String, Object> metadata,
                        TrainedModelInput input,
@@ -109,6 +113,7 @@ public class TrainedModelConfig implements ToXContentObject {
         this.version = version;
         this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
         this.definition = definition;
+        this.compressedDefinition = compressedDefinition;
         this.description = description;
         this.tags = tags == null ? null : Collections.unmodifiableList(tags);
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
@@ -148,6 +153,10 @@ public class TrainedModelConfig implements ToXContentObject {
 
     public TrainedModelDefinition getDefinition() {
         return definition;
+    }
+
+    public String getCompressedDefinition() {
+        return compressedDefinition;
     }
 
     public TrainedModelInput getInput() {
@@ -210,6 +219,9 @@ public class TrainedModelConfig implements ToXContentObject {
         if (estimatedOperations != null) {
             builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
         }
+        if (compressedDefinition != null) {
+            builder.field(COMPRESSED_DEFINITION.getPreferredName(), compressedDefinition);
+        }
         if (licenseLevel != null) {
             builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel);
         }
@@ -233,6 +245,7 @@ public class TrainedModelConfig implements ToXContentObject {
             Objects.equals(description, that.description) &&
             Objects.equals(createTime, that.createTime) &&
             Objects.equals(definition, that.definition) &&
+            Objects.equals(compressedDefinition, that.compressedDefinition) &&
             Objects.equals(tags, that.tags) &&
             Objects.equals(input, that.input) &&
             Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
@@ -248,6 +261,7 @@ public class TrainedModelConfig implements ToXContentObject {
             version,
             createTime,
             definition,
+            compressedDefinition,
             description,
             tags,
             estimatedHeapMemory,
@@ -268,6 +282,7 @@ public class TrainedModelConfig implements ToXContentObject {
         private Map<String, Object> metadata;
         private List<String> tags;
         private TrainedModelDefinition definition;
+        private String compressedDefinition;
         private TrainedModelInput input;
         private Long estimatedHeapMemory;
         private Long estimatedOperations;
@@ -278,12 +293,12 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        private Builder setCreatedBy(String createdBy) {
+        public Builder setCreatedBy(String createdBy) {
             this.createdBy = createdBy;
             return this;
         }
 
-        private Builder setVersion(Version version) {
+        public Builder setVersion(Version version) {
             this.version = version;
             return this;
         }
@@ -297,7 +312,7 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        private Builder setCreateTime(Instant createTime) {
+        public Builder setCreateTime(Instant createTime) {
             this.createTime = createTime;
             return this;
         }
@@ -317,6 +332,11 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setCompressedDefinition(String compressedDefinition) {
+            this.compressedDefinition = compressedDefinition;
+            return this;
+        }
+
         public Builder setDefinition(TrainedModelDefinition definition) {
             this.definition = definition;
             return this;
@@ -327,17 +347,17 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        private Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
+        public Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
             this.estimatedHeapMemory = estimatedHeapMemory;
             return this;
         }
 
-        private Builder setEstimatedOperations(Long estimatedOperations) {
+        public Builder setEstimatedOperations(Long estimatedOperations) {
             this.estimatedOperations = estimatedOperations;
             return this;
         }
 
-        private Builder setLicenseLevel(String licenseLevel) {
+        public Builder setLicenseLevel(String licenseLevel) {
             this.licenseLevel = licenseLevel;
             return this;
         }
@@ -350,6 +370,7 @@ public class TrainedModelConfig implements ToXContentObject {
                 description,
                 createTime,
                 definition,
+                compressedDefinition,
                 tags,
                 metadata,
                 input,

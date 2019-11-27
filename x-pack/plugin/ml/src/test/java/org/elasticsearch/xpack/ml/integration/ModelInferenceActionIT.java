@@ -64,10 +64,9 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         oneHotEncoding.put("dog", "animal_dog");
         TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
             .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
-            .setDefinition(new TrainedModelDefinition.Builder()
+            .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
-                .setTrainedModel(buildClassification(true))
-                .setModelId(modelId1))
+                .setTrainedModel(buildClassification(true)))
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setCreateTime(Instant.now())
@@ -76,10 +75,9 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .build();
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
             .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
-            .setDefinition(new TrainedModelDefinition.Builder()
+            .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
-                .setTrainedModel(buildRegression())
-                .setModelId(modelId2))
+                .setTrainedModel(buildRegression()))
             .setVersion(Version.CURRENT)
             .setEstimatedOperations(0)
             .setEstimatedHeapMemory(0)
@@ -186,7 +184,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
     private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
-            .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
+            .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .setDescription("trained model config for test")
             .setModelId(modelId);
     }

@@ -89,19 +89,54 @@ public class TrainedModelProvider {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void storeTrainedModel(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
+    public void storeTrainedModel(TrainedModelConfig trainedModelConfig,
+                                  ActionListener<Boolean> listener) {
+        try {
+            trainedModelConfig.ensureParsedDefinition(xContentRegistry);
+        } catch (IOException ex) {
+            listener.onFailure(ExceptionsHelper.serverError(
+                "Unexpected serialization error when parsing model definition for model [" + trainedModelConfig.getModelId() + "]",
+                ex));
+            return;
+        }
 
-        if (trainedModelConfig.getDefinition() == null) {
+        TrainedModelDefinition definition = trainedModelConfig.getModelDefinition();
+        if (definition == null) {
             listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] is required",
                 trainedModelConfig.getModelId(),
                 TrainedModelConfig.DEFINITION.getPreferredName()));
             return;
         }
 
+        storeTrainedModelAndDefinition(trainedModelConfig, listener);
+    }
+
+    private void storeTrainedModelAndDefinition(TrainedModelConfig trainedModelConfig,
+                                                ActionListener<Boolean> listener) {
+
+        TrainedModelDefinitionDoc trainedModelDefinitionDoc;
+        try {
+            // TODO should we check length against allowed stream size???
+            String compressedString = trainedModelConfig.getCompressedDefinition();
+            trainedModelDefinitionDoc = new TrainedModelDefinitionDoc.Builder()
+                .setDocNum(0)
+                .setModelId(trainedModelConfig.getModelId())
+                .setCompressedString(compressedString)
+                .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
+                .setDefinitionLength(compressedString.length())
+                .setTotalDefinitionLength(compressedString.length())
+                .build();
+        } catch (IOException ex) {
+            listener.onFailure(ExceptionsHelper.serverError(
+                "Unexpected IOException while serializing definition for storage for model [" + trainedModelConfig.getModelId() + "]",
+                ex));
+            return;
+        }
+
         BulkRequest bulkRequest = client.prepareBulk(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .add(createRequest(trainedModelConfig.getModelId(), trainedModelConfig))
-            .add(createRequest(TrainedModelDefinition.docId(trainedModelConfig.getModelId()), trainedModelConfig.getDefinition()))
+            .add(createRequest(TrainedModelDefinitionDoc.docId(trainedModelConfig.getModelId(), 0), trainedModelDefinitionDoc))
             .request();
 
         ActionListener<Boolean> wrappedListener = ActionListener.wrap(
@@ -125,16 +160,16 @@ public class TrainedModelProvider {
                 assert r.getItems().length == 2;
                 if (r.getItems()[0].isFailed()) {
                     logger.error(new ParameterizedMessage(
-                        "[{}] failed to store trained model config for inference",
-                        trainedModelConfig.getModelId()),
+                            "[{}] failed to store trained model config for inference",
+                            trainedModelConfig.getModelId()),
                         r.getItems()[0].getFailure().getCause());
                     wrappedListener.onFailure(r.getItems()[0].getFailure().getCause());
                     return;
                 }
                 if (r.getItems()[1].isFailed()) {
                     logger.error(new ParameterizedMessage(
-                        "[{}] failed to store trained model definition for inference",
-                        trainedModelConfig.getModelId()),
+                            "[{}] failed to store trained model definition for inference",
+                            trainedModelConfig.getModelId()),
                         r.getItems()[1].getFailure().getCause());
                     wrappedListener.onFailure(r.getItems()[1].getFailure().getCause());
                     return;
@@ -164,7 +199,7 @@ public class TrainedModelProvider {
             multiSearchRequestBuilder.add(client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
                 .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
                     .idsQuery()
-                    .addIds(TrainedModelDefinition.docId(modelId))))
+                    .addIds(TrainedModelDefinitionDoc.docId(modelId, 0))))
                 // use sort to get the last
                 .addSort("_index", SortOrder.DESC)
                 .setSize(1)
@@ -174,7 +209,6 @@ public class TrainedModelProvider {
         ActionListener<MultiSearchResponse> multiSearchResponseActionListener = ActionListener.wrap(
             multiSearchResponse -> {
                 TrainedModelConfig.Builder builder;
-                TrainedModelDefinition definition;
                 try {
                     builder = handleSearchItem(multiSearchResponse.getResponses()[0], modelId, this::parseInferenceDocLenientlyFromSource);
                 } catch (ResourceNotFoundException ex) {
@@ -188,10 +222,15 @@ public class TrainedModelProvider {
 
                 if (includeDefinition) {
                     try {
-                        definition = handleSearchItem(multiSearchResponse.getResponses()[1],
+                        TrainedModelDefinitionDoc doc = handleSearchItem(multiSearchResponse.getResponses()[1],
                             modelId,
                             this::parseModelDefinitionDocLenientlyFromSource);
-                        builder.setDefinition(definition);
+                        if (doc.getCompressedString().length() != doc.getTotalDefinitionLength()) {
+                            listener.onFailure(ExceptionsHelper.serverError(
+                                Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                            return;
+                        }
+                        builder.setDefinitionFromString(doc.getCompressedString());
                     } catch (ResourceNotFoundException ex) {
                         listener.onFailure(new ResourceNotFoundException(
                             Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
@@ -397,11 +436,11 @@ public class TrainedModelProvider {
         }
     }
 
-    private TrainedModelDefinition parseModelDefinitionDocLenientlyFromSource(BytesReference source, String modelId) throws IOException {
+    private TrainedModelDefinitionDoc parseModelDefinitionDocLenientlyFromSource(BytesReference source, String modelId) throws IOException {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return TrainedModelDefinition.fromXContent(parser, true).build();
+            return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), e);
             throw e;

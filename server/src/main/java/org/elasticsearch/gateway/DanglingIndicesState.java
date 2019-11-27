@@ -59,7 +59,8 @@ public class DanglingIndicesState implements ClusterStateListener {
     public static final Setting<Boolean> AUTO_IMPORT_DANGLING_INDICES_SETTING = Setting.boolSetting(
         "gateway.auto_import_dangling_indices",
         true,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
 
     private final NodeEnvironment nodeEnv;
@@ -79,6 +80,8 @@ public class DanglingIndicesState implements ClusterStateListener {
 
         if (allocateDanglingIndices) {
             clusterService.addListener(this);
+        } else {
+            logger.warn(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey() + " is disabled, dangling indices will not be detected or imported");
         }
     }
 
@@ -86,7 +89,7 @@ public class DanglingIndicesState implements ClusterStateListener {
      * Process dangling indices based on the provided meta data, handling cleanup, finding
      * new dangling indices, and allocating outstanding ones.
      */
-    private void processDanglingIndices(final MetaData metaData) {
+    public void processDanglingIndices(final MetaData metaData) {
         if (nodeEnv.hasNodeFile() == false) {
             return;
         }
@@ -187,7 +190,6 @@ public class DanglingIndicesState implements ClusterStateListener {
         if (danglingIndices.isEmpty()) {
             return;
         }
-
         try {
             allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
                 new ActionListener<>() {

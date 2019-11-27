@@ -111,7 +111,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, cleanerService));
         final Exporters exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(),
-            threadPool.getThreadContext());
+            threadPool.getThreadContext(), dynamicSSLService);
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));

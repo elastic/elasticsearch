@@ -219,19 +219,8 @@ public abstract class TransportReplicationAction<
         return null;
     }
 
-    /**
-     * True if provided index should be resolved when resolving request
-     */
-    protected boolean resolveIndex() {
-        return true;
-    }
-
     protected TransportRequestOptions transportOptions(Settings settings) {
         return TransportRequestOptions.EMPTY;
-    }
-
-    private String concreteIndex(final ClusterState state, final ReplicationRequest request) {
-        return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request).getName() : request.index();
     }
 
     private ClusterBlockException blockExceptions(final ClusterState state, final String indexName) {
@@ -648,7 +637,7 @@ public abstract class TransportReplicationAction<
         protected void doRun() {
             setPhase(task, "routing");
             final ClusterState state = observer.setAndGetObservedState();
-            final String concreteIndex = concreteIndex(state, request);
+            final String concreteIndex = request.shardId().getIndexName();
             final ClusterBlockException blockException = blockExceptions(state, concreteIndex);
             if (blockException != null) {
                 if (blockException.retryable()) {
@@ -658,7 +647,6 @@ public abstract class TransportReplicationAction<
                     finishAsFailed(blockException);
                 }
             } else {
-                // request does not have a shardId yet, we need to pass the concrete index to resolve shardId
                 final IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
                 if (indexMetaData == null) {
                     retry(new IndexNotFoundException(concreteIndex));

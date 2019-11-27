@@ -82,11 +82,6 @@ enum DateFormat {
 
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId zoneId, Locale locale) {
-            // support the 6.x BWC compatible way of parsing java 8 dates
-            if (format.startsWith("8")) {
-                format = format.substring(1);
-            }
-
             boolean isUtc = ZoneOffset.UTC.equals(zoneId);
 
             DateFormatter dateFormatter = DateFormatter.forPattern(format)

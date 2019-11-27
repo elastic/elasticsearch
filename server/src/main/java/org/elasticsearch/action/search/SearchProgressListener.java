@@ -166,12 +166,12 @@ abstract class SearchProgressListener {
             .filter(Objects::nonNull)
             .map(SearchPhaseResult::getSearchShardTarget)
             .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
-            .collect(Collectors.toList());
+            .collect(Collectors.toUnmodifiableList());
     }
 
     final List<SearchShard> searchShards(GroupShardsIterator<SearchShardIterator> its) {
         return StreamSupport.stream(its.spliterator(), false)
             .map(e -> new SearchShard(e.getClusterAlias(), e.shardId()))
-            .collect(Collectors.toList());
+            .collect(Collectors.toUnmodifiableList());
     }
 }

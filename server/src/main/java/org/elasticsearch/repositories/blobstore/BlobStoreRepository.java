@@ -287,7 +287,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final String repoName = metadata.name();
         long bestGenerationFromCS = RepositoryData.EMPTY_REPO_GEN;
 
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
         if (snapshotsInProgress != null) {
             final SnapshotsInProgress.Entry entry = snapshotsInProgress.entries().stream()
                 .filter(e -> e.snapshot().getRepository().equals(repoName)).findFirst()

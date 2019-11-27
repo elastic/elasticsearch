@@ -509,7 +509,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
     private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {
         final Path keyPath = tempDir.resolve("testclient.pem");
-        final Path certPath = tempDir.resolve("testclient.crt");
+        final Path certPath = tempDir.resolve("testclientcert.crt"); // testclient.crt filename already used in #testPEMTrustReloadException
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), keyPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), certPath);
 

@@ -16,17 +16,19 @@
   <<dfanalytics-types>>.
   
 `analyzed_fields`::
-  (object) You can specify both `includes` and/or `excludes` patterns. If 
-  `analyzed_fields` is not set, only the relevant fields will be included. For 
-  example, all the numeric fields for {oldetection}. For the supported field 
-  types, see <<ml-put-dfanalytics-supported-fields>>.
+  (Optional, sobject) Specify `includes` and/or `excludes` patterns to select
+  which fields will be included in the analysis. If `analyzed_fields` is not set,
+  only the relevant fields will be included. For example, all the numeric fields
+  for {oldetection}. For the supported field types, see <<ml-put-dfanalytics-supported-fields>>.
+  Also see {ref}/explain-dfanalytics.html[_explain API] which helps understand
+  field selection. 
     
   `includes`:::
-    (array) An array of strings that defines the fields that will be included in 
+    (Optional, array) An array of strings that defines the fields that will be included in 
     the analysis.
       
   `excludes`:::
-    (array) An array of strings that defines the fields that will be excluded 
+    (Optional, array) An array of strings that defines the fields that will be excluded 
     from the analysis.
   
 
@@ -81,8 +83,8 @@ PUT _ml/data_frame/analytics/loganalytics
   that setting. For more information, see <<ml-settings>>.
 
 `source`::
-  (object) The source configuration consisting an `index` and optionally a 
-  `query` object.
+  (object) The configuration of how to source the analysis data. It requires an `index`.
+  Optionally, `query` and `_source` may be specified.
   
   `index`:::
     (Required, string or array) Index or indices on which to perform the 
@@ -95,6 +97,19 @@ PUT _ml/data_frame/analytics/loganalytics
     search POST body. All the options that are supported by {es} can be used, 
     as this object is passed verbatim to {es}. By default, this property has 
     the following value: `{"match_all": {}}`.
+
+  `_source`:::
+    (Optional, object) Specify `includes` and/or `excludes` patterns to select
+    which fields will be present in the destination. Fields that are excluded
+    cannot be included in the analysis.
+        
+      `includes`::::
+        (array) An array of strings that defines the fields that will be included in 
+        the destination.
+          
+      `excludes`::::
+        (array) An array of strings that defines the fields that will be excluded 
+        from the destination.
 
 [[dfanalytics-types]]
 ==== Analysis objects

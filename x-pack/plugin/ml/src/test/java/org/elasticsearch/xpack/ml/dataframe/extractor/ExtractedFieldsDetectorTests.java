@@ -45,6 +45,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     private static final String DEST_INDEX = "dest_index";
     private static final String RESULTS_FIELD = "ml";
 
+    private FetchSourceContext sourceFiltering;
+
     public void testDetect_GivenFloatField() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField("some_float", "float").build();
@@ -832,38 +834,84 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         );
     }
 
-    private static DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
+    public void testDetect_GivenSourceFilteringWithIncludes() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_11", "float")
+            .addAggregatableField("field_12", "float")
+            .addAggregatableField("field_21", "float")
+            .addAggregatableField("field_22", "float").build();
+
+        sourceFiltering = new FetchSourceContext(true, new String[] {"field_1*"}, null);
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields.size(), equalTo(2));
+        assertThat(allFields.get(0).getName(), equalTo("field_11"));
+        assertThat(allFields.get(1).getName(), equalTo("field_12"));
+
+        assertFieldSelectionContains(fieldExtraction.v2(),
+            FieldSelection.included("field_11", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL),
+            FieldSelection.included("field_12", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL));
+    }
+
+    public void testDetect_GivenSourceFilteringWithExcludes() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("field_11", "float")
+            .addAggregatableField("field_12", "float")
+            .addAggregatableField("field_21", "float")
+            .addAggregatableField("field_22", "float").build();
+
+        sourceFiltering = new FetchSourceContext(true, null, new String[] {"field_1*"});
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields.size(), equalTo(2));
+        assertThat(allFields.get(0).getName(), equalTo("field_21"));
+        assertThat(allFields.get(1).getName(), equalTo("field_22"));
+
+        assertFieldSelectionContains(fieldExtraction.v2(),
+            FieldSelection.included("field_21", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL),
+            FieldSelection.included("field_22", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL));
+    }
+
+    private DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
         return buildOutlierDetectionConfig(null);
     }
 
-    private static DataFrameAnalyticsConfig buildOutlierDetectionConfig(FetchSourceContext analyzedFields) {
+    private DataFrameAnalyticsConfig buildOutlierDetectionConfig(FetchSourceContext analyzedFields) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
             .setAnalysis(new OutlierDetection.Builder().build())
             .build();
     }
 
-    private static DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable) {
+    private DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable) {
         return buildRegressionConfig(dependentVariable, null);
     }
 
-    private static DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable, FetchSourceContext analyzedFields) {
+    private DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable, FetchSourceContext analyzedFields) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalyzedFields(analyzedFields)
             .setAnalysis(new Regression(dependentVariable))
             .build();
     }
 
-    private static DataFrameAnalyticsConfig buildClassificationConfig(String dependentVariable) {
+    private DataFrameAnalyticsConfig buildClassificationConfig(String dependentVariable) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, RESULTS_FIELD))
             .setAnalysis(new Classification(dependentVariable))
             .build();

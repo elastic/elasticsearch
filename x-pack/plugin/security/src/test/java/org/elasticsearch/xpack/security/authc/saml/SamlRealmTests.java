@@ -130,6 +130,7 @@ public class SamlRealmTests extends SamlTestCase {
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         final Settings settings = Settings.builder()
+            .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
             .put("xpack.security.http.ssl.certificate",

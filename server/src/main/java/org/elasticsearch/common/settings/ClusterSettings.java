@@ -108,8 +108,10 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.SimpleConnectionStrategy;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -303,14 +305,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
             ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
-            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,
-            RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
             RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
             RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE,
-            RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
-            RemoteClusterService.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER,
             RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
             RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
             RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
@@ -319,6 +315,17 @@ public final class ClusterSettings extends AbstractScopedSettings {
             RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
+            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
+            SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES,
+            SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS,
+            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY,
+            SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER,
+            SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
+            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD,
+            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
+            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
+            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
             TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
             ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
             NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
@@ -520,8 +527,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER,
+            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
+            SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER,
             RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER));
 
 }

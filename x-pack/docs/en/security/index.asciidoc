@@ -10,7 +10,6 @@ IP filtering, and auditing.
 
 * <<elasticsearch-security>>
 * <<configuring-security>>
-* <<how-security-works>>
 * <<setting-up-authentication>>
 * <<saml-guide>>
 * <<oidc-guide>>
@@ -28,7 +27,6 @@ IP filtering, and auditing.
 
 include::overview.asciidoc[]
 include::configuring-es.asciidoc[]
-include::how-security-works.asciidoc[]
 include::authentication/index.asciidoc[]
 include::authorization/index.asciidoc[]
 include::auditing/index.asciidoc[]

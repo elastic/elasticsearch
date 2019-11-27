@@ -37,7 +37,7 @@ public class Jdk implements Buildable, Iterable<File> {
     private static final List<String> ALLOWED_VENDORS = Collections.unmodifiableList(Arrays.asList("adoptopenjdk", "openjdk"));
     static final Pattern VERSION_PATTERN =
         Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
-    private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows"));
+    private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows", "mac"));
 
     private final String name;
     private final Configuration configuration;
@@ -109,6 +109,17 @@ public class Jdk implements Buildable, Iterable<File> {
     @Override
     public TaskDependency getBuildDependencies() {
         return configuration.getBuildDependencies();
+    }
+
+    public Object getBinJavaPath() {
+        return new Object() {
+            @Override
+            public String toString() {
+                final String platform = getPlatform();
+                final boolean isOSX = "mac".equals(platform) || "darwin".equals(platform);
+                return getPath() + (isOSX ? "/Contents/Home" : "") + "/bin/java";
+            }
+        };
     }
 
     // internal, make this jdks configuration unmodifiable

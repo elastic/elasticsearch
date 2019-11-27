@@ -222,7 +222,45 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","auth.password",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key,
+                        new Setting.Validator<String>() {
+                            @Override
+                            public void validate(String password) {
+                                // no password validation that is independent of other settings
+                            }
+
+                            @Override
+                            public void validate(String password, Map<Setting<?>, Object> settings) {
+                                final String namespace =
+                                    HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
+                                        HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
+                                final String username =
+                                    (String) settings.get(AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
+
+                                // username is required for any auth
+                                if (Strings.isNullOrEmpty(username)) {
+                                    if (Strings.isNullOrEmpty(password) == false) {
+                                        throw new IllegalArgumentException(
+                                            "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] without [" +
+                                                AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "]");
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public Iterator<Setting<?>> settings() {
+                                final String namespace =
+                                    HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
+                                        HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
+                                final List<Setting<?>> settings = Collections.singletonList(
+                                    HttpExporter.AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
+                                return settings.iterator();
+                            }
+
+                        },
+                        Property.Dynamic,
+                        Property.NodeScope,
+                        Property.Filtered));
     /**
      * The SSL settings.
      *
@@ -625,17 +663,6 @@ public class HttpExporter extends Exporter {
     private static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         final String password = AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-
-        // username is required for any auth
-        if (Strings.isNullOrEmpty(username)) {
-            if (Strings.isNullOrEmpty(password) == false) {
-                throw new SettingsException(
-                        "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "] without [" +
-                                AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "]");
-            }
-            // nothing to configure; default situation for most users
-            return null;
-        }
 
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));

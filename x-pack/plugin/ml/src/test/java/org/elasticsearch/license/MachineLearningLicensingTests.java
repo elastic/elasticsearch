@@ -6,13 +6,22 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
+import org.elasticsearch.action.ingest.SimulatePipelineAction;
+import org.elasticsearch.action.ingest.SimulatePipelineRequest;
+import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
@@ -24,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -31,17 +41,27 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
@@ -527,6 +547,277 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             new MachineLearningClient(client).deleteDatafeed(new DeleteDatafeedAction.Request(datafeedId), listener);
             listener.actionGet();
         }
+    }
+
+    public void testMachineLearningCreateInferenceProcessorRestricted() throws Exception {
+        String modelId = "modelprocessorlicensetest";
+        assertMLAllowed(true);
+        putInferenceModel(modelId);
+
+        String pipeline = "{" +
+            "    \"processors\": [\n" +
+            "      {\n" +
+            "        \"inference\": {\n" +
+            "          \"target_field\": \"regression_value\",\n" +
+            "          \"model_id\": \"modelprocessorlicensetest\",\n" +
+            "          \"inference_config\": {\"regression\": {}},\n" +
+            "          \"field_mappings\": {\n" +
+            "            \"col1\": \"col1\",\n" +
+            "            \"col2\": \"col2\",\n" +
+            "            \"col3\": \"col3\",\n" +
+            "            \"col4\": \"col4\"\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }]}\n";
+        // Creating a pipeline should work
+        PlainActionFuture<AcknowledgedResponse> putPipelineListener = PlainActionFuture.newFuture();
+        client().execute(PutPipelineAction.INSTANCE,
+            new PutPipelineRequest("test_infer_license_pipeline",
+                new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON),
+            putPipelineListener);
+        AcknowledgedResponse putPipelineResponse = putPipelineListener.actionGet();
+        assertTrue(putPipelineResponse.isAcknowledged());
+
+        client().prepareIndex("infer_license_test", MapperService.SINGLE_MAPPING_NAME)
+            .setPipeline("test_infer_license_pipeline")
+            .setSource("{}", XContentType.JSON)
+            .execute()
+            .actionGet();
+
+        String simulateSource = "{\n" +
+            "  \"pipeline\": \n" +
+            pipeline +
+            "  ,\n" +
+            "  \"docs\": [\n" +
+            "    {\"_source\": {\n" +
+            "      \"col1\": \"female\",\n" +
+            "      \"col2\": \"M\",\n" +
+            "      \"col3\": \"none\",\n" +
+            "      \"col4\": 10\n" +
+            "    }}]\n" +
+            "}";
+        PlainActionFuture<SimulatePipelineResponse> simulatePipelineListener = PlainActionFuture.newFuture();
+        client().execute(SimulatePipelineAction.INSTANCE,
+            new SimulatePipelineRequest(new BytesArray(simulateSource.getBytes(StandardCharsets.UTF_8)), XContentType.JSON),
+            simulatePipelineListener);
+
+        assertThat(simulatePipelineListener.actionGet().getResults(), is(not(empty())));
+
+        // Pick a license that does not allow machine learning
+        License.OperationMode mode = randomInvalidLicenseType();
+        enableLicensing(mode);
+        assertMLAllowed(false);
+
+        // Inference against the previous pipeline should still work
+        try {
+            client().prepareIndex("infer_license_test", MapperService.SINGLE_MAPPING_NAME)
+                .setPipeline("test_infer_license_pipeline")
+                .setSource("{}", XContentType.JSON)
+                .execute()
+                .actionGet();
+        } catch (ElasticsearchSecurityException ex) {
+            fail(ex.getMessage());
+        }
+
+        // Creating a new pipeline with an inference processor should work
+        putPipelineListener = PlainActionFuture.newFuture();
+        client().execute(PutPipelineAction.INSTANCE,
+            new PutPipelineRequest("test_infer_license_pipeline_again",
+                new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON),
+            putPipelineListener);
+        putPipelineResponse = putPipelineListener.actionGet();
+        assertTrue(putPipelineResponse.isAcknowledged());
+
+        // Inference against the new pipeline should fail since it has never previously succeeded
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
+            client().prepareIndex("infer_license_test", MapperService.SINGLE_MAPPING_NAME)
+                .setPipeline("test_infer_license_pipeline_again")
+                .setSource("{}", XContentType.JSON)
+                .execute()
+                .actionGet();
+        });
+        assertThat(e.status(), is(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), containsString("non-compliant"));
+        assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackField.MACHINE_LEARNING));
+
+        // Simulating the pipeline should fail
+        SimulateDocumentBaseResult simulateResponse = (SimulateDocumentBaseResult)client().execute(SimulatePipelineAction.INSTANCE,
+            new SimulatePipelineRequest(new BytesArray(simulateSource.getBytes(StandardCharsets.UTF_8)), XContentType.JSON))
+            .actionGet()
+            .getResults()
+            .get(0);
+        assertThat(simulateResponse.getFailure(), is(not(nullValue())));
+        assertThat((simulateResponse.getFailure()).getCause(), is(instanceOf(ElasticsearchSecurityException.class)));
+
+        // Pick a license that does allow machine learning
+        mode = randomValidLicenseType();
+        enableLicensing(mode);
+        assertMLAllowed(true);
+        // test that license restricted apis do now work
+        PlainActionFuture<AcknowledgedResponse> putPipelineListenerNewLicense = PlainActionFuture.newFuture();
+        client().execute(PutPipelineAction.INSTANCE,
+            new PutPipelineRequest("test_infer_license_pipeline",
+                new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON),
+            putPipelineListenerNewLicense);
+        AcknowledgedResponse putPipelineResponseNewLicense = putPipelineListenerNewLicense.actionGet();
+        assertTrue(putPipelineResponseNewLicense.isAcknowledged());
+
+        PlainActionFuture<SimulatePipelineResponse> simulatePipelineListenerNewLicense = PlainActionFuture.newFuture();
+        client().execute(SimulatePipelineAction.INSTANCE,
+            new SimulatePipelineRequest(new BytesArray(simulateSource.getBytes(StandardCharsets.UTF_8)), XContentType.JSON),
+            simulatePipelineListenerNewLicense);
+
+        assertThat(simulatePipelineListenerNewLicense.actionGet().getResults(), is(not(empty())));
+
+        //both ingest pipelines should work
+
+        client().prepareIndex("infer_license_test", MapperService.SINGLE_MAPPING_NAME)
+            .setPipeline("test_infer_license_pipeline")
+            .setSource("{}", XContentType.JSON)
+            .execute()
+            .actionGet();
+        client().prepareIndex("infer_license_test", MapperService.SINGLE_MAPPING_NAME)
+            .setPipeline("test_infer_license_pipeline_again")
+            .setSource("{}", XContentType.JSON)
+            .execute()
+            .actionGet();
+    }
+
+    public void testMachineLearningInferModelRestricted() throws Exception {
+        String modelId = "modelinfermodellicensetest";
+        assertMLAllowed(true);
+        putInferenceModel(modelId);
+
+
+        PlainActionFuture<InternalInferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
+        client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
+            modelId,
+            Collections.singletonList(Collections.emptyMap()),
+            new RegressionConfig(),
+            false
+        ), inferModelSuccess);
+        InternalInferModelAction.Response response = inferModelSuccess.actionGet();
+        assertThat(response.getInferenceResults(), is(not(empty())));
+        assertThat(response.isLicensed(), is(true));
+
+        // Pick a license that does not allow machine learning
+        License.OperationMode mode = randomInvalidLicenseType();
+        enableLicensing(mode);
+        assertMLAllowed(false);
+
+        // inferring against a model should now fail
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
+            client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
+                modelId,
+                Collections.singletonList(Collections.emptyMap()),
+                new RegressionConfig(),
+                false
+            )).actionGet();
+        });
+        assertThat(e.status(), is(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), containsString("non-compliant"));
+        assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackField.MACHINE_LEARNING));
+
+        // Inferring with previously Licensed == true should pass, but indicate license issues
+        inferModelSuccess = PlainActionFuture.newFuture();
+        client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
+            modelId,
+            Collections.singletonList(Collections.emptyMap()),
+            new RegressionConfig(),
+            true
+        ), inferModelSuccess);
+        response = inferModelSuccess.actionGet();
+        assertThat(response.getInferenceResults(), is(not(empty())));
+        assertThat(response.isLicensed(), is(false));
+
+        // Pick a license that does allow machine learning
+        mode = randomValidLicenseType();
+        enableLicensing(mode);
+        assertMLAllowed(true);
+
+        PlainActionFuture<InternalInferModelAction.Response> listener = PlainActionFuture.newFuture();
+        client().execute(InternalInferModelAction.INSTANCE, new InternalInferModelAction.Request(
+            modelId,
+            Collections.singletonList(Collections.emptyMap()),
+            new RegressionConfig(),
+            false
+        ), listener);
+        assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
+    }
+
+    private void putInferenceModel(String modelId) throws Exception {
+        String config = "" +
+            "{\n" +
+            "  \"model_id\": \"" + modelId + "\",\n" +
+            "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
+            "  \"description\": \"test model for classification\",\n" +
+            "  \"version\": \"7.6.0\",\n" +
+            "  \"created_by\": \"benwtrent\",\n" +
+            "  \"license_level\": \"platinum\",\n" +
+            "  \"estimated_heap_memory_usage_bytes\": 0,\n" +
+            "  \"estimated_operations\": 0,\n" +
+            "  \"created_time\": 0\n" +
+            "}";
+        String definition = "" +
+            "{" +
+            "  \"trained_model\": {\n" +
+            "    \"tree\": {\n" +
+            "      \"feature_names\": [\n" +
+            "        \"col1_male\",\n" +
+            "        \"col1_female\",\n" +
+            "        \"col2_encoded\",\n" +
+            "        \"col3_encoded\",\n" +
+            "        \"col4\"\n" +
+            "      ],\n" +
+            "      \"tree_structure\": [\n" +
+            "        {\n" +
+            "          \"node_index\": 0,\n" +
+            "            \"split_feature\": 0,\n" +
+            "            \"split_gain\": 12.0,\n" +
+            "            \"threshold\": 10.0,\n" +
+            "            \"decision_type\": \"lte\",\n" +
+            "            \"default_left\": true,\n" +
+            "            \"left_child\": 1,\n" +
+            "            \"right_child\": 2\n" +
+            "         },\n" +
+            "         {\n" +
+            "           \"node_index\": 1,\n" +
+            "           \"leaf_value\": 1\n" +
+            "         },\n" +
+            "         {\n" +
+            "           \"node_index\": 2,\n" +
+            "           \"leaf_value\": 2\n" +
+            "         }\n" +
+            "      ],\n" +
+            "     \"target_type\": \"regression\"\n" +
+            "    }\n" +
+            "  }" +
+            "}";
+        String compressedDefinitionString =
+            InferenceToXContentCompressor.deflate(new BytesArray(definition.getBytes(StandardCharsets.UTF_8)));
+        String compressedDefinition = "" +
+            "{" +
+            "  \"model_id\": \"" + modelId + "\",\n" +
+            "  \"doc_type\": \"" + TrainedModelDefinitionDoc.NAME + "\",\n" +
+            "  \"doc_num\": " + 0 + ",\n" +
+            "  \"compression_version\": " + 1 + ",\n" +
+            "  \"total_definition_length\": " + compressedDefinitionString.length() + ",\n" +
+            "  \"definition_length\": " + compressedDefinitionString.length() + ",\n" +
+            "  \"definition\": \"" + compressedDefinitionString + "\"\n" +
+            "}";
+        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME, MapperService.SINGLE_MAPPING_NAME)
+            .setId(modelId)
+            .setSource(config, XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get().status(), equalTo(RestStatus.CREATED));
+        assertThat(client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME, MapperService.SINGLE_MAPPING_NAME)
+            .setId(TrainedModelDefinitionDoc.docId(modelId, 0))
+            .setSource(compressedDefinition, XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get().status(), equalTo(RestStatus.CREATED));
     }
 
     private static OperationMode randomInvalidLicenseType() {

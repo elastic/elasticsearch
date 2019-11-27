@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -93,10 +92,9 @@ public final class TransportLogger {
                         }
                         streamInput = compressor.streamInput(streamInput);
                     }
-
-                    try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
-                        context.readHeaders(streamInput);
-                    }
+    
+                    // read and discard headers
+                    ThreadContext.readHeadersFromStream(streamInput);
                     // now we decode the features
                     if (streamInput.getVersion().onOrAfter(Version.V_6_3_0)) {
                         streamInput.readStringArray();

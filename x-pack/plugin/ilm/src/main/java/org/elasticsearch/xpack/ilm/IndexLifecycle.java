@@ -193,6 +193,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             components.add(indexLifecycleInitialisationService.get());
         }
         if (slmEnabled) {
+            // the template registry is a cluster state listener
+            @SuppressWarnings("unused")
             SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
                 client, xContentRegistry);
             snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),

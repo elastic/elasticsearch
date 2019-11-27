@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -51,9 +52,13 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         return new Entry(repository, repositoryStateId);
     }
 
-    public boolean cleanupInProgress() {
+    public boolean hasCleanupInProgress() {
         // TODO: Should we allow parallelism across repositories here maybe?
-        return entries.isEmpty();
+        return entries.isEmpty() == false;
+    }
+
+    public List<Entry> entries() {
+        return new ArrayList<>(entries);
     }
 
     @Override
@@ -104,6 +109,10 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         public Entry(String repository, long repositoryStateId) {
             this.repository = repository;
             this.repositoryStateId = repositoryStateId;
+        }
+
+        public String repository() {
+            return repository;
         }
 
         @Override

@@ -81,6 +81,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
@@ -577,7 +578,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testUnfollowNonExistingIndex() {
         PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request("non-existing-index");
-        expectThrows(IllegalArgumentException.class,
+        expectThrows(IndexNotFoundException.class,
             () -> followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).actionGet());
     }
 
@@ -816,6 +817,27 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
         });
         ensureNoCcrTasks();
+    }
+
+    public void testPauseIndex() throws Exception {
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        assertAcked(followerClient().admin().indices().prepareCreate("regular-index"));
+        assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower")).actionGet());
+        assertThat(expectThrows(IllegalArgumentException.class, () -> followerClient().execute(
+            PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower")).actionGet()).getMessage(),
+            equalTo("no shard follow tasks for [follower]"));
+        assertThat(expectThrows(IllegalArgumentException.class, () -> followerClient().execute(
+            PauseFollowAction.INSTANCE, new PauseFollowAction.Request("regular-index")).actionGet()).getMessage(),
+            equalTo("index [regular-index] is not a follower index"));
+        assertThat(expectThrows(IndexNotFoundException.class, () -> followerClient().execute(
+            PauseFollowAction.INSTANCE, new PauseFollowAction.Request("xyz")).actionGet()).getMessage(),
+            equalTo("no such index [xyz]"));
     }
 
     public void testUnfollowIndex() throws Exception {
@@ -1340,7 +1362,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
             String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
             Setting<Boolean> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
-            Setting<List<String>> seeds = RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<List<String>> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("leader_cluster");
             settingsRequest.persistentSettings(Settings.builder().put(compress.getKey(), true).put(seeds.getKey(), address));
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
 
@@ -1371,7 +1393,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
             String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
             Setting<Boolean> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
-            Setting<List<String>> seeds = RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<List<String>> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace("leader_cluster");
             settingsRequest.persistentSettings(Settings.builder().put(compress.getKey(), compress.getDefault(Settings.EMPTY))
                 .put(seeds.getKey(), address));
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());

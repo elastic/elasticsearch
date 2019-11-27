@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-
 public class TransformFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
@@ -68,8 +67,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
         TransformIndexerStats.INDEX_TOTAL.getPreferredName(),
         TransformIndexerStats.SEARCH_TOTAL.getPreferredName(),
         TransformIndexerStats.INDEX_FAILURES.getPreferredName(),
-        TransformIndexerStats.SEARCH_FAILURES.getPreferredName(),
-    };
+        TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), };
 
     @Inject
     public TransformFeatureSet(Settings settings, ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
@@ -102,84 +100,85 @@ public class TransformFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         if (enabled == false) {
-            listener.onResponse(new TransformFeatureSetUsage(available(),
-                enabled(),
-                Collections.emptyMap(),
-                new TransformIndexerStats()));
+            listener.onResponse(new TransformFeatureSetUsage(available(), enabled(), Collections.emptyMap(), new TransformIndexerStats()));
             return;
         }
 
         PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterService.state());
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> transformTasks = taskMetadata == null ?
-            Collections.emptyList() :
-            taskMetadata.findTasks(TransformTaskParams.NAME, (t) -> true);
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> transformTasks = taskMetadata == null
+            ? Collections.emptyList()
+            : taskMetadata.findTasks(TransformTaskParams.NAME, (t) -> true);
         final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
-        for(PersistentTasksCustomMetaData.PersistentTask<?> transformTask : transformTasks) {
-            TransformState state = (TransformState)transformTask.getState();
+        for (PersistentTasksCustomMetaData.PersistentTask<?> transformTask : transformTasks) {
+            TransformState state = (TransformState) transformTask.getState();
             transformsCountByState.merge(state.getTaskState().value(), 1L, Long::sum);
         }
 
         ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(
-            statSummations -> listener.onResponse(new TransformFeatureSetUsage(available(),
-                enabled(),
-                transformsCountByState,
-                statSummations)),
+            statSummations -> listener.onResponse(
+                new TransformFeatureSetUsage(available(), enabled(), transformsCountByState, statSummations)
+            ),
             listener::onFailure
         );
 
-        ActionListener<SearchResponse> totalTransformCountListener = ActionListener.wrap(
-            transformCountSuccess -> {
-                if (transformCountSuccess.getShardFailures().length > 0) {
-                    logger.error("total transform count search returned shard failures: {}",
-                        Arrays.toString(transformCountSuccess.getShardFailures()));
-                }
-                long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
-                if (totalTransforms == 0) {
-                    listener.onResponse(new TransformFeatureSetUsage(available(),
-                        enabled(),
-                        transformsCountByState,
-                        new TransformIndexerStats()));
-                    return;
-                }
-                transformsCountByState.merge(TransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
-                getStatisticSummations(client, totalStatsListener);
-            },
-            transformCountFailure -> {
-               if (transformCountFailure instanceof ResourceNotFoundException) {
-                   getStatisticSummations(client, totalStatsListener);
-               } else {
-                   listener.onFailure(transformCountFailure);
-               }
+        ActionListener<SearchResponse> totalTransformCountListener = ActionListener.wrap(transformCountSuccess -> {
+            if (transformCountSuccess.getShardFailures().length > 0) {
+                logger.error(
+                    "total transform count search returned shard failures: {}",
+                    Arrays.toString(transformCountSuccess.getShardFailures())
+                );
             }
-        );
+            long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
+            if (totalTransforms == 0) {
+                listener.onResponse(
+                    new TransformFeatureSetUsage(available(), enabled(), transformsCountByState, new TransformIndexerStats())
+                );
+                return;
+            }
+            transformsCountByState.merge(TransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
+            getStatisticSummations(client, totalStatsListener);
+        }, transformCountFailure -> {
+            if (transformCountFailure instanceof ResourceNotFoundException) {
+                getStatisticSummations(client, totalStatsListener);
+            } else {
+                listener.onFailure(transformCountFailure);
+            }
+        });
 
         SearchRequest totalTransformCount = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME))))
+            .setQuery(
+                QueryBuilders.constantScoreQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME))
+                )
+            )
             .request();
 
-        ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+        ClientHelper.executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
             ClientHelper.TRANSFORM_ORIGIN,
             totalTransformCount,
             totalTransformCountListener,
-            client::search);
+            client::search
+        );
     }
 
     static TransformIndexerStats parseSearchAggs(SearchResponse searchResponse) {
         List<Long> statisticsList = new ArrayList<>(PROVIDED_STATS.length);
 
-        for(String statName : PROVIDED_STATS) {
+        for (String statName : PROVIDED_STATS) {
             Aggregation agg = searchResponse.getAggregations().get(statName);
 
             if (agg instanceof NumericMetricsAggregation.SingleValue) {
-                statisticsList.add((long)((NumericMetricsAggregation.SingleValue)agg).value());
+                statisticsList.add((long) ((NumericMetricsAggregation.SingleValue) agg).value());
             } else {
                 statisticsList.add(0L);
             }
         }
-        return new TransformIndexerStats(statisticsList.get(0),  // numPages
+        return new TransformIndexerStats(
+            statisticsList.get(0),  // numPages
             statisticsList.get(1),  // numInputDocuments
             statisticsList.get(2),  // numOutputDocuments
             statisticsList.get(3),  // numInvocations
@@ -188,47 +187,48 @@ public class TransformFeatureSet implements XPackFeatureSet {
             statisticsList.get(6),  // indexTotal
             statisticsList.get(7),  // searchTotal
             statisticsList.get(8),  // indexFailures
-            statisticsList.get(9)); // searchFailures
+            statisticsList.get(9)
+        ); // searchFailures
     }
 
     static void getStatisticSummations(Client client, ActionListener<TransformIndexerStats> statsListener) {
-        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(),
-                    TransformStoredDoc.NAME)));
+        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformStoredDoc.NAME))
+        );
 
-        SearchRequestBuilder requestBuilder = client
-            .prepareSearch(
-                TransformInternalIndexConstants.INDEX_NAME_PATTERN,
-                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED)
-            .setSize(0)
-            .setQuery(queryBuilder);
+        SearchRequestBuilder requestBuilder = client.prepareSearch(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        ).setSize(0).setQuery(queryBuilder);
 
         final String path = TransformField.STATS_FIELD.getPreferredName() + ".";
-        for(String statName : PROVIDED_STATS) {
+        for (String statName : PROVIDED_STATS) {
             requestBuilder.addAggregation(AggregationBuilders.sum(statName).field(path + statName));
         }
 
-        ActionListener<SearchResponse> getStatisticSummationsListener = ActionListener.wrap(
-            searchResponse -> {
-                if (searchResponse.getShardFailures().length > 0) {
-                    logger.error("statistics summations search returned shard failures: {}",
-                        Arrays.toString(searchResponse.getShardFailures()));
-                }
-
-                statsListener.onResponse(parseSearchAggs(searchResponse));
-            },
-            failure -> {
-                if (failure instanceof ResourceNotFoundException) {
-                    statsListener.onResponse(new TransformIndexerStats());
-                } else {
-                    statsListener.onFailure(failure);
-                }
+        ActionListener<SearchResponse> getStatisticSummationsListener = ActionListener.wrap(searchResponse -> {
+            if (searchResponse.getShardFailures().length > 0) {
+                logger.error(
+                    "statistics summations search returned shard failures: {}",
+                    Arrays.toString(searchResponse.getShardFailures())
+                );
             }
-        );
-        ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+
+            statsListener.onResponse(parseSearchAggs(searchResponse));
+        }, failure -> {
+            if (failure instanceof ResourceNotFoundException) {
+                statsListener.onResponse(new TransformIndexerStats());
+            } else {
+                statsListener.onFailure(failure);
+            }
+        });
+        ClientHelper.executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
             ClientHelper.TRANSFORM_ORIGIN,
             requestBuilder.request(),
             getStatisticSummationsListener,
-            client::search);
+            client::search
+        );
     }
 }

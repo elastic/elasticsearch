@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;

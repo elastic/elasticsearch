@@ -23,6 +23,8 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -33,13 +35,18 @@ import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -295,6 +302,40 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertNoIndices(response);
+    }
+
+    public void testRemoteInfo() throws Exception {
+        String clusterAlias = "local_cluster";
+        setupRemoteClusterConfig(clusterAlias);
+
+        ClusterGetSettingsRequest settingsRequest = new ClusterGetSettingsRequest();
+        settingsRequest.includeDefaults(true);
+        ClusterGetSettingsResponse settingsResponse = highLevelClient().cluster().getSettings(settingsRequest, RequestOptions.DEFAULT);
+
+        List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(settingsResponse.getTransientSettings());
+        int connectionsPerCluster = SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER
+                .get(settingsResponse.getDefaultSettings());
+        TimeValue initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING
+                .get(settingsResponse.getDefaultSettings());
+        boolean skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(settingsResponse.getDefaultSettings());
+
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        RemoteInfoResponse response = execute(request, highLevelClient().cluster()::remoteInfo,
+                highLevelClient().cluster()::remoteInfoAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.getInfos().size(), equalTo(1));
+        RemoteConnectionInfo info = response.getInfos().get(0);
+        assertThat(info.getClusterAlias(), equalTo(clusterAlias));
+        assertThat(info.getSeedNodes(), equalTo(seeds));
+        assertThat(info.getNumNodesConnected(), equalTo(1));
+        assertThat(info.getConnectionsPerCluster(), equalTo(connectionsPerCluster));
+        assertThat(info.getInitialConnectionTimeout(), equalTo(initialConnectionTimeout));
+        assertThat(info.isSkipUnavailable(), equalTo(skipUnavailable));
     }
 
 }

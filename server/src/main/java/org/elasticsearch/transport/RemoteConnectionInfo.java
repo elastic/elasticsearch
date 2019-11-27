@@ -19,12 +19,15 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,6 +39,34 @@ import java.util.Objects;
  * {@code _remote/info} requests.
  */
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
+    private static final String SEEDS = "seeds";
+    private static final String CONNECTED = "connected";
+    private static final String NUM_NODES_CONNECTED = "num_nodes_connected";
+    private static final String MAX_CONNECTIONS_PER_CLUSTER = "max_connections_per_cluster";
+    private static final String INITIAL_CONNECT_TIMEOUT = "initial_connect_timeout";
+    private static final String SKIP_UNAVAILABLE = "skip_unavailable";
+
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<RemoteConnectionInfo, String> PARSER = new ConstructingObjectParser<>(
+        "remote_connection_info", true,
+        (args, clusterAlias) -> new RemoteConnectionInfo(
+            clusterAlias,
+            (List<String>) args[0],
+            (int) args[1],
+            (int) args[2],
+            TimeValue.parseTimeValue((String)args[3], INITIAL_CONNECT_TIMEOUT),
+            (boolean) args[4]
+        )
+    );
+
+    static {
+        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), new ParseField(SEEDS));
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(MAX_CONNECTIONS_PER_CLUSTER));
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(NUM_NODES_CONNECTED));
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(INITIAL_CONNECT_TIMEOUT));
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField(SKIP_UNAVAILABLE));
+    }
+
     final List<String> seedNodes;
     final int connectionsPerCluster;
     final TimeValue initialConnectionTimeout;
@@ -101,19 +132,23 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(clusterAlias);
         {
-            builder.startArray("seeds");
+            builder.startArray(SEEDS);
             for (String addr : seedNodes) {
                 builder.value(addr);
             }
             builder.endArray();
-            builder.field("connected", numNodesConnected > 0);
-            builder.field("num_nodes_connected", numNodesConnected);
-            builder.field("max_connections_per_cluster", connectionsPerCluster);
-            builder.field("initial_connect_timeout", initialConnectionTimeout);
-            builder.field("skip_unavailable", skipUnavailable);
+            builder.field(CONNECTED, numNodesConnected > 0);
+            builder.field(NUM_NODES_CONNECTED, numNodesConnected);
+            builder.field(MAX_CONNECTIONS_PER_CLUSTER, connectionsPerCluster);
+            builder.field(INITIAL_CONNECT_TIMEOUT, initialConnectionTimeout);
+            builder.field(SKIP_UNAVAILABLE, skipUnavailable);
         }
         builder.endObject();
         return builder;
+    }
+
+    public static RemoteConnectionInfo fromXContent(XContentParser parser, String clusterAlias) throws IOException {
+        return PARSER.parse(parser, clusterAlias);
     }
 
     @Override

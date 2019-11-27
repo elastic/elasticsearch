@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -43,9 +45,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteConnectionInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -414,5 +418,61 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testRemoteInfo() throws Exception {
+        setupRemoteClusterConfig("local_cluster");
+
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::remote-info-request
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        // end::remote-info-request
+
+        // tag::remote-info-execute
+        RemoteInfoResponse response = client.cluster().remoteInfo(request, RequestOptions.DEFAULT); // <1>
+        // end::remote-info-execute
+
+        // tag::remote-info-response
+        List<RemoteConnectionInfo> infos = response.getInfos();
+        // end::remote-info-response
+
+        assertThat(infos.size(), greaterThan(0));
+    }
+
+    public void testRemoteInfoAsync() throws Exception {
+        setupRemoteClusterConfig("local_cluster");
+
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::remote-info-request
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        // end::remote-info-request
+
+
+        // tag::remote-info-execute-listener
+            ActionListener<RemoteInfoResponse> listener =
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(RemoteInfoResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::remote-info-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::health-execute-async
+            client.cluster().remoteInfoAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::health-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 }

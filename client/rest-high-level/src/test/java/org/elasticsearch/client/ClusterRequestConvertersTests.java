@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -37,6 +38,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -146,5 +148,13 @@ public class ClusterRequestConvertersTests extends ESTestCase {
             Assert.assertThat(request.getEndpoint(), equalTo("/_cluster/health"));
         }
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testRemoteInfo() {
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        Request expectedRequest = ClusterRequestConverters.remoteInfo(request);
+        assertEquals("/_remote/info", expectedRequest.getEndpoint());
+        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(emptyMap(), expectedRequest.getParameters());
     }
 }

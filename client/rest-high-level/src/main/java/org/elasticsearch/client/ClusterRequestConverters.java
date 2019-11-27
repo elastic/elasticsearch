@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -75,5 +76,9 @@ final class ClusterRequestConverters {
             .withLevel(healthRequest.level());
         request.addParameters(params.asMap());
         return request;
+    }
+
+    static Request remoteInfo(RemoteInfoRequest remoteInfoRequest) {
+        return new Request(HttpGet.METHOD_NAME, "/_remote/info");
     }
 }

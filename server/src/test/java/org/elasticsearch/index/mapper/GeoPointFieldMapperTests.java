@@ -431,7 +431,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
     /**
      * Test the fix for a bug that would read the value of field "ignore_z_value" for "ignore_malformed"
      * when setting the "null_value" field. See PR https://github.com/elastic/elasticsearch/pull/49645
-     * @throws Exception
      */
     public void testNullValueWithIgnoreMalformed() throws Exception {
         // Set ignore_z_value = false and ignore_malformed = true and test that a malformed point for null_value is normalized.

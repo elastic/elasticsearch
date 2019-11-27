@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * too but this is the only place that tests running against multiple nodes so it is the only integration tests that checks for
  * serialization.
  */
-public class RethrottleTests extends ReindexRunAsJobAndTaskTestCase {
+public class RethrottleTests extends ReindexRunAsPersistentAndEphemeralTaskTestCase {
 
     public RethrottleTests(String name) {
         super(name);

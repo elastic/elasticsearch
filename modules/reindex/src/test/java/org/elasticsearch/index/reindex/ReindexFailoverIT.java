@@ -105,11 +105,11 @@ public class ReindexFailoverIT extends ReindexTestCase {
         ReindexRequest reindexRequest = copy.request();
         reindexRequest.setScroll(TimeValue.timeValueSeconds(scrollTimeout));
         reindexRequest.setCheckpointInterval(TimeValue.timeValueMillis(100));
-        StartReindexJobAction.Request request = new StartReindexJobAction.Request(reindexRequest, false);
+        StartReindexTaskAction.Request request = new StartReindexTaskAction.Request(reindexRequest, false);
 
         copy.source().setSize(10);
         copy.setRequestsPerSecond(1000);
-        StartReindexJobAction.Response response = client().execute(StartReindexJobAction.INSTANCE, request).get();
+        StartReindexTaskAction.Response response = client().execute(StartReindexTaskAction.INSTANCE, request).get();
         TaskId taskId = new TaskId(response.getTaskId());
 
         String nodeId = taskId.getNodeId();

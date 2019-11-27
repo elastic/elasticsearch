@@ -26,7 +26,7 @@ import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 
-public class ReindexVersioningTests extends ReindexRunAsJobAndTaskTestCase {
+public class ReindexVersioningTests extends ReindexRunAsPersistentAndEphemeralTaskTestCase {
     private static final int SOURCE_VERSION = 4;
     private static final int OLDER_VERSION = 1;
     private static final int NEWER_VERSION = 10;

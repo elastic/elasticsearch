@@ -29,8 +29,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -39,11 +41,15 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class TransportStartReindexTaskAction
     extends HandledTransportAction<StartReindexTaskAction.Request, StartReindexTaskAction.Response> {
 
+    private final List<String> headersToInclude;
     private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;
     private final ReindexValidator reindexValidator;
@@ -55,6 +61,7 @@ public class TransportStartReindexTaskAction
                                            ClusterService clusterService, PersistentTasksService persistentTasksService,
                                            AutoCreateIndex autoCreateIndex, NamedXContentRegistry xContentRegistry) {
         super(StartReindexTaskAction.NAME, transportService, actionFilters, StartReindexTaskAction.Request::new);
+        this.headersToInclude = ReindexHeaders.REINDEX_INCLUDED_HEADERS.get(settings);
         this.threadPool = threadPool;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.persistentTasksService = persistentTasksService;
@@ -72,9 +79,15 @@ public class TransportStartReindexTaskAction
 
         String generatedId = UUIDs.randomBase64UUID();
 
+        ThreadContext threadContext = threadPool.getThreadContext();
+        Map<String, String> included = headersToInclude.stream()
+            .map(header -> new Tuple<>(header, threadContext.getHeader(header)))
+            .filter(t -> t.v2() != null)
+            .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+
         // In the current implementation, we only need to store task results if we do not wait for completion
         boolean storeTaskResult = request.getWaitForCompletion() == false;
-        ReindexTaskParams job = new ReindexTaskParams(storeTaskResult, threadPool.getThreadContext().getHeaders());
+        ReindexTaskParams job = new ReindexTaskParams(storeTaskResult, included);
 
         ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest());
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {

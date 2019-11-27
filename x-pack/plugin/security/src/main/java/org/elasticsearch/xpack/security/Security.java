@@ -42,6 +42,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.reindex.ReindexHeaders;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
@@ -112,6 +113,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
@@ -568,6 +570,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 SecurityHttpSettings.overrideSettings(builder, settings);
             }
             builder.put(SecuritySettings.addUserSettings(settings));
+            List<String> authHeaders = Arrays.asList(AuthenticationField.AUTHENTICATION_KEY, AuthenticationServiceField.RUN_AS_USER_HEADER);
+            builder.put(ReindexHeaders.REINDEX_INCLUDED_HEADERS.getKey(), Strings.collectionToCommaDelimitedString(authHeaders));
             return builder.build();
         } else {
             return Settings.EMPTY;

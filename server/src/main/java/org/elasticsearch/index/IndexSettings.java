@@ -1027,6 +1027,7 @@ public final class IndexSettings {
     }
 
     private static boolean useSoftDeletesInPeerRecovery(Settings settings) {
+        // TODO: Once all copy has established its PRRLs, we should always use soft-deletes in peer recovery.
         return INDEX_SOFT_DELETES_SETTING.get(settings)
             && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0);
     }

@@ -346,13 +346,15 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context)  {
+    public void parse(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
         context.path().add(simpleName());
+        XContentParser.Token token = null;
+        int level = 0;
         try {
-            XContentParser.Token token = context.parser().currentToken();
+            token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 context.path().remove();
                 return;
@@ -404,7 +406,9 @@ public class HistogramFieldMapper extends FieldMapper {
                         name() + "], with unknown parameter [" + fieldName + "]");
                 }
                 token = context.parser().nextToken();
+                level = maybeAddOrRemoveLevel(token, level);
             }
+            level = 0;
             if (values == null) {
                 throw new MapperParsingException("error parsing field ["
                     + name() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]");
@@ -446,9 +450,26 @@ public class HistogramFieldMapper extends FieldMapper {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]",
                     ex, fieldType().name(), fieldType().typeName());
             }
+            // we need to advance until the end of the field
+            if (token != null) {
+                while (level > 0 || token != XContentParser.Token.END_OBJECT) {
+                    level = maybeAddOrRemoveLevel(token, level);
+                    token = context.parser().nextToken();
+                }
+            }
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+    }
+
+    private int maybeAddOrRemoveLevel(XContentParser.Token token, int level) {
+        if (token == XContentParser.Token.START_OBJECT) {
+            return ++level;
+        }
+        if (token == XContentParser.Token.END_OBJECT) {
+            return --level;
+        }
+        return level;
     }
 
     @Override

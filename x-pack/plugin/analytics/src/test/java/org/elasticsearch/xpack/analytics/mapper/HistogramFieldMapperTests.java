@@ -156,6 +156,78 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
     }
 
+    public void testIgnoreMalformedSkipsField() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
+            .field("ignore_malformed", true)
+            .endObject().startObject("otherField").field("type", "keyword");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("pre_aggregated").startObject()
+                .field("values", new double[] {2, 2})
+                .field("typo", new double[] {2, 2})
+                .endObject()
+                .field("otherField","value")
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+        assertThat(doc.rootDoc().getField("otherField"), notNullValue());
+    }
+
+    public void testIgnoreMalformedSkipsObjects() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
+            .field("ignore_malformed", true)
+            .endObject().startObject("otherField").field("type", "keyword");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("pre_aggregated").startObject()
+                .startObject("values").field("values", new double[] {2, 2})
+                   .startObject("otherData").startObject("more").field("toto", 1)
+                   .endObject().endObject()
+                .endObject()
+                .field("counts", new double[] {2, 2})
+                .endObject()
+                .field("otherField","value")
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+        assertThat(doc.rootDoc().getField("otherField"), notNullValue());
+    }
+
+    public void testIgnoreMalformedSkipsEmpty() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
+            .field("ignore_malformed", true)
+            .endObject().startObject("otherField").field("type", "keyword");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("pre_aggregated").startObject().endObject()
+                .field("otherField","value")
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+        assertThat(doc.rootDoc().getField("otherField"), notNullValue());
+    }
+
     public void testMissingFieldValues() throws Exception {
         ensureGreen();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -381,6 +382,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
+            onShardGroupFailure(shardIndex, e);
             onPhaseDone();
         } else {
             final ShardRouting nextShard = shardIt.nextOrNull();
@@ -389,7 +391,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             logger.trace(() -> new ParameterizedMessage(
                 "{}: Failed to execute [{}] lastShard [{}]",
                 shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
-            if (!lastShard) {
+            if (lastShard == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             } else {
                 // no more shards active, add a failure
@@ -400,9 +402,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
                     }
                 }
+                onShardGroupFailure(shardIndex, e);
             }
         }
     }
+
+    /**
+     * Executed once for every {@link ShardId} that failed on all available shard routing.
+     *
+     * @param shardIndex the shard target that failed
+     * @param exc the final failure reason
+     */
+    protected void onShardGroupFailure(int shardIndex, Exception exc) {}
 
     /**
      * Executed once for every failed shard level request. This method is invoked before the next replica is tried for the given
@@ -443,7 +454,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
         }
-        results.consumeShardFailure(shardIndex, e);
+        results.consumeShardFailure(shardIndex);
     }
 
     /**

@@ -25,7 +25,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -136,13 +135,8 @@ final class FetchSearchPhase extends SearchPhase {
                             // we do this as we go since it will free up resources and passing on the request on the
                             // transport layer is cheap.
                             releaseIrrelevantSearchContext(queryResult.queryResult());
-
-                            // propagate empty result to the progress listener
-                            FetchSearchResult result = new FetchSearchResult();
-                            result.setSearchShardTarget(queryResult.getSearchShardTarget());
-                            result.hits(SearchHits.empty());
+                            progressListener.notifyFetchResult(i);
                         }
-                        progressListener.notifyFetchResult(i);
                         // in any case we count down this result since we don't talk to this shard anymore
                         counter.countDown();
                     } else {
@@ -173,15 +167,11 @@ final class FetchSearchPhase extends SearchPhase {
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
-                    boolean success = false;
                     try {
+                        progressListener.notifyFetchResult(shardIndex);
                         counter.onResult(result);
-                        success = true;
                     } catch (Exception e) {
                         context.onPhaseFailure(FetchSearchPhase.this, "", e);
-                    }
-                    if (success) {
-                        progressListener.notifyFetchResult(shardIndex);
                     }
                 }
 
@@ -189,6 +179,7 @@ final class FetchSearchPhase extends SearchPhase {
                 public void onFailure(Exception e) {
                     try {
                         logger.debug(() -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
+                        progressListener.notifyFetchFailure(shardIndex, e);
                         counter.onFailure(shardIndex, shardTarget, e);
                     } finally {
                         // the search context might not be cleared on the node where the fetch was executed for example
@@ -196,7 +187,6 @@ final class FetchSearchPhase extends SearchPhase {
                         // request to clear the search context.
                         releaseIrrelevantSearchContext(querySearchResult);
                     }
-                    progressListener.onFetchFailure(shardIndex, e);
                 }
             });
     }

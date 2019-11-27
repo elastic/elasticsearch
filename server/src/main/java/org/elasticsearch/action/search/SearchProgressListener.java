@@ -53,17 +53,17 @@ abstract class SearchProgressListener {
     /**
      * Executed when a shard returns a query result.
      *
-     * @param shardIndex The index of the shard in the list provided by onListShards.
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards(List, boolean)} )}.
      */
     public void onQueryResult(int shardIndex) {}
 
     /**
      * Executed when a shard reports a query failure.
      *
-     * @param shardIndex The index of the shard in the list provided by onListShards.
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards(List, boolean)})}.
      * @param exc The cause of the failure.
      */
-    public void onQueryFailure(int shardIndex, Exception exc) { }
+    public void onQueryFailure(int shardIndex, Exception exc) {}
 
     /**
      * Executed when a partial reduce is created. The number of partial reduce can be controlled via
@@ -86,16 +86,16 @@ abstract class SearchProgressListener {
     public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs) {}
 
     /**
-     * Executed when a shard returns a query result.
+     * Executed when a shard returns a fetch result.
      *
-     * @param shardIndex The index of the shard in the list provided by onListShards.
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards(List, boolean)})}.
      */
     public void onFetchResult(int shardIndex) {}
 
     /**
      * Executed when a shard reports a fetch failure.
      *
-     * @param shardIndex The index of the shard in the list provided by onListShards.
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards(List, boolean)})}.
      * @param exc The cause of the failure.
      */
     public void onFetchFailure(int shardIndex, Exception exc) {}
@@ -114,6 +114,15 @@ abstract class SearchProgressListener {
             onQueryResult(shardIndex);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result",
+                shards.get(shardIndex)), e);
+        }
+    }
+
+    final void notifyQueryFailure(int shardIndex, Exception exc) {
+        try {
+            onQueryFailure(shardIndex, exc);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on query failure",
                 shards.get(shardIndex)), e);
         }
     }
@@ -139,6 +148,15 @@ abstract class SearchProgressListener {
             onFetchResult(shardIndex);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch result",
+                shards.get(shardIndex)), e);
+        }
+    }
+
+    final void notifyFetchFailure(int shardIndex, Exception exc) {
+        try {
+            onFetchFailure(shardIndex, exc);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch failure",
                 shards.get(shardIndex)), e);
         }
     }

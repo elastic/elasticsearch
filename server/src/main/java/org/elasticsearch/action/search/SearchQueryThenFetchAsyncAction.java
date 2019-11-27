@@ -36,6 +36,7 @@ import java.util.function.BiFunction;
 final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private final SearchPhaseController searchPhaseController;
+    private final SearchProgressListener progressListener;
 
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
             final BiFunction<String, String, Transport.Connection> nodeIdToConnection, final Map<String, AliasFilter> aliasFilter,
@@ -49,6 +50,7 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
                 searchPhaseController.newSearchPhaseResults(task.getProgressListener(), request, shardsIts.size()),
                 request.getMaxConcurrentShardRequests(), clusters);
         this.searchPhaseController = searchPhaseController;
+        this.progressListener = task.getProgressListener();
         final SearchProgressListener progressListener = task.getProgressListener();
         final SearchSourceBuilder sourceBuilder = request.source();
         progressListener.notifyListShards(progressListener.searchShards(this.shardsIts),
@@ -59,6 +61,11 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
                                        final SearchActionListener<SearchPhaseResult> listener) {
         getSearchTransport().sendExecuteQuery(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
             buildShardSearchRequest(shardIt), getTask(), listener);
+    }
+
+    @Override
+    protected void onShardGroupFailure(int shardIndex, Exception exc) {
+        progressListener.notifyQueryFailure(shardIndex, exc);
     }
 
     @Override

@@ -56,7 +56,7 @@ abstract class SearchPhaseResults<Result extends SearchPhaseResult> {
      */
     abstract boolean hasResult(int shardIndex);
 
-    void consumeShardFailure(int shardIndex, Exception exc) {}
+    void consumeShardFailure(int shardIndex) {}
 
     AtomicArray<Result> getAtomicArray() {
         throw new UnsupportedOperationException();

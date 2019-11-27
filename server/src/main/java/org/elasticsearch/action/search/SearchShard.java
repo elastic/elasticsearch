@@ -43,6 +43,7 @@ public class SearchShard implements Comparable<SearchShard> {
      * Return the cluster alias if the shard is on a remote cluster and <code>null</code>
      * otherwise (local).
      */
+    @Nullable
     public String getClusterAlias() {
         return clusterAlias;
     }

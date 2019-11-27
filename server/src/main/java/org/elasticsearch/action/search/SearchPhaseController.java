@@ -578,6 +578,8 @@ public final class SearchPhaseController {
 
         /**
          * Creates a new {@link QueryPhaseResultConsumer}
+         * @param progressListener a progress listener to be notified when a successful response is received
+         *                         and when a partial or final reduce has completed.
          * @param controller a controller instance to reduce the query response objects
          * @param expectedResultSize the expected number of query results. Corresponds to the number of shards queried
          * @param bufferSize the size of the reduce buffer. if the buffer size is smaller than the number of expected results
@@ -606,11 +608,6 @@ public final class SearchPhaseController {
             this.bufferSize = bufferSize;
             this.topDocsStats = new TopDocsStats(trackTotalHitsUpTo);
             this.performFinalReduce = performFinalReduce;
-        }
-
-        @Override
-        void consumeShardFailure(int shardIndex, Exception exc) {
-            progressListener.onQueryFailure(shardIndex, exc);
         }
 
         @Override
@@ -715,12 +712,6 @@ public final class SearchPhaseController {
             void consumeResult(SearchPhaseResult result) {
                 super.consumeResult(result);
                 listener.notifyQueryResult(result.queryResult().getShardIndex());
-            }
-
-            @Override
-            void consumeShardFailure(int shardIndex, Exception exc) {
-                super.consumeShardFailure(shardIndex, exc);
-                listener.onQueryFailure(shardIndex, exc);
             }
 
             @Override

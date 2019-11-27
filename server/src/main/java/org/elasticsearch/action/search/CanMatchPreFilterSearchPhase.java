@@ -159,7 +159,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         }
 
         @Override
-        void consumeShardFailure(int shardIndex, Exception exc) {
+        void consumeShardFailure(int shardIndex) {
             // we have to carry over shard failures in order to account for them in the response.
             consumeResult(shardIndex, true, null);
         }

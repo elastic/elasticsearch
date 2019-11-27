@@ -18,7 +18,7 @@ efficient to take snapshots of your cluster quite frequently.
 
 // tag::restore-intro[]
 You can restore snapshots into a running cluster via the
-<<restore-snapshot,restore API>>. When you restore an index, you can alter the
+<<snapshots-restore-snapshot,restore API>>. When you restore an index, you can alter the
 name of the restored index as well as some of its settings. There is a great
 deal of flexibility in how the snapshot and restore functionality can be used.
 // end::restore-intro[]
@@ -80,8 +80,8 @@ understand the time requirements before proceeding.
 
 --
 
-include::snapshots-register-repository.asciidoc[]
-include::snapshots-take-snapshot.asciidoc[]
-include::snapshots-restore-snapshot.asciidoc[]
-include::snapshots-monitor-snapshot-restore.asciidoc[]
+include::register-repository.asciidoc[]
+include::take-snapshot.asciidoc[]
+include::restore-snapshot.asciidoc[]
+include::monitor-snapshot-restore.asciidoc[]
 

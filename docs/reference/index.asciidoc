@@ -50,7 +50,7 @@ include::data-rollup-transform.asciidoc[]
 
 include::high-availability.asciidoc[]
 
-include::modules/snapshots.asciidoc[]
+include::snapshot-restore/index.asciidoc[]
 
 include::{xes-repo-dir}/security/index.asciidoc[]
 

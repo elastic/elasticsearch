@@ -5,7 +5,7 @@
 
 Let's get started with snapshot lifecycle management (SLM) by working through a
 hands-on scenario. The goal of this example is to automatically back up {es}
-indices using the <<modules-snapshots,snapshots>> every day at a particular
+indices using the <<snapshot-restore,snapshots>> every day at a particular
 time. Once these snapshots have been created, they are kept for a configured
 amount of time and then deleted per a configured retention policy.
 
@@ -59,7 +59,7 @@ POST /_security/role/slm-read-only
 === Setting up a repository
 
 Before we can set up an SLM policy, we'll need to set up a
-<<snapshots-repositories,snapshot repository>> where the snapshots will be
+snapshot repository where the snapshots will be
 stored. Repositories can use {plugins}/repository.html[many different backends],
 including cloud storage providers. You'll probably want to use one of these in
 production, but for this example we'll use a shared file system repository:

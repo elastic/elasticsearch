@@ -42,20 +42,18 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import java.util.HashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
@@ -86,33 +84,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         IndexMetaData index = indices.get("test");
         assertThat(index, notNullValue());
         assertThat(index.getCreationDate(), allOf(lessThanOrEqualTo(timeAfterRequest), greaterThanOrEqualTo(timeBeforeRequest)));
-    }
-
-    public void testDoubleAddMapping() throws Exception {
-        try {
-            prepareCreate("test")
-                    .addMapping("type1", "date", "type=date")
-                    .addMapping("type1", "num", "type=integer");
-            fail("did not hit expected exception");
-        } catch (IllegalStateException ise) {
-            // expected
-        }
-        try {
-            prepareCreate("test")
-                    .addMapping("type1", new HashMap<String,Object>())
-                    .addMapping("type1", new HashMap<String,Object>());
-            fail("did not hit expected exception");
-        } catch (IllegalStateException ise) {
-            // expected
-        }
-        try {
-            prepareCreate("test")
-                    .addMapping("type1", jsonBuilder().startObject().endObject())
-                    .addMapping("type1", jsonBuilder().startObject().endObject());
-            fail("did not hit expected exception");
-        } catch (IllegalStateException ise) {
-            // expected
-        }
     }
 
     public void testNonNestedMappings() throws Exception {
@@ -148,7 +119,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject()
                         .startObject("type2").endObject()
                     .endObject()).get());
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: Root mapping definition has unsupported parameters"));
+        assertThat(e.getMessage(), startsWith("Failed to parse mapping: Root mapping definition has unsupported parameters"));
     }
 
     public void testEmptyMappings() throws Exception {

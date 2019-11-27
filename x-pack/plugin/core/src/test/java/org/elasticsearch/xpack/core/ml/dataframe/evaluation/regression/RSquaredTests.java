@@ -74,6 +74,21 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
         assertThat(result, equalTo(new RSquared.Result(0.0)));
     }
 
+    public void testEvaluateWithSingleCountZeroVariance() {
+        Aggregations aggs = new Aggregations(Arrays.asList(
+            createSingleMetricAgg("residual_sum_of_squares", 1),
+            createExtendedStatsAgg("extended_stats_actual", 0.0, 1),
+            createExtendedStatsAgg("some_other_extended_stats",99.1, 10_000),
+            createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
+        ));
+
+        RSquared rSquared = new RSquared();
+        rSquared.process(aggs);
+
+        EvaluationMetricResult result = rSquared.getResult().get();
+        assertThat(result, equalTo(new RSquared.Result(0.0)));
+    }
+
     public void testEvaluate_GivenMissingAggs() {
         Aggregations aggs = new Aggregations(Collections.singletonList(
             createSingleMetricAgg("some_other_single_metric_agg", 0.2377)

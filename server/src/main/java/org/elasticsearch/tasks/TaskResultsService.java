@@ -131,7 +131,7 @@ public class TaskResultsService {
             IndexMetaData metaData = state.getMetaData().index(TASK_INDEX);
             if (getTaskResultMappingVersion(metaData) < TASK_RESULT_MAPPING_VERSION) {
                 // The index already exists but doesn't have our mapping
-                client.admin().indices().preparePutMapping(TASK_INDEX).setType(TASK_TYPE)
+                client.admin().indices().preparePutMapping(TASK_INDEX)
                     .setSource(taskResultIndexMapping(), XContentType.JSON)
                     .execute(ActionListener.delegateFailure(listener, (l, r) -> doStoreResult(taskResult, listener)));
             } else {
@@ -141,7 +141,7 @@ public class TaskResultsService {
     }
 
     private int getTaskResultMappingVersion(IndexMetaData metaData) {
-        MappingMetaData mappingMetaData = metaData.getMappings().get(TASK_TYPE);
+        MappingMetaData mappingMetaData = metaData.mapping();
         if (mappingMetaData == null) {
             return 0;
         }

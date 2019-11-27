@@ -142,15 +142,6 @@ INTERVAL 1 DAY + INTERVAL 53 MINUTES
 +1 00:53:00.0    
 ;
 
-intervalPlusNull
-schema::result:string
-SELECT INTERVAL 1 DAY + null AS result;
-
-result
-------------------------------------
-null
-;
-
 datePlusIntervalInline
 SELECT CAST('1969-05-13T12:34:56' AS DATETIME) + INTERVAL 49 YEARS AS result;
 
@@ -176,24 +167,6 @@ SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
 +0 22:00:00.0  
 ;
 
-intervalMinusNull
-schema::result:string
-SELECT INTERVAL '1' DAY - null AS result;
-
-    result     
----------------
-null
-;
-
-nullMinusInterval
-schema::result:string
-SELECT null - INTERVAL '1' DAY AS result;
-
-    result     
----------------
-null
-;
-
 
 intervalYearMultiply
 SELECT -2 * INTERVAL '3' YEARS AS result;
@@ -211,20 +184,20 @@ SELECT -2 * INTERVAL '1 23:45' DAY TO MINUTES AS result;
 -3 23:30:00.0  
 ;
 
-intervalNullMultiply
-schema::result:string
-SELECT null * INTERVAL '1 23:45' DAY TO MINUTES AS result;
-
-    result     
----------------
-null  
-;
-
 intervalHoursMultiply
 SELECT 4 * -INTERVAL '2' HOURS AS result1, -5 * -INTERVAL '3' HOURS AS result2;
     result1    |  result2
 ---------------+--------------
 -0 08:00:00.0  | +0 15:00:00.0
+;
+
+intervalNullMath
+schema::null_multiply:string|null_sub1:string|null_sub2:string|null_add:string
+SELECT null * INTERVAL '1 23:45' DAY TO MINUTES AS null_multiply, INTERVAL '1' DAY - null AS null_sub1, null - INTERVAL '1' DAY AS null_sub2, INTERVAL 1 DAY + null AS null_add;
+
+  null_multiply  |  null_sub1  |  null_sub2  |  null_add  
+-----------------+-------------+-------------+-------------
+null             |null         |null         |null
 ;
 
 intervalAndFieldMultiply

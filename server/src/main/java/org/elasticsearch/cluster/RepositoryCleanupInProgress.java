@@ -110,6 +110,10 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
             this.repositoryStateId = repositoryStateId;
         }
 
+        public long getRepositoryStateId() {
+            return repositoryStateId;
+        }
+
         public String repository() {
             return repository;
         }

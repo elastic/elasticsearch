@@ -21,6 +21,8 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AzureRepositorySettingsTests extends ESTestCase {
 
@@ -41,9 +44,13 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
+        when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
+        when(clusterApplierService.threadPool()).thenReturn(threadPool);
         final AzureRepository azureRepository = new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings),
-            NamedXContentRegistry.EMPTY, mock(AzureStorageService.class),
-                                           mock(ThreadPool.class));
+            NamedXContentRegistry.EMPTY, mock(AzureStorageService.class), clusterService);
         assertThat(azureRepository.getBlobStore(), is(nullValue()));
         return azureRepository;
     }

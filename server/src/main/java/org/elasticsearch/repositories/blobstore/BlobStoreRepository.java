@@ -35,10 +35,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.RepositoryCleanupInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -131,7 +138,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * For in depth documentation on how exactly implementations of this class interact with the snapshot functionality please refer to the
  * documentation of the package {@link org.elasticsearch.repositories.blobstore}.
  */
-public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
+public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository, ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
 
     protected final RepositoryMetaData metadata;
@@ -205,18 +212,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final BlobPath basePath;
 
+    private final ClusterService clusterService;
+
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
-     * @param threadPool Threadpool to run long running repository manipulations on asynchronously
+     * @param clusterService ClusterService
      */
     protected BlobStoreRepository(
         final RepositoryMetaData metadata,
         final NamedXContentRegistry namedXContentRegistry,
-        final ThreadPool threadPool,
+        final ClusterService clusterService,
         final BlobPath basePath) {
         this.metadata = metadata;
-        this.threadPool = threadPool;
+        this.threadPool = clusterService.getClusterApplierService().threadPool();
+        this.clusterService = clusterService;
         this.compress = COMPRESS_SETTING.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
@@ -237,6 +247,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     protected void doStart() {
+        if (isReadOnly() == false) {
+            clusterService.addStateApplier(BlobStoreRepository.this);
+        }
         ByteSizeValue chunkSize = chunkSize();
         if (chunkSize != null && chunkSize.getBytes() <= 0) {
             throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
@@ -244,7 +257,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    protected void doStop() {}
+    protected void doStop() {
+        if (isReadOnly() == false) {
+            clusterService.removeApplier(this);
+        }
+    }
 
     @Override
     protected void doClose() {
@@ -260,6 +277,48 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("cannot close blob store", t);
             }
         }
+    }
+
+    // Inspects all cluster state elements that contain a hint about what the current repository generation is and updates
+    // #latestKnownRepoGen if a newer than currently known generation is found
+    @Override
+    public void applyClusterState(ClusterChangedEvent event) {
+        final ClusterState state = event.state();
+        final String repoName = metadata.name();
+        long bestGenerationFromCS = RepositoryData.EMPTY_REPO_GEN;
+
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+        if (snapshotsInProgress != null) {
+            final SnapshotsInProgress.Entry entry = snapshotsInProgress.entries().stream()
+                .filter(e -> e.snapshot().getRepository().equals(repoName)).findFirst()
+                .orElse(null);
+            if (entry != null) {
+                bestGenerationFromCS = entry.getRepositoryStateId();
+            }
+        }
+
+        final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+        if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && deletionsInProgress != null) {
+            final SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().stream()
+                .filter(e -> e.getSnapshot().getRepository().equals(repoName)).findFirst()
+                .orElse(null);
+            if (entry != null) {
+                bestGenerationFromCS = entry.getRepositoryStateId();
+            }
+        }
+
+        final RepositoryCleanupInProgress cleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
+        if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && cleanupInProgress != null) {
+            final RepositoryCleanupInProgress.Entry entry = cleanupInProgress.entries().stream()
+                .filter(e -> e.repository().equals(repoName)).findFirst()
+                .orElse(null);
+            if (entry != null) {
+                bestGenerationFromCS = entry.getRepositoryStateId();
+            }
+        }
+
+        final long finalBestGen = bestGenerationFromCS;
+        latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
     }
 
     public ThreadPool threadPool() {

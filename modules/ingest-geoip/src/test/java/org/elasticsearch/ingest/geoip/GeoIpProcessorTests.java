@@ -293,11 +293,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> geoData = (List<Map<String, Object>>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData, hasSize(2));
-        assertThat(geoData.get(0), nullValue());
-        assertThat(geoData.get(1), nullValue());
+        assertFalse(ingestDocument.hasField("target_field"));
     }
 
     public void testListFirstOnly() throws Exception {

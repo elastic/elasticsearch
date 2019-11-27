@@ -122,6 +122,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 ingestDocument.setFieldValue(targetField, geoData);
             }
         } else if (ip instanceof List) {
+            boolean match = false;
             List<Map<String, Object>> geoDataList = new ArrayList<>(((List) ip).size());
             for (Object ipAddr : (List) ip) {
                 if (ipAddr instanceof String == false) {
@@ -136,9 +137,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     ingestDocument.setFieldValue(targetField, geoData);
                     return ingestDocument;
                 }
+                match = true;
                 geoDataList.add(geoData);
             }
-            if (firstOnly == false) {
+            if (match) {
                 ingestDocument.setFieldValue(targetField, geoDataList);
             }
         } else {

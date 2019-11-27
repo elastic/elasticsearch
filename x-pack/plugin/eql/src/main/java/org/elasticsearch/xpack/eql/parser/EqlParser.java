@@ -20,7 +20,9 @@ import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.misc.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.eql.expression.Expression;
+import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
+import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 
 import java.util.Arrays;
 import java.util.BitSet;
@@ -30,22 +32,33 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static java.util.Collections.emptyMap;
 
 public class EqlParser {
 
     private static final Logger log = LogManager.getLogger();
 
-    private final boolean DEBUG = true;
+    private final boolean DEBUG = false;
+
+    private final EsIndex index;
+
+    public EqlParser() {
+        this(new EsIndex("<not-specified>", emptyMap()));
+    }
+
+    public EqlParser(EsIndex index) {
+        this.index = index;
+    }
 
     /**
      * Parses an EQL statement into execution plan
      * @param eql - the EQL statement
      */
-    public Expression createStatement(String eql) {
+    public LogicalPlan createStatement(String eql) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", eql);
         }
-        return invokeParser(eql, EqlBaseParser::singleStatement, AstBuilder::expression);
+        return invokeParser(eql, EqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     public Expression createExpression(String expression) {
@@ -94,7 +107,7 @@ public class EqlParser {
                 log.info("Parse tree {} " + tree.toStringTree());
             }
 
-            return visitor.apply(new AstBuilder(), tree);
+            return visitor.apply(new AstBuilder(index), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("SQL statement is too large, " +
                 "causing stack overflow when generating the parsing tree: [{}]", sql);

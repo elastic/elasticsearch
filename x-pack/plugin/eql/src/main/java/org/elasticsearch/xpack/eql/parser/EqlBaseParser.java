@@ -777,12 +777,13 @@ class EqlBaseParser extends Parser {
 
   public static class ConditionContext extends ParserRuleContext {
     public QualifiedNameContext event;
+    public BooleanExpressionContext where;
     public TerminalNode WHERE() { return getToken(EqlBaseParser.WHERE, 0); }
-    public ExpressionContext expression() {
-      return getRuleContext(ExpressionContext.class,0);
-    }
     public QualifiedNameContext qualifiedName() {
       return getRuleContext(QualifiedNameContext.class,0);
+    }
+    public BooleanExpressionContext booleanExpression() {
+      return getRuleContext(BooleanExpressionContext.class,0);
     }
     public ConditionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -814,7 +815,7 @@ class EqlBaseParser extends Parser {
       setState(130);
       match(WHERE);
       setState(131);
-      expression();
+      ((ConditionContext)_localctx).where = booleanExpression(0);
       }
     }
     catch (RecognitionException re) {
@@ -2542,9 +2543,9 @@ class EqlBaseParser extends Parser {
     "\2\2xy\7\27\2\2yz\7\16\2\2z{\7\30\2\2{|\7.\2\2|\23\3\2\2\2}~\7%\2\2~\177"+
     "\5\26\f\2\177\u0081\7&\2\2\u0080\u0082\5\20\t\2\u0081\u0080\3\2\2\2\u0081"+
     "\u0082\3\2\2\2\u0082\25\3\2\2\2\u0083\u0084\5.\30\2\u0084\u0085\7\26\2"+
-    "\2\u0085\u0086\5\30\r\2\u0086\27\3\2\2\2\u0087\u0088\5\32\16\2\u0088\31"+
-    "\3\2\2\2\u0089\u008a\b\16\1\2\u008a\u008b\7\17\2\2\u008b\u008e\5\32\16"+
-    "\6\u008c\u008e\5\34\17\2\u008d\u0089\3\2\2\2\u008d\u008c\3\2\2\2\u008e"+
+    "\2\u0085\u0086\5\32\16\2\u0086\27\3\2\2\2\u0087\u0088\5\32\16\2\u0088"+
+    "\31\3\2\2\2\u0089\u008a\b\16\1\2\u008a\u008b\7\17\2\2\u008b\u008e\5\32"+
+    "\16\6\u008c\u008e\5\34\17\2\u008d\u0089\3\2\2\2\u008d\u008c\3\2\2\2\u008e"+
     "\u0097\3\2\2\2\u008f\u0090\f\4\2\2\u0090\u0091\7\3\2\2\u0091\u0096\5\32"+
     "\16\5\u0092\u0093\f\3\2\2\u0093\u0094\7\22\2\2\u0094\u0096\5\32\16\4\u0095"+
     "\u008f\3\2\2\2\u0095\u0092\3\2\2\2\u0096\u0099\3\2\2\2\u0097\u0095\3\2"+

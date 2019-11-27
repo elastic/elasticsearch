@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.parser;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.eql.tree.Source;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.io.BufferedReader;
 import java.io.IOException;

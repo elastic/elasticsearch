@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.eql.parser;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.IdentifierContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.QualifiedNameContext;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
 
@@ -16,5 +18,14 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     private static String unquoteIdentifier(String identifier) {
         return identifier.replace("\"\"", "\"");
+    }
+
+    @Override
+    public String visitQualifiedName(QualifiedNameContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        return Strings.collectionToDelimitedString(visitList(ctx.identifier(), String.class), ".");
     }
 }

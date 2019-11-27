@@ -10,10 +10,10 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.xpack.eql.expression.Expression;
-import org.elasticsearch.xpack.eql.tree.Location;
-import org.elasticsearch.xpack.eql.tree.Source;
 import org.elasticsearch.xpack.eql.util.Check;
+import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;

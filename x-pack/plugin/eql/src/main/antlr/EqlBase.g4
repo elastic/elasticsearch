@@ -57,7 +57,7 @@ match
     ;
 
 condition
-    : event=qualifiedName WHERE expression
+    : event=qualifiedName WHERE where=booleanExpression
     ;
 
 expression

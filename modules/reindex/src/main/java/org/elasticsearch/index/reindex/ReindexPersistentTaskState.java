@@ -31,13 +31,12 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
-public class ReindexJobState implements Task.Status, PersistentTaskState {
+public class ReindexPersistentTaskState implements Task.Status, PersistentTaskState {
 
-    // TODO: Name
     public static final String NAME = ReindexTask.NAME;
 
-    public static final ConstructingObjectParser<ReindexJobState, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, a -> new ReindexJobState((String) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<ReindexPersistentTaskState, Void> PARSER =
+        new ConstructingObjectParser<>(NAME, a -> new ReindexPersistentTaskState((String) a[0], (String) a[1]));
 
     private static String EPHEMERAL_TASK_ID = "ephemeral_task_id";
     private static String STATUS = "status";
@@ -50,17 +49,17 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     private final TaskId ephemeralTaskId;
     private final Status status;
 
-    private ReindexJobState(String ephemeralTaskId, String status) {
+    private ReindexPersistentTaskState(String ephemeralTaskId, String status) {
         this(new TaskId(ephemeralTaskId), Status.valueOf(status));
     }
 
-    ReindexJobState(TaskId ephemeralTaskId, Status status) {
+    ReindexPersistentTaskState(TaskId ephemeralTaskId, Status status) {
         assert status != null : "Status cannot be null";
         this.ephemeralTaskId = ephemeralTaskId;
         this.status = status;
     }
 
-    public ReindexJobState(StreamInput in) throws IOException {
+    public ReindexPersistentTaskState(StreamInput in) throws IOException {
         ephemeralTaskId = TaskId.readFromStream(in);
         status = in.readEnum(Status.class);
     }
@@ -96,7 +95,7 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
         return ephemeralTaskId;
     }
 
-    public static ReindexJobState fromXContent(XContentParser parser) {
+    public static ReindexPersistentTaskState fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

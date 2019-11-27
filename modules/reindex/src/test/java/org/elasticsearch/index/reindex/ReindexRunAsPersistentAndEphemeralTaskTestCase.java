@@ -30,10 +30,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * This abstract test case will run all the same tests, both as a reindex job (resilient) and as an old style task non-resilient).
+ * This abstract test case will run all the same tests, both as a persistent reindex task (resilient) and as an old style ephemeral task
+ * (non-resilient).
  * This should eventually go away (only necessary in 7.x).
  */
-public abstract class ReindexRunAsJobAndTaskTestCase extends ReindexTestCase {
+public abstract class ReindexRunAsPersistentAndEphemeralTaskTestCase extends ReindexTestCase {
     private final String name;
     private ReindexRequestBuilderFactory requestBuilderFactory;
 
@@ -45,7 +46,7 @@ public abstract class ReindexRunAsJobAndTaskTestCase extends ReindexTestCase {
                 @Override
                 public ActionFuture<BulkByScrollResponse> execute() {
                     PlainActionFuture<BulkByScrollResponse> futureResult = new PlainActionFuture<>();
-                    client.execute(StartReindexJobAction.INSTANCE, new StartReindexJobAction.Request(request(), true),
+                    client.execute(StartReindexTaskAction.INSTANCE, new StartReindexTaskAction.Request(request(), true),
                         ActionListener.delegateFailure(futureResult, (future, result) -> future.onResponse(result.getReindexResponse())));
 
                     return futureResult;
@@ -62,7 +63,7 @@ public abstract class ReindexRunAsJobAndTaskTestCase extends ReindexTestCase {
         ReindexRequestBuilder create(Client client);
     }
 
-    protected ReindexRunAsJobAndTaskTestCase(String name) {
+    protected ReindexRunAsPersistentAndEphemeralTaskTestCase(String name) {
         this.name = name;
         this.requestBuilderFactory = requestBuilderFactories.get(name);
     }

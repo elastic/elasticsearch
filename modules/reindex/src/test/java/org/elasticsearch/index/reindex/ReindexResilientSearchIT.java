@@ -99,8 +99,8 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
         if (randomBoolean()) {
             reindexRequest.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         }
-        StartReindexJobAction.Request request = new StartReindexJobAction.Request(reindexRequest, false);
-        StartReindexJobAction.Response response = client().execute(StartReindexJobAction.INSTANCE, request).get();
+        StartReindexTaskAction.Request request = new StartReindexTaskAction.Request(reindexRequest, false);
+        StartReindexTaskAction.Response response = client().execute(StartReindexTaskAction.INSTANCE, request).get();
 
         TaskId taskId = new TaskId(response.getTaskId());
 

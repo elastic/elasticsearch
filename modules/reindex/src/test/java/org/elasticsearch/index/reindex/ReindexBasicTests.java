@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ReindexBasicTests extends ReindexRunAsJobAndTaskTestCase {
+public class ReindexBasicTests extends ReindexRunAsPersistentAndEphemeralTaskTestCase {
 
     public ReindexBasicTests(String name) {
         super(name);
@@ -108,10 +108,10 @@ public class ReindexBasicTests extends ReindexRunAsJobAndTaskTestCase {
 
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
-        StartReindexJobAction.Request request = new StartReindexJobAction.Request(copy.request(), true);
+        StartReindexTaskAction.Request request = new StartReindexTaskAction.Request(copy.request(), true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
-        BulkByScrollResponse reindexResponse = client().execute(StartReindexJobAction.INSTANCE, request).get().getReindexResponse();
+        BulkByScrollResponse reindexResponse = client().execute(StartReindexTaskAction.INSTANCE, request).get().getReindexResponse();
         assertThat(reindexResponse, matcher().created(max).batches(max, 5));
         refresh("dest");
         assertHitCount(client().prepareSearch("dest").setSize(0).get(), max);
@@ -122,8 +122,8 @@ public class ReindexBasicTests extends ReindexRunAsJobAndTaskTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.maxDocs(half);
-        request = new StartReindexJobAction.Request(copy.request(), true);
-        BulkByScrollResponse reindexResponse2 = client().execute(StartReindexJobAction.INSTANCE, request).get().getReindexResponse();
+        request = new StartReindexTaskAction.Request(copy.request(), true);
+        BulkByScrollResponse reindexResponse2 = client().execute(StartReindexTaskAction.INSTANCE, request).get().getReindexResponse();
         assertThat(reindexResponse2, matcher().created(half).batches(half, 5));
         refresh("dest_half");
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);

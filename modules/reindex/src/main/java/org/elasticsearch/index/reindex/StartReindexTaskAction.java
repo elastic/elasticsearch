@@ -35,13 +35,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class StartReindexJobAction extends ActionType<StartReindexJobAction.Response> {
+public class StartReindexTaskAction extends ActionType<StartReindexTaskAction.Response> {
 
-    public static final StartReindexJobAction INSTANCE = new StartReindexJobAction();
-    // TODO: Name
-    public static final String NAME = "indices:data/write/start_reindex";
+    public static final StartReindexTaskAction INSTANCE = new StartReindexTaskAction();
+    public static final String NAME = "indices:data/write/reindex/start";
 
-    private StartReindexJobAction() {
+    private StartReindexTaskAction() {
         super(NAME, Response::new);
     }
 

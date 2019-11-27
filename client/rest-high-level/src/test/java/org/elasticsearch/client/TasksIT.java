@@ -119,7 +119,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         org.elasticsearch.tasks.TaskInfo info = taskResponse.getTaskInfo();
         assertTrue(info.isCancellable());
         assertEquals("reindex from [source1] to [dest]", info.getDescription());
-        assertEquals("reindex/job[c]", info.getAction());
+        assertEquals("reindex[c]", info.getAction());
         if (taskResponse.isCompleted() == false) {
             assertBusy(ReindexIT.checkCompletionStatus(client(), taskId.toString()));
         }

@@ -287,8 +287,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         try {
+            final ClusterState state = event.state();
             RepositoriesMetaData oldMetaData = event.previousState().getMetaData().custom(RepositoriesMetaData.TYPE);
-            RepositoriesMetaData newMetaData = event.state().getMetaData().custom(RepositoriesMetaData.TYPE);
+            RepositoriesMetaData newMetaData = state.getMetaData().custom(RepositoriesMetaData.TYPE);
 
             // Check if repositories got changed
             if ((oldMetaData == null && newMetaData == null) || (oldMetaData != null && oldMetaData.equals(newMetaData))) {
@@ -345,6 +346,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
             }
             repositories = Collections.unmodifiableMap(builder);
+            for (Repository repo : repositories.values()) {
+                repo.updateState(state);
+            }
         } catch (Exception ex) {
             logger.warn("failure updating cluster state ", ex);
         }

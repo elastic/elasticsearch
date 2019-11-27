@@ -31,14 +31,15 @@ import org.elasticsearch.rest.RestUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -61,6 +62,10 @@ public class AzureHttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+            int read = exchange.getRequestBody().read();
+            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
+        }
         try {
             if (Regex.simpleMatch("PUT /" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
@@ -90,7 +95,7 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("PUT /" + container + "/*", request)) {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
-                final String ifNoneMatch = exchange.getResponseHeaders().getFirst("If-None-Match");
+                final String ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
                 if ("*".equals(ifNoneMatch)) {
                     if (blobs.putIfAbsent(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody())) != null) {
                         sendError(exchange, RestStatus.CONFLICT);
@@ -138,9 +143,6 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("DELETE /" + container + "/*", request)) {
                 // Delete Blob (https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob)
-                try (InputStream is = exchange.getRequestBody()) {
-                    while (is.read() >= 0);
-                }
                 blobs.entrySet().removeIf(blob -> blob.getKey().startsWith(exchange.getRequestURI().getPath()));
                 exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
 
@@ -153,13 +155,32 @@ public class AzureHttpHandler implements HttpHandler {
                 list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                 list.append("<EnumerationResults>");
                 final String prefix = params.get("prefix");
+                final Set<String> blobPrefixes = new HashSet<>();
+                final String delimiter = params.get("delimiter");
+                if (delimiter != null) {
+                    list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
+                }
                 list.append("<Blobs>");
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
-                    if (prefix == null || blob.getKey().startsWith("/" + container + "/" + prefix)) {
-                        list.append("<Blob><Name>").append(blob.getKey().replace("/" + container + "/", "")).append("</Name>");
-                        list.append("<Properties><Content-Length>").append(blob.getValue().length()).append("</Content-Length>");
-                        list.append("<BlobType>BlockBlob</BlobType></Properties></Blob>");
+                    if (prefix != null && blob.getKey().startsWith("/" + container + "/" + prefix) == false) {
+                        continue;
                     }
+                    String blobPath = blob.getKey().replace("/" + container + "/", "");
+                    if (delimiter != null) {
+                        int fromIndex = (prefix != null ? prefix.length() : 0);
+                        int delimiterPosition = blobPath.indexOf(delimiter, fromIndex);
+                        if (delimiterPosition > 0) {
+                            blobPrefixes.add(blobPath.substring(0, delimiterPosition) + delimiter);
+                            continue;
+                        }
+                    }
+                    list.append("<Blob><Name>").append(blobPath).append("</Name>");
+                    list.append("<Properties><Content-Length>").append(blob.getValue().length()).append("</Content-Length>");
+                    list.append("<BlobType>BlockBlob</BlobType></Properties></Blob>");
+                }
+                if (blobPrefixes.isEmpty() == false) {
+                    blobPrefixes.forEach(p -> list.append("<BlobPrefix><Name>").append(p).append("</Name></BlobPrefix>"));
+
                 }
                 list.append("</Blobs>");
                 list.append("</EnumerationResults>");
@@ -177,6 +198,10 @@ public class AzureHttpHandler implements HttpHandler {
         }
     }
 
+    public Map<String, BytesReference> blobs() {
+        return blobs;
+    }
+
     public static void sendError(final HttpExchange exchange, final RestStatus status) throws IOException {
         final Headers headers = exchange.getResponseHeaders();
         headers.add("Content-Type", "application/xml");
@@ -189,12 +214,10 @@ public class AzureHttpHandler implements HttpHandler {
         }
 
         final String errorCode = toAzureErrorCode(status);
-        if (errorCode != null) {
-            // see Constants.HeaderConstants.ERROR_CODE
-            headers.add("x-ms-error-code", errorCode);
-        }
+        // see Constants.HeaderConstants.ERROR_CODE
+        headers.add("x-ms-error-code", errorCode);
 
-        if (errorCode == null || "HEAD".equals(exchange.getRequestMethod())) {
+        if ("HEAD".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(status.getStatus(), -1L);
         } else {
             final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>" + errorCode + "</Code><Message>"

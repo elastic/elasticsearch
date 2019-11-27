@@ -107,7 +107,9 @@ and `JAVA11_HOME` available so that the tests can pass.
 `jrunscript` for jdk distributions.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
-using the wrapper via the `gradlew` script in the root of the repository.
+using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat` 
+script on Windows in the root of the repository. The examples below show the
+usage on Unix.
 
 We support development in the Eclipse and IntelliJ IDEs.
 For Eclipse, the minimum version that we support is [4.13][eclipse].

@@ -38,7 +38,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,7 +60,7 @@ public final class IngestDocument {
     private final Map<String, Object> ingestMetadata;
 
     // Contains all pipelines that have been executed for this document
-    private final Set<Pipeline> executedPipelines = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<String> executedPipelines = new LinkedHashSet<>();
 
     public IngestDocument(String index, String id, String routing,
                           Long version, VersionType versionType, Map<String, Object> source) {
@@ -646,14 +646,23 @@ public final class IngestDocument {
      * @param handler handles the result or failure
      */
     public void executePipeline(Pipeline pipeline, BiConsumer<IngestDocument, Exception> handler) {
-        if (executedPipelines.add(pipeline)) {
+        if (executedPipelines.add(pipeline.getId())) {
             pipeline.execute(this, (result, e) -> {
-                executedPipelines.remove(pipeline);
+                executedPipelines.remove(pipeline.getId());
                 handler.accept(result, e);
             });
         } else {
             handler.accept(null, new IllegalStateException("Cycle detected for pipeline: " + pipeline.getId()));
         }
+    }
+
+    /**
+     * @return a pipeline stack; all pipelines that are in execution by this document in reverse order
+     */
+    List<String> getPipelineStack() {
+        List<String> pipelineStack = new ArrayList<>(executedPipelines);
+        Collections.reverse(pipelineStack);
+        return pipelineStack;
     }
 
     @Override

@@ -385,9 +385,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
 
             if (checkpoint - lastCheckpointCleanup > CHECKPOINT_CLEANUP_INTERVAL) {
-                // delete old checkpoints, this might even fail, but it will be retried in this case
+                // delete old checkpoints, on a failure we keep going
                 cleanupOldCheckpoints(listener);
-                lastCheckpointCleanup = checkpoint;
             } else {
                 listener.onResponse(null);
             }
@@ -525,7 +524,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 ActionListener.wrap(deletes -> {
                     logger.debug("[{}] deleted [{}] outdated checkpoints", getJobId(), deletes);
                     listener.onResponse(null);
-                }, listener::onFailure)
+                    lastCheckpointCleanup = context.getCheckpoint();
+                }, e -> {
+                    logger.warn(
+                        new ParameterizedMessage("[{}] failed to cleanup old checkpoints, retrying after next checkpoint", getJobId()),
+                        e
+                    );
+                    auditor.warning(
+                        getJobId(),
+                        "Failed to cleanup old checkpoints, retrying after next checkpoint. Exception: " + e.getMessage()
+                    );
+
+                    listener.onResponse(null);
+                })
             );
         } else {
             logger.debug("[{}] checked for outdated checkpoints", getJobId());

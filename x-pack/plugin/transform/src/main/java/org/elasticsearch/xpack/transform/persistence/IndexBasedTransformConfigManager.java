@@ -212,7 +212,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
-    public void deleteOldCheckpoints(String transformId, long checkpointLowerBound, long lowerBoundEpochMs, ActionListener<Long> listener) {
+    public void deleteOldCheckpoints(String transformId, long deleteCheckpointsBelow, long deleteOlderThan, ActionListener<Long> listener) {
         DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
         deleteByQueryRequest.indices(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
@@ -222,11 +222,9 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
                 .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformCheckpoint.NAME))
-                .filter(QueryBuilders.rangeQuery(TransformCheckpoint.CHECKPOINT.getPreferredName()).lt(checkpointLowerBound))
+                .filter(QueryBuilders.rangeQuery(TransformCheckpoint.CHECKPOINT.getPreferredName()).lt(deleteCheckpointsBelow))
                 .filter(
-                    QueryBuilders.rangeQuery(TransformField.TIMESTAMP_MILLIS.getPreferredName())
-                        .lt(lowerBoundEpochMs)
-                        .format("epoch_millis")
+                    QueryBuilders.rangeQuery(TransformField.TIMESTAMP_MILLIS.getPreferredName()).lt(deleteOlderThan).format("epoch_millis")
                 )
         );
         logger.debug("Deleting old checkpoints using {}", deleteByQueryRequest.getSearchRequest());

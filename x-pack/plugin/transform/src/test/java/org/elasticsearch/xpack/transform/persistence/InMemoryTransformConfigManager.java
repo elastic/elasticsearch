@@ -82,11 +82,11 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     }
 
     @Override
-    public void deleteOldCheckpoints(String transformId, long checkpointLowerBound, long lowerBoundEpochMs, ActionListener<Long> listener) {
+    public void deleteOldCheckpoints(String transformId, long deleteCheckpointsBelow, long deleteOlderThan, ActionListener<Long> listener) {
         List<TransformCheckpoint> checkpointsById = checkpoints.get(transformId);
         int sizeBeforeDelete = checkpointsById.size();
         if (checkpointsById != null) {
-            checkpointsById.removeIf(cp -> { return cp.getCheckpoint() < checkpointLowerBound && cp.getTimestamp() < lowerBoundEpochMs; });
+            checkpointsById.removeIf(cp -> { return cp.getCheckpoint() < deleteCheckpointsBelow && cp.getTimestamp() < deleteOlderThan; });
         }
         listener.onResponse(Long.valueOf(sizeBeforeDelete - checkpointsById.size()));
     }

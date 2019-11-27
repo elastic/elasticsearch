@@ -37,6 +37,8 @@ import java.util.function.Consumer;
 public abstract class AbstractObjectParser<Value, Context>
         implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
 
+    final ArrayList<String[]> requiredFieldSets = new ArrayList<>();
+
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
      * {@link #declareObject(BiConsumer, ContextParser, ParseField)} rather than call this directly.
@@ -209,6 +211,27 @@ public abstract class AbstractObjectParser<Value, Context>
     public <T> void declareFieldArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> itemParser,
                                       ParseField field, ValueType type) {
         declareField(consumer, (p, c) -> parseArray(p, () -> itemParser.parse(p, c)), field, type);
+    }
+
+    /**
+     * Declares a set of fields that are required for parsing to succeed. Only one of the values
+     * provided per String[] must be matched.  E.g.
+     *
+     * declareRequiredFieldSet(new String[]{"foo", "bar"}); means "foo" or "bar" (or both) fields must be
+     * specified by the user.  If neither of those fields are configured, an exception will be thrown.
+     *
+     * Multiple required sets can be configured:
+     *
+     *   declareRequiredFieldSet(new String[]{"foo", "bar"});
+     *   declareRequiredFieldSet(new String[]{"bizz", "buzz"});
+     *
+     * requires that ("foo" OR "bar") AND ("bizz" OR "buzz") are configured by the user
+     */
+    public void declareRequiredFieldSet(String[] requriedSet) {
+        if (requriedSet.length == 0) {
+            return;
+        }
+        this.requiredFieldSets.add(requriedSet);
     }
 
     private interface IOSupplier<T> {

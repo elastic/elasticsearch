@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -235,10 +236,31 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     unknownFieldParser.acceptUnknownField(name, currentFieldName, currentPosition, parser, value, context);
                 } else {
                     fieldParser.assertSupports(name, parser, currentFieldName);
+
+                    // Check to see if this field is a required field, if it is we can
+                    // remove the entry as the requirement is satisfied
+                    Iterator<String[]> iter = requiredFieldSets.iterator();
+                    while (iter.hasNext()) {
+                        String[] requriedFields = iter.next();
+                        for (String field : requriedFields) {
+                            if (field.equals(currentFieldName)) {
+                                iter.remove();
+                                break;
+                            }
+                        }
+                    }
+
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
             }
+        }
+        if (requiredFieldSets.isEmpty() == false) {
+            StringBuilder message = new StringBuilder();
+            for (String[] fields : requiredFieldSets) {
+                message.append("Required one of fields ").append(Arrays.toString(fields)).append(", but none were specified. ");
+            }
+            throw new IllegalArgumentException(message.toString());
         }
         return value;
     }
@@ -258,6 +280,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     public interface Parser<Value, Context> {
         void parse(XContentParser parser, Value value, Context context) throws IOException;
     }
+
     public void declareField(Parser<Value, Context> p, ParseField parseField, ValueType type) {
         if (parseField == null) {
             throw new IllegalArgumentException("[parseField] is required");

@@ -78,7 +78,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     public void testGetFieldMappings() {
         GetFieldMappingsResponse getFieldMappingsResponse = client().admin().indices().prepareGetFieldMappings().setFields("*").get();
-        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings = getFieldMappingsResponse.mappings();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings = getFieldMappingsResponse.mappings();
         assertEquals(2, mappings.size());
         assertFieldMappings(mappings.get("index1"), ALL_FLAT_FIELDS);
         assertFieldMappings(mappings.get("filtered"), FILTERED_FLAT_FIELDS);
@@ -90,6 +90,14 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setFields("*").get();
         assertEquals(1, response.mappings().size());
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
+    }
+
+    public void testGetNonExistentFieldMapping() {
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index1").setFields("non-existent").get();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings = response.mappings();
+        assertEquals(1, mappings.size());
+        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldmapping = mappings.get("index1");
+        assertEquals(0, fieldmapping.size());
     }
 
     public void testFieldCapabilities() {
@@ -126,11 +134,10 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
     }
 
-    private static void assertFieldMappings(Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings,
+    private static void assertFieldMappings(Map<String, GetFieldMappingsResponse.FieldMappingMetaData> actual,
                                             Collection<String> expectedFields) {
-        assertEquals(1, mappings.size());
-        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(mappings.get("_doc"));
         Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
+        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(actual);
         for (String field : builtInMetaDataFields) {
             GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);
             assertNotNull(" expected field [" + field + "] not found", fieldMappingMetaData);

@@ -92,6 +92,7 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -169,6 +170,9 @@ public class IndicesService extends AbstractLifecycleComponent
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
+    public static final Setting<Boolean> INDICES_ID_FIELD_DATA_ENABLED_SETTING =
+        Setting.boolSetting("indices.id_field_data.enabled", true, Property.Dynamic, Property.NodeScope);
+
 
     /**
      * The node's settings.
@@ -204,6 +208,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
+    private volatile boolean idFieldDataEnabled;
 
     @Override
     protected void doStart() {
@@ -239,6 +244,8 @@ public class IndicesService extends AbstractLifecycleComponent
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.client = client;
+        this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ID_FIELD_DATA_ENABLED_SETTING, this::setIdFieldDataEnabled);
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             @Override
             public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
@@ -564,7 +571,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesQueryCache,
                 mapperRegistry,
                 indicesFieldDataCache,
-                namedWriteableRegistry
+                namedWriteableRegistry,
+                this::isIdFieldDataEnabled
         );
     }
 
@@ -1450,6 +1458,17 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public boolean isMetaDataField(Version indexCreatedVersion, String field) {
         return mapperRegistry.isMetaDataField(indexCreatedVersion, field);
+    }
+
+    /**
+     * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
+     */
+    public boolean isIdFieldDataEnabled() {
+        return idFieldDataEnabled;
+    }
+
+    private void setIdFieldDataEnabled(boolean value) {
+        this.idFieldDataEnabled = value;
     }
 
     /**

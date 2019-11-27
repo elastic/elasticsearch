@@ -75,6 +75,7 @@ public class PasswordToolsTests extends PackagingTestCase {
             dataFiles.forEach(file -> {
                 if (distribution.platform != Distribution.Platform.WINDOWS) {
                     FileUtils.rm(file);
+                    return;
                 }
                 // HACK: windows asynchronously releases file locks after processes exit. Unfortunately there is no clear way to wait on
                 // those locks being released. We might be able to use `openfiles /query`, but that requires modifying global settings

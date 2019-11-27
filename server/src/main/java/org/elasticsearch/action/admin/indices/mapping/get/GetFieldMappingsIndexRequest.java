@@ -35,17 +35,17 @@ public class GetFieldMappingsIndexRequest extends SingleShardRequest<GetFieldMap
     private final boolean includeDefaults;
     private final String[] fields;
 
-    private OriginalIndices originalIndices;
+    private final OriginalIndices originalIndices;
 
     GetFieldMappingsIndexRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readStringArray();
+            in.readStringArray();   // former types array
         }
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
         if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readBoolean();
+            in.readBoolean();       // former probablySingleField boolean
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }

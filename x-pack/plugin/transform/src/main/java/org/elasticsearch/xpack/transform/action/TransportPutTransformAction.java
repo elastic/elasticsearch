@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.transform.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -60,6 +62,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TransportPutTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -263,6 +267,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
 
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
+            logger.debug("[{}] created transform", config.getId());
             auditor.info(config.getId(), "Created transform.");
             listener.onResponse(new AcknowledgedResponse(true));
         }, listener::onFailure);

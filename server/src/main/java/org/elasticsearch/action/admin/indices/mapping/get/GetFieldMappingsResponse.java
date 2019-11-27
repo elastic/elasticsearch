@@ -26,12 +26,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -43,8 +41,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
@@ -140,17 +136,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 a -> new FieldMappingMetaData((String)a[0], (BytesReference)a[1])
             );
 
-        static {
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> p.text(), FULL_NAME, ObjectParser.ValueType.STRING);
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> {
-                    final XContentBuilder jsonBuilder = jsonBuilder().copyCurrentStructure(p);
-                    final BytesReference bytes = BytesReference.bytes(jsonBuilder);
-                    return bytes;
-                }, MAPPING, ObjectParser.ValueType.OBJECT);
-        }
-
         private String fullName;
         private BytesReference source;
 
@@ -171,10 +156,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         //pkg-private for testing
         BytesReference getSource() {
             return source;
-        }
-
-        public static FieldMappingMetaData fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
         }
 
         @Override

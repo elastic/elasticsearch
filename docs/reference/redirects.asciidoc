@@ -1112,3 +1112,8 @@ See <<ml-get-bucket>>,
 <<ml-get-category>>, and
 [[ml-results-overall-buckets]]
 <<ml-get-overall-buckets>>.
+
+[role="exclude",id="modules-snapshots"]
+=== Snapshot module
+
+See <<snapshot-restore>>.

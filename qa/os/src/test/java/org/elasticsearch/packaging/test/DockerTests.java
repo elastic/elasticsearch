@@ -192,7 +192,7 @@ public class DockerTests extends PackagingTestCase {
         mkDirWithPrivilegeEscalation(tempEsDataDir, 1500, 0);
 
         // Restart the container
-        final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), installation.data);
+        final Map<Path, Path> volumes = singletonMap(tempEsDataDir.toAbsolutePath(), Paths.get("/usr/share/elasticsearch/data"));
 
         runContainer(distribution(), volumes, null);
 

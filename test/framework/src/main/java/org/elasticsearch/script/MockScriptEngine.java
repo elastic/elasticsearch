@@ -221,7 +221,11 @@ public class MockScriptEngine implements ScriptEngine {
             BucketAggregationScript.Factory factory = parameters -> new BucketAggregationScript(parameters) {
                 @Override
                 public Double execute(long docCount) {
-                    Object ret = script.apply(getParams());
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("doc_count", docCount);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    Object ret = script.apply(vars);
                     if (ret == null) {
                         return null;
                     } else {

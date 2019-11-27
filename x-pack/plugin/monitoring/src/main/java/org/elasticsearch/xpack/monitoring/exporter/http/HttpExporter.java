@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -272,14 +271,6 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting("xpack.monitoring.exporters.","ssl",
                     (key) -> Setting.groupSetting(
                         key + ".",
-                        settings -> {
-                            final String namespace = HttpExporter.SSL_SETTING.getNamespace(
-                                HttpExporter.SSL_SETTING.getConcreteSetting(key));
-                            final Setting<Settings> concreteSetting = HttpExporter.SSL_SETTING.getConcreteSettingForNamespace(namespace);
-                            validateSslSettings(key, settings);
-                            final SSLService sslService = XPackPlugin.getSharedSslService().createDynamicSSLService();
-                            configureSslStrategy(settings, concreteSetting, sslService);
-                        },
                         Property.Dynamic,
                         Property.NodeScope,
                         Property.Filtered));
@@ -455,12 +446,15 @@ public class HttpExporter extends Exporter {
      * Because it is not possible to re-read the secure settings during a dynamic update, we cannot rebuild the {@link SSLIOSessionStrategy}
      * (see {@link #configureSecurity(RestClientBuilder, Config, SSLService)} if this exporter has been configured with secure settings
      */
-    public static void registerSettingValidators(ClusterService clusterService) {
+    public static void registerSettingValidators(ClusterService clusterService, SSLService sslService) {
         clusterService.getClusterSettings().addAffixUpdateConsumer(SSL_SETTING,
             (ignoreKey, ignoreSettings) -> {
             // no-op update. We only care about the validator
             },
-            HttpExporter::validateSslSettings);
+            (key, settings) -> {
+                validateSslSettings(key, settings);
+                configureSslStrategy(settings, null, sslService);
+            });
     }
 
     /**
@@ -655,7 +649,7 @@ public class HttpExporter extends Exporter {
     }
 
     /**
-     * Configures the {@link SSLIOSessionStrategy} to use. Relies on {@link #registerSettingValidators(ClusterService)}
+     * Configures the {@link SSLIOSessionStrategy} to use. Relies on {@link #registerSettingValidators(ClusterService, SSLService)}
      * to prevent invalid usage of secure settings in the SSL strategy.
      * @param sslSettings The exporter's SSL settings
      * @param concreteSetting Settings to use for {@link SSLConfiguration} if secure settings are used

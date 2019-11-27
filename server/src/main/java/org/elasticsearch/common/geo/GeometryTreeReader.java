@@ -41,7 +41,7 @@ public class GeometryTreeReader implements ShapeTreeReader {
 
     public GeometryTreeReader(BytesRef bytesRef, CoordinateEncoder coordinateEncoder) {
         this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
-        startPosition = 0;
+        this.startPosition = 0;
         this.coordinateEncoder = coordinateEncoder;
     }
 

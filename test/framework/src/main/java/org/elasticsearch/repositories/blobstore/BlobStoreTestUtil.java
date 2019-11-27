@@ -19,7 +19,6 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.util.SameThreadExecutorService;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -27,9 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -70,9 +66,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -298,10 +291,8 @@ public final class BlobStoreTestUtil {
     }
 
     /**
-     * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related
-     * tests that mocks out all the necessary functionality to make {@link BlobStoreRepository}
-     * functionality work. The {@link ClusterService} will always return a state that has the local node set as the current master
-     * node.
+     * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
+     * functionality to make {@link BlobStoreRepository} work.
      *
      * @return Mock ClusterService
      */
@@ -314,12 +305,7 @@ public final class BlobStoreTestUtil {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-        final DiscoveryNode localNode = new DiscoveryNode("fake-node", randomAlphaOfLength(10),
-            buildNewFakeTransportAddress(), emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
-        final AtomicReference<ClusterState> currentState = new AtomicReference<>(ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()).build())
-            .build());
+        final AtomicReference<ClusterState> currentState = new AtomicReference<>(ClusterState.EMPTY_STATE);
         when(clusterService.state()).then(invocationOnMock -> currentState.get());
         final List<ClusterStateApplier> appliers = new CopyOnWriteArrayList<>();
         doAnswer(invocation -> {

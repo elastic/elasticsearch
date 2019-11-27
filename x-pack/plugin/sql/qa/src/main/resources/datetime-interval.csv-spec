@@ -142,6 +142,15 @@ INTERVAL 1 DAY + INTERVAL 53 MINUTES
 +1 00:53:00.0    
 ;
 
+intervalPlusNull
+schema::result:string
+SELECT INTERVAL 1 DAY + null AS result;
+
+result
+------------------------------------
+null
+;
+
 datePlusIntervalInline
 SELECT CAST('1969-05-13T12:34:56' AS DATETIME) + INTERVAL 49 YEARS AS result;
 
@@ -167,6 +176,24 @@ SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
 +0 22:00:00.0  
 ;
 
+intervalMinusNull
+schema::result:string
+SELECT INTERVAL '1' DAY - null AS result;
+
+    result     
+---------------
+null
+;
+
+nullMinusInterval
+schema::result:string
+SELECT null - INTERVAL '1' DAY AS result;
+
+    result     
+---------------
+null
+;
+
 
 intervalYearMultiply
 SELECT -2 * INTERVAL '3' YEARS AS result;
@@ -182,6 +209,15 @@ SELECT -2 * INTERVAL '1 23:45' DAY TO MINUTES AS result;
     result     
 ---------------
 -3 23:30:00.0  
+;
+
+intervalNullMultiply
+schema::result:string
+SELECT null * INTERVAL '1 23:45' DAY TO MINUTES AS result;
+
+    result     
+---------------
+null  
 ;
 
 intervalHoursMultiply

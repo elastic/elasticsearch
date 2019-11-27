@@ -81,7 +81,8 @@ public interface GeoGridTiler {
             }
         }
 
-        protected int setValuesByBruteForceScan(CellIdSource.CellValues values, MultiGeoValues.GeoValue geoValue, int precision, MultiGeoValues.BoundingBox bounds) {
+        protected int setValuesByBruteForceScan(CellIdSource.CellValues values, MultiGeoValues.GeoValue geoValue,
+                                                int precision, MultiGeoValues.BoundingBox bounds) {
             int idx = 0;
             String min = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
             String max = Geohash.stringEncode(bounds.maxX(), bounds.maxY(), precision);
@@ -240,7 +241,8 @@ public interface GeoGridTiler {
             return valuesIndex;
         }
 
-        private int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, CellIdSource.CellValues values, int valuesIndex, int targetPrecision) {
+        private int setValuesForFullyContainedTile(int xTile, int yTile, int zTile,
+                                                   CellIdSource.CellValues values, int valuesIndex, int targetPrecision) {
             zTile++;
             for (int i = 0; i < 2; i++) {
                 for (int j = 0; j < 2; j++) {

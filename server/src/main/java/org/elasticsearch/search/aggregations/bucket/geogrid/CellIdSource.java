@@ -70,7 +70,7 @@ public class CellIdSource extends ValuesSource.Numeric {
         throw new UnsupportedOperationException();
     }
 
-    private static class CellValues extends AbstractSortingNumericDocValues {
+    protected static class CellValues extends AbstractSortingNumericDocValues {
         private MultiGeoValues geoValues;
         private int precision;
         private GeoGridTiler tiler;
@@ -79,6 +79,19 @@ public class CellIdSource extends ValuesSource.Numeric {
             this.geoValues = geoValues;
             this.precision = precision;
             this.tiler = tiler;
+        }
+
+        protected void resizeCell(int newSize) {
+            resize(newSize);
+        }
+
+        protected void add(int idx, long value) {
+           values[idx] = value;
+        }
+
+        // for testing
+        protected long[] getValues() {
+            return values;
         }
 
         @Override
@@ -94,14 +107,8 @@ public class CellIdSource extends ValuesSource.Numeric {
                 } else if (CoreValuesSourceType.GEOSHAPE == vs || CoreValuesSourceType.GEO == vs) {
                     MultiGeoValues.GeoValue target = geoValues.nextValue();
                     // TODO(talevy): determine reasonable circuit-breaker here
-                    // must resize array to contain the upper-bound of matching cells, which
-                    // is the number of tiles that overlap the shape's bounding-box. No need
-                    // to be concerned with original docValueCount since shape doc-values are
-                    // single-valued.
-                    resize((int) tiler.getBoundingTileCount(target, precision));
-                    int matched = tiler.setValues(values, target, precision);
-                    // must truncate array to only contain cells that actually intersected shape
-                    resize(matched);
+                    resize(0);
+                    tiler.setValues(this, target, precision);
                 } else {
                     throw new IllegalArgumentException("unsupported geo type");
                 }

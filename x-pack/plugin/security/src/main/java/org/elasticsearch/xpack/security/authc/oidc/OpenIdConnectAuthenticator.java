@@ -53,8 +53,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
@@ -569,9 +567,7 @@ public class OpenIdConnectAuthenticator {
                     final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
                     final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
                     final SSLContext clientContext = sslService.sslContext(sslConfiguration);
-                    boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
-                    final HostnameVerifier verifier = isHostnameVerificationEnabled ?
-                        new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+                    final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
                     Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
                         .register("http", NoopIOSessionStrategy.INSTANCE)
                         .register("https", new SSLIOSessionStrategy(clientContext, verifier))

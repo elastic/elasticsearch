@@ -333,15 +333,15 @@ public class IngestService implements ClusterStateApplier {
 
     public void executeBulkRequest(int numberOfActionRequests,
                                    Iterable<DocWriteRequest<?>> actionRequests,
-                                   BiConsumer<Integer, Exception> itemFailureHandler,
-                                   BiConsumer<Thread, Exception> completionHandler,
-                                   IntConsumer itemDroppedHandler) {
+                                   BiConsumer<Integer, Exception> onFailure,
+                                   BiConsumer<Thread, Exception> onCompletion,
+                                   IntConsumer onDropped) {
 
         threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
-                completionHandler.accept(null, e);
+                onCompletion.accept(null, e);
             }
 
             @Override
@@ -353,52 +353,81 @@ public class IngestService implements ClusterStateApplier {
                     IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
                         if (counter.decrementAndGet() == 0){
-                            completionHandler.accept(originalThread, null);
-                        }
-                        assert counter.get() >= 0;
-                        continue;
-                    }
-                    String pipelineId = indexRequest.getPipeline();
-                    if (NOOP_PIPELINE_NAME.equals(pipelineId)) {
-                        if (counter.decrementAndGet() == 0){
-                            completionHandler.accept(originalThread, null);
+                            onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
                         continue;
                     }
 
-                    final int slot = i;
-                    try {
-                        PipelineHolder holder = pipelines.get(pipelineId);
-                        if (holder == null) {
-                            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
-                        }
-                        Pipeline pipeline = holder.pipeline;
-                        innerExecute(slot, indexRequest, pipeline, itemDroppedHandler, e -> {
-                            if (e == null) {
-                                // this shouldn't be needed here but we do it for consistency with index api
-                                // which requires it to prevent double execution
-                                indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                            } else {
-                                itemFailureHandler.accept(slot, e);
-                            }
-
-                            if (counter.decrementAndGet() == 0){
-                                completionHandler.accept(originalThread, null);
-                            }
-                            assert counter.get() >= 0;
-                        });
-                    } catch (Exception e) {
-                        itemFailureHandler.accept(slot, e);
-                        if (counter.decrementAndGet() == 0){
-                            completionHandler.accept(originalThread, null);
+                    final String pipelineId = indexRequest.getPipeline();
+                    indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+                    final String finalPipelineId = indexRequest.getFinalPipeline();
+                    indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+                    final List<String> pipelines;
+                    if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
+                        && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                        pipelines = List.of(pipelineId, finalPipelineId);
+                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false ) {
+                        pipelines = List.of(pipelineId);
+                    } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
+                        pipelines = List.of(finalPipelineId);
+                    } else {
+                        if (counter.decrementAndGet() == 0) {
+                            onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
+                        continue;
                     }
+
+                    executePipelines(i, pipelines.iterator(), indexRequest, onDropped, onFailure, counter, onCompletion, originalThread);
+
                     i++;
                 }
             }
         });
+    }
+
+    private void executePipelines(
+        final int slot,
+        final Iterator<String> it,
+        final IndexRequest indexRequest,
+        final IntConsumer onDropped,
+        final BiConsumer<Integer, Exception> onFailure,
+        final AtomicInteger counter,
+        final BiConsumer<Thread, Exception> onCompletion,
+        final Thread originalThread
+    ) {
+        while (it.hasNext()) {
+            final String pipelineId = it.next();
+            try {
+                PipelineHolder holder = pipelines.get(pipelineId);
+                if (holder == null) {
+                    throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+                }
+                Pipeline pipeline = holder.pipeline;
+                innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
+                    if (e != null) {
+                        onFailure.accept(slot, e);
+                    }
+
+                    if (it.hasNext()) {
+                        executePipelines(slot, it, indexRequest, onDropped, onFailure, counter, onCompletion, originalThread);
+                    } else {
+                        if (counter.decrementAndGet() == 0) {
+                            onCompletion.accept(originalThread, null);
+                        }
+                        assert counter.get() >= 0;
+                    }
+                });
+            } catch (Exception e) {
+                onFailure.accept(slot, e);
+                if (counter.decrementAndGet() == 0) {
+                    onCompletion.accept(originalThread, null);
+                }
+                assert counter.get() >= 0;
+                break;
+            }
+        }
     }
 
     public IngestStats stats() {
@@ -470,7 +499,7 @@ public class IngestService implements ClusterStateApplier {
         VersionType versionType = indexRequest.versionType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
         IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
-        pipeline.execute(ingestDocument, (result, e) -> {
+        ingestDocument.executePipeline(pipeline, (result, e) -> {
             long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
             totalMetrics.postIngest(ingestTimeInMillis);
             if (e != null) {

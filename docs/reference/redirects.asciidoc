@@ -1037,3 +1037,12 @@ See <<ref-ad-settings>>.
 
 See <<ad-realm-configuration>>. 
 
+[role="exclude",id="how-security-works"]
+=== How security works
+
+See <<elasticsearch-security>>.
+
+[role="exclude",id="rollup-job-config"]
+=== Rollup job configuration
+
+See <<rollup-put-job-api-request-body>>.

@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -100,6 +101,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
+            NamedXContentRegistry.EMPTY,
             Settings.EMPTY);
 
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2, model3));
@@ -143,6 +145,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
+            NamedXContentRegistry.EMPTY,
             Settings.builder().put(ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE.getKey(), new ByteSizeValue(20L)).build());
 
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2, model3));
@@ -219,6 +222,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
+            NamedXContentRegistry.EMPTY,
             Settings.EMPTY);
 
         modelLoadingService.clusterChanged(ingestChangedEvent(false, model1));
@@ -240,6 +244,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
+            NamedXContentRegistry.EMPTY,
             Settings.EMPTY);
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
@@ -264,6 +269,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
+            NamedXContentRegistry.EMPTY,
             Settings.EMPTY);
 
         PlainActionFuture<Model> future = new PlainActionFuture<>();
@@ -284,6 +290,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
+            NamedXContentRegistry.EMPTY,
             Settings.EMPTY);
 
         for(int i = 0; i < 3; i++) {
@@ -296,17 +303,18 @@ public class ModelLoadingServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void withTrainedModel(String modelId, long size) {
+    private void withTrainedModel(String modelId, long size) throws IOException {
         TrainedModelDefinition definition = mock(TrainedModelDefinition.class);
         when(definition.ramBytesUsed()).thenReturn(size);
         TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
-        when(trainedModelConfig.getDefinition()).thenReturn(definition);
+        when(trainedModelConfig.getModelDefinition()).thenReturn(definition);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             listener.onResponse(trainedModelConfig);
             return null;
         }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(true), any());
+        doAnswer(invocationOnMock -> trainedModelConfig).when(trainedModelConfig).ensureParsedDefinition(any());
     }
 
     private void withMissingModel(String modelId) {

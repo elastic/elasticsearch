@@ -511,7 +511,7 @@ public class TextFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class TextFieldType extends StringFieldType {
+    public static class TextFieldType extends StringFieldType {
 
         private boolean fielddata;
         private double fielddataMinFrequency;

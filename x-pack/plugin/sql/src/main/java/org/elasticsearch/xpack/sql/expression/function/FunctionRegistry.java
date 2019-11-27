@@ -242,7 +242,7 @@ public class FunctionRegistry {
                 def(Sinh.class, Sinh::new, "SINH"),
                 def(Sqrt.class, Sqrt::new, "SQRT"),
                 def(Tan.class, Tan::new, "TAN"),
-                def(Truncate.class, Truncate::new, "TRUNCATE"));
+                def(Truncate.class, Truncate::new, "TRUNCATE", "TRUNC"));
         // String
         addToMap(def(Ascii.class, Ascii::new, "ASCII"),
                 def(BitLength.class, BitLength::new, "BIT_LENGTH"),

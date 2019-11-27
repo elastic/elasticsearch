@@ -501,7 +501,7 @@ public class IngestService implements ClusterStateApplier {
         VersionType versionType = indexRequest.versionType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
         IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
-        pipeline.execute(ingestDocument, (result, e) -> {
+        ingestDocument.executePipeline(pipeline, (result, e) -> {
             long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
             totalMetrics.postIngest(ingestTimeInMillis);
             if (e != null) {

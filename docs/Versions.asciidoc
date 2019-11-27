@@ -1,3 +1,4 @@
+
 include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
 
 :lucene_version:        8.4.0

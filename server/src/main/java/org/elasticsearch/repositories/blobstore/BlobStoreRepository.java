@@ -247,12 +247,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     protected void doStart() {
-        if (isReadOnly() == false) {
-            clusterService.addStateApplier(BlobStoreRepository.this);
-        }
         ByteSizeValue chunkSize = chunkSize();
         if (chunkSize != null && chunkSize.getBytes() <= 0) {
             throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
+        }
+        if (isReadOnly() == false) {
+            clusterService.addStateApplier(BlobStoreRepository.this);
         }
     }
 

@@ -411,14 +411,21 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             throw new RepositoryException(repositoryMetaData.name(),
                 "repository type [" + repositoryMetaData.type() + "] does not exist");
         }
+        boolean success = false;
+        Repository repository = null;
         try {
-            Repository repository = factory.create(repositoryMetaData, factories::get);
+            repository = factory.create(repositoryMetaData, factories::get);
             repository.start();
+            success = true;
             return repository;
         } catch (Exception e) {
             logger.warn(new ParameterizedMessage("failed to create repository [{}][{}]",
                 repositoryMetaData.type(), repositoryMetaData.name()), e);
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(repository);
+            }
         }
     }
 

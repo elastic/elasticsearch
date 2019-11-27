@@ -31,8 +31,8 @@ abstract class AbstractConfusionMatrixMetric implements SoftClassificationMetric
     protected final double[] thresholds;
     private EvaluationMetricResult result;
 
-    protected AbstractConfusionMatrixMetric(double[] thresholds) {
-        this.thresholds = ExceptionsHelper.requireNonNull(thresholds, AT);
+    protected AbstractConfusionMatrixMetric(List<Double> at) {
+        this.thresholds = ExceptionsHelper.requireNonNull(at, AT).stream().mapToDouble(Double::doubleValue).toArray();
         if (thresholds.length == 0) {
             throw ExceptionsHelper.badRequestException("[" + getName() + "." + AT.getPreferredName() + "] must have at least one value");
         }

@@ -35,7 +35,7 @@ public class Precision extends AbstractConfusionMatrixMetric {
     }
 
     public Precision(List<Double> at) {
-        super(at.stream().mapToDouble(Double::doubleValue).toArray());
+        super(at);
     }
 
     public Precision(StreamInput in) throws IOException {

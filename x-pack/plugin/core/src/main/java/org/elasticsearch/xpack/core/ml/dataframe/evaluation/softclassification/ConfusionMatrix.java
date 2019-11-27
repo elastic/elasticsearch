@@ -37,7 +37,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
     }
 
     public ConfusionMatrix(List<Double> at) {
-        super(at.stream().mapToDouble(Double::doubleValue).toArray());
+        super(at);
     }
 
     public ConfusionMatrix(StreamInput in) throws IOException {

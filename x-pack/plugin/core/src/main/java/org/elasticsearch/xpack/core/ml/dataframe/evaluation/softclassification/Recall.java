@@ -35,7 +35,7 @@ public class Recall extends AbstractConfusionMatrixMetric {
     }
 
     public Recall(List<Double> at) {
-        super(at.stream().mapToDouble(Double::doubleValue).toArray());
+        super(at);
     }
 
     public Recall(StreamInput in) throws IOException {

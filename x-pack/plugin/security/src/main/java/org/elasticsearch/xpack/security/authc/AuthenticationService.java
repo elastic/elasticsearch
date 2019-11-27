@@ -420,11 +420,13 @@ public class AuthenticationService {
                     if (index > 0) {
                         final List<Realm> smartOrder = new ArrayList<>(orderedRealmList.size());
                         smartOrder.add(lastSuccess);
-                        for (int i = 1; i < orderedRealmList.size(); i++) {
+                        for (int i = 0; i < orderedRealmList.size(); i++) {
                             if (i != index) {
                                 smartOrder.add(orderedRealmList.get(i));
                             }
                         }
+                        assert smartOrder.size() == orderedRealmList.size() && smartOrder.containsAll(orderedRealmList)
+                            : "Element mismatch between SmartOrder=" + smartOrder + " and DefaultOrder=" + orderedRealmList;
                         return Collections.unmodifiableList(smartOrder);
                     }
                 }

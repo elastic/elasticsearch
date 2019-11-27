@@ -34,42 +34,50 @@ import java.util.Optional;
  */
 public class GeometryTreeReader implements ShapeTreeReader {
 
-    private final int extentOffset = 8;
+    private static final int EXTENT_OFFSET = 8;
+    private final int startPosition;
     private final ByteBufferStreamInput input;
     private final CoordinateEncoder coordinateEncoder;
 
     public GeometryTreeReader(BytesRef bytesRef, CoordinateEncoder coordinateEncoder) {
         this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        this.startPosition = 0;
+        this.coordinateEncoder = coordinateEncoder;
+    }
+
+    private GeometryTreeReader(ByteBufferStreamInput input, CoordinateEncoder coordinateEncoder) throws IOException {
+        this.input = input;
+        startPosition = input.position();
         this.coordinateEncoder = coordinateEncoder;
     }
 
     public double getCentroidX() throws IOException {
-        input.position(0);
+        input.position(startPosition);
         return coordinateEncoder.decodeX(input.readInt());
     }
 
     public double getCentroidY() throws IOException {
-        input.position(4);
+        input.position(startPosition + 4);
         return coordinateEncoder.decodeY(input.readInt());
     }
 
     @Override
     public Extent getExtent() throws IOException {
-        input.position(extentOffset);
+        input.position(startPosition + EXTENT_OFFSET);
         Extent extent = input.readOptionalWriteable(Extent::new);
         if (extent != null) {
             return extent;
         }
         assert input.readVInt() == 1;
         ShapeType shapeType = input.readEnum(ShapeType.class);
-        ShapeTreeReader reader = getReader(shapeType, input);
+        ShapeTreeReader reader = getReader(shapeType, coordinateEncoder, input);
         return reader.getExtent();
     }
 
     @Override
     public GeoRelation relate(Extent extent) throws IOException {
         GeoRelation relation = GeoRelation.QUERY_DISJOINT;
-        input.position(extentOffset);
+        input.position(startPosition + EXTENT_OFFSET);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
             Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(new Extent(input), extent);
@@ -79,9 +87,17 @@ public class GeometryTreeReader implements ShapeTreeReader {
         }
 
         int numTrees = input.readVInt();
+        int nextPosition = input.position();
         for (int i = 0; i < numTrees; i++) {
+            if (numTrees > 1) {
+                if (i > 0) {
+                    input.position(nextPosition);
+                }
+                int pos = input.readVInt();
+                nextPosition = input.position() + pos;
+            }
             ShapeType shapeType = input.readEnum(ShapeType.class);
-            ShapeTreeReader reader = getReader(shapeType, input);
+            ShapeTreeReader reader = getReader(shapeType, coordinateEncoder, input);
             GeoRelation shapeRelation = reader.relate(extent);
             if (GeoRelation.QUERY_CROSSES == shapeRelation ||
                 (GeoRelation.QUERY_DISJOINT == shapeRelation && GeoRelation.QUERY_INSIDE == relation)
@@ -95,7 +111,8 @@ public class GeometryTreeReader implements ShapeTreeReader {
         return relation;
     }
 
-    private static ShapeTreeReader getReader(ShapeType shapeType, ByteBufferStreamInput input) throws IOException {
+    private static ShapeTreeReader getReader(ShapeType shapeType, CoordinateEncoder coordinateEncoder, ByteBufferStreamInput input)
+            throws IOException {
         switch (shapeType) {
             case POLYGON:
                 return new PolygonTreeReader(input);
@@ -105,6 +122,8 @@ public class GeometryTreeReader implements ShapeTreeReader {
             case LINESTRING:
             case MULTILINESTRING:
                 return new EdgeTreeReader(input, false);
+            case GEOMETRYCOLLECTION:
+                return new GeometryTreeReader(input, coordinateEncoder);
             default:
                 throw new UnsupportedOperationException("unsupported shape type [" + shapeType + "]");
         }

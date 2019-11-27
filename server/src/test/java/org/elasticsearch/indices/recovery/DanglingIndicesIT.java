@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -67,7 +66,8 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                deleteIndex(INDEX_NAME);
+                logger.info("--> deleting test index: {}", INDEX_NAME);
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -101,7 +101,8 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                deleteIndex(INDEX_NAME);
+                logger.info("--> deleting test index: {}", INDEX_NAME);
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -119,7 +120,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 Settings.builder()
                     .put("number_of_shards", shardCount)
                     .put("number_of_replicas", replicaCount)
-                    .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)
             )
         );
         ensureGreen();
@@ -138,11 +138,5 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         assertThat(client().prepareSearch(name).setSize(0).get().getHits().getTotalHits().value, equalTo((long) numDocs));
 
         client().admin().indices().prepareStats(name).execute().actionGet();
-    }
-
-    private void deleteIndex(String indexName) {
-        logger.info("--> deleting test index: {}", indexName);
-
-        assertAcked(client().admin().indices().prepareDelete(indexName));
     }
 }

@@ -68,30 +68,25 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
-    private boolean allocateDanglingIndices;
-
     @Inject
     public DanglingIndicesState(NodeEnvironment nodeEnv, MetaStateService metaStateService,
                                 LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
-        this.allocateDanglingIndices = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
 
-        if (this.allocateDanglingIndices) {
+        boolean allocateDanglingIndices = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
+
+        if (allocateDanglingIndices) {
             clusterService.addListener(this);
         }
-    }
-
-    public void setAllocateDanglingIndicesSetting(boolean allocateDanglingIndices) {
-        this.allocateDanglingIndices = allocateDanglingIndices;
     }
 
     /**
      * Process dangling indices based on the provided meta data, handling cleanup, finding
      * new dangling indices, and allocating outstanding ones.
      */
-    public void processDanglingIndices(final MetaData metaData) {
+    private void processDanglingIndices(final MetaData metaData) {
         if (nodeEnv.hasNodeFile() == false) {
             return;
         }
@@ -189,10 +184,6 @@ public class DanglingIndicesState implements ClusterStateListener {
      * for allocation.
      */
     void allocateDanglingIndices() {
-        if (this.allocateDanglingIndices == false) {
-            return;
-        }
-
         if (danglingIndices.isEmpty()) {
             return;
         }

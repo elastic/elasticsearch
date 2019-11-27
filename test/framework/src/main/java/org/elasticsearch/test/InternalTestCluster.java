@@ -1472,15 +1472,15 @@ public final class InternalTestCluster extends TestCluster {
      * Stops a random data node in the cluster and removes it.
      * @return the name of the stopped node, if a node was found to stop.
      */
-    public synchronized Optional<String> stopRandomDataNode() throws IOException {
+    public synchronized boolean stopRandomDataNode() throws IOException {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(DATA_NODE_PREDICATE);
         if (nodeAndClient != null) {
             logger.info("Closing random node [{}] ", nodeAndClient.name);
             stopNodesAndClient(nodeAndClient);
-            return Optional.of(nodeAndClient.name);
+            return true;
         }
-        return Optional.empty();
+        return false;
     }
 
     /**
@@ -1903,12 +1903,6 @@ public final class InternalTestCluster extends TestCluster {
      */
     public String startNode(Settings settings) {
         return startNodes(settings).get(0);
-    }
-
-    public void startNode(String nodeName) {
-        final NodeAndClient nodeAndClient = nodes.get(nodeName);
-        assertNotNull("No client found for node name: " + nodeName, nodeAndClient);
-        nodeAndClient.startNode();
     }
 
     /**

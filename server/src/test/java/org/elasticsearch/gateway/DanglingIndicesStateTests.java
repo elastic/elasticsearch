@@ -47,10 +47,10 @@ import static org.mockito.Mockito.when;
 public class DanglingIndicesStateTests extends ESTestCase {
 
     private static Settings indexSettings = Settings.builder()
-        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-        .build();
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build();
 
     public void testCleanupWhenEmpty() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {

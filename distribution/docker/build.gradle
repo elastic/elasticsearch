@@ -214,6 +214,7 @@ subprojects { Project subProject ->
 
     final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
       executable 'docker'
+      outputs.file(tarFile)
       args "save",
         "-o",
         tarFile,

@@ -114,12 +114,8 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
         }
 
         private static long diffInMinutes(ZonedDateTime start, ZonedDateTime end) {
-            long secondsDiff = diffInSeconds(start, end);
-            if (secondsDiff > 0) {
-                return (long) Math.ceil(secondsDiff / 60.0d);
-            } else {
-                return (long) Math.floor(secondsDiff / 60.0d);
-            }
+            // Truncate first to minutes (ignore any seconds and sub-seconds fields)
+            return (end.toEpochSecond() / 60) - (start.toEpochSecond() / 60);
         }
 
         private static long diffInHours(ZonedDateTime start, ZonedDateTime end) {

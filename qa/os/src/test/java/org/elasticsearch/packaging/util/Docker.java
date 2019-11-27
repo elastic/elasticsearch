@@ -21,8 +21,11 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.elasticsearch.common.CheckedRunnable;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +37,7 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
+import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -281,6 +285,76 @@ public class Docker {
     }
 
     /**
+     * Run privilege escalated shell command on the local file system via a bind mount inside a Docker container.
+     * @param shellCmd The shell command to execute on the localPath e.g. `mkdir /containerPath/dir`.
+     * @param localPath The local path where shellCmd will be executed on (inside a container).
+     * @param containerPath The path to mount localPath inside the container.
+     */
+    private static void executePrivilegeEscalatedShellCmd(String shellCmd, Path localPath, Path containerPath) {
+        final List<String> args = new ArrayList<>();
+
+        args.add("docker run");
+
+        // Don't leave orphaned containers
+        args.add("--rm");
+
+        // Mount localPath to a known location inside the container, so that we can execute shell commands on it later
+        args.add("--volume \"" + localPath.getParent() + ":" + containerPath.getParent() + "\"");
+
+        // Use a lightweight musl libc based small image
+        args.add("alpine");
+
+        // And run inline commands via the POSIX shell
+        args.add("/bin/sh -c \"" + shellCmd + "\"");
+
+        final String command = String.join(" ", args);
+        logger.info("Running command: " + command);
+        sh.run(command);
+    }
+
+    /**
+     * Create a directory with specified uid/gid using Docker backed privilege escalation.
+     * @param localPath The path to the directory to create.
+     * @param uid The numeric id for localPath
+     * @param gid The numeric id for localPath
+     */
+    public static void mkDirWithPrivilegeEscalation(Path localPath, int uid, int gid) {
+        final Path containerBasePath = Paths.get("/mount");
+        final Path containerPath = containerBasePath.resolve(Paths.get("/").relativize(localPath));
+        final List<String> args = new ArrayList<>();
+
+        args.add("mkdir " + containerPath.toAbsolutePath());
+        args.add("&&");
+        args.add("chown " + uid + ":" + gid + " " + containerPath.toAbsolutePath());
+        args.add("&&");
+        args.add("chmod 0770 " + containerPath.toAbsolutePath());
+        final String command = String.join(" ", args);
+        executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
+
+        final PosixFileAttributes dirAttributes = FileUtils.getPosixFileAttributes(localPath);
+        final Map<String, Integer> numericPathOwnership = FileUtils.getNumericUnixPathOwnership(localPath);
+        assertEquals(localPath + " has wrong uid", numericPathOwnership.get("uid").intValue(), uid);
+        assertEquals(localPath + " has wrong gid", numericPathOwnership.get("gid").intValue(), gid);
+        assertEquals(localPath + " has wrong permissions", dirAttributes.permissions(), p770);
+    }
+
+    /**
+     * Delete a directory using Docker backed privilege escalation.
+     * @param localPath The path to the directory to delete.
+     */
+    public static void rmDirWithPrivilegeEscalation(Path localPath) {
+        final Path containerBasePath = Paths.get("/mount");
+        final Path containerPath = containerBasePath.resolve(Paths.get("/").relativize(localPath));
+        final List<String> args = new ArrayList<>();
+
+        args.add("cd " + containerBasePath.toAbsolutePath());
+        args.add("&&");
+        args.add("rm -rf " + localPath.getFileName());
+        final String command = String.join(" ", args);
+        executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
+    }
+
+    /**
      * Checks that the specified path's permissions and ownership match those specified.
      */
     public static void assertPermissionsAndOwnership(Path path, Set<PosixFilePermission> expectedPermissions) {
@@ -409,7 +483,7 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
     }
 
-    private static void withLogging(ThrowingRunnable r) throws Exception {
+    private static <E extends Exception> void withLogging(CheckedRunnable<E> r) throws Exception {
         try {
             r.run();
         } catch (Exception e) {
@@ -417,9 +491,5 @@ public class Docker {
             logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
             throw e;
         }
-    }
-
-    private interface ThrowingRunnable {
-        void run() throws Exception;
     }
 }

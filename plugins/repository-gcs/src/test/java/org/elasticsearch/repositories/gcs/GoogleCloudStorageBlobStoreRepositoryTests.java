@@ -77,7 +77,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
         return Map.of(
-            "/", new GoogleCloudStorageHttpHandler("bucket"),
+            "/", new GoogleCloudStorageBlobStoreHttpHandler("bucket"),
             "/token", new FakeOAuth2HttpHandler()
         );
     }
@@ -186,6 +186,14 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
+    @SuppressForbidden(reason = "this test uses a HttpHandler to emulate a Google Cloud Storage endpoint")
+    private static class GoogleCloudStorageBlobStoreHttpHandler extends GoogleCloudStorageHttpHandler implements BlobStoreHttpHandler {
+
+        GoogleCloudStorageBlobStoreHttpHandler(final String bucket) {
+            super(bucket);
+        }
+    }
+
     /**
      * HTTP handler that injects random  Google Cloud Storage service errors
      *
@@ -204,7 +212,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             if ("/token".equals(exchange.getRequestURI().getPath())) {
                 try {
                     // token content is unique per node (not per request)
-                    return Streams.readFully(exchange.getRequestBody()).utf8ToString();
+                    return Streams.readFully(Streams.noCloseStream(exchange.getRequestBody())).utf8ToString();
                 } catch (IOException e) {
                     throw new AssertionError("Unable to read token request body", e);
                 }

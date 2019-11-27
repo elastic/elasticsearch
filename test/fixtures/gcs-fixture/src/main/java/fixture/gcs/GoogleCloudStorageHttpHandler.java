@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
@@ -64,7 +65,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
-    private final ConcurrentMap<String, BytesArray> blobs;
+    private final ConcurrentMap<String, BytesReference> blobs;
     private final String bucket;
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
@@ -75,7 +76,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+            int read = exchange.getRequestBody().read();
+            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
+        }
         try {
+            // Request body is closed in the finally block
+            final InputStream wrappedRequest = Streams.noCloseStream(exchange.getRequestBody());
             if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
                 final Map<String, String> params = new HashMap<>();
@@ -86,7 +93,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final Set<String> prefixes = new HashSet<>();
                 final List<String> listOfBlobs = new ArrayList<>();
 
-                for (final Map.Entry<String, BytesArray> blob : blobs.entrySet()) {
+                for (final Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
                     final String blobName = blob.getKey();
                     if (prefix.isEmpty() || blobName.startsWith(prefix)) {
                         int delimiterPos = (delimiter != null) ? blobName.substring(prefix.length()).indexOf(delimiter) : -1;
@@ -122,7 +129,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/" + bucket + "/o/*", request)) {
                 // Download Object https://cloud.google.com/storage/docs/request-body
-                BytesArray blob = blobs.get(exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", ""));
+                BytesReference blob = blobs.get(exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", ""));
                 if (blob != null) {
                     final String range = exchange.getRequestHeaders().getFirst("Range");
                     Matcher matcher = Pattern.compile("bytes=([0-9]*)-([0-9]*)").matcher(range);
@@ -130,7 +137,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         throw new AssertionError("Range bytes header does not match expected format: " + range);
                     }
 
-                    byte[] response = Integer.parseInt(matcher.group(1)) == 0 ? blob.array() : new byte[0];
+                    byte[] response = Integer.parseInt(matcher.group(1)) == 0 ? BytesReference.toBytes(blob) : new byte[0];
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
@@ -141,8 +148,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             } else if (Regex.simpleMatch("DELETE /storage/v1/b/" + bucket + "/o/*", request)) {
                 // Delete Object https://cloud.google.com/storage/docs/json_api/v1/objects/delete
                 int deletions = 0;
-                for (Iterator<Map.Entry<String, BytesArray>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
-                    Map.Entry<String, BytesArray> blob = iterator.next();
+                for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
+                    Map.Entry<String, BytesReference> blob = iterator.next();
                     if (blob.getKey().equals(exchange.getRequestURI().toString())) {
                         iterator.remove();
                         deletions++;
@@ -154,7 +161,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // Batch https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch
                 final String uri = "/storage/v1/b/" + bucket + "/o/";
                 final StringBuilder batch = new StringBuilder();
-                for (String line : Streams.readAllLines(new BufferedInputStream(exchange.getRequestBody()))) {
+                for (String line : Streams.readAllLines(new BufferedInputStream(wrappedRequest))) {
                     if (line.length() == 0 || line.startsWith("--") || line.toLowerCase(Locale.ROOT).startsWith("content")) {
                         batch.append(line).append('\n');
                     } else if (line.startsWith("DELETE")) {
@@ -174,7 +181,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=multipart*", request)) {
                 // Multipart upload
-                Optional<Tuple<String, BytesArray>> content = parseMultipartRequestBody(exchange.getRequestBody());
+                Optional<Tuple<String, BytesArray>> content = parseMultipartRequestBody(wrappedRequest);
                 if (content.isPresent()) {
                     blobs.put(content.get().v1(), content.get().v2());
 
@@ -193,7 +200,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final String blobName = params.get("name");
                 blobs.put(blobName, BytesArray.EMPTY);
 
-                byte[] response = Streams.readFully(exchange.getRequestBody()).utf8ToString().getBytes(UTF_8);
+                byte[] response = Streams.readFully(wrappedRequest).utf8ToString().getBytes(UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.getResponseHeaders().add("Location", httpServerUrl(exchange) + "/upload/storage/v1/b/" + bucket + "/o?"
                     + "uploadType=resumable"
@@ -208,19 +215,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
                 final String blobName = params.get("test_blob_name");
-                byte[] blob = blobs.get(blobName).array();
-                if (blob == null) {
+                if (blobs.containsKey(blobName) == false) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     return;
                 }
-
+                byte[] blob = BytesReference.toBytes(blobs.get(blobName));
                 final String range = exchange.getRequestHeaders().getFirst("Content-Range");
                 final Integer limit = getContentRangeLimit(range);
                 final int start = getContentRangeStart(range);
                 final int end = getContentRangeEnd(range);
 
                 final ByteArrayOutputStream out = new ByteArrayOutputStream();
-                long bytesRead = Streams.copy(exchange.getRequestBody(), out);
+                long bytesRead = Streams.copy(wrappedRequest, out);
                 int length = Math.max(end + 1, limit != null ? limit : 0);
                 if ((int) bytesRead > length) {
                     throw new AssertionError("Requesting more bytes than available for blob");
@@ -245,8 +251,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
             }
         } finally {
+            int read = exchange.getRequestBody().read();
+            assert read == -1 : "Request body should have been fully read here but saw [" + read + "]";
             exchange.close();
         }
+    }
+
+    public Map<String, BytesReference> blobs() {
+        return blobs;
     }
 
     private String httpServerUrl(final HttpExchange exchange) {

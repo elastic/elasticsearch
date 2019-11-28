@@ -55,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
  * Field Mapper for pre-aggregated histograms.
@@ -105,32 +104,6 @@ public class HistogramFieldMapper extends FieldMapper {
             return HistogramFieldMapper.Defaults.IGNORE_MALFORMED;
         }
 
-        @Override
-        public Builder store(boolean store) {
-            if (store) {
-                throw new IllegalArgumentException("The [" + CONTENT_TYPE + "] field does not support " +
-                    "stored fields");
-            }
-            return super.store(false);
-        }
-
-        @Override
-        public Builder index(boolean index) {
-            if (index) {
-                throw new IllegalArgumentException("The [" + CONTENT_TYPE + "] field does not support indexing");
-            }
-            return super.store(false);
-        }
-
-        @Override
-        public Builder indexOptions(IndexOptions indexOptions) {
-            if (indexOptions.equals(IndexOptions.NONE) == false) {
-                throw new IllegalArgumentException("The [" + CONTENT_TYPE + "] field does not support " +
-                    "index options, got [index_options]=" + indexOptionToString(indexOptions));
-            }
-            return super.indexOptions(indexOptions);
-        }
-
         public HistogramFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
                                           MappedFieldType defaultFieldType, Settings indexSettings,
                                           MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
@@ -152,7 +125,6 @@ public class HistogramFieldMapper extends FieldMapper {
                                                                    Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
-            parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();

@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -497,92 +496,6 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
 
         Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("[counts] elements must be >= 0 but got -3"));
-    }
-
-    public void testSetStoredField() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("store", true);
-        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-
-        DocumentMapperParser documentMapperParser = createIndex("test").mapperService().documentMapperParser();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            documentMapperParser.parse("_doc", new CompressedXContent(mapping)));
-        assertThat(e.getMessage(), containsString("The [histogram] field does not support stored fields"));
-
-        xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("store", false);
-        String mapping2 = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-        DocumentMapper defaultMapper = documentMapperParser.parse("_doc", new CompressedXContent(mapping2));
-        assertNotNull(defaultMapper);
-    }
-
-    public void testSetIndexField() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("index", true);
-        final String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-
-        DocumentMapperParser documentMapperParser = createIndex("test").mapperService().documentMapperParser();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            documentMapperParser.parse("_doc", new CompressedXContent(mapping)));
-        assertThat(e.getMessage(), containsString("The [histogram] field does not support indexing"));
-
-        xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("index", false);
-        final String mapping2 = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-
-        DocumentMapper defaultMapper = documentMapperParser.parse("_doc", new CompressedXContent(mapping2));
-        assertNotNull(defaultMapper);
-    }
-
-    public void testSetDocValuesField() throws Exception {
-        ensureGreen();
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("doc_values", false);
-        final String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-
-        DocumentMapperParser documentMapperParser = createIndex("test").mapperService().documentMapperParser();
-
-        DocumentMapper defaultMapper = documentMapperParser.parse("_doc", new CompressedXContent(mapping));
-        assertNotNull(defaultMapper);
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("values", new double[]  {2, 3})
-                .field("counts", new int[] {4, 6})
-                .endObject()
-                .endObject()),
-            XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
-
-        xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
-            .field("doc_values", true);
-        final String mapping2 = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
-
-        defaultMapper = documentMapperParser.parse("_doc", new CompressedXContent(mapping2));
-        assertNotNull(defaultMapper);
-
-        doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("pre_aggregated").startObject()
-                .field("values", new double[] {2, 3})
-                .field("counts", new int[] {4, 6})
-                .endObject()
-                .endObject()),
-            XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("pre_aggregated"), notNullValue());
     }
 
     @Override

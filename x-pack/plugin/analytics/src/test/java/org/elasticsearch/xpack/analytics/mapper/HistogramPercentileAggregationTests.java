@@ -74,8 +74,8 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         DoubleHistogram histogram = new DoubleHistogram(numberOfSignificantValueDigits);
         BulkRequest bulkRequest = new BulkRequest();
 
-        int numDocs = 100000;
-        int frq = 10000;
+        int numDocs = 10000;
+        int frq = 1000;
 
         for (int i =0; i < numDocs; i ++) {
             double value  = random().nextDouble();
@@ -168,8 +168,8 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         TDigestState histogram = new TDigestState(compression);
         BulkRequest bulkRequest = new BulkRequest();
 
-        int numDocs = 100000;
-        int frq = 10000;
+        int numDocs = 10000;
+        int frq = 1000;
 
         for (int i =0; i < numDocs; i ++) {
             double value  = random().nextDouble();

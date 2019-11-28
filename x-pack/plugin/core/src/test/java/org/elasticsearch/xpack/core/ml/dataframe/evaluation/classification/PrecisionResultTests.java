@@ -9,15 +9,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.PerClassResult;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.Result;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.PerClassResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.Result;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class AccuracyResultTests extends AbstractWireSerializingTestCase<Result> {
+public class PrecisionResultTests extends AbstractWireSerializingTestCase<Result> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -30,15 +30,15 @@ public class AccuracyResultTests extends AbstractWireSerializingTestCase<Result>
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
         List<PerClassResult> classes = new ArrayList<>(numClasses);
         for (int i = 0; i < numClasses; i++) {
-            double accuracy = randomDoubleBetween(0.0, 1.0, true);
-            classes.add(new PerClassResult(classNames.get(i), randomNonNegativeLong(), accuracy));
+            double precision = randomDoubleBetween(0.0, 1.0, true);
+            classes.add(new PerClassResult(classNames.get(i), precision));
         }
-        double overallAccuracy = randomDoubleBetween(0.0, 1.0, true);
-        return new Result(classes, overallAccuracy);
+        double avgPrecision = randomDoubleBetween(0.0, 1.0, true);
+        return new Result(classes, avgPrecision);
     }
 
     @Override
-    protected Writeable.Reader<Accuracy.Result> instanceReader() {
+    protected Writeable.Reader<Result> instanceReader() {
         return Result::new;
     }
 }

@@ -15,11 +15,16 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
+import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -33,40 +38,44 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * {@link Accuracy} is a metric that answers the question:
- *   "What fraction of documents have been classified correctly by the classifier?"
+ * {@link Precision} is a metric that answers the question:
+ *   "What fraction of documents classified as X actually belongs to X?"
+ * for any given class name X
  *
- * equation: accuracy = 1/n * Σ(y == y´)
+ * equation: precision = 1/#{docs predicted as X} * Σ(y == y´)
  */
-public class Accuracy implements ClassificationMetric {
+public class Precision implements ClassificationMetric {
 
-    public static final ParseField NAME = new ParseField("accuracy");
+    public static final ParseField NAME = new ParseField("precision");
 
     private static final String PAINLESS_TEMPLATE = "doc[''{0}''].value == doc[''{1}''].value";
-    private static final String AGG_NAME_PREFIX = "classification_accuracy_";
-    static final String BY_ACTUAL_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_actual_class";
-    static final String PER_ACTUAL_CLASS_ACCURACY_AGG_NAME = AGG_NAME_PREFIX + "per_actual_class_accuracy";
-    static final String OVERALL_ACCURACY_AGG_NAME = AGG_NAME_PREFIX + "overall_accuracy";
+    private static final String AGG_NAME_PREFIX = "classification_precision_";
+    static final String ACTUAL_CLASSES_NAMES_AGG_NAME = AGG_NAME_PREFIX + "by_actual_class";
+    static final String BY_PREDICTED_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_predicted_class";
+    static final String PER_PREDICTED_CLASS_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "per_predicted_class_precision";
+    static final String AVG_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "avg_precision";
 
     private static String buildScript(Object...args) {
         return new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args);
     }
 
-    private static final ObjectParser<Accuracy, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Accuracy::new);
+    private static final ObjectParser<Precision, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Precision::new);
 
-    public static Accuracy fromXContent(XContentParser parser) {
+    public static Precision fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
+    private List<String> topActualClassNames;
     private EvaluationMetricResult result;
 
-    public Accuracy() {}
+    public Precision() {}
 
-    public Accuracy(StreamInput in) throws IOException {}
+    public Precision(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -80,34 +89,53 @@ public class Accuracy implements ClassificationMetric {
 
     @Override
     public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
-        if (result != null) {
-            return Tuple.tuple(List.of(), List.of());
+        if (topActualClassNames == null) {  // This is step 1
+            return Tuple.tuple(
+                List.of(
+                    AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
+                        .field(actualField)
+                        .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))),
+                List.of());
         }
-        Script script = new Script(buildScript(actualField, predictedField));
-        return Tuple.tuple(
-            List.of(
-                AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
-                    .field(actualField)
-                    .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_ACCURACY_AGG_NAME).script(script)),
-                AggregationBuilders.avg(OVERALL_ACCURACY_AGG_NAME).script(script)),
-            List.of());
+        if (result == null) {  // This is step 2
+            KeyedFilter[] keyedFiltersPredicted =
+                topActualClassNames.stream()
+                    .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
+                    .toArray(KeyedFilter[]::new);
+            Script script = new Script(buildScript(actualField, predictedField));
+            return Tuple.tuple(
+                List.of(
+                    AggregationBuilders.filters(BY_PREDICTED_CLASS_AGG_NAME, keyedFiltersPredicted)
+                        .subAggregation(AggregationBuilders.avg(PER_PREDICTED_CLASS_PRECISION_AGG_NAME).script(script))),
+                List.of(
+                    PipelineAggregatorBuilders.avgBucket(
+                        AVG_PRECISION_AGG_NAME,
+                        BY_PREDICTED_CLASS_AGG_NAME + ">" + PER_PREDICTED_CLASS_PRECISION_AGG_NAME)));
+        }
+        return Tuple.tuple(List.of(), List.of());
     }
 
     @Override
     public void process(Aggregations aggs) {
+        if (topActualClassNames == null && aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME) instanceof Terms) {
+            Terms termsAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
+            topActualClassNames = termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).sorted().collect(Collectors.toList());
+        }
         if (result == null &&
-                aggs.get(BY_ACTUAL_CLASS_AGG_NAME) instanceof Terms &&
-                aggs.get(OVERALL_ACCURACY_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
-            Terms byActualClassAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
-            NumericMetricsAggregation.SingleValue overallAccuracyAgg = aggs.get(OVERALL_ACCURACY_AGG_NAME);
-            List<PerClassResult> classes = new ArrayList<>(byActualClassAgg.getBuckets().size());
-            for (Terms.Bucket bucket : byActualClassAgg.getBuckets()) {
+                aggs.get(BY_PREDICTED_CLASS_AGG_NAME) instanceof Filters &&
+                aggs.get(AVG_PRECISION_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
+            Filters byPredictedClassAgg = aggs.get(BY_PREDICTED_CLASS_AGG_NAME);
+            NumericMetricsAggregation.SingleValue avgPrecisionAgg = aggs.get(AVG_PRECISION_AGG_NAME);
+            List<PerClassResult> classes = new ArrayList<>(byPredictedClassAgg.getBuckets().size());
+            for (Filters.Bucket bucket : byPredictedClassAgg.getBuckets()) {
                 String className = bucket.getKeyAsString();
-                long actualClassDocCount = bucket.getDocCount();
-                NumericMetricsAggregation.SingleValue accuracyAgg = bucket.getAggregations().get(PER_ACTUAL_CLASS_ACCURACY_AGG_NAME);
-                classes.add(new PerClassResult(className, actualClassDocCount, accuracyAgg.value()));
+                NumericMetricsAggregation.SingleValue precisionAgg = bucket.getAggregations().get(PER_PREDICTED_CLASS_PRECISION_AGG_NAME);
+                double precision = precisionAgg.value();
+                if (Double.isFinite(precision)) {
+                    classes.add(new PerClassResult(className, precision));
+                }
             }
-            result = new Result(classes, overallAccuracyAgg.value());
+            result = new Result(classes, avgPrecisionAgg.value());
         }
     }
 
@@ -142,15 +170,15 @@ public class Accuracy implements ClassificationMetric {
     public static class Result implements EvaluationMetricResult {
 
         private static final ParseField CLASSES = new ParseField("classes");
-        private static final ParseField OVERALL_ACCURACY = new ParseField("overall_accuracy");
+        private static final ParseField AVG_PRECISION = new ParseField("avg_precision");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
+            new ConstructingObjectParser<>("precision_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
-            PARSER.declareDouble(constructorArg(), OVERALL_ACCURACY);
+            PARSER.declareDouble(constructorArg(), AVG_PRECISION);
         }
 
         public static Result fromXContent(XContentParser parser) {
@@ -159,17 +187,17 @@ public class Accuracy implements ClassificationMetric {
 
         /** List of per-class results. */
         private final List<PerClassResult> classes;
-        /** Fraction of documents predicted correctly. */
-        private final double overallAccuracy;
+        /** Average of per-class precisions. */
+        private final double avgPrecision;
 
-        public Result(List<PerClassResult> classes, double overallAccuracy) {
+        public Result(List<PerClassResult> classes, double avgPrecision) {
             this.classes = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(classes, CLASSES));
-            this.overallAccuracy = overallAccuracy;
+            this.avgPrecision = avgPrecision;
         }
 
         public Result(StreamInput in) throws IOException {
             this.classes = Collections.unmodifiableList(in.readList(PerClassResult::new));
-            this.overallAccuracy = in.readDouble();
+            this.avgPrecision = in.readDouble();
         }
 
         @Override
@@ -186,21 +214,21 @@ public class Accuracy implements ClassificationMetric {
             return classes;
         }
 
-        public double getOverallAccuracy() {
-            return overallAccuracy;
+        public double getAvgPrecision() {
+            return avgPrecision;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(classes);
-            out.writeDouble(overallAccuracy);
+            out.writeDouble(avgPrecision);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CLASSES.getPreferredName(), classes);
-            builder.field(OVERALL_ACCURACY.getPreferredName(), overallAccuracy);
+            builder.field(AVG_PRECISION.getPreferredName(), avgPrecision);
             builder.endObject();
             return builder;
         }
@@ -211,76 +239,63 @@ public class Accuracy implements ClassificationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return Objects.equals(this.classes, that.classes)
-                && this.overallAccuracy == that.overallAccuracy;
+                && this.avgPrecision == that.avgPrecision;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classes, overallAccuracy);
+            return Objects.hash(classes, avgPrecision);
         }
     }
 
     public static class PerClassResult implements ToXContentObject, Writeable {
 
         private static final ParseField CLASS_NAME = new ParseField("class_name");
-        private static final ParseField ACTUAL_CLASS_DOC_COUNT = new ParseField("actual_class_doc_count");
-        private static final ParseField ACCURACY = new ParseField("accuracy");
+        private static final ParseField PRECISION = new ParseField("precision");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<PerClassResult, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "accuracy_per_class_result", true, a -> new PerClassResult((String) a[0], (long) a[1], (double) a[2]));
+            new ConstructingObjectParser<>("precision_per_class_result", true, a -> new PerClassResult((String) a[0], (double) a[1]));
 
         static {
             PARSER.declareString(constructorArg(), CLASS_NAME);
-            PARSER.declareLong(constructorArg(), ACTUAL_CLASS_DOC_COUNT);
-            PARSER.declareDouble(constructorArg(), ACCURACY);
+            PARSER.declareDouble(constructorArg(), PRECISION);
         }
 
         /** Name of the class. */
         private final String className;
-        /** Number of documents actually belonging to the {@code actualClass} class. */
-        private final long actualClassDocCount;
-        /** Fraction of documents actually belonging to the {@code actualClass} class predicted correctly. */
-        private final double accuracy;
+        /** Fraction of documents predicted as belonging to the {@code predictedClass} class predicted correctly. */
+        private final double precision;
 
-        public PerClassResult(String className, long actualClassDocCount, double accuracy) {
+        public PerClassResult(String className, double precision) {
             this.className = ExceptionsHelper.requireNonNull(className, CLASS_NAME);
-            this.actualClassDocCount = actualClassDocCount;
-            this.accuracy = accuracy;
+            this.precision = precision;
         }
 
         public PerClassResult(StreamInput in) throws IOException {
             this.className = in.readString();
-            this.actualClassDocCount = in.readVLong();
-            this.accuracy = in.readDouble();
+            this.precision = in.readDouble();
         }
 
         public String getClassName() {
             return className;
         }
 
-        public long getActualClassDocCount() {
-            return actualClassDocCount;
-        }
-
-        public double getAccuracy() {
-            return accuracy;
+        public double getPrecision() {
+            return precision;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(className);
-            out.writeVLong(actualClassDocCount);
-            out.writeDouble(accuracy);
+            out.writeDouble(precision);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CLASS_NAME.getPreferredName(), className);
-            builder.field(ACTUAL_CLASS_DOC_COUNT.getPreferredName(), actualClassDocCount);
-            builder.field(ACCURACY.getPreferredName(), accuracy);
+            builder.field(PRECISION.getPreferredName(), precision);
             builder.endObject();
             return builder;
         }
@@ -291,13 +306,12 @@ public class Accuracy implements ClassificationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             PerClassResult that = (PerClassResult) o;
             return Objects.equals(this.className, that.className)
-                && this.actualClassDocCount == that.actualClassDocCount
-                && this.accuracy == that.accuracy;
+                && this.precision == that.precision;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(className, actualClassDocCount, accuracy);
+            return Objects.hash(className, precision);
         }
     }
 }

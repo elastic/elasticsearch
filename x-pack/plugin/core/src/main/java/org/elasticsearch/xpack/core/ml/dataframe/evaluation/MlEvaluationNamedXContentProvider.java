@@ -11,8 +11,8 @@ import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.ClassificationMetric;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RegressionMetric;
@@ -50,6 +50,12 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         namedXContent.add(new NamedXContentRegistry.Entry(ClassificationMetric.class, MulticlassConfusionMatrix.NAME,
             MulticlassConfusionMatrix::fromXContent));
         namedXContent.add(new NamedXContentRegistry.Entry(ClassificationMetric.class, Accuracy.NAME, Accuracy::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(ClassificationMetric.class,
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.NAME,
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(ClassificationMetric.class,
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.NAME,
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall::fromXContent));
 
         // Regression metrics
         namedXContent.add(new NamedXContentRegistry.Entry(RegressionMetric.class, MeanSquaredError.NAME, MeanSquaredError::fromXContent));
@@ -77,15 +83,18 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             Recall::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SoftClassificationMetric.class, ConfusionMatrix.NAME.getPreferredName(),
             ConfusionMatrix::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(ClassificationMetric.class,
-            MulticlassConfusionMatrix.NAME.getPreferredName(),
+        namedWriteables.add(new NamedWriteableRegistry.Entry(ClassificationMetric.class, MulticlassConfusionMatrix.NAME.getPreferredName(),
             MulticlassConfusionMatrix::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(ClassificationMetric.class, Accuracy.NAME.getPreferredName(), Accuracy::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RegressionMetric.class,
-            MeanSquaredError.NAME.getPreferredName(),
+        namedWriteables.add(new NamedWriteableRegistry.Entry(ClassificationMetric.class,
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.NAME.getPreferredName(),
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(ClassificationMetric.class,
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.NAME.getPreferredName(),
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RegressionMetric.class, MeanSquaredError.NAME.getPreferredName(),
             MeanSquaredError::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RegressionMetric.class,
-            RSquared.NAME.getPreferredName(),
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RegressionMetric.class, RSquared.NAME.getPreferredName(),
             RSquared::new));
 
         // Evaluation Metrics Results
@@ -98,14 +107,17 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
             MulticlassConfusionMatrix.NAME.getPreferredName(),
             MulticlassConfusionMatrix.Result::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-            Accuracy.NAME.getPreferredName(),
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, Accuracy.NAME.getPreferredName(),
             Accuracy.Result::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-            MeanSquaredError.NAME.getPreferredName(),
-            MeanSquaredError.Result::new));
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.NAME.getPreferredName(),
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Precision.Result::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-            RSquared.NAME.getPreferredName(),
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.NAME.getPreferredName(),
+            org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.Result::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, MeanSquaredError.NAME.getPreferredName(),
+            MeanSquaredError.Result::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, RSquared.NAME.getPreferredName(),
             RSquared.Result::new));
 
         return namedWriteables;

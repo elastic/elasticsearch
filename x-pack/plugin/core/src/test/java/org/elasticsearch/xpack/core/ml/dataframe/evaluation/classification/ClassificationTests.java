@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -55,6 +57,8 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
             randomSubsetOf(
                 Arrays.asList(
                     AccuracyTests.createRandom(),
+                    PrecisionTests.createRandom(),
+                    RecallTests.createRandom(),
                     MulticlassConfusionMatrixTests.createRandom()));
         return new Classification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
@@ -191,8 +195,8 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         }
 
         @Override
-        public List<AggregationBuilder> aggs(String actualField, String predictedField) {
-            return List.of();
+        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+            return Tuple.tuple(List.of(), List.of());
         }
 
         @Override

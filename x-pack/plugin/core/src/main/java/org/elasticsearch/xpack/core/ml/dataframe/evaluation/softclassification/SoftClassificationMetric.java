@@ -5,13 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
 
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 
 public interface SoftClassificationMetric extends EvaluationMetric {
-
-    static QueryBuilder actualIsTrueQuery(String actualField) {
-        return QueryBuilders.queryStringQuery(actualField + ": (1 OR true)");
-    }
 }

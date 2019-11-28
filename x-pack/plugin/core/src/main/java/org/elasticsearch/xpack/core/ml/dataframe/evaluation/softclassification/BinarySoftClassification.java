@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -45,6 +47,10 @@ public class BinarySoftClassification implements Evaluation {
 
     public static BinarySoftClassification fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    static QueryBuilder actualIsTrueQuery(String actualField) {
+        return QueryBuilders.queryStringQuery(actualField + ": (1 OR true)");
     }
 
     /**

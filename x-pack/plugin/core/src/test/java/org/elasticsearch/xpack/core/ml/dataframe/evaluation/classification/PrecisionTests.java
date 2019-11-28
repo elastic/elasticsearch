@@ -15,27 +15,28 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilters;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.TupleMatchers.isTuple;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
+public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
 
     @Override
-    protected Accuracy doParseInstance(XContentParser parser) throws IOException {
-        return Accuracy.fromXContent(parser);
+    protected Precision doParseInstance(XContentParser parser) throws IOException {
+        return Precision.fromXContent(parser);
     }
 
     @Override
-    protected Accuracy createTestInstance() {
+    protected Precision createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected Writeable.Reader<Accuracy> instanceReader() {
-        return Accuracy::new;
+    protected Writeable.Reader<Precision> instanceReader() {
+        return Precision::new;
     }
 
     @Override
@@ -43,63 +44,64 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
         return true;
     }
 
-    public static Accuracy createRandom() {
-        return new Accuracy();
+    public static Precision createRandom() {
+        return new Precision();
     }
 
     public void testProcess() {
         Aggregations aggs = new Aggregations(Arrays.asList(
-            mockTerms(Accuracy.BY_ACTUAL_CLASS_AGG_NAME),
-            mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.8123),
+            mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME),
+            mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME),
+            mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123),
             mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
-        Accuracy accuracy = new Accuracy();
-        accuracy.process(aggs);
+        Precision precision = new Precision();
+        precision.process(aggs);
 
-        assertThat(accuracy.aggs("act", "pred"), isTuple(empty(), empty()));
-        assertThat(accuracy.getResult().get(), equalTo(new Accuracy.Result(List.of(), 0.8123)));
+        assertThat(precision.aggs("act", "pred"), isTuple(empty(), empty()));
+        assertThat(precision.getResult().get(), equalTo(new Precision.Result(List.of(), 0.8123)));
     }
 
     public void testProcess_GivenMissingAgg() {
         {
             Aggregations aggs = new Aggregations(Arrays.asList(
-                mockTerms(Accuracy.BY_ACTUAL_CLASS_AGG_NAME),
+                mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME),
                 mockSingleValue("some_other_single_metric_agg", 0.2377)
             ));
-            Accuracy accuracy = new Accuracy();
-            accuracy.process(aggs);
-            assertThat(accuracy.getResult(), isEmpty());
+            Precision precision = new Precision();
+            precision.process(aggs);
+            assertThat(precision.getResult(), isEmpty());
         }
         {
             Aggregations aggs = new Aggregations(Arrays.asList(
-                mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.8123),
+                mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123),
                 mockSingleValue("some_other_single_metric_agg", 0.2377)
             ));
-            Accuracy accuracy = new Accuracy();
-            accuracy.process(aggs);
-            assertThat(accuracy.getResult(), isEmpty());
+            Precision precision = new Precision();
+            precision.process(aggs);
+            assertThat(precision.getResult(), isEmpty());
         }
     }
 
     public void testProcess_GivenAggOfWrongType() {
         {
             Aggregations aggs = new Aggregations(Arrays.asList(
-                mockTerms(Accuracy.BY_ACTUAL_CLASS_AGG_NAME),
-                mockTerms(Accuracy.OVERALL_ACCURACY_AGG_NAME)
+                mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME),
+                mockFilters(Precision.AVG_PRECISION_AGG_NAME)
             ));
-            Accuracy accuracy = new Accuracy();
-            accuracy.process(aggs);
-            assertThat(accuracy.getResult(), isEmpty());
+            Precision precision = new Precision();
+            precision.process(aggs);
+            assertThat(precision.getResult(), isEmpty());
         }
         {
             Aggregations aggs = new Aggregations(Arrays.asList(
-                mockSingleValue(Accuracy.BY_ACTUAL_CLASS_AGG_NAME, 1.0),
-                mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.8123)
+                mockSingleValue(Precision.BY_PREDICTED_CLASS_AGG_NAME, 1.0),
+                mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123)
             ));
-            Accuracy accuracy = new Accuracy();
-            accuracy.process(aggs);
-            assertThat(accuracy.getResult(), isEmpty());
+            Precision precision = new Precision();
+            precision.process(aggs);
+            assertThat(precision.getResult(), isEmpty());
         }
     }
 }

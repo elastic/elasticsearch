@@ -22,7 +22,6 @@ import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,22 +34,23 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * {@link AccuracyMetric} is a metric that answers the question:
- *   "What fraction of documents have been classified correctly by the classifier?"
+ * {@link RecallMetric} is a metric that answers the question:
+ *   "What fraction of documents belonging to X have been predicted as X by the classifier?"
+ * for any given class name X
  *
- * equation: accuracy = 1/n * Σ(y == y´)
+ * equation: recall = 1/#{docs belonging to X} * Σ(y == y´)
  */
-public class AccuracyMetric implements EvaluationMetric {
+public class RecallMetric implements EvaluationMetric {
 
-    public static final String NAME = "accuracy";
+    public static final String NAME = "recall";
 
-    private static final ObjectParser<AccuracyMetric, Void> PARSER = new ObjectParser<>(NAME, true, AccuracyMetric::new);
+    private static final ObjectParser<RecallMetric, Void> PARSER = new ObjectParser<>(NAME, true, RecallMetric::new);
 
-    public static AccuracyMetric fromXContent(XContentParser parser) {
+    public static RecallMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public AccuracyMetric() {}
+    public RecallMetric() {}
 
     @Override
     public String getName() {
@@ -58,7 +58,7 @@ public class AccuracyMetric implements EvaluationMetric {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.endObject();
         return builder;
@@ -79,15 +79,15 @@ public class AccuracyMetric implements EvaluationMetric {
     public static class Result implements EvaluationMetric.Result {
 
         private static final ParseField CLASSES = new ParseField("classes");
-        private static final ParseField OVERALL_ACCURACY = new ParseField("overall_accuracy");
+        private static final ParseField AVG_RECALL = new ParseField("avg_recall");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
+            new ConstructingObjectParser<>("recall_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
-            PARSER.declareDouble(constructorArg(), OVERALL_ACCURACY);
+            PARSER.declareDouble(constructorArg(), AVG_RECALL);
         }
 
         public static Result fromXContent(XContentParser parser) {
@@ -96,12 +96,12 @@ public class AccuracyMetric implements EvaluationMetric {
 
         /** List of per-class results. */
         private final List<PerClassResult> classes;
-        /** Fraction of documents predicted correctly. */
-        private final double overallAccuracy;
+        /** Average of per-class recalls. */
+        private final double avgRecall;
 
-        public Result(List<PerClassResult> classes, double overallAccuracy) {
+        public Result(List<PerClassResult> classes, double avgRecall) {
             this.classes = Collections.unmodifiableList(Objects.requireNonNull(classes));
-            this.overallAccuracy = overallAccuracy;
+            this.avgRecall = avgRecall;
         }
 
         @Override
@@ -113,15 +113,15 @@ public class AccuracyMetric implements EvaluationMetric {
             return classes;
         }
 
-        public double getOverallAccuracy() {
-            return overallAccuracy;
+        public double getAvgRecall() {
+            return avgRecall;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CLASSES.getPreferredName(), classes);
-            builder.field(OVERALL_ACCURACY.getPreferredName(), overallAccuracy);
+            builder.field(AVG_RECALL.getPreferredName(), avgRecall);
             builder.endObject();
             return builder;
         }
@@ -132,63 +132,52 @@ public class AccuracyMetric implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
             return Objects.equals(this.classes, that.classes)
-                && this.overallAccuracy == that.overallAccuracy;
+                && this.avgRecall == that.avgRecall;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classes, overallAccuracy);
+            return Objects.hash(classes, avgRecall);
         }
     }
 
     public static class PerClassResult implements ToXContentObject {
 
         private static final ParseField CLASS_NAME = new ParseField("class_name");
-        private static final ParseField ACTUAL_CLASS_DOC_COUNT = new ParseField("actual_class_doc_count");
-        private static final ParseField ACCURACY = new ParseField("accuracy");
+        private static final ParseField RECALL = new ParseField("recall");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<PerClassResult, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "accuracy_per_class_result", true, a -> new PerClassResult((String) a[0], (long) a[1], (double) a[2]));
+            new ConstructingObjectParser<>("recall_per_class_result", true, a -> new PerClassResult((String) a[0], (double) a[1]));
 
         static {
             PARSER.declareString(constructorArg(), CLASS_NAME);
-            PARSER.declareLong(constructorArg(), ACTUAL_CLASS_DOC_COUNT);
-            PARSER.declareDouble(constructorArg(), ACCURACY);
+            PARSER.declareDouble(constructorArg(), RECALL);
         }
 
         /** Name of the class. */
         private final String className;
-        /** Number of documents actually belonging to the {@code actualClass} class. */
-        private final long actualClassDocCount;
         /** Fraction of documents actually belonging to the {@code actualClass} class predicted correctly. */
-        private final double accuracy;
+        private final double recall;
 
-        public PerClassResult(String className, long actualClassDocCount, double accuracy) {
+        public PerClassResult(String className, double recall) {
             this.className = Objects.requireNonNull(className);
-            this.actualClassDocCount = actualClassDocCount;
-            this.accuracy = accuracy;
+            this.recall = recall;
         }
 
         public String getClassName() {
             return className;
         }
 
-        public long getActualClassDocCount() {
-            return actualClassDocCount;
-        }
-
-        public double getAccuracy() {
-            return accuracy;
+        public double getRecall() {
+            return recall;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CLASS_NAME.getPreferredName(), className);
-            builder.field(ACTUAL_CLASS_DOC_COUNT.getPreferredName(), actualClassDocCount);
-            builder.field(ACCURACY.getPreferredName(), accuracy);
+            builder.field(RECALL.getPreferredName(), recall);
             builder.endObject();
             return builder;
         }
@@ -199,13 +188,12 @@ public class AccuracyMetric implements EvaluationMetric {
             if (o == null || getClass() != o.getClass()) return false;
             PerClassResult that = (PerClassResult) o;
             return Objects.equals(this.className, that.className)
-                && this.actualClassDocCount == that.actualClassDocCount
-                && this.accuracy == that.accuracy;
+                && this.recall == that.recall;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(className, actualClassDocCount, accuracy);
+            return Objects.hash(className, recall);
         }
     }
 }

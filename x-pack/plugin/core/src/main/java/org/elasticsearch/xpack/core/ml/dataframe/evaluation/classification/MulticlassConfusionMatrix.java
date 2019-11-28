@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,6 +20,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -40,7 +42,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 /**
  * {@link MulticlassConfusionMatrix} is a metric that answers the question:
- *   "How many examples belonging to class X were classified as Y by the classifier?"
+ *   "How many documents belonging to class X were classified as Y by the classifier?"
  * for all the possible class pairs {X, Y}.
  */
 public class MulticlassConfusionMatrix implements ClassificationMetric {
@@ -104,13 +106,15 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
     }
 
     @Override
-    public final List<AggregationBuilder> aggs(String actualField, String predictedField) {
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
         if (topActualClassNames == null) {  // This is step 1
-            return List.of(
-                AggregationBuilders.terms(STEP_1_AGGREGATE_BY_ACTUAL_CLASS)
-                    .field(actualField)
-                    .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
-                    .size(size));
+            return Tuple.tuple(
+                List.of(
+                    AggregationBuilders.terms(STEP_1_AGGREGATE_BY_ACTUAL_CLASS)
+                        .field(actualField)
+                        .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
+                        .size(size)),
+                List.of());
         }
         if (result == null) {  // This is step 2
             KeyedFilter[] keyedFiltersActual =
@@ -121,15 +125,17 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
                 topActualClassNames.stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
                     .toArray(KeyedFilter[]::new);
-            return List.of(
-                AggregationBuilders.cardinality(STEP_2_CARDINALITY_OF_ACTUAL_CLASS)
-                    .field(actualField),
-                AggregationBuilders.filters(STEP_2_AGGREGATE_BY_ACTUAL_CLASS, keyedFiltersActual)
-                    .subAggregation(AggregationBuilders.filters(STEP_2_AGGREGATE_BY_PREDICTED_CLASS, keyedFiltersPredicted)
-                        .otherBucket(true)
-                        .otherBucketKey(OTHER_BUCKET_KEY)));
+            return Tuple.tuple(
+                List.of(
+                    AggregationBuilders.cardinality(STEP_2_CARDINALITY_OF_ACTUAL_CLASS)
+                        .field(actualField),
+                    AggregationBuilders.filters(STEP_2_AGGREGATE_BY_ACTUAL_CLASS, keyedFiltersActual)
+                        .subAggregation(AggregationBuilders.filters(STEP_2_AGGREGATE_BY_PREDICTED_CLASS, keyedFiltersPredicted)
+                            .otherBucket(true)
+                            .otherBucketKey(OTHER_BUCKET_KEY))),
+                List.of());
         }
-        return List.of();
+        return Tuple.tuple(List.of(), List.of());
     }
 
     @Override
@@ -300,7 +306,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
 
         /** Name of the actual class. */
         private final String actualClass;
-        /** Number of documents (examples) belonging to the {code actualClass} class. */
+        /** Number of documents belonging to the {code actualClass} class. */
         private final long actualClassDocCount;
         /** List of predicted classes. */
         private final List<PredictedClass> predictedClasses;

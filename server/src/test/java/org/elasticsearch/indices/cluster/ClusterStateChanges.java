@@ -191,7 +191,7 @@ public class ClusterStateChanges {
         };
 
         TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction = new TransportVerifyShardBeforeCloseAction(SETTINGS,
-            transportService, clusterService, indicesService, threadPool, null, actionFilters);
+            transportService, clusterService, indicesService, threadPool, null, actionFilters, indexNameExpressionResolver);
         MetaDataIndexStateService indexStateService = new MetaDataIndexStateService(clusterService, allocationService,
             metaDataIndexUpgradeService, indicesService, threadPool, transportVerifyShardBeforeCloseAction);
         MetaDataDeleteIndexService deleteIndexService = new MetaDataDeleteIndexService(SETTINGS, clusterService, allocationService);

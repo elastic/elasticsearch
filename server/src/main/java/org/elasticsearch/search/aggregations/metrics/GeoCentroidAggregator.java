@@ -42,12 +42,12 @@ import java.util.Map;
  * A geo metric aggregator that computes a geo-centroid from a {@code geo_point} type field
  */
 final class GeoCentroidAggregator extends MetricsAggregator {
-    private final ValuesSource.Geo valuesSource;
+    private final ValuesSource.GeoPoint valuesSource;
     private DoubleArray lonSum, lonCompensations, latSum, latCompensations;
     private LongArray counts;
 
     GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
-                                    ValuesSource.Geo valuesSource, List<PipelineAggregator> pipelineAggregators,
+                                    ValuesSource.GeoPoint valuesSource, List<PipelineAggregator> pipelineAggregators,
                                     Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
@@ -68,6 +68,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         }
         final BigArrays bigArrays = context.bigArrays();
         final MultiGeoValues values = valuesSource.geoValues(ctx);
+        final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
+        final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -88,13 +90,10 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     double sumLon = lonSum.get(bucket);
                     double compensationLon = lonCompensations.get(bucket);
 
-                    CompensatedSum compensatedSumLat = new CompensatedSum(sumLat, compensationLat);
-                    CompensatedSum compensatedSumLon = new CompensatedSum(sumLon, compensationLon);
+                    compensatedSumLat.reset(sumLat, compensationLat);
+                    compensatedSumLon.reset(sumLon, compensationLon);
 
                     // update the sum
-                    //
-                    // this calculates the centroid of centroid of shapes when
-                    // executing against geo-shape fields.
                     for (int i = 0; i < valueCount; ++i) {
                         MultiGeoValues.GeoValue value = values.nextValue();
                         //latitude

@@ -75,7 +75,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), newShell());
 
-        sh.run("echo foobar | " + installation.executables().elasticsearchKeystore + " add --stdin foo.bar");
+        sh.run("echo foobar | " + installation.executables().keystoreTool + " add --stdin foo.bar");
         Stream.of(
             "elasticsearch.yml",
             "jvm.options",

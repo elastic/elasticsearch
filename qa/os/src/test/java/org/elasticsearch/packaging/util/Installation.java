@@ -32,6 +32,7 @@ public class Installation {
         ? System.getenv("username")
         : "elasticsearch";
 
+    private final Shell sh;
     public final Distribution distribution;
     public final Path home;
     public final Path bin; // this isn't a first-class installation feature but we include it for convenience
@@ -45,8 +46,9 @@ public class Installation {
     public final Path pidDir;
     public final Path envFile;
 
-    private Installation(Distribution distribution, Path home, Path config, Path data, Path logs,
+    private Installation(Shell sh, Distribution distribution, Path home, Path config, Path data, Path logs,
                          Path plugins, Path modules, Path pidDir, Path envFile) {
+        this.sh = sh;
         this.distribution = distribution;
         this.home = home;
         this.bin = home.resolve("bin");
@@ -61,8 +63,9 @@ public class Installation {
         this.envFile = envFile;
     }
 
-    public static Installation ofArchive(Distribution distribution, Path home) {
+    public static Installation ofArchive(Shell sh, Distribution distribution, Path home) {
         return new Installation(
+            sh,
             distribution,
             home,
             home.resolve("config"),
@@ -75,13 +78,14 @@ public class Installation {
         );
     }
 
-    public static Installation ofPackage(Distribution distribution) {
+    public static Installation ofPackage(Shell sh, Distribution distribution) {
 
         final Path envFile = (distribution.packaging == Distribution.Packaging.RPM)
             ? Paths.get("/etc/sysconfig/elasticsearch")
             : Paths.get("/etc/default/elasticsearch");
 
         return new Installation(
+            sh,
             distribution,
             Paths.get("/usr/share/elasticsearch"),
             Paths.get("/etc/elasticsearch"),
@@ -94,9 +98,10 @@ public class Installation {
         );
     }
 
-    public static Installation ofContainer(Distribution distribution) {
+    public static Installation ofContainer(Shell sh, Distribution distribution) {
         String root = "/usr/share/elasticsearch";
         return new Installation(
+            sh,
             distribution,
             Paths.get(root),
             Paths.get(root + "/config"),
@@ -136,11 +141,11 @@ public class Installation {
             return path.toString();
         }
 
-        public Shell.Result run(Shell sh, String args) {
-            return run(sh, args, null);
+        public Shell.Result run(String args) {
+            return run(args, null);
         }
 
-        public Shell.Result run(Shell sh, String args, String input) {
+        public Shell.Result run(String args, String input) {
             String command = path + " " + args;
             if (distribution.isArchive() && distribution.platform != Distribution.Platform.WINDOWS) {
                 command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
@@ -155,14 +160,14 @@ public class Installation {
     public class Executables {
 
         public final Executable elasticsearch = new Executable("elasticsearch");
-        public final Executable elasticsearchPlugin = new Executable("elasticsearch-plugin");
-        public final Executable elasticsearchKeystore = new Executable("elasticsearch-keystore");
-        public final Executable elasticsearchCertutil = new Executable("elasticsearch-certutil");
-        public final Executable elasticsearchShard = new Executable("elasticsearch-shard");
-        public final Executable elasticsearchNode = new Executable("elasticsearch-node");
-        public final Executable elasticsearchSetupPasswords = new Executable("elasticsearch-setup-passwords");
-        public final Executable elasticsearchSqlCli= new Executable("elasticsearch-sql-cli");
-        public final Executable elasticsearchSyskeygen = new Executable("elasticsearch-syskeygen");
-        public final Executable elasticsearchUsers = new Executable("elasticsearch-users");
+        public final Executable pluginTool = new Executable("elasticsearch-plugin");
+        public final Executable keystoreTool = new Executable("elasticsearch-keystore");
+        public final Executable certutilTool = new Executable("elasticsearch-certutil");
+        public final Executable shardTool = new Executable("elasticsearch-shard");
+        public final Executable nodeTool = new Executable("elasticsearch-node");
+        public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");
+        public final Executable sqlCli = new Executable("elasticsearch-sql-cli");
+        public final Executable syskeygenTool = new Executable("elasticsearch-syskeygen");
+        public final Executable usersTool = new Executable("elasticsearch-users");
     }
 }

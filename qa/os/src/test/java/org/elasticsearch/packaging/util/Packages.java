@@ -105,7 +105,7 @@ public class Packages {
             throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
         }
 
-        Installation installation = Installation.ofPackage(distribution.packaging);
+        Installation installation = Installation.ofPackage(distribution);
 
         if (distribution.hasJdk == false) {
             Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),

@@ -207,6 +207,19 @@ public class Authentication implements ToXContentObject {
         return builder.endObject();
     }
 
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("Authentication[")
+            .append(user)
+            .append(",type=").append(type)
+            .append(",by=").append(authenticatedBy);
+        if (lookedUpBy != null) {
+            builder.append(",lookup=").append(lookedUpBy);
+        }
+        builder.append("]");
+        return builder.toString();
+    }
+
     public static class RealmRef {
 
         private final String nodeName;
@@ -261,6 +274,11 @@ public class Authentication implements ToXContentObject {
             result = 31 * result + name.hashCode();
             result = 31 * result + type.hashCode();
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
         }
     }
 

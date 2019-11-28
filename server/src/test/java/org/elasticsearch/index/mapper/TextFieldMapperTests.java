@@ -771,7 +771,6 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47777")
     public void testFastPhraseMapping() throws IOException {
 
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
@@ -841,8 +840,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(q7, is(new BooleanQuery.Builder().add(new BooleanQuery.Builder()
             .add(new TermQuery(new Term("synfield", "foo")), BooleanClause.Occur.SHOULD)
             .add(new PhraseQuery.Builder()
-                .add(new Term("synfield", "bar"))
-                .add(new Term("synfield", "baz"))
+                .add(new Term("synfield._index_phrase", "bar baz"))
                 .build(), BooleanClause.Occur.SHOULD)
             .build(), BooleanClause.Occur.SHOULD).build()));
 

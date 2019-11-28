@@ -30,7 +30,7 @@ fields, in which case all points will be taken into account during aggregation.
 
 ==== Simple low-precision request
 
-[source,console]
+[source,console,id=geotilegrid-aggregation-example]
 --------------------------------------------------
 PUT /museums
 {

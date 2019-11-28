@@ -130,4 +130,9 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     public String toString() {
         return sourceText();
     }
+
+    @Override
+    public String propertiesToString(boolean skipIfChild) {
+        return super.propertiesToString(false);
+    }
 }

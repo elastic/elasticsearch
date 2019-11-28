@@ -439,7 +439,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByFieldFromGroupByFunction() {
-        assertEquals("1:54: Cannot use non-grouped column [int], expected [ABS(int)]",
+        assertEquals("1:54: Cannot order by non-grouped column [int], expected [ABS(int)]",
                 error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
     }
 

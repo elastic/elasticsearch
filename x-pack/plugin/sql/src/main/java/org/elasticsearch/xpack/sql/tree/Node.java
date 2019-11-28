@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -378,7 +379,10 @@ public abstract class Node<T extends Node<T>> {
                 if (needsComma) {
                     sb.append(",");
                 }
-                String stringValue = prop instanceof Node<?> ? ((Node<?>) prop).nodeString() : Objects.toString(prop);
+                
+                String stringValue = toString(prop);
+                
+                //: Objects.toString(prop);
                 if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
                     int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
                     sb.append(stringValue.substring(0, cutoff));
@@ -394,5 +398,29 @@ public abstract class Node<T extends Node<T>> {
         }
 
         return sb.toString();
+    }
+
+    private String toString(Object obj) {
+        StringBuilder sb = new StringBuilder();
+        toString(sb, obj);
+        return sb.toString();
+    }
+
+    private void toString(StringBuilder sb, Object obj) {
+        if (obj instanceof Iterable) {
+            sb.append("[");
+            for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
+                Object o = it.next();
+                toString(sb, o);
+                if (it.hasNext() == true) {
+                    sb.append(',').append(' ');
+                }
+            }
+            sb.append("]");
+        } else if (obj instanceof Node<?>) {
+            sb.append(((Node<?>) obj).nodeString());
+        } else {
+            sb.append(Objects.toString(obj));
+        }
     }
 }

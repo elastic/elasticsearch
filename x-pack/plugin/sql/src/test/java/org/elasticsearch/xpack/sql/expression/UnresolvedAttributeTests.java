@@ -54,8 +54,6 @@ public class UnresolvedAttributeTests extends AbstractNodeTestCase<UnresolvedAtt
             () -> new UnresolvedAttribute(a.source(), a.name(),
                     randomValueOtherThan(a.qualifier(), UnresolvedAttributeTests::randomQualifier),
                     a.id(), a.unresolvedMessage(), a.resolutionMetadata()),
-            () -> new UnresolvedAttribute(a.source(), a.name(), a.qualifier(),
-                    new NameId(), a.unresolvedMessage(), a.resolutionMetadata()),
             () -> new UnresolvedAttribute(a.source(), a.name(), a.qualifier(), a.id(),
                     randomValueOtherThan(a.unresolvedMessage(), () -> randomUnresolvedMessage()),
                     a.resolutionMetadata()),

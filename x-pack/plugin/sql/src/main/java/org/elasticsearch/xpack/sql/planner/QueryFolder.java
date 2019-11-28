@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
@@ -287,10 +288,22 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     if (exp instanceof DateTimeHistogramFunction) {
                         DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
 
-                        if (dthf.calendarInterval() != null) {
-                            key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(exp), dthf.calendarInterval(), dthf.zoneId());
-                        } else {
-                            key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(exp), dthf.fixedInterval(), dthf.zoneId());
+                        Expression field = dthf.field();
+                        if (field instanceof FieldAttribute) {
+                            if (dthf.calendarInterval() != null) {
+                                key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(exp), dthf.calendarInterval(), dthf.zoneId());
+                            } else {
+                                key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(exp), dthf.fixedInterval(), dthf.zoneId());
+                            }
+                        }
+                        // use scripting for functions
+                        else if (field instanceof Function) {
+                            ScriptTemplate script = ((Function) field).asScript();
+                            if (dthf.calendarInterval() != null) {
+                                key = new GroupByDateHistogram(aggId, script, dthf.calendarInterval(), dthf.zoneId());
+                            } else {
+                                key = new GroupByDateHistogram(aggId, script, dthf.fixedInterval(), dthf.zoneId());
+                            }
                         }
                     }
                     // all other scalar functions become a script

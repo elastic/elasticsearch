@@ -87,6 +87,11 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
+    public String nodeString() {
+        return toString();
+    }
+
+    @Override
     public String unresolvedMessage() {
         return unresolvedMsg;
     }

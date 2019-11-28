@@ -63,7 +63,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -326,12 +325,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     return new Aggregate(a.source(), a.child(), a.groupings(),
                             expandProjections(a.aggregates(), a.child()));
                 }
-                // if the grouping is unresolved but the aggs are, use the latter to resolve the former
+                // if the grouping is unresolved but the aggs are, use the former to resolve the latter
                 // solves the case of queries declaring an alias in SELECT and referring to it in GROUP BY
+                // e.g. SELECT x AS a ... GROUP BY a
                 if (!a.expressionsResolved() && Resolvables.resolved(a.aggregates())) {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
-                    AttributeMap<Expression> resolved = Expressions.asAttributeMap(a.aggregates());
+                    AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
@@ -360,9 +360,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             else if (plan instanceof OrderBy) {
                 OrderBy o = (OrderBy) plan;
                 if (!o.resolved()) {
-                    List<Order> resolvedOrder = o.order().stream()
-                            .map(or -> resolveExpression(or, o.child()))
-                            .collect(toList());
+                    List<Order> resolvedOrder = new ArrayList<>(o.order().size());
+                    for (Order order : o.order()) {
+                        resolvedOrder.add(resolveExpression(order, o.child()));
+                    }
                     return new OrderBy(o.source(), o.child(), resolvedOrder);
                 }
             }
@@ -603,19 +604,17 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             if (plan instanceof OrderBy && !plan.resolved() && plan.childrenResolved()) {
                 OrderBy o = (OrderBy) plan;
-                List<Order> maybeResolved = o.order().stream()
-                        .map(or -> tryResolveExpression(or, o.child()))
-                        .collect(toList());
+                List<Order> maybeResolved = new ArrayList<>();
+                for (Order or : o.order()) {
+                    maybeResolved.add(tryResolveExpression(or, o.child()));
+                }
 
+                AttributeSet resolvedRefs = Expressions.references(maybeResolved.stream()
+                        .filter(Expression::resolved)
+                        .collect(toList()));
 
-                Set<Expression> resolvedRefs = maybeResolved.stream()
-                    .filter(Expression::resolved)
-                    .collect(Collectors.toSet());
+                AttributeSet missing = resolvedRefs.subtract(o.child().outputSet());
 
-                AttributeSet missing = Expressions.filterReferences(
-                    resolvedRefs,
-                    o.child().outputSet()
-                );
 
                 if (!missing.isEmpty()) {
                     // Add missing attributes but project them away afterwards
@@ -647,6 +646,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Filter && !plan.resolved() && plan.childrenResolved()) {
                 Filter f = (Filter) plan;
                 Expression maybeResolved = tryResolveExpression(f.condition(), f.child());
+
                 AttributeSet resolvedRefs = new AttributeSet(maybeResolved.references().stream()
                         .filter(Expression::resolved)
                         .collect(toList()));
@@ -705,9 +705,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 // missing attributes can only be grouping expressions
+                // however take into account aliased groups
+                // SELECT x AS i ... GROUP BY i
                 for (Attribute m : missing) {
-                    // but we don't can't add an agg if the group is missing
-                    if (!Expressions.anyMatch(a.groupings(), m::semanticEquals)) {
+                    // but we can't add an agg if the group is missing
+                    if (!Expressions.match(a.groupings(), m::semanticEquals)) {
                         if (m instanceof Attribute) {
                             // pass failure information to help the verifier
                             m = new UnresolvedAttribute(m.source(), m.name(), m.qualifier(), null, null,
@@ -755,7 +757,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     // SELECT int AS i FROM t WHERE i > 10
     //
     // As such, identify all project and aggregates that have a Filter child
-    // and look at any resoled aliases that match and replace them.
+    // and look at any resolved aliases that match and replace them.
     private class ResolveFilterRefs extends AnalyzeRule<LogicalPlan> {
 
         @Override

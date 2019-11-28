@@ -78,7 +78,7 @@ public abstract class Function extends Expression {
 
     @Override
     public String nodeString() {
-        StringJoiner sj = new StringJoiner(",", functionName + "(", ")");
+        StringJoiner sj = new StringJoiner(",", functionName() + "(", ")");
         for (Expression ex : arguments()) {
             sj.add(ex.nodeString());
         }

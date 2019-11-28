@@ -158,6 +158,11 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
+    public String nodeString() {
+        return toString();
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
             return false;

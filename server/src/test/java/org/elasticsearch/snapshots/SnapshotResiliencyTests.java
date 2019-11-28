@@ -1108,7 +1108,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 actions.put(GlobalCheckpointSyncAction.TYPE,
                     new GlobalCheckpointSyncAction(settings, transportService, clusterService, indicesService,
-                        threadPool, shardStateAction, actionFilters));
+                        threadPool, shardStateAction, actionFilters, indexNameExpressionResolver));
                 final MetaDataMappingService metaDataMappingService = new MetaDataMappingService(clusterService, indicesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -1132,7 +1132,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             indicesService,
                             threadPool,
                             shardStateAction,
-                            actionFilters)),
+                            actionFilters,
+                            indexNameExpressionResolver)),
                     RetentionLeaseSyncer.EMPTY,
                     client);
                 final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
@@ -1158,7 +1159,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     ));
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                     clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                    actionFilters);
+                    actionFilters, indexNameExpressionResolver);
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,

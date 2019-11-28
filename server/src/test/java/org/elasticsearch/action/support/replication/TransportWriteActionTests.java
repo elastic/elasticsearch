@@ -31,6 +31,7 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -398,7 +399,8 @@ public class TransportWriteActionTests extends ESTestCase {
             super(Settings.EMPTY, "internal:test",
                     new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                         x -> null, null, Collections.emptySet()), null, null, null, null,
-                new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ThreadPool.Names.SAME, false);
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), TestRequest::new,
+                    TestRequest::new, ThreadPool.Names.SAME, false);
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
@@ -407,7 +409,8 @@ public class TransportWriteActionTests extends ESTestCase {
                              ClusterService clusterService, ShardStateAction shardStateAction, ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService,
                     mockIndicesService(clusterService), threadPool, shardStateAction,
-                    new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ThreadPool.Names.SAME, false);
+                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
+                    TestRequest::new, TestRequest::new, ThreadPool.Names.SAME, false);
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;
         }

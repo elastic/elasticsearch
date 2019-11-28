@@ -279,32 +279,32 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         assertThat(e.getMessage(), containsString("must be less than the value of the xpack.ml.max_model_memory_limit setting"));
     }
 
-    public void testBuildForMemoryEstimation() {
+    public void testBuildForExplain() {
         DataFrameAnalyticsConfig.Builder builder = createRandomBuilder("foo");
 
-        DataFrameAnalyticsConfig config = builder.buildForMemoryEstimation();
+        DataFrameAnalyticsConfig config = builder.buildForExplain();
 
         assertThat(config, equalTo(builder.build()));
     }
 
-    public void testBuildForMemoryEstimation_MissingId() {
+    public void testBuildForExplain_MissingId() {
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
             .setAnalysis(OutlierDetectionTests.createRandom())
             .setSource(DataFrameAnalyticsSourceTests.createRandom())
             .setDest(DataFrameAnalyticsDestTests.createRandom());
 
-        DataFrameAnalyticsConfig config = builder.buildForMemoryEstimation();
+        DataFrameAnalyticsConfig config = builder.buildForExplain();
 
         assertThat(config.getId(), equalTo("dummy"));
     }
 
-    public void testBuildForMemoryEstimation_MissingDest() {
+    public void testBuildForExplain_MissingDest() {
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
             .setAnalysis(OutlierDetectionTests.createRandom())
             .setSource(DataFrameAnalyticsSourceTests.createRandom());
 
-        DataFrameAnalyticsConfig config = builder.buildForMemoryEstimation();
+        DataFrameAnalyticsConfig config = builder.buildForExplain();
 
         assertThat(config.getDest().getIndex(), equalTo("dummy"));
     }

@@ -22,6 +22,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -34,7 +37,6 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
-import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
@@ -75,6 +77,8 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsResponse;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsResponse;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -2249,46 +2253,46 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Estimates memory usage for the given Data Frame Analytics
+     * Explains the given Data Frame Analytics
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/estimate-memory-usage-dfanalytics.html">
-     *     Estimate Memory Usage for Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/explain-dfanalytics.html">
+     *     Explain Data Frame Analytics documentation</a>
      *
-     * @param request The {@link PutDataFrameAnalyticsRequest}
+     * @param request The {@link ExplainDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return {@link EstimateMemoryUsageResponse} response object
+     * @return {@link ExplainDataFrameAnalyticsResponse} response object
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public EstimateMemoryUsageResponse estimateMemoryUsage(PutDataFrameAnalyticsRequest request,
-                                                           RequestOptions options) throws IOException {
+    public ExplainDataFrameAnalyticsResponse explainDataFrameAnalytics(ExplainDataFrameAnalyticsRequest request,
+                                                                       RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
-            MLRequestConverters::estimateMemoryUsage,
+            MLRequestConverters::explainDataFrameAnalytics,
             options,
-            EstimateMemoryUsageResponse::fromXContent,
+            ExplainDataFrameAnalyticsResponse::fromXContent,
             Collections.emptySet());
     }
 
     /**
-     * Estimates memory usage for the given Data Frame Analytics asynchronously and notifies listener upon completion
+     * Explains the given Data Frame Analytics asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/estimate-memory-usage-dfanalytics.html">
-     *     Estimate Memory Usage for Data Frame Analytics documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/explain-dfanalytics.html">
+     *     Explain Data Frame Analytics documentation</a>
      *
-     * @param request The {@link PutDataFrameAnalyticsRequest}
+     * @param request The {@link ExplainDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable estimateMemoryUsageAsync(PutDataFrameAnalyticsRequest request, RequestOptions options,
-                                                ActionListener<EstimateMemoryUsageResponse> listener) {
+    public Cancellable explainDataFrameAnalyticsAsync(ExplainDataFrameAnalyticsRequest request, RequestOptions options,
+                                                      ActionListener<ExplainDataFrameAnalyticsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
-            MLRequestConverters::estimateMemoryUsage,
+            MLRequestConverters::explainDataFrameAnalytics,
             options,
-            EstimateMemoryUsageResponse::fromXContent,
+            ExplainDataFrameAnalyticsResponse::fromXContent,
             listener,
             Collections.emptySet());
     }
@@ -2336,4 +2340,89 @@ public final class MachineLearningClient {
             Collections.emptySet());
     }
 
+    /**
+     * Gets trained model stats
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     GET Trained Model Stats documentation</a>
+     *
+     * @param request The {@link GetTrainedModelsStatsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetTrainedModelsStatsResponse} response object
+     */
+    public GetTrainedModelsStatsResponse getTrainedModelsStats(GetTrainedModelsStatsRequest request,
+                                                               RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getTrainedModelsStats,
+            options,
+            GetTrainedModelsStatsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets trained model stats asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     GET Trained Model Stats documentation</a>
+     *
+     * @param request The {@link GetTrainedModelsStatsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getTrainedModelsStatsAsync(GetTrainedModelsStatsRequest request,
+                                                  RequestOptions options,
+                                                  ActionListener<GetTrainedModelsStatsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getTrainedModelsStats,
+            options,
+            GetTrainedModelsStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Trained Model
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     DELETE Trained  Model documentation</a>
+     *
+     * @param request The {@link DeleteTrainedModelRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteTrainedModel(DeleteTrainedModelRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteTrainedModel,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Trained Model asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="TODO">
+     *     DELETE Trained Model documentation</a>
+     *
+     * @param request The {@link DeleteTrainedModelRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable deleteTrainedModelAsync(DeleteTrainedModelRequest request,
+                                               RequestOptions options,
+                                               ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteTrainedModel,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
 }

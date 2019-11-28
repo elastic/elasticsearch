@@ -44,7 +44,7 @@ public class NettyAllocator {
         } else {
             ByteBufAllocator delegate;
             if (useUnpooled()) {
-                delegate = new NoDirectBuffers(UnpooledByteBufAllocator.DEFAULT);
+                delegate = UnpooledByteBufAllocator.DEFAULT;
             } else {
                 int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
                 int pageSize = PooledByteBufAllocator.defaultPageSize();

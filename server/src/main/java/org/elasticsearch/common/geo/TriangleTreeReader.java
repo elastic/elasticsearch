@@ -92,20 +92,22 @@ public class TriangleTreeReader implements ShapeTreeReader {
         int thisMaxY = input.readInt();
         int thisMinY = Math.toIntExact(thisMaxY - input.readVLong());
         if (minX <= thisMinX && maxX >= thisMaxX && minY <= thisMinY && maxY >= thisMaxY) {
+            // the rectangle fully contains the shape
             return GeoRelation.QUERY_CROSSES;
         }
         GeoRelation rel = GeoRelation.QUERY_DISJOINT;
         if ((thisMinX > maxX || thisMaxX < minX || thisMinY > maxY || thisMaxY < minY) == false) {
+            // shapes are NOT disjoint
             rectangle2D.setValues(minX, maxX, minY, maxY);
             byte metadata = input.readByte();
-            if ((metadata & 1 << 2) == 1 << 2) {
+            if ((metadata & 1 << 2) == 1 << 2) { // component in this node is a point
                 int x = Math.toIntExact(thisMaxX - input.readVLong());
                 int y = Math.toIntExact(thisMaxY - input.readVLong());
                 if (rectangle2D.contains(x, y)) {
                     return GeoRelation.QUERY_CROSSES;
                 }
                 thisMinX = x;
-            } else if ((metadata & 1 << 3) == 1 << 3) {
+            } else if ((metadata & 1 << 3) == 1 << 3) {  // component in this node is a line
                 int aX = Math.toIntExact(thisMaxX - input.readVLong());
                 int aY = Math.toIntExact(thisMaxY - input.readVLong());
                 int bX = Math.toIntExact(thisMaxX - input.readVLong());
@@ -114,7 +116,7 @@ public class TriangleTreeReader implements ShapeTreeReader {
                     return GeoRelation.QUERY_CROSSES;
                 }
                 thisMinX = aX;
-            } else {
+            } else {  // component in this node is a triangle
                 int aX = Math.toIntExact(thisMaxX - input.readVLong());
                 int aY = Math.toIntExact(thisMaxY - input.readVLong());
                 int bX = Math.toIntExact(thisMaxX - input.readVLong());
@@ -161,7 +163,7 @@ public class TriangleTreeReader implements ShapeTreeReader {
             byte metadata = input.readByte();
             int thisMinX;
             int thisMinY;
-            if ((metadata & 1 << 2) == 1 << 2) {
+            if ((metadata & 1 << 2) == 1 << 2) { // component in this node is a point
                 int x = Math.toIntExact(thisMaxX - input.readVLong());
                 int y = Math.toIntExact(thisMaxY - input.readVLong());
                 if (rectangle2D.contains(x, y)) {
@@ -169,7 +171,7 @@ public class TriangleTreeReader implements ShapeTreeReader {
                 }
                 thisMinX = x;
                 thisMinY = y;
-            } else if ((metadata & 1 << 3) == 1 << 3) {
+            } else if ((metadata & 1 << 3) == 1 << 3) { // component in this node is a line
                 int aX = Math.toIntExact(thisMaxX - input.readVLong());
                 int aY = Math.toIntExact(thisMaxY - input.readVLong());
                 int bX = Math.toIntExact(thisMaxX - input.readVLong());
@@ -179,7 +181,7 @@ public class TriangleTreeReader implements ShapeTreeReader {
                 }
                 thisMinX = aX;
                 thisMinY = Math.min(aY, bY);
-            } else {
+            } else { // component in this node is a triangle
                 int aX = Math.toIntExact(thisMaxX - input.readVLong());
                 int aY = Math.toIntExact(thisMaxY - input.readVLong());
                 int bX = Math.toIntExact(thisMaxX - input.readVLong());

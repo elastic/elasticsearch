@@ -345,10 +345,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     }
                 }
             }
-            repositories = Collections.unmodifiableMap(builder);
-            for (Repository repo : repositories.values()) {
+            for (Repository repo : builder.values()) {
                 repo.updateState(state);
             }
+            repositories = Collections.unmodifiableMap(builder);
         } catch (Exception ex) {
             logger.warn("failure updating cluster state ", ex);
         }

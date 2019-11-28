@@ -54,6 +54,16 @@ public class EdgeTreeReader implements ShapeTreeReader {
         return treeExtent;
     }
 
+    @Override
+    public double getCentroidX() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public double getCentroidY() {
+        throw new UnsupportedOperationException();
+    }
+
     /**
      * Returns true if the rectangle query and the edge tree's shape overlap
      */

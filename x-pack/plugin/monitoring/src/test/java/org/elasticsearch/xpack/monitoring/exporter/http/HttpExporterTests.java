@@ -23,7 +23,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -67,8 +66,6 @@ import static org.mockito.Mockito.when;
  * Tests {@link HttpExporter}.
  */
 public class HttpExporterTests extends ESTestCase {
-
-    private static XPackPlugin xPackPlugin;
 
     private final ClusterService clusterService = mock(ClusterService.class);
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -292,7 +289,6 @@ public class HttpExporterTests extends ESTestCase {
     }
 
     public void testExporterWithHostOnly() throws Exception {
-        initializeXpackPlugin();
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
         when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
 
@@ -329,7 +325,6 @@ public class HttpExporterTests extends ESTestCase {
     }
 
     public void testCreateRestClient() throws IOException {
-        initializeXpackPlugin();
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
 
         when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
@@ -640,22 +635,6 @@ public class HttpExporterTests extends ESTestCase {
 
     private static String exporterName() {
         return "xpack.monitoring.exporters._http";
-    }
-
-    /**
-     * Instantiates an instance of {@link XPackPlugin} to trigger initialization of its static fields, some of which
-     * are required by some tests. Idempotently instantiates only a single instance to avoid errors from the static
-     * {@link org.apache.lucene.util.SetOnce} fields in {@link XPackPlugin}.
-     *
-     * @return true if an {@link XPackPlugin} instance was created or false if one already existed
-     */
-    public static synchronized boolean initializeXpackPlugin() {
-        if (xPackPlugin == null) {
-            Settings.Builder builder = Settings.builder();
-            xPackPlugin = new XPackPlugin(builder.put("path.home", createTempDir()).build(), null);
-            return true;
-        }
-        return false;
     }
 
 }

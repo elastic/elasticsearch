@@ -99,7 +99,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     @Before
     public void startWebServer() throws IOException {
         webServer = createMockWebServer();
-        HttpExporterTests.initializeXpackPlugin();
     }
 
     @After

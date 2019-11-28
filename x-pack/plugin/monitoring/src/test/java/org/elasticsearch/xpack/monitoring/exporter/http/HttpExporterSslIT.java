@@ -124,7 +124,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     public void testCannotUpdateSslSettingsWithSecureSettings() throws Exception {
-        HttpExporterTests.initializeXpackPlugin();
         // Verify that it was created even though it has a secure setting
         assertExporterExists("secure");
 
@@ -136,7 +135,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     public void testCanUpdateSslSettingsWithNoSecureSettings() {
-        HttpExporterTests.initializeXpackPlugin();
         final ActionFuture<ClusterUpdateSettingsResponse> future = setVerificationMode("plaintext", VerificationMode.CERTIFICATE);
         final ClusterUpdateSettingsResponse response = future.actionGet();
         assertThat(response, notNullValue());
@@ -144,7 +142,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     public void testCanAddNewExporterWithSsl() {
-        HttpExporterTests.initializeXpackPlugin();
         Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
         assertThat(Files.exists(truststore), CoreMatchers.is(true));
 

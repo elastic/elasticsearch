@@ -45,6 +45,9 @@ public class MultiCommand extends Command {
      */
     public MultiCommand(final String description, final Runnable beforeMain) {
         super(description, beforeMain);
+        // Accepting -E here does not prevent subcommands receiving -E arguments, since we also set `posixlyCorrect` below.
+        // This stops option parsing when the first non-option is encountered.
+        parser.accepts("E", "Unused. Pass to a subcommand instead").withRequiredArg();
         parser.posixlyCorrect(true);
     }
 

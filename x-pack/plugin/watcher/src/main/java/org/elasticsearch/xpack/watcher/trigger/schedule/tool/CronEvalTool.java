@@ -46,7 +46,7 @@ public class CronEvalTool extends LoggingAwareCommand {
             .withRequiredArg().ofType(Integer.class).defaultsTo(10);
         this.arguments = parser.nonOptions("expression");
 
-        parser.accepts("E", "Unused. Only for compatibility with other CLI tools.").withRequiredArg().ofType(KeyValuePair.class);
+        parser.accepts("E", "Unused. Only for compatibility with other CLI tools.").withRequiredArg();
     }
 
     @Override

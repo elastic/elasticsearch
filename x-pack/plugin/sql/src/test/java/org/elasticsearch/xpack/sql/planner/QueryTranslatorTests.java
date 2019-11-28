@@ -999,6 +999,22 @@ public class QueryTranslatorTests extends ESTestCase {
                     + "\"calendar_interval\":\"1y\",\"time_zone\":\"Z\"}}}]}}}"));
     }
 
+    public void testGroupByYearAndScalarsQueryTranslator() {
+        PhysicalPlan p = optimizeAndPlan("SELECT YEAR(CAST(date + INTERVAL 5 months AS DATE)) FROM test GROUP BY 1");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.output().size());
+        assertEquals("YEAR(CAST(date + INTERVAL 5 months AS DATE))", eqe.output().get(0).qualifiedName());
+        assertEquals(DataType.INTEGER, eqe.output().get(0).dataType());
+        assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"date_histogram\":{\"script\":{\"source\":\"InternalSqlScriptUtils.cast(" +
+                        "InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0)," +
+                        "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)\"," +
+                        "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"P5M\",\"v2\":\"INTERVAL_MONTH\"," +
+                        "\"v3\":\"DATE\"}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"," +
+                        "\"calendar_interval\":\"1y\",\"time_zone\":\"Z\"}}}]}}}"));
+    }
+
     public void testGroupByHistogramWithDate() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(CAST(date AS DATE), INTERVAL 2 MONTHS)");
         assertTrue(p instanceof Aggregate);

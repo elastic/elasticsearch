@@ -271,8 +271,8 @@ examining the loss on the training data. Subject to the size constraint, this
 operation provides an upper bound on the improvement in validation loss.
 
 A fixed number of rounds is used for optimization which depends on the number of 
-parameters being optimized. The optimitazion starts with random search, then 
-Bayesian Optimisation is performed that is targeting maximum expected 
+parameters being optimized. The optimization starts with random search, then 
+Bayesian optimization is performed that is targeting maximum expected 
 improvement. If you override any parameters, then the optimization will 
 calculate the value of the remaining parameters accordingly and use the value 
 you provided for the overridden parameter. The number of rounds are reduced 

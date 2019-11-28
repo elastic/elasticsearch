@@ -25,15 +25,18 @@ public class DataFrameDataExtractorFactory {
     private final Client client;
     private final String analyticsId;
     private final List<String> indices;
+    private final QueryBuilder sourceQuery;
     private final ExtractedFields extractedFields;
     private final Map<String, String> headers;
     private final boolean includeRowsWithMissingValues;
 
-    public DataFrameDataExtractorFactory(Client client, String analyticsId, List<String> indices, ExtractedFields extractedFields,
-                                          Map<String, String> headers, boolean includeRowsWithMissingValues) {
+    private DataFrameDataExtractorFactory(Client client, String analyticsId, List<String> indices, QueryBuilder sourceQuery,
+                                         ExtractedFields extractedFields, Map<String, String> headers,
+                                         boolean includeRowsWithMissingValues) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.indices = Objects.requireNonNull(indices);
+        this.sourceQuery = Objects.requireNonNull(sourceQuery);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.headers = headers;
         this.includeRowsWithMissingValues = includeRowsWithMissingValues;
@@ -54,7 +57,12 @@ public class DataFrameDataExtractorFactory {
     }
 
     private QueryBuilder createQuery() {
-        return includeRowsWithMissingValues ? QueryBuilders.matchAllQuery() : allExtractedFieldsExistQuery();
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        query.filter(sourceQuery);
+        if (includeRowsWithMissingValues == false) {
+            query.filter(allExtractedFieldsExistQuery());
+        }
+        return query;
     }
 
     private QueryBuilder allExtractedFieldsExistQuery() {
@@ -77,8 +85,8 @@ public class DataFrameDataExtractorFactory {
      */
     public static DataFrameDataExtractorFactory createForSourceIndices(Client client, String taskId, DataFrameAnalyticsConfig config,
                                                                        ExtractedFields extractedFields) {
-        return new DataFrameDataExtractorFactory(client, taskId, Arrays.asList(config.getSource().getIndex()), extractedFields,
-            config.getHeaders(), config.getAnalysis().supportsMissingValues());
+        return new DataFrameDataExtractorFactory(client, taskId, Arrays.asList(config.getSource().getIndex()),
+            config.getSource().getParsedQuery(), extractedFields, config.getHeaders(), config.getAnalysis().supportsMissingValues());
     }
 
     /**
@@ -100,8 +108,8 @@ public class DataFrameDataExtractorFactory {
             extractedFieldsDetector -> {
                 ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
                 DataFrameDataExtractorFactory extractorFactory = new DataFrameDataExtractorFactory(client, config.getId(),
-                    Collections.singletonList(config.getDest().getIndex()), extractedFields, config.getHeaders(),
-                    config.getAnalysis().supportsMissingValues());
+                    Collections.singletonList(config.getDest().getIndex()), config.getSource().getParsedQuery(), extractedFields,
+                    config.getHeaders(), config.getAnalysis().supportsMissingValues());
                 listener.onResponse(extractorFactory);
             },
             listener::onFailure

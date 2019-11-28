@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
@@ -39,6 +40,7 @@ import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -306,10 +308,6 @@ public abstract class AbstractTreeTestCase extends ESTestCase {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         Geometry preparedGeometry = indexer.prepareForIndexing(geometry);
 
-        // TODO: support multi-polygons
-        assumeFalse("polygon crosses dateline",
-            ShapeType.POLYGON == geometry.type() && ShapeType.MULTIPOLYGON == preparedGeometry.type());
-
         for (int i = 0; i < testPointCount; i++) {
             int cur = i;
             intersects[cur] = fold(preparedGeometry, false, (g, s) -> s || intersects(g, testPoints[cur], extentSize));
@@ -329,19 +327,34 @@ public abstract class AbstractTreeTestCase extends ESTestCase {
     }
 
     private boolean intersects(Geometry g, Point p, double extentSize) throws IOException {
-        return geometryTreeReader(g, GeoShapeCoordinateEncoder.INSTANCE)
-            .relate(bufferedExtentFromGeoPoint(p.getX(), p.getY(), extentSize)) == GeoRelation.QUERY_CROSSES;
+        GeoRelation relation = geometryTreeReader(g, GeoShapeCoordinateEncoder.INSTANCE)
+            .relate(bufferedExtentFromGeoPoint(p.getX(), p.getY(), extentSize));
+        return relation == GeoRelation.QUERY_CROSSES || relation == GeoRelation.QUERY_INSIDE;
     }
 
     private static Geometry randomGeometryTreeGeometry() {
+        return randomGeometryTreeGeometry(0);
+    }
+
+    private static Geometry randomGeometryTreeGeometry(int level) {
         @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
             GeometryTestUtils::randomLine,
             GeometryTestUtils::randomPoint,
             GeometryTestUtils::randomPolygon,
             GeometryTestUtils::randomMultiLine,
-            GeometryTestUtils::randomMultiPoint
+            GeometryTestUtils::randomMultiPoint,
+            level < 3 ? (b) -> randomGeometryTreeCollection(level + 1) : GeometryTestUtils::randomPoint // don't build too deep
         );
         return geometry.apply(false);
+    }
+
+    private static Geometry randomGeometryTreeCollection(int level) {
+        int size = ESTestCase.randomIntBetween(1, 10);
+        List<Geometry> shapes = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            shapes.add(randomGeometryTreeGeometry(level));
+        }
+        return new GeometryCollection<>(shapes);
     }
 
     protected abstract ShapeTreeReader geometryTreeReader(Geometry geometry, CoordinateEncoder encoder) throws IOException;

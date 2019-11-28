@@ -48,6 +48,7 @@ prevent new jobs from opening by using the
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=true
 --------------------------------------------------
+// TEST
 +
 When you disable upgrade mode, the jobs resume using the last model state that 
 was automatically saved. This option avoids the overhead of managing active jobs 
@@ -88,6 +89,7 @@ GET _cat/health
 
 GET _cat/nodes
 --------------------------------------------------
+// TEST[continued]
 
 The `status` column returned by `_cat/health` shows the health of each node
 in the cluster: `red`, `yellow`, or `green`.
@@ -124,6 +126,7 @@ PUT _cluster/settings
   }
 }
 ------------------------------------------------------
+// TEST[continued]
 
 Once allocation is re-enabled, the cluster starts allocating replica shards to
 the data nodes. At this point it is safe to resume indexing and searching,
@@ -140,6 +143,7 @@ GET _cat/health
 
 GET _cat/recovery
 --------------------------------------------------
+// TEST[continued]
 --
 // tag::restart_ml[]
 . *Restart machine learning jobs.* (Optional)
@@ -152,6 +156,7 @@ If you temporarily halted the tasks associated with your {ml} jobs, use the
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=false
 --------------------------------------------------
+// TEST[continued]
 
 If you closed all {ml} jobs before stopping the nodes, open the jobs and start 
 the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
@@ -197,6 +202,7 @@ by submitting a `_cat/nodes` request:
 --------------------------------------------------
 GET _cat/nodes
 --------------------------------------------------
+// TEST[continued]
 --
 
 . *Reenable shard allocation.*
@@ -215,6 +221,7 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
+// TEST[continued]
 --
 
 . *Repeat in case of rolling restart.*

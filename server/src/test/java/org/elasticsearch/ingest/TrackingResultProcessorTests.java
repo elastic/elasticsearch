@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
@@ -41,6 +40,7 @@ import java.util.Map;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_MESSAGE_FIELD;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD;
+import static org.elasticsearch.ingest.PipelineProcessorTests.createIngestService;
 import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -48,7 +48,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -86,7 +85,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         Exception[] holder = new Exception[1];
         trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
-        assertThat(((ElasticsearchException) holder[0]).getRootCause().getMessage(), equalTo(exception.getMessage()));
+        assertThat(((IngestProcessorException) holder[0]).getRootCause().getMessage(), equalTo(exception.getMessage()));
 
         SimulateProcessorResult expectedFirstResult = new SimulateProcessorResult(testProcessor.getTag(), ingestDocument);
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
@@ -196,7 +195,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
     public void testActualPipelineProcessor() throws Exception {
         String pipelineId = "pipeline1";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
@@ -241,7 +240,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
     public void testActualPipelineProcessorWithTrueConditional() throws Exception {
         String pipelineId1 = "pipeline1";
         String pipelineId2 = "pipeline2";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig0 = new HashMap<>();
         pipelineConfig0.put("name", pipelineId1);
         Map<String, Object> pipelineConfig1 = new HashMap<>();
@@ -309,7 +308,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
     public void testActualPipelineProcessorWithFalseConditional() throws Exception {
         String pipelineId1 = "pipeline1";
         String pipelineId2 = "pipeline2";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig0 = new HashMap<>();
         pipelineConfig0.put("name", pipelineId1);
         Map<String, Object> pipelineConfig1 = new HashMap<>();
@@ -378,7 +377,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         RuntimeException exception = new RuntimeException("processor failed");
 
         String pipelineId = "pipeline1";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
@@ -431,7 +430,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
     public void testActualPipelineProcessorWithCycle() throws Exception {
         String pipelineId1 = "pipeline1";
         String pipelineId2 = "pipeline2";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig0 = new HashMap<>();
         pipelineConfig0.put("name", pipelineId1);
         Map<String, Object> pipelineConfig1 = new HashMap<>();
@@ -456,14 +455,14 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         Exception[] holder = new Exception[1];
         trackingProcessor.execute(ingestDocument, (result, e) -> holder[0] = e);
-        ElasticsearchException exception = (ElasticsearchException) holder[0];
+        IngestProcessorException exception = (IngestProcessorException) holder[0];
         assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
         assertThat(exception.getMessage(), containsString("Cycle detected for pipeline: pipeline1"));
     }
 
     public void testActualPipelineProcessorRepeatedInvocation() throws Exception {
         String pipelineId = "pipeline1";
-        IngestService ingestService = mock(IngestService.class);
+        IngestService ingestService = createIngestService();
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);

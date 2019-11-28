@@ -55,7 +55,7 @@ dependencies {
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit.ignoreMissingClasses(
   // Commons logging
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
@@ -65,8 +65,8 @@ thirdPartyAudit.ignoreMissingClasses (
 )
 
 forbiddenPatterns {
-    // PKCS#12 file are not UTF-8
-    exclude '**/*.p12'
+  // PKCS#12 file are not UTF-8
+  exclude '**/*.p12'
 }
 
 // Support for testing reindex-from-remote against old Elasticsearch versions
@@ -116,12 +116,12 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       dependsOn project.configurations.oldesFixture
       dependsOn unzip
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
-      env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
-      env 'JAVA_HOME', "${ -> getJavaHome(it, 8)}"
+      env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
+      env 'JAVA_HOME', getJavaHome(it, 8)
       args 'oldes.OldElasticsearch',
-           baseDir,
-           unzip.temporaryDir,
-           version == '090'
+        baseDir,
+        unzip.temporaryDir,
+        version == '090'
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
         // is ready, so we can just wait for the file to exist
@@ -135,8 +135,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         systemProperty "tests.fromOld", "true"
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
-         * ready. */ 
-        nonInputProperties.systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
+         * ready. */
+        nonInputProperties.systemProperty "es${version}.port", "${-> fixture.addressAndPort}"
       }
     }
   }

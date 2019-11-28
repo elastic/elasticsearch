@@ -22,10 +22,6 @@
       ]
     },
     "params":{
-      "include_type_name":{
-        "type":"boolean",
-        "description":"Whether a type should be expected in the body of the mappings."
-      },
       "wait_for_active_shards":{
         "type":"string",
         "description":"Set the number of active shards to wait for before the operation returns."

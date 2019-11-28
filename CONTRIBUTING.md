@@ -107,7 +107,9 @@ and `JAVA11_HOME` available so that the tests can pass.
 `jrunscript` for jdk distributions.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
-using the wrapper via the `gradlew` script in the root of the repository.
+using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat` 
+script on Windows in the root of the repository. The examples below show the
+usage on Unix.
 
 We support development in the Eclipse and IntelliJ IDEs.
 For Eclipse, the minimum version that we support is [4.13][eclipse].
@@ -197,6 +199,10 @@ Please follow these formatting guidelines:
   decrease in consistency.
 * Note that JavaDoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e `// ...` are.
+* There is an implicit rule that negative boolean expressions should use
+  the form `foo == false` instead of `!foo` for better readability of the
+  code. While this isn't strictly enforced, if might get called out in PR
+  reviews as something to change.
 
 #### Editor / IDE Support
 

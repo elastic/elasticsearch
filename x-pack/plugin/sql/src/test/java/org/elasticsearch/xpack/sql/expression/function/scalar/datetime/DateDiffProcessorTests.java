@@ -284,6 +284,61 @@ public class DateDiffProcessorTests extends AbstractSqlWireSerializingTestCase<D
             .makePipe().asProcessor().process(null));
         assertEquals(-436, new DateDiff(Source.EMPTY, l("ww"), dt2, dt1, zoneId)
             .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(1997, 9, 19, 0, 0, 0, 0));
+        dt2 = l(dateTime(2004, 8, 2, 7, 59, 23, 0));
+        assertEquals(60223, new DateDiff(Source.EMPTY, l("hour"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-60223, new DateDiff(Source.EMPTY, l("hours"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(60223, new DateDiff(Source.EMPTY, l("hh"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-60223, new DateDiff(Source.EMPTY, l("hh"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(1997, 9, 19, 0, 0, 0, 0));
+        dt2 = l(dateTime(2004, 8, 2, 7, 59, 59, 999999999));
+        assertEquals(60223, new DateDiff(Source.EMPTY, l("hour"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-60223, new DateDiff(Source.EMPTY, l("hours"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(60223, new DateDiff(Source.EMPTY, l("hh"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-60223, new DateDiff(Source.EMPTY, l("hh"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(2002, 4, 27, 0, 0, 0, 0));
+        dt2 = l(dateTime(2004, 7, 28, 12, 34, 28, 0));
+        assertEquals(1185874, new DateDiff(Source.EMPTY, l("minute"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-1185874, new DateDiff(Source.EMPTY, l("minutes"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(1185874, new DateDiff(Source.EMPTY, l("mi"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-1185874, new DateDiff(Source.EMPTY, l("n"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(1995, 9, 3, 0, 0, 0, 0));
+        dt2 = l(dateTime(2004, 7, 26, 12, 30, 34, 0));
+        assertEquals(4679310, new DateDiff(Source.EMPTY, l("minute"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-4679310, new DateDiff(Source.EMPTY, l("minutes"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(4679310, new DateDiff(Source.EMPTY, l("mi"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-4679310, new DateDiff(Source.EMPTY, l("n"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
+
+        dt1 = l(dateTime(1997, 5, 30, 0, 0, 0, 0));
+        dt2 = l(dateTime(2004, 7, 28, 23, 30, 59, 999999999));
+        assertEquals(3768450, new DateDiff(Source.EMPTY, l("minute"), dt1, dt2, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-3768450, new DateDiff(Source.EMPTY, l("minutes"), dt2, dt1, UTC)
+            .makePipe().asProcessor().process(null));
+        assertEquals(3768450, new DateDiff(Source.EMPTY, l("mi"), dt1, dt2, zoneId)
+            .makePipe().asProcessor().process(null));
+        assertEquals(-3768450, new DateDiff(Source.EMPTY, l("n"), dt2, dt1, zoneId)
+            .makePipe().asProcessor().process(null));
     }
 
     public void testOverflow() {

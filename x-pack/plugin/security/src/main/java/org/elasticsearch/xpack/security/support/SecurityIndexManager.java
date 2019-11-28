@@ -391,8 +391,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 final byte[] mappingSource = mappingSourceSupplier.get();
                 final Tuple<String, Settings> mappingAndSettings = parseMappingAndSettingsFromTemplateBytes(mappingSource);
                 PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName)
-                        .source(mappingAndSettings.v1(), XContentType.JSON)
-                        .type(MapperService.SINGLE_MAPPING_NAME);
+                        .source(mappingAndSettings.v1(), XContentType.JSON);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                         ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
                             if (putMappingResponse.isAcknowledged()) {

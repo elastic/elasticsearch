@@ -36,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -58,8 +59,9 @@ public class ServerUtils {
         if (installation.distribution.packaging != Distribution.Packaging.DOCKER) {
             Path configFilePath = installation.config("elasticsearch.yml");
             // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
-            String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
-            securityEnabled = configFile.contains(SECURITY_ENABLED);
+            try (Stream<String> lines = Files.lines(configFilePath, StandardCharsets.UTF_8)) {
+              securityEnabled = lines.anyMatch(line -> line.contains(SECURITY_ENABLED));
+            }
         }
 
         if (securityEnabled) {

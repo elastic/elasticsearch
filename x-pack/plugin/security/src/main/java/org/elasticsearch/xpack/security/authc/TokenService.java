@@ -181,6 +181,7 @@ public final class TokenService {
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.token.delete.timeout",
             TimeValue.MINUS_ONE, Property.NodeScope);
 
+    public static final String TOKEN_PSEUDO_REALM = "_es_token_service";
     static final String TOKEN_DOC_TYPE = "token";
     private static final int HASHED_TOKEN_LENGTH = 43;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars

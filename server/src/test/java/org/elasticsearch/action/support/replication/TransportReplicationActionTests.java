@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -234,12 +235,10 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary("index", true, 0));
 
-        ShardId shardId = new ShardId(clusterService.state().metaData().index("index").getIndex(), 0);
-
         {
             setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
 
-            Request request = new Request(shardId);
+            Request request = globalBlock ? new Request(NO_SHARD_ID) : new Request(NO_SHARD_ID).index("index");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -254,7 +253,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         {
             setStateWithBlock(clusterService, retryableBlock, globalBlock);
 
-            Request requestWithTimeout = (globalBlock ? new Request(shardId) : new Request(shardId)).timeout("5ms");
+            Request requestWithTimeout = (globalBlock ? new Request(NO_SHARD_ID) : new Request(NO_SHARD_ID).index("index")).timeout("5ms");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -270,7 +269,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         {
             setStateWithBlock(clusterService, retryableBlock, globalBlock);
 
-            Request request = new Request(shardId);
+            Request request = globalBlock ? new Request(NO_SHARD_ID) : new Request(NO_SHARD_ID).index("index");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -1246,7 +1245,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                    ThreadPool threadPool, IndicesService indicesService) {
             super(settings, actionName, transportService, clusterService, indicesService, threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()),
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
                 Request::new, Request::new, ThreadPool.Names.SAME);
         }
 
@@ -1267,6 +1266,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
             request.processedOnReplicas.incrementAndGet();
             return new ReplicaResult();
+        }
+
+        @Override
+        protected boolean resolveIndex() {
+            return false;
         }
     }
 

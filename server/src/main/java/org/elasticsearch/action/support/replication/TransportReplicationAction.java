@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -104,6 +105,7 @@ public abstract class TransportReplicationAction<
     protected final ClusterService clusterService;
     protected final ShardStateAction shardStateAction;
     protected final IndicesService indicesService;
+    protected final IndexNameExpressionResolver indexNameExpressionResolver;
     protected final TransportRequestOptions transportOptions;
     protected final String executor;
 
@@ -116,17 +118,19 @@ public abstract class TransportReplicationAction<
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
-                                         ActionFilters actionFilters, Writeable.Reader<Request> requestReader,
+                                         ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> requestReader,
                                          Writeable.Reader<ReplicaRequest> replicaRequestReader, String executor) {
         this(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                requestReader, replicaRequestReader, executor, false, false);
+                indexNameExpressionResolver, requestReader, replicaRequestReader, executor, false, false);
     }
 
 
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
-                                         ActionFilters actionFilters, Writeable.Reader<Request> requestReader,
+                                         ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> requestReader,
                                          Writeable.Reader<ReplicaRequest> replicaRequestReader, String executor,
                                          boolean syncGlobalCheckpointAfterOperation, boolean forceExecutionOnPrimary) {
         super(actionName, actionFilters, transportService.getTaskManager());
@@ -135,6 +139,7 @@ public abstract class TransportReplicationAction<
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor;
 
         this.transportPrimaryAction = actionName + "[p]";
@@ -215,8 +220,19 @@ public abstract class TransportReplicationAction<
         return null;
     }
 
+    /**
+     * True if provided index should be resolved when resolving request
+     */
+    protected boolean resolveIndex() {
+        return true;
+    }
+
     protected TransportRequestOptions transportOptions(Settings settings) {
         return TransportRequestOptions.EMPTY;
+    }
+
+    private String concreteIndex(final ClusterState state, final ReplicationRequest request) {
+        return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request).getName() : request.index();
     }
 
     private ClusterBlockException blockExceptions(final ClusterState state, final String indexName) {
@@ -633,7 +649,7 @@ public abstract class TransportReplicationAction<
         protected void doRun() {
             setPhase(task, "routing");
             final ClusterState state = observer.setAndGetObservedState();
-            final String concreteIndex = request.shardId().getIndexName();
+            final String concreteIndex = concreteIndex(state, request);
             final ClusterBlockException blockException = blockExceptions(state, concreteIndex);
             if (blockException != null) {
                 if (blockException.retryable()) {
@@ -643,6 +659,7 @@ public abstract class TransportReplicationAction<
                     finishAsFailed(blockException);
                 }
             } else {
+                // request does not have a shardId yet, we need to pass the concrete index to resolve shardId
                 final IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
                 if (indexMetaData == null) {
                     retry(new IndexNotFoundException(concreteIndex));

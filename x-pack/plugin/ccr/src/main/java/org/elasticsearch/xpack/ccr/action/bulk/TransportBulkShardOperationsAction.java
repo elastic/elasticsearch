@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -43,7 +44,8 @@ public class TransportBulkShardOperationsAction
             final IndicesService indicesService,
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters) {
+            final ActionFilters actionFilters,
+            final IndexNameExpressionResolver indexNameExpressionResolver) {
         super(
                 settings,
                 BulkShardOperationsAction.NAME,
@@ -53,6 +55,7 @@ public class TransportBulkShardOperationsAction
                 threadPool,
                 shardStateAction,
                 actionFilters,
+                indexNameExpressionResolver,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
                 ThreadPool.Names.WRITE, false);

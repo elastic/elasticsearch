@@ -33,6 +33,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.SoftClassificationMetric.actualIsTrueQuery;
+
 /**
  * Area under the curve (AUC) of the receiver operating characteristic (ROC).
  * The ROC curve is a plot of the TPR (true positive rate) against
@@ -65,6 +67,9 @@ public class AucRoc implements SoftClassificationMetric {
     }
 
     private static final String PERCENTILES = "percentiles";
+
+    private static final String TRUE_AGG_NAME = NAME.getPreferredName() + "_true";
+    private static final String NON_TRUE_AGG_NAME = NAME.getPreferredName() + "_non_true";
 
     public static AucRoc fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -118,55 +123,44 @@ public class AucRoc implements SoftClassificationMetric {
     }
 
     @Override
-    public List<AggregationBuilder> aggs(String actualField, List<ClassInfo> classInfos) {
+    public List<AggregationBuilder> aggs(String actualField, String predictedProbabilityField) {
         if (result != null) {
             return List.of();
         }
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
-        List<AggregationBuilder> aggs = new ArrayList<>();
-        for (ClassInfo classInfo : classInfos) {
-            AggregationBuilder percentilesForClassValueAgg = AggregationBuilders
-                .filter(evaluatedLabelAggName(classInfo), classInfo.matchingQuery())
+        AggregationBuilder percentilesForClassValueAgg =
+            AggregationBuilders
+                .filter(TRUE_AGG_NAME, actualIsTrueQuery(actualField))
                 .subAggregation(
-                    AggregationBuilders.percentiles(PERCENTILES).field(classInfo.getProbabilityField()).percentiles(percentiles));
-            AggregationBuilder percentilesForRestAgg = AggregationBuilders
-                .filter(restLabelsAggName(classInfo), QueryBuilders.boolQuery().mustNot(classInfo.matchingQuery()))
+                    AggregationBuilders.percentiles(PERCENTILES).field(predictedProbabilityField).percentiles(percentiles));
+        AggregationBuilder percentilesForRestAgg =
+            AggregationBuilders
+                .filter(NON_TRUE_AGG_NAME, QueryBuilders.boolQuery().mustNot(actualIsTrueQuery(actualField)))
                 .subAggregation(
-                    AggregationBuilders.percentiles(PERCENTILES).field(classInfo.getProbabilityField()).percentiles(percentiles));
-            aggs.add(percentilesForClassValueAgg);
-            aggs.add(percentilesForRestAgg);
-        }
-        return aggs;
+                    AggregationBuilders.percentiles(PERCENTILES).field(predictedProbabilityField).percentiles(percentiles));
+        return List.of(percentilesForClassValueAgg, percentilesForRestAgg);
     }
 
     @Override
-    public void process(ClassInfo classInfo, Aggregations aggs) {
-        result = evaluate(classInfo, aggs);
+    public void process(Aggregations aggs) {
+        Filter classAgg = aggs.get(TRUE_AGG_NAME);
+        Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
+        double[] tpPercentiles =
+            percentilesArray(
+                classAgg.getAggregations().get(PERCENTILES),
+                "[" + getName() + "] requires at least one actual_field to have the value [true]");
+        double[] fpPercentiles =
+            percentilesArray(
+                restAgg.getAggregations().get(PERCENTILES),
+                "[" + getName() + "] requires at least one actual_field to have a different value than [true]");
+        List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
+        double aucRocScore = calculateAucScore(aucRocCurve);
+        result = new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList());
     }
 
     @Override
     public Optional<EvaluationMetricResult> getResult() {
         return Optional.ofNullable(result);
-    }
-
-    private String evaluatedLabelAggName(ClassInfo classInfo) {
-        return getName() + "_" + classInfo.getName();
-    }
-
-    private String restLabelsAggName(ClassInfo classInfo) {
-        return getName() + "_non_" + classInfo.getName();
-    }
-
-    private EvaluationMetricResult evaluate(ClassInfo classInfo, Aggregations aggs) {
-        Filter classAgg = aggs.get(evaluatedLabelAggName(classInfo));
-        Filter restAgg = aggs.get(restLabelsAggName(classInfo));
-        double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES),
-            "[" + getName() + "] requires at least one actual_field to have the value [" + classInfo.getName() + "]");
-        double[] fpPercentiles = percentilesArray(restAgg.getAggregations().get(PERCENTILES),
-            "[" + getName() + "] requires at least one actual_field to have a different value than [" + classInfo.getName() + "]");
-        List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
-        double aucRocScore = calculateAucScore(aucRocCurve);
-        return new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList());
     }
 
     private static double[] percentilesArray(Percentiles percentiles, String errorIfUndefined) {

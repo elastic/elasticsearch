@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -64,7 +65,7 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
      * @param userProvidedQueryBuilder User-provided query that must be respected when collecting data
      */
     default SearchSourceBuilder buildSearch(QueryBuilder userProvidedQueryBuilder) {
-        ExceptionsHelper.requireNonNull(userProvidedQueryBuilder, "userProvidedQueryBuilder");
+        Objects.requireNonNull(userProvidedQueryBuilder);
         BoolQueryBuilder boolQuery =
             QueryBuilders.boolQuery()
                 // Verify existence of required fields
@@ -86,7 +87,7 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
      * @param searchResponse response from the search action
      */
     default void process(SearchResponse searchResponse) {
-        ExceptionsHelper.requireNonNull(searchResponse, "searchResponse");
+        Objects.requireNonNull(searchResponse);
         if (searchResponse.getHits().getTotalHits().value == 0) {
             throw ExceptionsHelper.badRequestException(
                 "No documents found containing both [{}, {}] fields", getActualField(), getPredictedField());

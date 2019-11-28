@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -1247,7 +1246,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                    ThreadPool threadPool, IndicesService indicesService) {
             super(settings, actionName, transportService, clusterService, indicesService, threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
+                new ActionFilters(new HashSet<>()),
                 Request::new, Request::new, ThreadPool.Names.SAME);
         }
 

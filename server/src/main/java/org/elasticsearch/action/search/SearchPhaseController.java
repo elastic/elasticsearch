@@ -571,19 +571,23 @@ public final class SearchPhaseController {
         private final int bufferSize;
         private int index;
         private final SearchPhaseController controller;
+        private final SearchProgressListener progressListener;
         private int numReducePhases = 0;
         private final TopDocsStats topDocsStats;
         private final boolean performFinalReduce;
 
         /**
          * Creates a new {@link QueryPhaseResultConsumer}
+         * @param progressListener a progress listener to be notified when a successful response is received
+         *                         and when a partial or final reduce has completed.
          * @param controller a controller instance to reduce the query response objects
          * @param expectedResultSize the expected number of query results. Corresponds to the number of shards queried
          * @param bufferSize the size of the reduce buffer. if the buffer size is smaller than the number of expected results
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
-        private QueryPhaseResultConsumer(SearchPhaseController controller, int expectedResultSize, int bufferSize,
-                                         boolean hasTopDocs, boolean hasAggs, int trackTotalHitsUpTo, boolean performFinalReduce) {
+        private QueryPhaseResultConsumer(SearchProgressListener progressListener, SearchPhaseController controller,
+                                         int expectedResultSize, int bufferSize, boolean hasTopDocs, boolean hasAggs,
+                                         int trackTotalHitsUpTo, boolean performFinalReduce) {
             super(expectedResultSize);
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
@@ -595,6 +599,7 @@ public final class SearchPhaseController {
                 throw new IllegalArgumentException("either aggs or top docs must be present");
             }
             this.controller = controller;
+            this.progressListener = progressListener;
             // no need to buffer anything if we have less expected results. in this case we don't consume any results ahead of time.
             this.aggsBuffer = new InternalAggregations[hasAggs ? bufferSize : 0];
             this.topDocsBuffer = new TopDocs[hasTopDocs ? bufferSize : 0];
@@ -610,6 +615,7 @@ public final class SearchPhaseController {
             super.consumeResult(result);
             QuerySearchResult queryResult = result.queryResult();
             consumeInternal(queryResult);
+            progressListener.notifyQueryResult(queryResult.getShardIndex());
         }
 
         private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
@@ -629,6 +635,10 @@ public final class SearchPhaseController {
                 }
                 numReducePhases++;
                 index = 1;
+                if (hasAggs) {
+                    progressListener.notifyPartialReduce(progressListener.searchShards(results.asList()),
+                        topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
+                }
             }
             final int i = index++;
             if (hasAggs) {
@@ -652,8 +662,11 @@ public final class SearchPhaseController {
 
         @Override
         public ReducedQueryPhase reduce() {
-            return controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(), topDocsStats,
-                numReducePhases, false, performFinalReduce);
+            ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(),
+                getRemainingAggs(), getRemainingTopDocs(), topDocsStats, numReducePhases, false, performFinalReduce);
+            progressListener.notifyReduce(progressListener.searchShards(results.asList()),
+                reducePhase.totalHits, reducePhase.aggregations);
+            return reducePhase;
         }
 
         /**
@@ -678,7 +691,9 @@ public final class SearchPhaseController {
     /**
      * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
      */
-    ArraySearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchRequest request, int numShards) {
+    ArraySearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(SearchProgressListener listener,
+                                                                     SearchRequest request,
+                                                                     int numShards) {
         SearchSourceBuilder source = request.source();
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
@@ -688,14 +703,24 @@ public final class SearchPhaseController {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
-                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
+                return new QueryPhaseResultConsumer(listener, this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
                     trackTotalHitsUpTo, request.isFinalReduce());
             }
         }
         return new ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
+            void consumeResult(SearchPhaseResult result) {
+                super.consumeResult(result);
+                listener.notifyQueryResult(result.queryResult().getShardIndex());
+            }
+
+            @Override
             ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo, request.isFinalReduce());
+                List<SearchPhaseResult> resultList = results.asList();
+                final ReducedQueryPhase reducePhase =
+                    reducedQueryPhase(resultList, isScrollRequest, trackTotalHitsUpTo, request.isFinalReduce());
+                listener.notifyReduce(listener.searchShards(resultList), reducePhase.totalHits, reducePhase.aggregations);
+                return reducePhase;
             }
         };
     }

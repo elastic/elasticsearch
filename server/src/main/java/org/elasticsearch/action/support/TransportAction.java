@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
-    protected final String actionName;
+    public final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
     /**

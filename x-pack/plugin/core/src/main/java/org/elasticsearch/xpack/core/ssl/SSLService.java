@@ -468,7 +468,7 @@ public class SSLService {
                     .filter(e -> e.getValue().equals(configuration))
                     .limit(2) // we only need to distinguishing between 0/1/many
                     .map(Entry::getKey)
-                    .collect(Collectors.toUnmodifiableList());
+                    .collect(Collectors.toList());
                 switch (names.size()) {
                     case 0:
                         return "(unknown)";

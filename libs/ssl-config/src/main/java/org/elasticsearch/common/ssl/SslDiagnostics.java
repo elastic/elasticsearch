@@ -121,7 +121,7 @@ public class SslDiagnostics {
          * We trust the provided certificates.
          */
         private static CertificateTrust sameCertificate(X509Certificate issuerCert) {
-            return new CertificateTrust(List.of(issuerCert), true, true);
+            return new CertificateTrust(Collections.singletonList(issuerCert), true, true);
         }
 
         /**

@@ -21,6 +21,8 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.http.MockResponse;
@@ -206,4 +208,8 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
         }
     }
 
+    private Environment newEnvironment() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath()).build();
+        return TestEnvironment.newEnvironment(settings);
+    }
 }

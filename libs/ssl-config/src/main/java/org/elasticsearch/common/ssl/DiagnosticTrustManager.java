@@ -28,6 +28,7 @@ import java.security.GeneralSecurityException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -64,7 +65,7 @@ public final class DiagnosticTrustManager extends X509ExtendedTrustManager {
         this.contextName = contextName;
         this.logger = logger;
         this.issuers = Stream.of(delegate.getAcceptedIssuers())
-            .collect(Collectors.toMap(cert -> cert.getSubjectX500Principal().getName(), List::of,
+            .collect(Collectors.toMap(cert -> cert.getSubjectX500Principal().getName(), Collections::singletonList,
                 (List<X509Certificate> a, List<X509Certificate> b) -> {
                     final ArrayList<X509Certificate> list = new ArrayList<>(a.size() + b.size());
                     list.addAll(a);

@@ -36,6 +36,7 @@ import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -90,6 +91,8 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsResponse;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsResponse;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -162,6 +165,7 @@ import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.client.ml.inference.TrainedModelStats;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -3592,6 +3596,105 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetTrainedModelsStats() throws Exception {
+        putTrainedModel("my-trained-model");
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::get-trained-models-stats-request
+            GetTrainedModelsStatsRequest request =
+                new GetTrainedModelsStatsRequest("my-trained-model") // <1>
+                    .setPageParams(new PageParams(0, 1)) // <2>
+                    .setAllowNoMatch(true); // <3>
+            // end::get-trained-models-stats-request
+
+            // tag::get-trained-models-stats-execute
+            GetTrainedModelsStatsResponse response =
+                client.machineLearning().getTrainedModelsStats(request, RequestOptions.DEFAULT);
+            // end::get-trained-models-stats-execute
+
+            // tag::get-trained-models-stats-response
+            List<TrainedModelStats> models = response.getTrainedModelStats();
+            // end::get-trained-models-stats-response
+
+            assertThat(models, hasSize(1));
+        }
+        {
+            GetTrainedModelsStatsRequest request = new GetTrainedModelsStatsRequest("my-trained-model");
+
+            // tag::get-trained-models-stats-execute-listener
+            ActionListener<GetTrainedModelsStatsResponse> listener = new ActionListener<GetTrainedModelsStatsResponse>() {
+                @Override
+                public void onResponse(GetTrainedModelsStatsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-trained-models-stats-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-trained-models-stats-execute-async
+            client.machineLearning()
+                .getTrainedModelsStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-trained-models-stats-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteTrainedModel() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            putTrainedModel("my-trained-model");
+            // tag::delete-trained-model-request
+            DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model"); // <1>
+            // end::delete-trained-model-request
+
+            // tag::delete-trained-model-execute
+            AcknowledgedResponse response = client.machineLearning().deleteTrainedModel(request, RequestOptions.DEFAULT);
+            // end::delete-trained-model-execute
+
+            // tag::delete-trained-model-response
+            boolean deleted = response.isAcknowledged();
+            // end::delete-trained-model-response
+
+            assertThat(deleted, is(true));
+        }
+        {
+            putTrainedModel("my-trained-model");
+            DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model");
+
+            // tag::delete-trained-model-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-trained-model-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-trained-model-execute-async
+            client.machineLearning().deleteTrainedModelAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-trained-model-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();

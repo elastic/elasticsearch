@@ -14,12 +14,14 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -28,8 +30,8 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     private final String policyName;
     private final BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner;
-    private final String field;
-    private final String targetField;
+    private final TemplateScript.Factory field;
+    private final TemplateScript.Factory targetField;
     private final boolean ignoreMissing;
     private final boolean overrideEnabled;
     protected final String matchField;
@@ -39,8 +41,8 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String tag,
         Client client,
         String policyName,
-        String field,
-        String targetField,
+        TemplateScript.Factory field,
+        TemplateScript.Factory targetField,
         boolean ignoreMissing,
         boolean overrideEnabled,
         String matchField,
@@ -53,8 +55,8 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String tag,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
         String policyName,
-        String field,
-        String targetField,
+        TemplateScript.Factory field,
+        TemplateScript.Factory targetField,
         boolean ignoreMissing,
         boolean overrideEnabled,
         String matchField,
@@ -77,6 +79,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         try {
             // If a document does not have the enrich key, return the unchanged document
+            String field = ingestDocument.renderTemplate(this.field);
             final Object value = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
             if (value == null) {
                 handler.accept(ingestDocument, null);
@@ -111,6 +114,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                     return;
                 }
 
+                String targetField = ingestDocument.renderTemplate(this.targetField);
                 if (overrideEnabled || ingestDocument.hasField(targetField) == false) {
                     if (maxMatches == 1) {
                         Map<String, Object> firstDocument = searchHits[0].getSourceAsMap();
@@ -146,11 +150,13 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     }
 
     String getField() {
-        return field;
+        // used for testing only:
+        return field.newInstance(Collections.emptyMap()).execute();
     }
 
-    public String getTargetField() {
-        return targetField;
+    String getTargetField() {
+        // used for testing only:
+        return targetField.newInstance(Collections.emptyMap()).execute();
     }
 
     boolean isIgnoreMissing() {

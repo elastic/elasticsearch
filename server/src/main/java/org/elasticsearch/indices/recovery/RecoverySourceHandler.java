@@ -170,7 +170,7 @@ public class RecoverySourceHandler {
             }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ",
                 shard, cancellableThreads, logger);
             final Engine.HistorySource historySource;
-            if (shard.indexSettings().useSoftDeletesInPeerRecovery() || retentionLeaseRef.get() != null) {
+            if (shard.useRetentionLeasesInPeerRecovery() || retentionLeaseRef.get() != null) {
                 historySource = Engine.HistorySource.INDEX;
             } else {
                 historySource = Engine.HistorySource.TRANSLOG;

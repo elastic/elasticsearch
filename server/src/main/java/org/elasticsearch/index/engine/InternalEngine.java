@@ -68,6 +68,8 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -2483,15 +2485,15 @@ public class InternalEngine extends Engine {
         }
     }
 
-    public void onSettingsChanged() {
+    @Override
+    public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
         mergeScheduler.refreshConfig();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
         maybePruneDeletes();
         final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
-        final IndexSettings indexSettings = engineConfig.getIndexSettings();
-        translogDeletionPolicy.setRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
-        translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
-        softDeletesPolicy.setRetentionOperations(indexSettings.getSoftDeleteRetentionOperations());
+        translogDeletionPolicy.setRetentionAgeInMillis(translogRetentionAge.millis());
+        translogDeletionPolicy.setRetentionSizeInBytes(translogRetentionSize.getBytes());
+        softDeletesPolicy.setRetentionOperations(softDeletesRetentionOps);
     }
 
     public MergeStats getMergeStats() {

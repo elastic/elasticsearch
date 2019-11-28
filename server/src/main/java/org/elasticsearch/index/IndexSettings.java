@@ -249,7 +249,9 @@ public final class IndexSettings {
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
         Setting.timeSetting("index.translog.retention.age",
-            settings -> useSoftDeletesInPeerRecovery(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12),
+            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) &&
+                IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0) ?
+                TimeValue.MINUS_ONE : TimeValue.timeValueHours(12),
             TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
 
     /**
@@ -259,7 +261,9 @@ public final class IndexSettings {
      * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
      **/
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", settings -> useSoftDeletesInPeerRecovery(settings) ? "-1" : "512MB",
+        Setting.byteSizeSetting("index.translog.retention.size",
+            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) &&
+                IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0) ? "-1" : "512MB",
             Property.Dynamic, Property.IndexScope);
 
     /**
@@ -764,11 +768,7 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
-        if (useSoftDeletesInPeerRecovery()) {
-            return ByteSizeValue.MINUS_ONE;
-        } else {
-            return translogRetentionSize;
-        }
+        return translogRetentionSize;
     }
 
     /**
@@ -776,11 +776,7 @@ public final class IndexSettings {
      * around
      */
     public TimeValue getTranslogRetentionAge() {
-        if (useSoftDeletesInPeerRecovery()) {
-            return TimeValue.MINUS_ONE;
-        } else {
-            return translogRetentionAge;
-        }
+        return translogRetentionAge;
     }
 
     /**
@@ -1020,15 +1016,5 @@ public final class IndexSettings {
 
     private void setSearchThrottled(boolean searchThrottled) {
         this.searchThrottled = searchThrottled;
-    }
-
-    public boolean useSoftDeletesInPeerRecovery() {
-        return useSoftDeletesInPeerRecovery(settings);
-    }
-
-    private static boolean useSoftDeletesInPeerRecovery(Settings settings) {
-        // TODO: Once all copy has established its PRRLs, we should always use soft-deletes in peer recovery.
-        return INDEX_SOFT_DELETES_SETTING.get(settings)
-            && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0);
     }
 }

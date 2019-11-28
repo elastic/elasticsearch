@@ -680,9 +680,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
     }
 
     /**
-     * Tests that with or without soft-deletes, we should perform an operation-based recovery if there are some but not too many
-     * uncommitted documents during rolling upgrade. This is important when we move from translog based to retention leases
-     * based peer recoveries.
+     * Tests that with or without soft-deletes, we should perform an operation-based recovery if there were some
+     * but not too many uncommitted documents (i.e., less than 10% of committed documents or the extra translog)
+     * before we upgrade each node. This is important when we move from translog based to retention leases based
+     * peer recoveries.
      */
     public void testOperationBasedRecovery() throws Exception {
         final String index = "test_operation_based_recovery";
@@ -694,14 +695,38 @@ public class RecoveryIT extends AbstractRollingTestCase {
             ensureGreen(index);
             indexDocs(index, 0, randomIntBetween(100, 200));
             flush(index, randomBoolean());
-            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 2));
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+            // uncommitted docs must be less than 10% of committed docs (see IndexSetting#FILE_BASED_RECOVERY_THRESHOLD_SETTING).
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
         } else {
             ensureGreen(index);
             assertNoFileBasedRecovery(index, nodeName ->
-                CLUSTER_TYPE == ClusterType.UPGRADED
+                   CLUSTER_TYPE == ClusterType.UPGRADED
                 || nodeName.startsWith(CLUSTER_NAME + "-0")
-                || Booleans.parseBoolean(System.getProperty("tests.first_round")) == false && nodeName.startsWith(CLUSTER_NAME + "-1"));
-            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 2));
+                || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false));
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 3));
+        }
+    }
+
+    /**
+     * Verifies that once all shard copies on the new version, we should turn off the translog retention for indices with soft-deletes.
+     */
+    public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
+        final String index = "turn_off_translog_retention";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(index, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 2))
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+            ensureGreen(index);
+            indexDocs(index, 0, randomIntBetween(100, 200));
+            flush(index, randomBoolean());
+            indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 100));
+        }
+        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            ensureGreen(index);
+            flush(index, true);
+            assertEmptyTranslog(index);
         }
     }
 }

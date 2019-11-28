@@ -1257,9 +1257,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     /**
-     * Tests that with or without soft-deletes, we should perform an operation-based recovery if there were some but not too many
-     * uncommitted documents before we restart the cluster. This is important when we move from translog based to retention leases
-     * based peer recoveries.
+     * Tests that with or without soft-deletes, we should perform an operation-based recovery if there were some
+     * but not too many uncommitted documents (i.e., less than 10% of committed documents or the extra translog)
+     * before we restart the cluster. This is important when we move from translog based to retention leases based
+     * peer recoveries.
      */
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
@@ -1269,23 +1270,48 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                 .build());
             ensureGreen(index);
-            int numDocs = randomIntBetween(50, 100);
-            for (int i = 0; i < numDocs; i++) {
-                final String id = Integer.toString(randomIntBetween(1, 100));
-                indexDocument(id);
+            int committedDocs = randomIntBetween(100, 200);
+            for (int i = 0; i < committedDocs; i++) {
+                indexDocument(Integer.toString(i));
                 if (rarely()) {
                     flush(index, randomBoolean());
                 }
             }
-            flush(index, randomBoolean());
-            int moreDocs = randomIntBetween(0, 50);
-            for (int i = 0; i < moreDocs; i++) {
+            flush(index, true);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+            // less than 10% of the committed docs (see IndexSetting#FILE_BASED_RECOVERY_THRESHOLD_SETTING).
+            int uncommittedDocs = randomIntBetween(0, (int) (committedDocs * 0.1));
+            for (int i = 0; i < uncommittedDocs; i++) {
                 final String id = Integer.toString(randomIntBetween(1, 100));
                 indexDocument(id);
             }
         } else {
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
+        }
+    }
+
+    /**
+     * Verifies that once all shard copies on the new version, we should turn off the translog retention for indices with soft-deletes.
+     */
+    public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            createIndex(index, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+            ensureGreen(index);
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                indexDocument(Integer.toString(randomIntBetween(1, 100)));
+                if (rarely()) {
+                    flush(index, randomBoolean());
+                }
+            }
+        } else {
+            ensureGreen(index);
+            flush(index, true);
+            assertEmptyTranslog(index);
         }
     }
 }

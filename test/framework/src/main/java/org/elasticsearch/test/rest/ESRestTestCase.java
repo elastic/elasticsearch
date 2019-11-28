@@ -1072,6 +1072,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertOK(client().performRequest(flushRequest));
     }
 
+    /**
+     * Asserts that replicas on nodes satisfying the {@code targetNode} should have perform operation-based recoveries.
+     */
     public void assertNoFileBasedRecovery(String indexName, Predicate<String> targetNode) throws IOException {
         Map<String, Object> recoveries = entityAsMap(client().performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
         @SuppressWarnings("unchecked")
@@ -1096,5 +1099,42 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         }
         assertTrue("must find replica", foundReplica);
+    }
+
+    /**
+     * Asserts that we do not retain any extra translog for the given index (i.e., turn off the translog retention)
+     */
+    public void assertEmptyTranslog(String index) throws Exception {
+        Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+        assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.operations", stats), equalTo(0));
+    }
+
+    /**
+     * Peer recovery retention leases are renewed and synced to replicas periodically (every 30 seconds). This ensures
+     * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
+     */
+    public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
+        assertBusy(() -> {
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            @SuppressWarnings("unchecked") Map<String, List<Map<String, ?>>> shards =
+                (Map<String, List<Map<String, ?>>>) XContentMapValues.extractValue("indices." + index + ".shards", stats);
+            for (List<Map<String, ?>> shard : shards.values()) {
+                for (Map<String, ?> copy : shard) {
+                    Integer globalCheckpoint = (Integer) XContentMapValues.extractValue("seq_no.global_checkpoint", copy);
+                    assertNotNull(globalCheckpoint);
+                    @SuppressWarnings("unchecked") List<Map<String, ?>> retentionLeases =
+                        (List<Map<String, ?>>) XContentMapValues.extractValue("retention_leases.leases", copy);
+                    if (retentionLeases == null) {
+                        continue;
+                    }
+                    for (Map<String, ?> retentionLease : retentionLeases) {
+                        if (((String) retentionLease.get("id")).startsWith("peer_recovery/")) {
+                            assertThat(retentionLease.get("retaining_seq_no"), equalTo(globalCheckpoint + 1));
+                        }
+                    }
+                }
+            }
+        }, 60, TimeUnit.SECONDS);
     }
 }

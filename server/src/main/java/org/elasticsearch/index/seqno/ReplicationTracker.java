@@ -1348,6 +1348,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    public synchronized boolean hasAllPeerRecoveryRetentionLeases() {
+        return hasAllPeerRecoveryRetentionLeases;
+    }
+
     /**
      * Create any required peer-recovery retention leases that do not currently exist because we just did a rolling upgrade from a version
      * prior to {@link Version#V_7_4_0} that does not create peer-recovery retention leases.

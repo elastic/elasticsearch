@@ -44,12 +44,10 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -99,30 +97,9 @@ public class TransportGetFieldMappingsIndexAction
         Predicate<String> metadataFieldPredicate = (f) -> indicesService.isMetaDataField(indexCreatedVersion, f);
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
-        DocumentMapper mapper = indexService.mapperService().documentMapper();
-        Collection<String> typeIntersection;
-        if (request.types().length == 0) {
-            typeIntersection = mapper == null
-                    ? Collections.emptySet()
-                    : Collections.singleton(mapper.type());
-        } else {
-            typeIntersection = mapper != null && Regex.simpleMatch(request.types(), mapper.type())
-                    ? Collections.singleton(mapper.type())
-                    : Collections.emptySet();
-            if (typeIntersection.isEmpty()) {
-                throw new TypeMissingException(shardId.getIndex(), request.types());
-            }
-        }
-
-        Map<String, Map<String, FieldMappingMetaData>> typeMappings = new HashMap<>();
-        for (String type : typeIntersection) {
-            DocumentMapper documentMapper = indexService.mapperService().documentMapper();
-            Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(fieldPredicate, documentMapper, request);
-            if (!fieldMapping.isEmpty()) {
-                typeMappings.put(type, fieldMapping);
-            }
-        }
-        return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), Collections.unmodifiableMap(typeMappings)));
+        DocumentMapper documentMapper = indexService.mapperService().documentMapper();
+        Map<String, FieldMappingMetaData> fieldMapping = findFieldMappings(fieldPredicate, documentMapper, request);
+        return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), fieldMapping));
     }
 
     @Override
@@ -172,9 +149,12 @@ public class TransportGetFieldMappingsIndexAction
         }
     };
 
-    private static Map<String, FieldMappingMetaData> findFieldMappingsByType(Predicate<String> fieldPredicate,
+    private static Map<String, FieldMappingMetaData> findFieldMappings(Predicate<String> fieldPredicate,
                                                                              DocumentMapper documentMapper,
                                                                              GetFieldMappingsIndexRequest request) {
+        if (documentMapper == null) {
+            return Collections.emptyMap();
+        }
         Map<String, FieldMappingMetaData> fieldMappings = new HashMap<>();
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
@@ -194,8 +174,6 @@ public class TransportGetFieldMappingsIndexAction
                 Mapper fieldMapper = allFieldMappers.getMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
-                } else if (request.probablySingleFieldRequest()) {
-                    fieldMappings.put(field, FieldMappingMetaData.NULL);
                 }
             }
         }

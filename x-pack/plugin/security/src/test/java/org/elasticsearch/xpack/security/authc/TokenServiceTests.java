@@ -76,7 +76,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.time.Clock.systemUTC;
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
+import static org.elasticsearch.repositories.ESBlobStoreContainerTestCase.randomBytes;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

@@ -44,6 +44,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
@@ -371,25 +372,31 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "type", "1")
                 .setSource(jsonBuilder().startObject()
-                    .field("id", "1")
-                    .field("query", multiMatchQuery("quick brown fox", "field1", "field2")
-                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).endObject())
+                    .field("id", 1)
+                    .field("query", commonTermsQuery("field1", "quick brown fox")).endObject())
                 .get();
         client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject()
-                    .field("id", "2")
+                    .field("id", 2)
+                    .field("query", multiMatchQuery("quick brown fox", "field1", "field2")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
+                    .endObject())
+                .get();
+        client().prepareIndex("test", "type", "3")
+                .setSource(jsonBuilder().startObject()
+                    .field("id", 3)
                     .field("query",
                         spanNearQuery(spanTermQuery("field1", "quick"), 0)
                                 .addClause(spanTermQuery("field1", "brown"))
                                 .addClause(spanTermQuery("field1", "fox"))
-                                .inOrder(true)
-                ).endObject())
+                                .inOrder(true))
+                    .endObject())
                 .get();
         client().admin().indices().prepareRefresh().get();
 
-        client().prepareIndex("test", "type", "3")
+        client().prepareIndex("test", "type", "4")
                 .setSource(jsonBuilder().startObject()
-                    .field("id", "3")
+                    .field("id", 4)
                     .field("query",
                         spanNotQuery(
                                 spanNearQuery(spanTermQuery("field1", "quick"), 0)
@@ -399,14 +406,14 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                                 spanNearQuery(spanTermQuery("field1", "the"), 0)
                                         .addClause(spanTermQuery("field1", "lazy"))
                                         .addClause(spanTermQuery("field1", "dog"))
-                                        .inOrder(true)).dist(2)
-                ).endObject())
+                                        .inOrder(true)).dist(2))
+                    .endObject())
                 .get();
 
         // doesn't match
-        client().prepareIndex("test", "type", "4")
+        client().prepareIndex("test", "type", "5")
                 .setSource(jsonBuilder().startObject()
-                    .field("id", "4")
+                    .field("id", 5)
                     .field("query",
                         spanNotQuery(
                                 spanNearQuery(spanTermQuery("field1", "quick"), 0)
@@ -416,8 +423,8 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                                 spanNearQuery(spanTermQuery("field1", "the"), 0)
                                         .addClause(spanTermQuery("field1", "lazy"))
                                         .addClause(spanTermQuery("field1", "dog"))
-                                        .inOrder(true)).dist(3)
-                ).endObject())
+                                        .inOrder(true)).dist(3))
+                    .endObject())
                 .get();
         client().admin().indices().prepareRefresh().get();
 

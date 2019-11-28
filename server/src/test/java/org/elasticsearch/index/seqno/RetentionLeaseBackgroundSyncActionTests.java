@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -121,8 +120,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver());
+                new ActionFilters(Collections.emptySet()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseBackgroundSyncAction.Request request =
                 new RetentionLeaseBackgroundSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -159,8 +157,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver());
+                new ActionFilters(Collections.emptySet()));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseBackgroundSyncAction.Request request =
                 new RetentionLeaseBackgroundSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -201,8 +198,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver()) {
+                new ActionFilters(Collections.emptySet())) {
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<ReplicationResponse> listener) {
@@ -265,8 +261,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver());
+                new ActionFilters(Collections.emptySet()));
 
         assertNull(action.indexBlockLevel());
     }

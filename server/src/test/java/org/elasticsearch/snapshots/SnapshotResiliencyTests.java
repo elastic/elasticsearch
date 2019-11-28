@@ -1128,8 +1128,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             indicesService,
                             threadPool,
                             shardStateAction,
-                            actionFilters,
-                            indexNameExpressionResolver)),
+                            actionFilters)),
                     new GlobalCheckpointSyncAction(
                         settings,
                         transportService,
@@ -1137,8 +1136,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indicesService,
                         threadPool,
                         shardStateAction,
-                        actionFilters,
-                        indexNameExpressionResolver),
+                        actionFilters),
                     new RetentionLeaseSyncAction(
                         settings,
                         transportService,
@@ -1146,8 +1144,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indicesService,
                         threadPool,
                         shardStateAction,
-                        actionFilters,
-                        indexNameExpressionResolver),
+                        actionFilters),
                     new RetentionLeaseBackgroundSyncAction(
                         settings,
                         transportService,
@@ -1155,9 +1152,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indicesService,
                         threadPool,
                         shardStateAction,
-                        actionFilters,
-                        indexNameExpressionResolver));
-            Map<ActionType, TransportAction> actions = new HashMap<>();
+                        actionFilters));
+                Map<ActionType, TransportAction> actions = new HashMap<>();
                 final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                     indicesService,
                     allocationService, new AliasValidator(), environment, indexScopedSettings,
@@ -1170,9 +1166,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
                 mappingUpdatedAction.setClient(client);
-            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
+                final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, indexNameExpressionResolver);
+                actionFilters);
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
                         new IngestService(

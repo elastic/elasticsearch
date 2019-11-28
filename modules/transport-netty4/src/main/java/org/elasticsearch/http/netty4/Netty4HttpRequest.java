@@ -21,7 +21,6 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.buffer.UnpooledHeapByteBuf;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -55,11 +54,7 @@ public class Netty4HttpRequest implements HttpRequest {
     private final BytesReference content;
 
     Netty4HttpRequest(FullHttpRequest request, int sequence) {
-        this(request, sequence, new AtomicBoolean(false));
-    }
-
-    private Netty4HttpRequest(FullHttpRequest request, int sequence, AtomicBoolean released) {
-        this(request, new HttpHeadersMap(request.headers()), sequence, released, request.content() instanceof UnpooledHeapByteBuf == false,
+        this(request, new HttpHeadersMap(request.headers()), sequence, new AtomicBoolean(false), true,
             Netty4Utils.toBytesReference(request.content()));
     }
 
@@ -184,7 +179,8 @@ public class Netty4HttpRequest implements HttpRequest {
         trailingHeaders.remove(header);
         FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
             request.content(), headersWithoutContentTypeHeader, trailingHeaders);
-        return new Netty4HttpRequest(requestWithoutHeader, sequence, released);
+        return new Netty4HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), sequence, released,
+            pooled, content);
     }
 
     @Override

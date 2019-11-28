@@ -488,6 +488,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state(index, true,
             randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
+
         Request request = new Request(new ShardId("unknown_index", "_na_", 0)).timeout("1ms");
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
@@ -496,7 +497,21 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertListenerThrows("must throw index not found exception", listener, IndexNotFoundException.class);
         assertPhase(task, "failed");
+        assertFalse(request.isRetrySet.get());
+
+        // try again with a request that is based on a newer cluster state, make sure we waited until that
+        // cluster state for the index to appear
+        request = new Request(new ShardId("unknown_index", "_na_", 0)).timeout("1ms");
+        request.routedBasedOnClusterVersion(clusterService.state().version() + 1);
+        listener = new PlainActionFuture<>();
+        task = maybeTask();
+
+        reroutePhase = action.new ReroutePhase(task, request, listener);
+        reroutePhase.run();
+        assertListenerThrows("must throw index not found exception", listener, IndexNotFoundException.class);
+        assertPhase(task, "failed");
         assertTrue(request.isRetrySet.get());
+
         request = new Request(new ShardId(index, "_na_", 10)).timeout("1ms");
         listener = new PlainActionFuture<>();
         reroutePhase = action.new ReroutePhase(null, request, listener);
@@ -514,7 +529,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             new CloseIndexRequest(index)));
         assertThat(clusterService.state().metaData().indices().get(index).getState(), equalTo(IndexMetaData.State.CLOSE));
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        Request request = new Request(new ShardId("test", "_na_", 0)).timeout("1ms");
+        Request request = new Request(new ShardId(clusterService.state().metaData().indices().get(index).getIndex(), 0)).timeout("1ms");
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
 

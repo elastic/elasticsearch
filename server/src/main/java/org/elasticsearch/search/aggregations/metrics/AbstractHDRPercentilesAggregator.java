@@ -112,7 +112,7 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
                 DoubleHistogram state = getExistingOrNewHistogram(bigArrays, bucket);
                 if (values.advanceExact(doc)) {
                     final HistogramValue sketch = values.histogram();
-                    while(sketch.next()) {
+                    while (sketch.next()) {
                         state.recordValueWithCount(sketch.value(), sketch.count());
                     }
                 }

@@ -156,6 +156,48 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
     }
 
+    public void testIgnoreMalformedSkipsKeyword() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
+            .field("ignore_malformed", true)
+            .endObject().startObject("otherField").field("type", "keyword");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("pre_aggregated", "value")
+                .field("otherField","value")
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+        assertThat(doc.rootDoc().getField("otherField"), notNullValue());
+    }
+
+    public void testIgnoreMalformedSkipsArray() throws Exception {
+        ensureGreen();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("pre_aggregated").field("type", "histogram")
+            .field("ignore_malformed", true)
+            .endObject().startObject("otherField").field("type", "keyword");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("pre_aggregated", new int[] {2, 2, 2})
+                .field("otherField","value")
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+        assertThat(doc.rootDoc().getField("otherField"), notNullValue());
+    }
+
     public void testIgnoreMalformedSkipsField() throws Exception {
         ensureGreen();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")

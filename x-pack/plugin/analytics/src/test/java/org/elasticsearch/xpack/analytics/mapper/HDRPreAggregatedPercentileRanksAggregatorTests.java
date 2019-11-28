@@ -40,11 +40,10 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
         Iterator<DoubleHistogramIterationValue> iterator = recordedValues.iterator();
         while (iterator.hasNext()) {
             DoubleHistogramIterationValue value = iterator.next();
-            double d = value.getValueIteratedTo();
-            streamOutput.writeDouble(d);
             long count = value.getCountAtValueIteratedTo();
             streamOutput.writeVInt(Math.toIntExact(count));
-
+            double d = value.getValueIteratedTo();
+            streamOutput.writeDouble(d);
         }
         return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
     }

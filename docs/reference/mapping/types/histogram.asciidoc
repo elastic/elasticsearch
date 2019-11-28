@@ -39,8 +39,6 @@ following aggregations and queries:
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<query-dsl-exists-query,exists>> query
 
-We recommend you define the buckets in the `values` array based on the type of aggregation you intended to use.
-
 [[mapping-types-histogram-building-histogram]]
 ==== Building a histogram
 
@@ -48,14 +46,19 @@ When using a histogram as part of an aggregation, the accuracy of the results wi
 histogram was constructed. It is important to consider the percentiles aggregation mode that will be used
 to build it. Some possibilities include:
 
-- For the <<search-aggregations-metrics-percentile-aggregation, T-Digest>> mode, histograms
-can be built by using the mean value of the centroids and the centroid's count. If the algorithm has already
-started to approximate the percentiles, this inaccuracy is carried over in the histogram.
+- For the <<search-aggregations-metrics-percentile-aggregation, T-Digest>> mode, the `values` array represents
+the mean centroid positions and the `counts` array represents the number of values that are attributed to each
+centroid. If the algorithm has already started to approximate the percentiles, this inaccuracy is
+carried over in the histogram.
 
-- For the <<_hdr_histogram,High Dynamic Range (HDR)>> histogram mode, histograms
-can be created by using the recorded values and the count at that value. This implementation maintains a fixed worse-case
-percentage error (specified as a number of significant digits), therefore the value used when generating the histogram
-would be the maximum accuracy you can achieve at aggregation time.
+- For the <<_hdr_histogram,High Dynamic Range (HDR)>> histogram mode, the `values` array represents fixed upper
+limits of each bucket interval, and the `counts` array represents the number of values that are attributed to each
+interval. This implementation maintains a fixed worse-case percentage error (specified as a number of significant digits),
+therefore the value used when generating the histogram would be the maximum accuracy you can achieve at aggregation time.
+
+The histogram field is "algorithm agnostic" and does not store data specific to either T-Digest or HDRHistogram. While this
+means the field can technically be aggregated with either algorithm, in practice the user should chose one algorithm and
+index data in that manner (e.g. centroids for T-Digest or intervals for HDRHistogram) to ensure best accuracy.
 
 [[histogram-ex]]
 ==== Examples

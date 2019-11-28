@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicHistogramFieldData;
@@ -298,8 +299,8 @@ public class HistogramFieldMapper extends FieldMapper {
                         @Override
                         public boolean next() throws IOException {
                             if (streamInput.available() > 0) {
-                                value = streamInput.readDouble();
                                 count = streamInput.readVInt();
+                                value = streamInput.readDouble();
                                 return true;
                             }
                             isExhausted = true;
@@ -352,7 +353,7 @@ public class HistogramFieldMapper extends FieldMapper {
         }
         context.path().add(simpleName());
         XContentParser.Token token = null;
-        int level = 0;
+        XContentSubParser subParser = null;
         try {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -363,22 +364,23 @@ public class HistogramFieldMapper extends FieldMapper {
             IntArrayList counts = null;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser()::getTokenLocation);
-            token = context.parser().nextToken();
+            subParser = new XContentSubParser(context.parser());
+            token = subParser.nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
                 // should be an field
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, context.parser()::getTokenLocation);
-                String fieldName = context.parser().currentName();
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser::getTokenLocation);
+                String fieldName = subParser.currentName();
                 if (fieldName.equals(VALUES_FIELD.getPreferredName())) {
-                    token = context.parser().nextToken();
+                    token = subParser.nextToken();
                     // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, context.parser()::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser::getTokenLocation);
                     values = new DoubleArrayList();
-                    token = context.parser().nextToken();
+                    token = subParser.nextToken();
                     double previousVal = -Double.MAX_VALUE;
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
-                        double val = context.parser().doubleValue();
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                        double val = subParser.doubleValue();
                         if (val < previousVal) {
                             // values must be in increasing order
                             throw new MapperParsingException("error parsing field ["
@@ -387,28 +389,26 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
                         values.add(val);
                         previousVal = val;
-                        token = context.parser().nextToken();
+                        token = subParser.nextToken();
                     }
                 } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
-                    token = context.parser().nextToken();
+                    token = subParser.nextToken();
                     // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, context.parser()::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser::getTokenLocation);
                     counts = new IntArrayList();
-                    token = context.parser().nextToken();
+                    token = subParser.nextToken();
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
-                        counts.add(context.parser().intValue());
-                        token = context.parser().nextToken();
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser::getTokenLocation);
+                        counts.add(subParser.intValue());
+                        token = subParser.nextToken();
                     }
                 } else {
                     throw new MapperParsingException("error parsing field [" +
                         name() + "], with unknown parameter [" + fieldName + "]");
                 }
-                token = context.parser().nextToken();
-                level = maybeAddOrRemoveLevel(token, level);
+                token = subParser.nextToken();
             }
-            level = 0;
             if (values == null) {
                 throw new MapperParsingException("error parsing field ["
                     + name() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]");
@@ -431,8 +431,8 @@ public class HistogramFieldMapper extends FieldMapper {
                             + name() + "], ["+ COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i));
                     } else if (count > 0) {
                         // we do not add elements with count == 0
-                        streamOutput.writeDouble(values.get(i));
                         streamOutput.writeVInt(count);
+                        streamOutput.writeDouble(values.get(i));
                     }
                 }
 
@@ -451,25 +451,14 @@ public class HistogramFieldMapper extends FieldMapper {
                     ex, fieldType().name(), fieldType().typeName());
             }
             // we need to advance until the end of the field
-            if (token != null) {
-                while (level > 0 || token != XContentParser.Token.END_OBJECT) {
-                    level = maybeAddOrRemoveLevel(token, level);
-                    token = context.parser().nextToken();
+            if (subParser != null) {
+                while (token != null) {
+                    token = subParser.nextToken();
                 }
             }
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
-    }
-
-    private int maybeAddOrRemoveLevel(XContentParser.Token token, int level) {
-        if (token == XContentParser.Token.START_OBJECT) {
-            return ++level;
-        }
-        if (token == XContentParser.Token.END_OBJECT) {
-            return --level;
-        }
-        return level;
     }
 
     @Override

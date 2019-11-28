@@ -47,9 +47,9 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
            DoubleHistogramIterationValue value = iterator.next();
            long count = value.getCountAtValueIteratedTo();
            if (count != 0) {
+               streamOutput.writeVInt(Math.toIntExact(count));
                double d = value.getValueIteratedTo();
                streamOutput.writeDouble(d);
-               streamOutput.writeVInt(Math.toIntExact(count));
            }
 
        }

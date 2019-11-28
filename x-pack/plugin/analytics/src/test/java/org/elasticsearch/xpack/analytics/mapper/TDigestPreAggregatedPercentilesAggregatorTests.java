@@ -47,8 +47,8 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
        Iterator<Centroid> iterator = centroids.iterator();
        while ( iterator.hasNext()) {
            Centroid centroid = iterator.next();
-           streamOutput.writeDouble(centroid.mean());
            streamOutput.writeVInt(centroid.count());
+           streamOutput.writeDouble(centroid.mean());
        }
        return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
    }

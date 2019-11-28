@@ -138,7 +138,7 @@ public class AucRoc implements SoftClassificationMetric {
                 .filter(NON_TRUE_AGG_NAME, QueryBuilders.boolQuery().mustNot(actualIsTrueQuery(actualField)))
                 .subAggregation(
                     AggregationBuilders.percentiles(PERCENTILES).field(predictedProbabilityField).percentiles(percentiles));
-        return List.of(percentilesForClassValueAgg, percentilesForRestAgg);
+        return Arrays.asList(percentilesForClassValueAgg, percentilesForRestAgg);
     }
 
     @Override

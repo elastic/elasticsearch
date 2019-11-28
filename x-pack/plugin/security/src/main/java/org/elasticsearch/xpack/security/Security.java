@@ -293,7 +293,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final SetOnce<SecurityIndexManager> securityIndex = new SetOnce<>();
     private final SetOnce<NioGroupFactory> groupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
-    private final List<BootstrapCheck> bootstrapChecks;
+    private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
 
     public Security(Settings settings, final Path configPath) {
@@ -301,24 +301,19 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     Security(Settings settings, final Path configPath, List<SecurityExtension> extensions) {
+        // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
         this.settings = settings;
+        // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.env = new Environment(settings, configPath);
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
             runStartupChecks(settings);
             // we load them all here otherwise we can't access secure settings since they are closed once the checks are
             // fetched
-            final List<BootstrapCheck> checks = new ArrayList<>();
-            checks.addAll(Arrays.asList(
-                new ApiKeySSLBootstrapCheck(),
-                new TokenSSLBootstrapCheck(),
-                new PkiRealmBootstrapCheck(getSslService()),
-                new TLSLicenseBootstrapCheck()));
-            checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
-            this.bootstrapChecks = Collections.unmodifiableList(checks);
+
             Automatons.updateConfiguration(settings);
         } else {
-            this.bootstrapChecks = Collections.emptyList();
+            this.bootstrapChecks.set(Collections.emptyList());
         }
         this.securityExtensions.addAll(extensions);
 
@@ -357,6 +352,17 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }
+
+        // We need to construct the checks here while the secure settings are still available.
+        // If we want until #getBoostrapChecks the secure settings will have been cleared/closed.
+        final List<BootstrapCheck> checks = new ArrayList<>();
+        checks.addAll(Arrays.asList(
+            new ApiKeySSLBootstrapCheck(),
+            new TokenSSLBootstrapCheck(),
+            new PkiRealmBootstrapCheck(getSslService()),
+            new TLSLicenseBootstrapCheck()));
+        checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
+        this.bootstrapChecks.set(Collections.unmodifiableList(checks));
 
         threadContext.set(threadPool.getThreadContext());
         List<Object> components = new ArrayList<>();
@@ -646,7 +652,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-       return bootstrapChecks;
+       return bootstrapChecks.get();
     }
 
     @Override

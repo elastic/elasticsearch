@@ -255,13 +255,13 @@ public class DateDiffProcessorTests extends AbstractSqlWireSerializingTestCase<D
             .makePipe().asProcessor().process(null));
 
         assertEquals(97, new DateDiff(Source.EMPTY, l("month"), dt1, dt2, UTC)
-                .makePipe().asProcessor().process(null));
+            .makePipe().asProcessor().process(null));
         assertEquals(-97, new DateDiff(Source.EMPTY, l("months"), dt2, dt1, UTC)
-                .makePipe().asProcessor().process(null));
+            .makePipe().asProcessor().process(null));
         assertEquals(96, new DateDiff(Source.EMPTY, l("mm"), dt1, dt2, zoneId)
-                .makePipe().asProcessor().process(null));
+            .makePipe().asProcessor().process(null));
         assertEquals(-96, new DateDiff(Source.EMPTY, l("m"), dt2, dt1, zoneId)
-                .makePipe().asProcessor().process(null));
+            .makePipe().asProcessor().process(null));
 
         dt1 = l(dateTime(1976, 9, 9, 0, 0, 0, 0));
         dt2 = l(dateTime(1983, 5, 22, 0, 0, 0, 0));

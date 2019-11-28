@@ -19,6 +19,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.Operator;
@@ -28,7 +29,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -91,10 +91,8 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
                 .addMapping("_doc",
                         "field1", "type=text,analyzer=standard,search_analyzer=my_analyzer"));
 
-        client().prepareIndex("test").setId("1").setSource(
-                "field1", "fast car").get();
-        client().prepareIndex("test").setId("2").setSource(
-                "field1", "fast auto").get();
+        client().prepareIndex("test").setId("1").setSource("field1", "fast car").get();
+        client().prepareIndex("test").setId("2").setSource("field1", "fast auto").get();
         refresh();
 
         // test single token case
@@ -120,14 +118,28 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
         assertSecondHit(response, hasId("1"));
 
         // test phrase
-        response = client().prepareSearch("test").setQuery(matchPhraseQuery("field1", "fast car")).get();
-        assertHitCount(response, 2L);
-        assertFirstHit(response, hasId("1"));
-        assertSecondHit(response, hasId("2"));
+//        response = client().prepareSearch("test").setQuery(matchPhraseQuery("field1", "fast car")).get();
+//        assertHitCount(response, 2L);
+//        assertFirstHit(response, hasId("1"));
+//        assertSecondHit(response, hasId("2"));
+//
+//        response = client().prepareSearch("test").setQuery(matchPhraseQuery("field1", "fast auto")).get();
+//        assertHitCount(response, 2L);
+//        assertFirstHit(response, hasId("1"));
+//        assertSecondHit(response, hasId("2"));
 
-        response = client().prepareSearch("test").setQuery(matchPhraseQuery("field1", "fast auto")).get();
-        assertHitCount(response, 2L);
-        assertFirstHit(response, hasId("1"));
-        assertSecondHit(response, hasId("2"));
+        // test single token case with huge df imbalance
+        BulkRequestBuilder prepareBulk = client().prepareBulk();
+        int numDocs = 1000;
+        for (int i = 0; i < numDocs; i++) {
+            prepareBulk.add(client().prepareIndex("test").setId(String.valueOf(i + 3)).setSource(
+                    "field1", "fast car"));
+        }
+        prepareBulk.get();
+        refresh("test");
+
+        response = client().prepareSearch("test").setQuery(matchQuery("field1", "auto")).get();
+        assertHitCount(response, numDocs + 2);
+        assertFirstHit(response, hasId("2"));
     }
 }

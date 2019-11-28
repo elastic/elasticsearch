@@ -226,6 +226,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
 
         MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
+        // TODO use Lucenes MockSynonymAnalyzer directly once LUCENE-9007 got merged and can be used
         parser.setAnalyzer(new MockSynonymAnalyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {

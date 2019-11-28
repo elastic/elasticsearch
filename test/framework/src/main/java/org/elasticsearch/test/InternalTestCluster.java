@@ -1473,8 +1473,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Stops a random data node in the cluster and removes it.
-     * @return the name of the stopped node, if a node was found to stop.
+     * Stops a random data node in the cluster. Returns true if a node was found to stop, false otherwise.
      */
     public synchronized boolean stopRandomDataNode() throws IOException {
         ensureOpen();

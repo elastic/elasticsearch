@@ -24,6 +24,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
 import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -46,29 +48,22 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * the cluster, so long as the recovery setting is enabled.
      */
     public void testDanglingIndicesAreRecoveredWhenSettingIsEnabled() throws Exception {
-        logger.info("--> starting cluster");
         final Settings settings = buildSettings(true);
         internalCluster().startNodes(3, settings);
 
-        // Create an index and distribute it across the 3 nodes
-        createAndPopulateIndex(INDEX_NAME, 1, 2);
-        ensureGreen();
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 2).build());
 
-        // This is so that when then node comes back up, we have a dangling index that can be recovered.
-        logger.info("--> restarted a random node and deleting the index while it's down");
+        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
 
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                logger.info("--> deleting test index: {}", INDEX_NAME);
                 assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }
         });
 
-        ensureGreen();
-
-        assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME));
+        assertBusy(() -> assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME)));
     }
 
     /**
@@ -76,39 +71,25 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * the cluster when the recovery setting is disabled.
      */
     public void testDanglingIndicesAreNotRecoveredWhenSettingIsDisabled() throws Exception {
-        logger.info("--> starting cluster");
         internalCluster().startNodes(3, buildSettings(false));
 
-        // Create an index and distribute it across the 3 nodes
-        createAndPopulateIndex(INDEX_NAME, 1, 2);
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 2).build());
 
-        // Create another index so that once we drop the first index, we
-        // can still assert that the cluster is green.
-        createAndPopulateIndex(INDEX_NAME + "-other", 1, 2);
-
-        ensureGreen();
-
-        // This is so that when then node comes back up, we have a dangling index that could
-        // be recovered, but shouldn't be.
-        logger.info("--> restarted a random node and deleting the index while it's down");
+        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
 
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                logger.info("--> deleting test index: {}", INDEX_NAME);
                 assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
                 return super.onNodeStopped(nodeName);
             }
         });
 
-        ensureGreen();
-
-        assertFalse("Did not expect dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME));
-    }
-
-    private void createAndPopulateIndex(String name, int shardCount, int replicaCount) {
-        logger.info("--> creating test index: {}", name);
-        assertAcked(prepareCreate(name, Settings.builder().put("number_of_shards", shardCount).put("number_of_replicas", replicaCount)));
-        ensureGreen();
+        // Since index recovery is async, we can't prove index recovery will never occur, just that it doesn't occur within some reasonable
+        // amount of time
+        assertFalse(
+            "Did not expect dangling index " + INDEX_NAME + " to be recovered",
+            waitUntil(() -> indexExists(INDEX_NAME), 5, TimeUnit.SECONDS)
+        );
     }
 }

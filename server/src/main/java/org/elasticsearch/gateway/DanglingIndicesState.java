@@ -66,6 +66,7 @@ public class DanglingIndicesState implements ClusterStateListener {
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
     private final LocalAllocateDangledIndices allocateDangledIndices;
+    private final boolean isAutoImportDanglingIndicesEnabled;
 
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
@@ -76,13 +77,17 @@ public class DanglingIndicesState implements ClusterStateListener {
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
 
-        boolean allocateDanglingIndices = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
+        this.isAutoImportDanglingIndicesEnabled = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
 
-        if (allocateDanglingIndices) {
+        if (this.isAutoImportDanglingIndicesEnabled) {
             clusterService.addListener(this);
         } else {
             logger.warn(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey() + " is disabled, dangling indices will not be detected or imported");
         }
+    }
+
+    public boolean isAutoImportDanglingIndicesEnabled() {
+        return this.isAutoImportDanglingIndicesEnabled;
     }
 
     /**

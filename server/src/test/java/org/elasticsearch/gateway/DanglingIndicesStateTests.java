@@ -39,7 +39,6 @@ import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLIN
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +52,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
     // The setting AUTO_IMPORT_DANGLING_INDICES_SETTING is deprecated, so we must disable
     // warning checks or all the tests will fail.
+    @Override
     protected boolean enableWarningsCheck() {
         return false;
     }
@@ -196,12 +196,19 @@ public class DanglingIndicesStateTests extends ESTestCase {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
             LocalAllocateDangledIndices localAllocateDangledIndices = mock(LocalAllocateDangledIndices.class);
 
-            final ClusterService mockClusterService = buildMockClusterService(false);
+            final Settings allocateSettings = Settings.builder().put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), false).build();
 
-            createDanglingIndicesState(env, metaStateService, localAllocateDangledIndices, mockClusterService);
+            final ClusterService clusterServiceMock = mock(ClusterService.class);
+            when(clusterServiceMock.getSettings()).thenReturn(allocateSettings);
 
-            // Check that no listener was registered, because auto-import is disabled
-            verify(mockClusterService, never()).addListener(any());
+            final DanglingIndicesState danglingIndicesState = new DanglingIndicesState(
+                env,
+                metaStateService,
+                localAllocateDangledIndices,
+                clusterServiceMock
+            );
+
+            assertFalse("Expected dangling imports to be disabled", danglingIndicesState.isAutoImportDanglingIndicesEnabled());
         }
     }
 
@@ -209,48 +216,37 @@ public class DanglingIndicesStateTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
             LocalAllocateDangledIndices localAllocateDangledIndices = mock(LocalAllocateDangledIndices.class);
-            DanglingIndicesState danglingState = createDanglingIndicesState(
+            final Settings allocateSettings = Settings.builder().put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), true).build();
+
+            final ClusterService clusterServiceMock = mock(ClusterService.class);
+            when(clusterServiceMock.getSettings()).thenReturn(allocateSettings);
+
+            DanglingIndicesState danglingIndicesState = new DanglingIndicesState(
                 env,
                 metaStateService,
-                localAllocateDangledIndices,
-                buildMockClusterService(true)
+                localAllocateDangledIndices, clusterServiceMock
             );
 
-            assertTrue(danglingState.getDanglingIndices().isEmpty());
-
-            MetaData metaData = MetaData.builder().build();
+            assertTrue("Expected dangling imports to be enabled", danglingIndicesState.isAutoImportDanglingIndicesEnabled());
 
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
             IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
             metaStateService.writeIndex("test_write", dangledIndex);
 
-            danglingState.findNewAndAddDanglingIndices(metaData);
+            danglingIndicesState.findNewAndAddDanglingIndices(MetaData.builder().build());
 
-            danglingState.allocateDanglingIndices();
+            danglingIndicesState.allocateDanglingIndices();
 
             verify(localAllocateDangledIndices).allocateDangled(any(), any());
         }
     }
 
     private DanglingIndicesState createDanglingIndicesState(NodeEnvironment env, MetaStateService metaStateService) {
-        return createDanglingIndicesState(env, metaStateService, null, buildMockClusterService(true));
-    }
-
-    private DanglingIndicesState createDanglingIndicesState(
-        NodeEnvironment env,
-        MetaStateService metaStateService,
-        LocalAllocateDangledIndices indexAllocator,
-        ClusterService clusterService
-    ) {
-        return new DanglingIndicesState(env, metaStateService, indexAllocator, clusterService);
-    }
-
-    private ClusterService buildMockClusterService(boolean shouldAutoImport) {
-        final Settings allocateSettings = Settings.builder().put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), shouldAutoImport).build();
+        final Settings allocateSettings = Settings.builder().put(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), true).build();
 
         final ClusterService clusterServiceMock = mock(ClusterService.class);
         when(clusterServiceMock.getSettings()).thenReturn(allocateSettings);
 
-        return clusterServiceMock;
+        return new DanglingIndicesState(env, metaStateService, null, clusterServiceMock);
     }
 }

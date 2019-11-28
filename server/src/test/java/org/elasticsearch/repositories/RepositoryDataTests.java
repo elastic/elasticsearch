@@ -22,6 +22,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -66,7 +67,8 @@ public class RepositoryDataTests extends ESTestCase {
             final Set<SnapshotId> snapshotIds = repositoryData.getSnapshots(index);
             return snapshotIds.contains(randomSnapshot) && snapshotIds.size() > 1;
         }).toArray(IndexId[]::new);
-        assertThat(repositoryData.indicesToUpdateAfterRemovingSnapshot(randomSnapshot), containsInAnyOrder(indicesToUpdate));
+        assertThat(repositoryData.indicesToUpdateAfterRemovingSnapshot(
+            Collections.singleton(randomSnapshot)), containsInAnyOrder(indicesToUpdate));
     }
 
     public void testXContent() throws IOException {
@@ -148,7 +150,7 @@ public class RepositoryDataTests extends ESTestCase {
         List<SnapshotId> snapshotIds = new ArrayList<>(repositoryData.getSnapshotIds());
         assertThat(snapshotIds.size(), greaterThan(0));
         SnapshotId removedSnapshotId = snapshotIds.remove(randomIntBetween(0, snapshotIds.size() - 1));
-        RepositoryData newRepositoryData = repositoryData.removeSnapshot(removedSnapshotId, ShardGenerations.EMPTY);
+        RepositoryData newRepositoryData = repositoryData.removeSnapshot(Collections.singleton(removedSnapshotId), ShardGenerations.EMPTY);
         // make sure the repository data's indices no longer contain the removed snapshot
         for (final IndexId indexId : newRepositoryData.getIndices().values()) {
             assertFalse(newRepositoryData.getSnapshots(indexId).contains(removedSnapshotId));

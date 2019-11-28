@@ -42,12 +42,12 @@ import java.util.Map;
  * A geo metric aggregator that computes a geo-centroid from a {@code geo_point} type field
  */
 final class GeoCentroidAggregator extends MetricsAggregator {
-    private final ValuesSource.GeoPoint valuesSource;
+    private final ValuesSource.Geo valuesSource;
     private DoubleArray lonSum, lonCompensations, latSum, latCompensations;
     private LongArray counts;
 
     GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
-                                    ValuesSource.GeoPoint valuesSource, List<PipelineAggregator> pipelineAggregators,
+                                    ValuesSource.Geo valuesSource, List<PipelineAggregator> pipelineAggregators,
                                     Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
@@ -94,6 +94,9 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     compensatedSumLon.reset(sumLon, compensationLon);
 
                     // update the sum
+                    //
+                    // this calculates the centroid of centroid of shapes when
+                    // executing against geo-shape fields.
                     for (int i = 0; i < valueCount; ++i) {
                         MultiGeoValues.GeoValue value = values.nextValue();
                         //latitude

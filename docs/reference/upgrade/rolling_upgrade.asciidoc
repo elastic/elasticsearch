@@ -172,7 +172,7 @@ with a <<cat-health,`_cat/health`>> request:
 GET /_cat/health?v
 --------------------------------------------------
 
-And the version of each node with a <<cat-nodes,`_cat/nodes`>> request:
+And check which nodes have been upgraded with a <<cat-nodes,`_cat/nodes`>> request:
 
 [source,console]
 --------------------------------------------------

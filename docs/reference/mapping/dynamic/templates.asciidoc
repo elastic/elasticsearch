@@ -4,7 +4,7 @@
 Dynamic templates allow you to define custom mappings that can be applied to
 dynamically added fields based on:
 
-* the <<dynamic-mapping,datatype>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
+* the <<mapping-types,datatype>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
 * the name of the field, with <<match-unmatch,`match` and `unmatch`>> or <<match-pattern,`match_pattern`>>.
 * the full dotted path to the field, with <<path-match-unmatch,`path_match` and `path_unmatch`>>.
 

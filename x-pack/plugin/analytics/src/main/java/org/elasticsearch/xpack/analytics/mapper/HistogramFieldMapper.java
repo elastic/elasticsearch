@@ -422,11 +422,10 @@ public class HistogramFieldMapper extends FieldMapper {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]",
                     ex, fieldType().name(), fieldType().typeName());
             }
-            // we need to advance until the end of the field
+
             if (subParser != null) {
-                while (token != null) {
-                    token = subParser.nextToken();
-                }
+                // close the subParser so we advance to the end of the object
+                subParser.close();
             }
             context.addIgnoredField(fieldType().name());
         }

@@ -30,7 +30,7 @@ per document. Nested arrays are not supported.
 `histogram` fields are primarily intended for use with aggregations. To make it
 more readily accessible for aggregations, `histogram` field data is stored as a
 binary <<doc-values,doc values>> and not indexed. Its size in bytes is at most
-`12 * numValues`, where `numValues` is the length of the provided arrays.
+`13 * numValues`, where `numValues` is the length of the provided arrays.
 
 Because the data is not indexed, you only can use `histogram` fields for the
 following aggregations and queries:

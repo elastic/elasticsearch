@@ -649,6 +649,9 @@ public class MatchQuery {
         }
 
         private float getTokenTypeBoost(TypeAttribute typeAtt) {
+            if (typeAtt == null) {
+                return 1.0f; // default when no type attribute is available
+            }
             return typeAtt.type().contentEquals(SynonymGraphFilter.TYPE_SYNONYM) ? DEFAULT_SYNONYM_BOOST : 1.0f;
         }
 

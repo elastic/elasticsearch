@@ -49,36 +49,30 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
     }
 
     public void testEvaluate() {
-        SoftClassificationMetric.ClassInfo classInfo = mock(SoftClassificationMetric.ClassInfo.class);
-        when(classInfo.getName()).thenReturn("foo");
-
         Aggregations aggs = new Aggregations(Arrays.asList(
-            createFilterAgg("recall_foo_at_0.25_TP", 1L),
-            createFilterAgg("recall_foo_at_0.25_FN", 4L),
-            createFilterAgg("recall_foo_at_0.5_TP", 3L),
-            createFilterAgg("recall_foo_at_0.5_FN", 1L),
-            createFilterAgg("recall_foo_at_0.75_TP", 5L),
-            createFilterAgg("recall_foo_at_0.75_FN", 0L)
+            createFilterAgg("recall_at_0.25_TP", 1L),
+            createFilterAgg("recall_at_0.25_FN", 4L),
+            createFilterAgg("recall_at_0.5_TP", 3L),
+            createFilterAgg("recall_at_0.5_FN", 1L),
+            createFilterAgg("recall_at_0.75_TP", 5L),
+            createFilterAgg("recall_at_0.75_FN", 0L)
         ));
 
         Recall recall = new Recall(Arrays.asList(0.25, 0.5, 0.75));
-        EvaluationMetricResult result = recall.evaluate(classInfo, aggs);
+        EvaluationMetricResult result = recall.evaluate(aggs);
 
         String expected = "{\"0.25\":0.2,\"0.5\":0.75,\"0.75\":1.0}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
 
     public void testEvaluate_GivenZeroTpAndFp() {
-        SoftClassificationMetric.ClassInfo classInfo = mock(SoftClassificationMetric.ClassInfo.class);
-        when(classInfo.getName()).thenReturn("foo");
-
         Aggregations aggs = new Aggregations(Arrays.asList(
-            createFilterAgg("recall_foo_at_1.0_TP", 0L),
-            createFilterAgg("recall_foo_at_1.0_FN", 0L)
+            createFilterAgg("recall_at_1.0_TP", 0L),
+            createFilterAgg("recall_at_1.0_FN", 0L)
         ));
 
         Recall recall = new Recall(Arrays.asList(1.0));
-        EvaluationMetricResult result = recall.evaluate(classInfo, aggs);
+        EvaluationMetricResult result = recall.evaluate(aggs);
 
         String expected = "{\"1.0\":0.0}";
         assertThat(Strings.toString(result), equalTo(expected));

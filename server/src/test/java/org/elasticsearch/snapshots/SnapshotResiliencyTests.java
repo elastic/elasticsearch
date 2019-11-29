@@ -1108,7 +1108,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 actions.put(GlobalCheckpointSyncAction.TYPE,
                     new GlobalCheckpointSyncAction(settings, transportService, clusterService, indicesService,
-                        threadPool, shardStateAction, actionFilters, indexNameExpressionResolver));
+                        threadPool, shardStateAction, actionFilters));
                 final MetaDataMappingService metaDataMappingService = new MetaDataMappingService(clusterService, indicesService);
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -1132,8 +1132,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             indicesService,
                             threadPool,
                             shardStateAction,
-                            actionFilters,
-                            indexNameExpressionResolver)),
+                            actionFilters)),
                     RetentionLeaseSyncer.EMPTY,
                     client);
                 final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
@@ -1159,7 +1158,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     ));
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                     clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                    actionFilters, indexNameExpressionResolver);
+                    actionFilters);
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
@@ -1226,23 +1225,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
             private Repository.Factory getRepoFactory(Environment environment) {
                 // Run half the tests with the eventually consistent repository
                 if (blobStoreContext == null) {
-                    return metaData -> {
-                        final Repository repository = new FsRepository(metaData, environment, xContentRegistry(), threadPool) {
-                            @Override
-                            protected void assertSnapshotOrGenericThread() {
-                                // eliminate thread name check as we create repo in the test thread
-                            }
-                        };
-                        repository.start();
-                        return repository;
+                    return metaData -> new FsRepository(metaData, environment, xContentRegistry(), clusterService) {
+                        @Override
+                        protected void assertSnapshotOrGenericThread() {
+                            // eliminate thread name check as we create repo in the test thread
+                        }
                     };
                 } else {
-                    return metaData -> {
-                        final Repository repository = new MockEventuallyConsistentRepository(
-                            metaData, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext, random());
-                        repository.start();
-                        return repository;
-                    };
+                    return metaData ->
+                        new MockEventuallyConsistentRepository(metaData, xContentRegistry(), clusterService, blobStoreContext, random());
                 }
             }
             public void restart() {

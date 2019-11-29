@@ -32,7 +32,7 @@ The `bool` query takes a _more-matches-is-better_ approach, so the score from
 each matching `must` or `should` clause will be added together to provide the
 final `_score` for each document.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -59,7 +59,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[score-bool-filter]]
 ==== Scoring with `bool.filter`
@@ -72,7 +71,7 @@ all documents where the `status` field contains the term `active`.
 This first query assigns a score of `0` to all documents, as no scoring
 query has been specified:
 
-[source,js]
+[source,console]
 ---------------------------------
 GET _search
 {
@@ -87,12 +86,11 @@ GET _search
   }
 }
 ---------------------------------
-// CONSOLE
 
 This `bool` query has a `match_all` query, which assigns a score of `1.0` to
 all documents.
 
-[source,js]
+[source,console]
 ---------------------------------
 GET _search
 {
@@ -110,13 +108,12 @@ GET _search
   }
 }
 ---------------------------------
-// CONSOLE
 
 This `constant_score` query behaves in exactly the same way as the second example above.
 The `constant_score` query assigns a score of `1.0` to all documents matched
 by the filter.
 
-[source,js]
+[source,console]
 ---------------------------------
 GET _search
 {
@@ -131,7 +128,6 @@ GET _search
   }
 }
 ---------------------------------
-// CONSOLE
 
 ==== Using named queries to see which clauses matched
 

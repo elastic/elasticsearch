@@ -67,7 +67,12 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
     }
 
     private static DocValueFormat randomDocValueFormat() {
-        return randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.RAW, DocValueFormat.IP, DocValueFormat.BINARY, DocValueFormat.GEOHASH);
+        return randomFrom(DocValueFormat.BOOLEAN,
+            DocValueFormat.RAW,
+            DocValueFormat.IP,
+            DocValueFormat.BINARY,
+            DocValueFormat.GEOHASH,
+            DocValueFormat.GEOTILE);
     }
 
     @Override

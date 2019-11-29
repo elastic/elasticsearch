@@ -6,11 +6,10 @@
 
 Deletes an existing index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /twitter
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 

@@ -18,7 +18,7 @@ Instantiates an {anomaly-job}.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-put-job-desc]]
 ==== {api-description-title}
@@ -96,7 +96,7 @@ a job directly to the `.ml-config` index using the {es} index API. If {es}
 
 The following example creates the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/anomaly_detectors/total-requests
 {
@@ -117,10 +117,10 @@ PUT _ml/anomaly_detectors/total-requests
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 When the job is created, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "job_id" : "total-requests",
@@ -149,7 +149,8 @@ When the job is created, you receive the following results:
     "time_format" : "epoch_ms"
   },
   "model_snapshot_retention_days" : 1,
-  "results_index_name" : "shared"
+  "results_index_name" : "shared",
+  "allow_lazy_open" : false
 }
 ----
 // TESTRESPONSE[s/"job_version" : "8.0.0"/"job_version" : $body.job_version/]

@@ -4,7 +4,7 @@
 Allows to return the <<doc-values,doc value>> representation of a field for each hit, for
 example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -23,7 +23,7 @@ GET /_search
     ]
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> the name of the field
 <2> an object notation is supported as well
 <3> the object notation allows to specify a custom format
@@ -32,7 +32,7 @@ Doc value fields can work on fields that have doc-values enabled, regardless of 
 
 `*` can be used as a wild card, for example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -47,7 +47,7 @@ GET /_search
     ]
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Match all fields ending with `field`
 <2> Format to be applied to all matching fields.
 

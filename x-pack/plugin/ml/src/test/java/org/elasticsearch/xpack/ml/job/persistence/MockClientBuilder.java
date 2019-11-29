@@ -143,11 +143,11 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareGet(String index, String type, String id, GetResponse response) {
+    public MockClientBuilder prepareGet(String index, String id, GetResponse response) {
         GetRequestBuilder getRequestBuilder = mock(GetRequestBuilder.class);
         when(getRequestBuilder.get()).thenReturn(response);
         when(getRequestBuilder.setFetchSource(false)).thenReturn(getRequestBuilder);
-        when(client.prepareGet(index, type, id)).thenReturn(getRequestBuilder);
+        when(client.prepareGet(index, id)).thenReturn(getRequestBuilder);
         return this;
     }
 
@@ -384,9 +384,8 @@ public class MockClientBuilder {
     }
 
     @SuppressWarnings("unchecked")
-    public MockClientBuilder preparePutMapping(AcknowledgedResponse response, String type) {
+    public MockClientBuilder preparePutMapping(AcknowledgedResponse response) {
         PutMappingRequestBuilder requestBuilder = mock(PutMappingRequestBuilder.class);
-        when(requestBuilder.setType(eq(type))).thenReturn(requestBuilder);
         when(requestBuilder.setSource(any(XContentBuilder.class))).thenReturn(requestBuilder);
         doAnswer(new Answer<Void>() {
             @Override

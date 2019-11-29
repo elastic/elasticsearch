@@ -83,9 +83,9 @@ public class InvalidateTokenResponseTests extends ESTestCase {
             assertThat(response.getPreviouslyInvalidatedTokens(), Matchers.equalTo(previouslyInvalidatedTokens));
             assertThat(response.getErrorsCount(), Matchers.equalTo(2));
             assertThat(response.getErrors().get(0).toString(), containsString("type=exception, reason=foo"));
-            assertThat(response.getErrors().get(0).toString(), containsString("type=illegal_argument_exception, reason=bar"));
+            assertThat(response.getErrors().get(0).getCause().getMessage(), containsString("type=illegal_argument_exception, reason=bar"));
             assertThat(response.getErrors().get(1).toString(), containsString("type=exception, reason=boo"));
-            assertThat(response.getErrors().get(1).toString(), containsString("type=illegal_argument_exception, reason=far"));
+            assertThat(response.getErrors().get(1).getCause().getMessage(), containsString("type=illegal_argument_exception, reason=far"));
         }
     }
 }

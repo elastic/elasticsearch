@@ -6,11 +6,10 @@
 
 Creates a new index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter
 --------------------------------------------------
-// CONSOLE
 
 
 [[indices-create-api-request]]
@@ -36,6 +35,7 @@ creating an index, you can specify the following:
 --
 (Optional, string) Name of the index you wish to create.
 
+// tag::index-name-reqs[]
 Index names must meet the following criteria:
 
 - Lowercase only
@@ -44,13 +44,12 @@ Index names must meet the following criteria:
 - Cannot start with `-`, `_`, `+`
 - Cannot be `.` or `..`
 - Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+// end::index-name-reqs[]
 --
 
 
 [[indices-create-api-query-params]]
 ==== {api-query-parms-title}
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
@@ -77,7 +76,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
 Each index created can have specific settings
 associated with it, defined in the body:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter
 {
@@ -89,13 +88,13 @@ PUT /twitter
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Default for `number_of_shards` is 1
 <2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
 
 or more simplified
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter
 {
@@ -105,7 +104,6 @@ PUT /twitter
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [NOTE]
 You do not have to explicitly specify `index` section inside the
@@ -120,7 +118,7 @@ that can be set when creating an index, please check the
 
 The create index API allows for providing a mapping definition:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test
 {
@@ -134,18 +132,13 @@ PUT /test
     }
 }
 --------------------------------------------------
-// CONSOLE
-
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
-types in requests is now deprecated, a type can still be provided if the request parameter
-include_type_name is set. For more details, please see <<removal-of-types>>.
 
 [[create-index-aliases]]
 ===== Aliases
 
 The create index API allows also to provide a set of <<indices-aliases,aliases>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test
 {
@@ -160,7 +153,6 @@ PUT /test
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[create-index-wait-for-active-shards]]
 ===== Wait For active shards
@@ -169,7 +161,7 @@ By default, index creation will only return a response to the client when the pr
 each shard have been started, or the request times out. The index creation response will indicate
 what happened:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged": true,
@@ -177,7 +169,6 @@ what happened:
     "index": "test"
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 `acknowledged` indicates whether the index was successfully created in the cluster, while
 `shards_acknowledged` indicates whether the requisite number of shard copies were started for
@@ -194,7 +185,7 @@ We can change the default of only waiting for the primary shards to start throug
 setting `index.write.wait_for_active_shards` (note that changing this setting will also affect
 the `wait_for_active_shards` value on all subsequent write operations):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test
 {
@@ -203,16 +194,14 @@ PUT /test
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:requires two nodes]
 
 or through the request parameter `wait_for_active_shards`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test?wait_for_active_shards=2
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:requires two nodes]
 
 A detailed explanation of `wait_for_active_shards` and its possible values can be found

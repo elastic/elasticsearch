@@ -6,20 +6,12 @@
 
 Checks if an index alias exists.
 
-//tag::index-alias-def[]
-An index alias is a secondary name
-used to refer to one or more existing indices.
-//end::index-alias-def[]
+include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
 
-The returned HTTP status code indicates whether the index alias exists or not.
-A `404` means it does not exist,
-and `200` means it does.
-
-[source,js]
+[source,console]
 ----
 HEAD /_alias/alias1
 ----
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/PUT twitter\/_alias\/alias1\n/]
 
@@ -68,11 +60,10 @@ Indicates one or more specified index aliases **do not** exist.
 [[alias-exists-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 ----
 HEAD /_alias/2030
 HEAD /_alias/20*
 HEAD /logs_20302801/_alias/*
 ----
-// CONSOLE
 // TEST[s/^/PUT logs_20302801\nPUT logs_20302801\/_alias\/2030\n/]

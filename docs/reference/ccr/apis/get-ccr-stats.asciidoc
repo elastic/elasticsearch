@@ -14,7 +14,7 @@ Get {ccr} stats.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
@@ -22,30 +22,27 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 // TEST[setup:remote_cluster_and_leader_index]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEARDOWN
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_ccr/stats
 --------------------------------------------------
-// CONSOLE
 
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor` cluster
 privileges on the cluster that contains the follower index. For more information,
-see {stack-ov}/security-privileges.html[Security privileges].
+see <<security-privileges>>.
 
 [[ccr-get-stats-desc]]
 ==== {api-description-title}
@@ -93,15 +90,14 @@ This object consists of the following fields:
 
 This example retrieves {ccr} stats:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_ccr/stats
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "auto_follow_stats" : {

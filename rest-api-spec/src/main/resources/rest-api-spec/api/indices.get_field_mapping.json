@@ -34,60 +34,10 @@
               "description":"A comma-separated list of fields"
             }
           }
-        },
-        {
-          "path":"/_mapping/{type}/field/{fields}",
-          "methods":[
-            "GET"
-          ],
-          "parts":{
-            "type":{
-              "type":"list",
-              "description":"A comma-separated list of document types",
-              "deprecated":true
-            },
-            "fields":{
-              "type":"list",
-              "description":"A comma-separated list of fields"
-            }
-          },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"Specifying types in urls has been deprecated"
-          }
-        },
-        {
-          "path":"/{index}/_mapping/{type}/field/{fields}",
-          "methods":[
-            "GET"
-          ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names"
-            },
-            "type":{
-              "type":"list",
-              "description":"A comma-separated list of document types",
-              "deprecated":true
-            },
-            "fields":{
-              "type":"list",
-              "description":"A comma-separated list of fields"
-            }
-          },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"Specifying types in urls has been deprecated"
-          }
         }
       ]
     },
     "params":{
-      "include_type_name":{
-        "type":"boolean",
-        "description":"Whether a type should be returned in the body of the mappings."
-      },
       "include_defaults":{
         "type":"boolean",
         "description":"Whether the default mapping values should be returned as well"

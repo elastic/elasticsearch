@@ -74,7 +74,7 @@ POST /exams/_search
 
 Which yields a response like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -126,7 +126,7 @@ POST /exams/_search
 
 The three values (`1`, `2`, and `3`) will be included as independent values, all with the weight of `2`:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

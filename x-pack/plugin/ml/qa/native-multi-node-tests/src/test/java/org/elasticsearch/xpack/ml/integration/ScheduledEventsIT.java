@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.junit.After;
 
 import java.io.IOException;
@@ -223,7 +224,8 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the process was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(".ml-notifications")
+            SearchResponse searchResponse =
+                client().prepareSearch(AuditorField.NOTIFICATIONS_INDEX)
                     .setSize(1)
                     .addSort("timestamp", SortOrder.DESC)
                     .setQuery(QueryBuilders.boolQuery()
@@ -298,7 +300,8 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the job was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(".ml-notifications")
+            SearchResponse searchResponse =
+                client().prepareSearch(AuditorField.NOTIFICATIONS_INDEX)
                     .setSize(1)
                     .addSort("timestamp", SortOrder.DESC)
                     .setQuery(QueryBuilders.boolQuery()

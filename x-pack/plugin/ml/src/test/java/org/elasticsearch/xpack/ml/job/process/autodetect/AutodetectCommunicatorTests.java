@@ -108,7 +108,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         verifyNoMoreInteractions(process);
     }
 
-    public void testFlushJob() throws IOException, InterruptedException {
+    public void testFlushJob() throws Exception {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         when(process.isProcessAlive()).thenReturn(true);
         AutodetectResultProcessor processor = mock(AutodetectResultProcessor.class);
@@ -123,7 +123,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         }
     }
 
-    public void testWaitForFlushReturnsIfParserFails() throws IOException, InterruptedException {
+    public void testWaitForFlushReturnsIfParserFails() throws Exception {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         when(process.isProcessAlive()).thenReturn(true);
         AutodetectResultProcessor processor = mock(AutodetectResultProcessor.class);
@@ -144,7 +144,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         assertEquals("[foo] Unexpected death of autodetect: Mock process is dead", holder[0].getMessage());
     }
 
-    public void testFlushJob_givenFlushWaitReturnsTrueOnSecondCall() throws IOException, InterruptedException {
+    public void testFlushJob_givenFlushWaitReturnsTrueOnSecondCall() throws Exception {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         when(process.isProcessAlive()).thenReturn(true);
         AutodetectResultProcessor autodetectResultProcessor = Mockito.mock(AutodetectResultProcessor.class);

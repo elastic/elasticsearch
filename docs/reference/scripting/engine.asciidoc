@@ -24,7 +24,7 @@ You can execute the script by specifying its `lang` as `expert_scripts`, and the
 of the script as the script source:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -53,5 +53,4 @@ POST /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:we don't have an expert script plugin installed to test this]

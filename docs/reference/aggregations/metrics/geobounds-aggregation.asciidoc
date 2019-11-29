@@ -56,7 +56,7 @@ The above aggregation demonstrates how one would compute the bounding box of the
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

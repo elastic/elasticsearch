@@ -146,7 +146,7 @@ public class SysTables extends Command {
                  .sorted(Comparator.<IndexInfo, String> comparing(i -> legacyName(i.type()))
                            .thenComparing(Comparator.comparing(i -> i.name())))
                  .map(t -> asList(cluster,
-                         EMPTY,
+                         null,
                          t.name(),
                          legacyName(t.type()),
                          EMPTY,

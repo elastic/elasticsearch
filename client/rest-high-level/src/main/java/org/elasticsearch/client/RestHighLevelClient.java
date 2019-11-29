@@ -256,7 +256,8 @@ public class RestHighLevelClient implements Closeable {
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
     private final CcrClient ccrClient = new CcrClient(this);
-    private final DataFrameClient dataFrameClient = new DataFrameClient(this);
+    private final TransformClient transformClient = new TransformClient(this);
+    private final EnrichClient enrichClient = new EnrichClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -472,13 +473,17 @@ public class RestHighLevelClient implements Closeable {
      * are shipped with the Elastic Stack distribution of Elasticsearch. All of
      * these APIs will 404 if run against the OSS distribution of Elasticsearch.
      * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/data-frame-apis.html">
-     *     Data Frame APIs on elastic.co</a> for more information.
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-apis.html">
+     *     Transform APIs on elastic.co</a> for more information.
      *
      * @return the client wrapper for making Data Frame API calls
      */
-    public DataFrameClient dataFrame() {
-        return dataFrameClient;
+    public TransformClient transform() {
+        return transformClient;
+    }
+
+    public EnrichClient enrich() {
+        return enrichClient;
     }
 
     /**
@@ -587,6 +592,21 @@ public class RestHighLevelClient implements Closeable {
     public final BulkByScrollResponse deleteByQuery(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
             deleteByQueryRequest, RequestConverters::deleteByQuery, options, BulkByScrollResponse::fromXContent, singleton(409)
+        );
+    }
+
+    /**
+     * Submits a delete by query task
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
+     *      Delete By Query API on elastic.co</a>
+     * @param deleteByQueryRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the submission response
+     */
+    public final TaskSubmissionResponse submitDeleteByQueryTask(DeleteByQueryRequest deleteByQueryRequest,
+                                                                RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            deleteByQueryRequest, RequestConverters::submitDeleteByQuery, options, TaskSubmissionResponse::fromXContent, emptySet()
         );
     }
 

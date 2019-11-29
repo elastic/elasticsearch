@@ -20,7 +20,7 @@ Retrieves information about model snapshots.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-get-snapshot-path-parms]]
 ==== {api-path-parms-title}
@@ -66,14 +66,13 @@ The API returns the following information:
 [[ml-get-snapshot-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/farequote/model_snapshots
 {
   "start": "1491852977000"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 In this example, the API provides a single result:

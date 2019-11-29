@@ -3,6 +3,7 @@
 :request: DeleteFilterRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete Filter API
 Delete a {ml} filter.

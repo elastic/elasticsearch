@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -184,6 +185,7 @@ public class Realms implements Iterable<Realm> {
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
         List<String> kerberosRealmNames = new ArrayList<>();
+        Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
         for (RealmConfig.RealmIdentifier identifier: realmsSettings.keySet()) {
             Realm.Factory factory = factories.get(identifier.getType());
             if (factory == null) {
@@ -213,7 +215,10 @@ public class Realms implements Iterable<Realm> {
                         "configured");
                 }
             }
-            realms.add(factory.create(config));
+            Realm realm = factory.create(config);
+            nameToRealmIdentifier.computeIfAbsent(realm.name(), k ->
+                new HashSet<>()).add(RealmSettings.realmSettingPrefix(realm.type()) + realm.name());
+            realms.add(realm);
         }
 
         if (!realms.isEmpty()) {
@@ -224,6 +229,13 @@ public class Realms implements Iterable<Realm> {
         }
         // always add built in first!
         realms.add(0, reservedRealm);
+        String duplicateRealms = nameToRealmIdentifier.entrySet().stream()
+            .filter(entry -> entry.getValue().size() > 1)
+            .map(entry -> entry.getKey() + ": " + entry.getValue())
+            .collect(Collectors.joining("; "));
+        if (Strings.hasText(duplicateRealms)) {
+            throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateRealms + "");
+        }
         return realms;
     }
 

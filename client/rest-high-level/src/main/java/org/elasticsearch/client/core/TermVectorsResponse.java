@@ -133,7 +133,7 @@ public class TermVectorsResponse {
             && Objects.equals(id, other.id)
             && docVersion == other.docVersion
             && found == other.found
-            && tookInMillis == tookInMillis
+            && tookInMillis == other.tookInMillis
             && Objects.equals(termVectorList, other.termVectorList);
     }
 

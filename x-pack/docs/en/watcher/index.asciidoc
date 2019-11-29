@@ -1,3 +1,4 @@
+[role="xpack"]
 [[xpack-alerting]]
 = Alerting on cluster and index events
 

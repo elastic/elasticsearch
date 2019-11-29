@@ -1,5 +1,8 @@
 [[cluster-nodes-hot-threads]]
-=== Nodes hot_threads
+=== Nodes hot threads API
+++++
+<titleabbrev>Nodes hot threads</titleabbrev>
+++++
 
 Returns the hot threads on each selected node in the cluster.
 
@@ -57,9 +60,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[cluster-nodes-hot-threads-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_nodes/hot_threads
 GET /_nodes/nodeId1,nodeId2/hot_threads
 --------------------------------------------------
-// CONSOLE

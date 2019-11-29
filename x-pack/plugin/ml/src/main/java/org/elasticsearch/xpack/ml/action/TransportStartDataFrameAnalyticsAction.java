@@ -7,22 +7,14 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
-import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -33,16 +25,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -54,42 +43,41 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.EstimateMemoryUsageAction;
+import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
-import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.MappingsMerger;
 import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
-import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -112,13 +100,15 @@ public class TransportStartDataFrameAnalyticsAction
     private final PersistentTasksService persistentTasksService;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final MlMemoryTracker memoryTracker;
+    private final DataFrameAnalyticsAuditor auditor;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(TransportService transportService, Client client, ClusterService clusterService,
                                                   ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                                   PersistentTasksService persistentTasksService,
-                                                  DataFrameAnalyticsConfigProvider configProvider, MlMemoryTracker memoryTracker) {
+                                                  DataFrameAnalyticsConfigProvider configProvider, MlMemoryTracker memoryTracker,
+                                                  DataFrameAnalyticsAuditor auditor) {
         super(StartDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 StartDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
@@ -126,6 +116,7 @@ public class TransportStartDataFrameAnalyticsAction
         this.persistentTasksService = persistentTasksService;
         this.configProvider = configProvider;
         this.memoryTracker = memoryTracker;
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Override
@@ -166,117 +157,140 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
-                        e = new ElasticsearchStatusException("Cannot open data frame analytics [" + request.getId() +
-                            "] because it has already been opened", RestStatus.CONFLICT, e);
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                        e = new ElasticsearchStatusException("Cannot start data frame analytics [" + request.getId() +
+                            "] because it has already been started", RestStatus.CONFLICT, e);
                     }
                     listener.onFailure(e);
                 }
             };
 
-        AtomicReference<DataFrameAnalyticsConfig> configHolder = new AtomicReference<>();
-
         // Start persistent task
-        ActionListener<Void> memoryRequirementRefreshListener = ActionListener.wrap(
-            aVoid -> {
+        ActionListener<StartContext> memoryUsageHandledListener = ActionListener.wrap(
+            startContext -> {
                 StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
-                    request.getId(), configHolder.get().getVersion());
+                    request.getId(), startContext.config.getVersion(), startContext.progressOnStart,
+                    startContext.config.isAllowLazyStart());
                 persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                     MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, taskParams, waitForAnalyticsToStart);
             },
             listener::onFailure
         );
 
+        // Perform memory usage estimation for this config
+        ActionListener<StartContext> startContextListener = ActionListener.wrap(
+            startContext -> {
+                estimateMemoryUsageAndUpdateMemoryTracker(startContext, memoryUsageHandledListener);
+            },
+            listener::onFailure
+        );
+
+        // Get start context
+        getStartContext(request.getId(), startContextListener);
+    }
+
+    private void estimateMemoryUsageAndUpdateMemoryTracker(StartContext startContext, ActionListener<StartContext> listener) {
+        final String jobId = startContext.config.getId();
+
         // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-        ActionListener<EstimateMemoryUsageAction.Response> estimateMemoryUsageListener = ActionListener.wrap(
-            estimateMemoryUsageResponse -> {
+        ActionListener<ExplainDataFrameAnalyticsAction.Response> explainListener = ActionListener.wrap(
+            explainResponse -> {
+                ByteSizeValue expectedMemoryWithoutDisk = explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk();
+                auditor.info(jobId,
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE, expectedMemoryWithoutDisk));
                 // Validate that model memory limit is sufficient to run the analysis
-                if (configHolder.get().getModelMemoryLimit()
-                    .compareTo(estimateMemoryUsageResponse.getExpectedMemoryWithoutDisk()) < 0) {
+                if (startContext.config.getModelMemoryLimit()
+                    .compareTo(expectedMemoryWithoutDisk) < 0) {
                     ElasticsearchStatusException e =
                         ExceptionsHelper.badRequestException(
                             "Cannot start because the configured model memory limit [{}] is lower than the expected memory usage [{}]",
-                            configHolder.get().getModelMemoryLimit(), estimateMemoryUsageResponse.getExpectedMemoryWithoutDisk());
+                            startContext.config.getModelMemoryLimit(), expectedMemoryWithoutDisk);
                     listener.onFailure(e);
                     return;
                 }
                 // Refresh memory requirement for jobs
                 memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
-                    request.getId(), configHolder.get().getModelMemoryLimit().getBytes(), memoryRequirementRefreshListener);
+                    jobId, startContext.config.getModelMemoryLimit().getBytes(), ActionListener.wrap(
+                        aVoid -> listener.onResponse(startContext), listener::onFailure));
             },
             listener::onFailure
         );
 
-        // Perform memory usage estimation for this config
-        ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> {
-                configHolder.set(config);
-                PutDataFrameAnalyticsAction.Request estimateMemoryUsageRequest = new PutDataFrameAnalyticsAction.Request(config);
-                ClientHelper.executeAsyncWithOrigin(
-                    client,
-                    ClientHelper.ML_ORIGIN,
-                    EstimateMemoryUsageAction.INSTANCE,
-                    estimateMemoryUsageRequest,
-                    estimateMemoryUsageListener);
-            },
-            listener::onFailure
-        );
+        PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(startContext.config);
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            ClientHelper.ML_ORIGIN,
+            ExplainDataFrameAnalyticsAction.INSTANCE,
+            explainRequest,
+            explainListener);
 
-        // Get config
-        getConfigAndValidate(request.getId(), configListener);
     }
 
-    private void getConfigAndValidate(String id, ActionListener<DataFrameAnalyticsConfig> finalListener) {
+    private void getStartContext(String id, ActionListener<StartContext> finalListener) {
 
-        // Step 5. Validate that there are analyzable data in the source index
-        ActionListener<DataFrameAnalyticsConfig> validateMappingsMergeListener = ActionListener.wrap(
-            config -> DataFrameDataExtractorFactory.createForSourceIndices(client,
-                "validate_source_index_has_rows-" + id,
-                config,
-                ActionListener.wrap(
-                    dataFrameDataExtractorFactory ->
-                        dataFrameDataExtractorFactory
-                            .newExtractor(false)
-                            .collectDataSummaryAsync(ActionListener.wrap(
-                                dataSummary -> {
-                                    if (dataSummary.rows == 0) {
-                                        finalListener.onFailure(new ElasticsearchStatusException(
-                                            "Unable to start {} as there are no analyzable data in source indices [{}].",
-                                            RestStatus.BAD_REQUEST,
-                                            id,
-                                            Strings.arrayToCommaDelimitedString(config.getSource().getIndex())
-                                        ));
-                                    } else {
-                                        finalListener.onResponse(config);
-                                    }
-                                },
-                                finalListener::onFailure
-                            )),
-                    finalListener::onFailure
-                ))
-            ,
+        // Step 6. Validate that there are analyzable data in the source index
+        ActionListener<StartContext> validateMappingsMergeListener = ActionListener.wrap(
+            startContext -> validateSourceIndexHasRows(startContext, finalListener),
             finalListener::onFailure
         );
 
-        // Step 4. Validate mappings can be merged
-        ActionListener<DataFrameAnalyticsConfig> toValidateMappingsListener = ActionListener.wrap(
-            config -> MappingsMerger.mergeMappings(client, config.getHeaders(), config.getSource().getIndex(), ActionListener.wrap(
-                mappings -> validateMappingsMergeListener.onResponse(config), finalListener::onFailure)),
+        // Step 5. Validate mappings can be merged
+        ActionListener<StartContext> toValidateMappingsListener = ActionListener.wrap(
+            startContext -> MappingsMerger.mergeMappings(client, startContext.config.getHeaders(),
+                startContext.config.getSource().getIndex(), ActionListener.wrap(
+                mappings -> validateMappingsMergeListener.onResponse(startContext), finalListener::onFailure)),
             finalListener::onFailure
         );
 
-        // Step 3. Validate dest index is empty
-        ActionListener<DataFrameAnalyticsConfig> toValidateDestEmptyListener = ActionListener.wrap(
-            config -> checkDestIndexIsEmptyIfExists(config, toValidateMappingsListener),
-            finalListener::onFailure
-        );
-
-        // Step 2. Validate source and dest; check data extraction is possible
-        ActionListener<DataFrameAnalyticsConfig> getConfigListener = ActionListener.wrap(
-            config -> {
-                new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(config);
-                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, toValidateDestEmptyListener);
+        // Step 4. Validate dest index is empty if task is starting for first time
+        ActionListener<StartContext> toValidateDestEmptyListener = ActionListener.wrap(
+            startContext -> {
+                switch (startContext.startingState) {
+                    case FIRST_TIME:
+                        checkDestIndexIsEmptyIfExists(startContext, toValidateMappingsListener);
+                        break;
+                    case RESUMING_REINDEXING:
+                    case RESUMING_ANALYZING:
+                        toValidateMappingsListener.onResponse(startContext);
+                        break;
+                    case FINISHED:
+                        LOGGER.info("[{}] Job has already finished", startContext.config.getId());
+                        finalListener.onFailure(ExceptionsHelper.badRequestException(
+                            "Cannot start because the job has already finished"));
+                        break;
+                    default:
+                        finalListener.onFailure(ExceptionsHelper.serverError("Unexpected starting state " + startContext.startingState));
+                        break;
+                }
             },
+            finalListener::onFailure
+        );
+
+        // Step 3. Validate source and dest; check data extraction is possible
+        ActionListener<StartContext> startContextListener = ActionListener.wrap(
+            startContext -> {
+                // Validate the query parses
+                startContext.config.getSource().getParsedQuery();
+
+                // Validate source/dest are valid
+                new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(startContext.config);
+
+                // Validate extraction is possible
+                boolean isTaskRestarting = startContext.startingState != DataFrameAnalyticsTask.StartingState.FIRST_TIME;
+                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, isTaskRestarting, ActionListener.wrap(
+                    extractedFieldsDetector -> {
+                        startContext.extractedFields = extractedFieldsDetector.detect().v1();
+                        toValidateDestEmptyListener.onResponse(startContext);
+                    },
+                    finalListener::onFailure));
+            },
+            finalListener::onFailure
+        );
+
+        // Step 2. Get stats to recover progress
+        ActionListener<DataFrameAnalyticsConfig> getConfigListener = ActionListener.wrap(
+            config -> getProgress(config, ActionListener.wrap(
+                progress -> startContextListener.onResponse(new StartContext(config, progress)), finalListener::onFailure)),
             finalListener::onFailure
         );
 
@@ -284,23 +298,65 @@ public class TransportStartDataFrameAnalyticsAction
         configProvider.get(id, getConfigListener);
     }
 
-    private void checkDestIndexIsEmptyIfExists(DataFrameAnalyticsConfig config, ActionListener<DataFrameAnalyticsConfig> listener) {
-        String destIndex = config.getDest().getIndex();
+    private void validateSourceIndexHasRows(StartContext startContext, ActionListener<StartContext> listener) {
+        DataFrameDataExtractorFactory extractorFactory = DataFrameDataExtractorFactory.createForSourceIndices(client,
+            "validate_source_index_has_rows-" + startContext.config.getId(),
+            startContext.config,
+            startContext.extractedFields);
+        extractorFactory.newExtractor(false)
+            .collectDataSummaryAsync(ActionListener.wrap(
+                dataSummary -> {
+                    if (dataSummary.rows == 0) {
+                        listener.onFailure(ExceptionsHelper.badRequestException(
+                            "Unable to start {} as no documents in the source indices [{}] contained all the fields "
+                                + "selected for analysis. If you are relying on automatic field selection then there are "
+                                + "currently mapped fields that do not exist in any indexed documents, and you will have "
+                                + "to switch to explicit field selection and include only fields that exist in indexed "
+                                + "documents.",
+                            startContext.config.getId(),
+                            Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
+                        ));
+                    } else {
+                        listener.onResponse(startContext);
+                    }
+                },
+                listener::onFailure
+            ));
+    }
+
+    private void getProgress(DataFrameAnalyticsConfig config, ActionListener<List<PhaseProgress>> listener) {
+        GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(config.getId());
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(
+            statsResponse -> {
+                List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = statsResponse.getResponse().results();
+                if (stats.isEmpty()) {
+                    // The job has been deleted in between
+                    listener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(config.getId()));
+                } else {
+                    listener.onResponse(stats.get(0).getProgress());
+                }
+            },
+            listener::onFailure
+        ));
+    }
+
+    private void checkDestIndexIsEmptyIfExists(StartContext startContext, ActionListener<StartContext> listener) {
+        String destIndex = startContext.config.getDest().getIndex();
         SearchRequest destEmptySearch = new SearchRequest(destIndex);
         destEmptySearch.source().size(0);
         destEmptySearch.allowPartialSearchResults(false);
-        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE,
+        ClientHelper.executeWithHeadersAsync(startContext.config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE,
             destEmptySearch, ActionListener.wrap(
                 searchResponse -> {
                     if (searchResponse.getHits().getTotalHits().value > 0) {
                         listener.onFailure(ExceptionsHelper.badRequestException("dest index [{}] must be empty", destIndex));
                     } else {
-                        listener.onResponse(config);
+                        listener.onResponse(startContext);
                     }
                 },
                 e -> {
-                    if (e instanceof IndexNotFoundException) {
-                        listener.onResponse(config);
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                        listener.onResponse(startContext);
                     } else {
                         listener.onFailure(e);
                     }
@@ -323,6 +379,7 @@ public class TransportStartDataFrameAnalyticsAction
                         // what would have happened if the error had been detected in the "fast fail" validation
                         cancelAnalyticsStart(task, predicate.exception, listener);
                     } else {
+                        auditor.info(task.getParams().getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED);
                         listener.onResponse(new AcknowledgedResponse(true));
                     }
                 }
@@ -334,17 +391,30 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchException("Starting data frame analytics [" + task.getParams().getId()
-                        + "] timed out after [" + timeout + "]"));
+                    listener.onFailure(new ElasticsearchException(
+                        "Starting data frame analytics [" + task.getParams().getId() + "] timed out after [" + timeout + "]"));
                 }
         });
+    }
+
+    private static class StartContext {
+        private final DataFrameAnalyticsConfig config;
+        private final List<PhaseProgress> progressOnStart;
+        private final DataFrameAnalyticsTask.StartingState startingState;
+        private volatile ExtractedFields extractedFields;
+
+        private StartContext(DataFrameAnalyticsConfig config, List<PhaseProgress> progressOnStart) {
+            this.config = config;
+            this.progressOnStart = progressOnStart;
+            this.startingState = DataFrameAnalyticsTask.determineStartingState(config.getId(), progressOnStart);
+        }
     }
 
     /**
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private static class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
         private volatile Exception exception;
 
@@ -378,6 +448,12 @@ public class TransportStartDataFrameAnalyticsAction
                 case STOPPING:
                     exception = ExceptionsHelper.conflictStatusException("the task has been stopped while waiting to be started");
                     return true;
+                // The STARTING case here is expected to be incredibly short-lived, just occurring during the
+                // time period when a job has successfully been assigned to a node but the request to update
+                // its task state is still in-flight.  (The long-lived STARTING case when a lazy node needs to
+                // be added to the cluster to accommodate the job was dealt with higher up this method when the
+                // magic AWAITING_LAZY_ASSIGNMENT assignment was checked for.)
+                case STARTING:
                 case STOPPED:
                     return false;
                 case FAILED:
@@ -410,226 +486,6 @@ public class TransportStartDataFrameAnalyticsAction
         );
     }
 
-    public static class DataFrameAnalyticsTask extends AllocatedPersistentTask implements StartDataFrameAnalyticsAction.TaskMatcher {
-
-        private final Client client;
-        private final ClusterService clusterService;
-        private final DataFrameAnalyticsManager analyticsManager;
-        private final StartDataFrameAnalyticsAction.TaskParams taskParams;
-        @Nullable
-        private volatile Long reindexingTaskId;
-        private volatile boolean isReindexingFinished;
-        private volatile boolean isStopping;
-        private final ProgressTracker progressTracker = new ProgressTracker();
-
-        public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
-                                      Client client, ClusterService clusterService, DataFrameAnalyticsManager analyticsManager,
-                                      StartDataFrameAnalyticsAction.TaskParams taskParams) {
-            super(id, type, action, MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(), parentTask, headers);
-            this.client = Objects.requireNonNull(client);
-            this.clusterService = Objects.requireNonNull(clusterService);
-            this.analyticsManager = Objects.requireNonNull(analyticsManager);
-            this.taskParams = Objects.requireNonNull(taskParams);
-        }
-
-        public StartDataFrameAnalyticsAction.TaskParams getParams() {
-            return taskParams;
-        }
-
-        public void setReindexingTaskId(Long reindexingTaskId) {
-            this.reindexingTaskId = reindexingTaskId;
-        }
-
-        public void setReindexingFinished() {
-            isReindexingFinished = true;
-        }
-
-        public boolean isStopping() {
-            return isStopping;
-        }
-
-        public ProgressTracker getProgressTracker() {
-            return progressTracker;
-        }
-
-        @Override
-        protected void onCancelled() {
-            stop(getReasonCancelled(), TimeValue.ZERO);
-        }
-
-        @Override
-        public void markAsCompleted() {
-            persistProgress(() -> super.markAsCompleted());
-        }
-
-        @Override
-        public void markAsFailed(Exception e) {
-            persistProgress(() -> super.markAsFailed(e));
-        }
-
-        public void stop(String reason, TimeValue timeout) {
-            isStopping = true;
-
-            ActionListener<Void> reindexProgressListener = ActionListener.wrap(
-                aVoid -> doStop(reason, timeout),
-                e -> {
-                    LOGGER.error(new ParameterizedMessage("[{}] Error updating reindexing progress", taskParams.getId()), e);
-                    // We should log the error but it shouldn't stop us from stopping the task
-                    doStop(reason, timeout);
-                }
-            );
-
-            // We need to update reindexing progress before we cancel the task
-            updateReindexTaskProgress(reindexProgressListener);
-        }
-
-        private void doStop(String reason, TimeValue timeout) {
-            if (reindexingTaskId != null) {
-                cancelReindexingTask(reason, timeout);
-            }
-            analyticsManager.stop(this);
-        }
-
-        private void cancelReindexingTask(String reason, TimeValue timeout) {
-            TaskId reindexTaskId = new TaskId(clusterService.localNode().getId(), reindexingTaskId);
-            LOGGER.debug("[{}] Cancelling reindex task [{}]", taskParams.getId(), reindexTaskId);
-
-            CancelTasksRequest cancelReindex = new CancelTasksRequest();
-            cancelReindex.setTaskId(reindexTaskId);
-            cancelReindex.setReason(reason);
-            cancelReindex.setTimeout(timeout);
-            CancelTasksResponse cancelReindexResponse = client.admin().cluster().cancelTasks(cancelReindex).actionGet();
-            Throwable firstError = null;
-            if (cancelReindexResponse.getNodeFailures().isEmpty() == false) {
-                firstError = cancelReindexResponse.getNodeFailures().get(0).getRootCause();
-            }
-            if (cancelReindexResponse.getTaskFailures().isEmpty() == false) {
-                firstError = cancelReindexResponse.getTaskFailures().get(0).getCause();
-            }
-            // There is a chance that the task is finished by the time we cancel it in which case we'll get
-            // a ResourceNotFoundException which we can ignore.
-            if (firstError != null && firstError instanceof ResourceNotFoundException == false) {
-                throw ExceptionsHelper.serverError("[" + taskParams.getId() + "] Error cancelling reindex task", firstError);
-            } else {
-                LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());
-            }
-        }
-
-        public void updateState(DataFrameAnalyticsState state, @Nullable String reason) {
-            DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(state, getAllocationId(), reason);
-            updatePersistentTaskState(newTaskState, ActionListener.wrap(
-                updatedTask -> LOGGER.info("[{}] Successfully update task state to [{}]", getParams().getId(), state),
-                e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}] with reason [{}]",
-                    getParams().getId(), state, reason), e)
-            ));
-        }
-
-        public void updateReindexTaskProgress(ActionListener<Void> listener) {
-            TaskId reindexTaskId = getReindexTaskId();
-            if (reindexTaskId == null) {
-                // The task is not present which means either it has not started yet or it finished.
-                // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
-                if (isReindexingFinished) {
-                    progressTracker.reindexingPercent.set(100);
-                }
-                listener.onResponse(null);
-                return;
-            }
-
-            GetTaskRequest getTaskRequest = new GetTaskRequest();
-            getTaskRequest.setTaskId(reindexTaskId);
-            client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(
-                taskResponse -> {
-                    TaskResult taskResult = taskResponse.getTask();
-                    BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
-                    int progress = taskStatus.getTotal() == 0 ? 0 : (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
-                    progressTracker.reindexingPercent.set(progress);
-                    listener.onResponse(null);
-                },
-                error -> {
-                    if (error instanceof ResourceNotFoundException) {
-                        // The task is not present which means either it has not started yet or it finished.
-                        // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
-                        if (isReindexingFinished) {
-                            progressTracker.reindexingPercent.set(100);
-                        }
-                        listener.onResponse(null);
-                    } else {
-                        listener.onFailure(error);
-                    }
-                }
-            ));
-        }
-
-        @Nullable
-        private TaskId getReindexTaskId() {
-            try {
-                return new TaskId(clusterService.localNode().getId(), reindexingTaskId);
-            } catch (NullPointerException e) {
-                // This may happen if there is no reindexing task id set which means we either never started the task yet or we're finished
-                return null;
-            }
-        }
-
-        private void persistProgress(Runnable runnable) {
-            GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(taskParams.getId());
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(
-                statsResponse -> {
-                    GetDataFrameAnalyticsStatsAction.Response.Stats stats = statsResponse.getResponse().results().get(0);
-                    IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
-                    indexRequest.id(progressDocId(taskParams.getId()));
-                    indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                    try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-                        new StoredProgress(stats.getProgress()).toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
-                        indexRequest.source(jsonBuilder);
-                    }
-                    executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
-                        indexResponse -> {
-                            LOGGER.debug("[{}] Successfully indexed progress document", taskParams.getId());
-                            runnable.run();
-                        },
-                        indexError -> {
-                            LOGGER.error(new ParameterizedMessage(
-                            "[{}] cannot persist progress as an error occurred while indexing", taskParams.getId()), indexError);
-                            runnable.run();
-                        }
-                    ));
-                },
-                e -> {
-                    LOGGER.error(new ParameterizedMessage(
-                    "[{}] cannot persist progress as an error occurred while retrieving stats", taskParams.getId()), e);
-                    runnable.run();
-                }
-            ));
-        }
-
-        public static String progressDocId(String id) {
-            return "data_frame_analytics-" + id + "-progress";
-        }
-
-        public static class ProgressTracker {
-
-            public static final String REINDEXING = "reindexing";
-            public static final String LOADING_DATA = "loading_data";
-            public static final String ANALYZING = "analyzing";
-            public static final String WRITING_RESULTS = "writing_results";
-
-            public final AtomicInteger reindexingPercent = new AtomicInteger(0);
-            public final AtomicInteger loadingDataPercent = new AtomicInteger(0);
-            public final AtomicInteger analyzingPercent = new AtomicInteger(0);
-            public final AtomicInteger writingResultsPercent = new AtomicInteger(0);
-
-            public List<PhaseProgress> report() {
-                return Arrays.asList(
-                    new PhaseProgress(REINDEXING, reindexingPercent.get()),
-                    new PhaseProgress(LOADING_DATA, loadingDataPercent.get()),
-                    new PhaseProgress(ANALYZING, analyzingPercent.get()),
-                    new PhaseProgress(WRITING_RESULTS, writingResultsPercent.get())
-                );
-            }
-        }
-    }
-
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, String... indexNames) {
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexNames);
@@ -648,18 +504,21 @@ public class TransportStartDataFrameAnalyticsAction
         private final Client client;
         private final ClusterService clusterService;
         private final DataFrameAnalyticsManager manager;
+        private final DataFrameAnalyticsAuditor auditor;
         private final MlMemoryTracker memoryTracker;
 
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
         private volatile int maxOpenJobs;
+        private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            MlMemoryTracker memoryTracker) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.client = Objects.requireNonNull(client);
             this.clusterService = Objects.requireNonNull(clusterService);
             this.manager = Objects.requireNonNull(manager);
+            this.auditor = Objects.requireNonNull(auditor);
             this.memoryTracker = Objects.requireNonNull(memoryTracker);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
@@ -668,6 +527,7 @@ public class TransportStartDataFrameAnalyticsAction
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
+            clusterService.addListener(event -> clusterState = event.state());
         }
 
         @Override
@@ -675,8 +535,8 @@ public class TransportStartDataFrameAnalyticsAction
             long id, String type, String action, TaskId parentTaskId,
             PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask,
             Map<String, String> headers) {
-            return new DataFrameAnalyticsTask(id, type, action, parentTaskId, headers, client, clusterService, manager,
-                persistentTask.getParams());
+            return new DataFrameAnalyticsTask(
+                id, type, action, parentTaskId, headers, client, clusterService, manager, auditor, persistentTask.getParams());
         }
 
         @Override
@@ -710,7 +570,7 @@ public class TransportStartDataFrameAnalyticsAction
             }
 
             JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, id, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker,
-                maxLazyMLNodes, node -> nodeFilter(node, id));
+                params.isAllowLazyStart() ? Integer.MAX_VALUE : maxLazyMLNodes, node -> nodeFilter(node, id));
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
             return jobNodeSelector.selectNode(
@@ -734,10 +594,10 @@ public class TransportStartDataFrameAnalyticsAction
                 DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
                     task.getAllocationId(), null);
                 task.updatePersistentTaskState(startedState, ActionListener.wrap(
-                    response -> manager.execute((DataFrameAnalyticsTask) task, DataFrameAnalyticsState.STARTED),
+                    response -> manager.execute((DataFrameAnalyticsTask) task, DataFrameAnalyticsState.STARTED, clusterState),
                     task::markAsFailed));
             } else {
-                manager.execute((DataFrameAnalyticsTask)task, analyticsTaskState.getState());
+                manager.execute((DataFrameAnalyticsTask) task, analyticsTaskState.getState(), clusterState);
             }
         }
 
@@ -764,4 +624,6 @@ public class TransportStartDataFrameAnalyticsAction
             this.maxOpenJobs = maxOpenJobs;
         }
     }
+
+
 }

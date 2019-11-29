@@ -34,7 +34,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 
 /**
@@ -70,11 +69,8 @@ public class MappingUpdatedAction {
      * {@code timeout} is the master node timeout ({@link MasterNodeRequest#masterNodeTimeout()}),
      * potentially waiting for a master node to be available.
      */
-    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, ActionListener<Void> listener) {
-        if (type.equals(MapperService.DEFAULT_MAPPING)) {
-            throw new IllegalArgumentException("_default_ mapping should not be updated");
-        }
-        client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString(), XContentType.JSON)
+    public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
+        client.preparePutMapping().setConcreteIndex(index).setSource(mappingUpdate.toString(), XContentType.JSON)
             .setMasterNodeTimeout(dynamicMappingUpdateTimeout).setTimeout(TimeValue.ZERO)
             .execute(new ActionListener<AcknowledgedResponse>() {
                 @Override

@@ -30,7 +30,7 @@ POST _search?typed_keys
 In the response, the suggester names will be changed to respectively `term#my-first-suggester` and
 `phrase#my-second-suggester`, reflecting the types of each suggestion:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "suggest": {

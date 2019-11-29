@@ -18,7 +18,7 @@ token.
 
 * To call this API, the (proxy) user must have the `delegate_pki` or the `all`
 cluster privilege. The `kibana_system` built-in role already grants this
-privilege. See {stack-ov}/security-privileges.html[Security privileges].
+privilege. See <<security-privileges>>.
 
 [[security-api-delegate-pki-authentication-desc]]
 ==== {api-description-title}
@@ -73,19 +73,18 @@ client's certificate.
 
 The following is an example request:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/delegate_pki
 {
   "x509_certificate_chain": ["MIIDbTCCAlWgAwIBAgIJAIxTS7Qdho9jMA0GCSqGSIb3DQEBCwUAMFMxKzApBgNVBAMTIkVsYXN0aWNzZWFyY2ggVGVzdCBJbnRlcm1lZGlhdGUgQ0ExFjAUBgNVBAsTDUVsYXN0aWNzZWFyY2gxDDAKBgNVBAoTA29yZzAeFw0xOTA3MTkxMzMzNDFaFw0yMzA3MTgxMzMzNDFaMEoxIjAgBgNVBAMTGUVsYXN0aWNzZWFyY2ggVGVzdCBDbGllbnQxFjAUBgNVBAsTDUVsYXN0aWNzZWFyY2gxDDAKBgNVBAoTA29yZzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANHgMX2aX8t0nj4sGLNuKISmmXIYCj9RwRqS7L03l9Nng7kOKnhHu/nXDt7zMRJyHj+q6FAt5khlavYSVCQyrDybRuA5z31gOdqXerrjs2OXS5HSHNvoDAnHFsaYX/5geMewVTtc/vqpd7Ph/QtaKfmG2FK0JNQo0k24tcgCIcyMtBh6BA70yGBM0OT8GdOgd/d/mA7mRhaxIUMNYQzRYRsp4hMnnWoOTkR5Q8KSO3MKw9dPSpPe8EnwtJE10S3s5aXmgytru/xQqrFycPBNj4KbKVmqMP0G60CzXik5pr2LNvOFz3Qb6sYJtqeZF+JKgGWdaTC89m63+TEnUHqk0lcCAwEAAaNNMEswCQYDVR0TBAIwADAdBgNVHQ4EFgQU/+aAD6Q4mFq1vpHorC25/OY5zjcwHwYDVR0jBBgwFoAU8siFCiMiYZZm/95qFC75AG/LRE0wDQYJKoZIhvcNAQELBQADggEBAIRpCgDLpvXcgDHUk10uhxev21mlIbU+VP46ANnCuj0UELhTrdTuWvO1PAI4z+WbDUxryQfOOXO9R6D0dE5yR56L/J7d+KayW34zU7yRDZM7+rXpocdQ1Ex8mjP9HJ/Bf56YZTBQJpXeDrKow4FvtkI3bcIMkqmbG16LHQXeG3RS4ds4S4wCnE2nA6vIn9y+4R999q6y1VSBORrYULcDWxS54plHLEdiMr1vVallg82AGobS9GMcTL2U4Nx5IYZG7sbTk3LrDxVpVg/S2wLofEdOEwqCeHug/iOihNLJBabEW6z4TDLJAVW5KCY1DfhkYlBfHn7vxKkfKoCUK/yLWWI="] <1>
 }
 ------------------------------------------------------------
-// CONSOLE
 <1>  A one element certificate chain.
 
 Which returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",

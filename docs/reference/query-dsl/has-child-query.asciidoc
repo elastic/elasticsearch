@@ -27,7 +27,7 @@ the `has_child` query, use it as rarely as possible.
 To use the `has_child` query, your index must include a <<parent-join,join>>
 field mapping. For example:
 
-[source,js]
+[source,console]
 ----
 PUT /my_index
 {
@@ -44,13 +44,12 @@ PUT /my_index
 }
 
 ----
-// CONSOLE
 // TESTSETUP
 
 [[has-child-query-ex-query]]
 ===== Example query
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -67,7 +66,6 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[has-child-top-level-params]]
 ==== Top-level parameters for `has_child`
@@ -139,7 +137,7 @@ If you need to sort returned documents by a field in their child documents, use
 a `function_score` query and sort by `_score`. For example, the following query
 sorts returned documents by the `click_count` field of their child documents.
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -158,4 +156,3 @@ GET /_search
     }
 }
 ----
-// CONSOLE

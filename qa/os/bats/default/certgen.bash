@@ -382,7 +382,7 @@ DATA_SETTINGS
     testIndex=$(sudo curl -u "elastic:changeme" \
         -H "Content-Type: application/json" \
         --cacert "$ESCONFIG/certs/ca/ca.crt" \
-        -XPOST "https://127.0.0.1:9200/books/book/0?refresh" \
+        -XPOST "https://127.0.0.1:9200/books/_doc/0?refresh" \
         -d '{"title": "Elasticsearch The Definitive Guide"}')
 
     debug_collect_logs

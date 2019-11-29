@@ -18,15 +18,14 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 
 import java.util.Objects;
 
 /**
  * Request class for removing an event from an existing calendar
  */
-public class DeleteCalendarEventRequest extends ActionRequest {
+public class DeleteCalendarEventRequest implements Validatable {
 
     private final String eventId;
     private final String calendarId;
@@ -49,11 +48,6 @@ public class DeleteCalendarEventRequest extends ActionRequest {
 
     public String getCalendarId() {
         return calendarId;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

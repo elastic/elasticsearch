@@ -19,11 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -52,12 +54,12 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         Class<?> rtnType = locals.getReturnType();
         boolean isVoid = rtnType == void.class;
 
         expression.read = lastSource && !isVoid;
-        expression.analyze(locals);
+        expression.analyze(scriptRoot, locals);
 
         if (!lastSource && !expression.statement) {
             throw createError(new IllegalArgumentException("Not a statement."));
@@ -67,7 +69,7 @@ public final class SExpression extends AStatement {
 
         expression.expected = rtn ? rtnType : expression.actual;
         expression.internal = rtn;
-        expression = expression.cast(locals);
+        expression = expression.cast(scriptRoot, locals);
 
         methodEscape = rtn;
         loopEscape = rtn;
@@ -76,14 +78,14 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-        expression.write(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
+        expression.write(classWriter, methodWriter, globals);
 
         if (methodEscape) {
-            writer.returnValue();
+            methodWriter.returnValue();
         } else {
-            writer.writePop(MethodWriter.getType(expression.expected).getSize());
+            methodWriter.writePop(MethodWriter.getType(expression.expected).getSize());
         }
     }
 

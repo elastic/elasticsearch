@@ -17,7 +17,7 @@ The specified field must be of type `geo_point` (which can only be set explicitl
 
 ==== Simple low-precision request
 
-[source,console]
+[source,console,id=geohashgrid-aggregation-low-precision-example]
 --------------------------------------------------
 PUT /museums
 {
@@ -59,7 +59,7 @@ POST /museums/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -89,7 +89,7 @@ Response:
 
 When requesting detailed buckets (typically for displaying a "zoomed in" map) a filter like <<query-dsl-geo-bounding-box-query,geo_bounding_box>> should be applied to narrow the subject area otherwise potentially millions of buckets will be created and returned.
 
-[source,console]
+[source,console,id=geohashgrid-aggregation-high-precision-example]
 --------------------------------------------------
 POST /museums/_search?size=0
 {
@@ -148,7 +148,7 @@ POST /museums/_search?size=0
 --------------------------------------------------
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

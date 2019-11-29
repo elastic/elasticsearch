@@ -79,7 +79,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
-                        engine.delete(new Engine.Delete("test", delId, newUid(delId), primaryTerm.get()));
+                        engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
                     }
                     if (rarely()) {
                         engine.flush();

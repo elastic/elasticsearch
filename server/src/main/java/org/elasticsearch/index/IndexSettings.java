@@ -173,13 +173,6 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_RESCORE_WINDOW_SETTING =
             Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1,
                 Property.Dynamic, Property.IndexScope);
-    /**
-     * Index setting describing the maximum number of filters clauses that can be used
-     * in an adjacency_matrix aggregation. The max number of buckets produced by
-     * N filters is (N*N)/2 so a limit of 100 filters is imposed by default.
-     */
-    public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING =
-        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
@@ -270,6 +263,14 @@ public final class IndexSettings {
             Property.Dynamic, Property.IndexScope);
 
     /**
+     * Controls the number of translog files that are no longer needed for persistence reasons will be kept around before being deleted.
+     * This is a safeguard making sure that the translog deletion policy won't keep too many translog files especially when they're small.
+     * This setting is intentionally not registered, it is only used in tests
+     **/
+    public static final Setting<Integer> INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING =
+        Setting.intSetting("index.translog.retention.total_files", 100, 0, Setting.Property.IndexScope);
+
+    /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
      */
     public static final Setting<TimeValue> INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING =
@@ -299,12 +300,18 @@ public final class IndexSettings {
         1000, 1, Property.Dynamic, Property.IndexScope);
 
     public static final Setting<String> DEFAULT_PIPELINE =
-       new Setting<>("index.default_pipeline", IngestService.NOOP_PIPELINE_NAME, s -> {
-           if (s == null || s.isEmpty()) {
-               throw new IllegalArgumentException("Value for [index.default_pipeline] must be a non-empty string.");
-           }
-        return s;
-       }, Property.Dynamic, Property.IndexScope);
+        new Setting<>("index.default_pipeline",
+        IngestService.NOOP_PIPELINE_NAME,
+        Function.identity(),
+        Property.Dynamic,
+        Property.IndexScope);
+
+    public static final Setting<String> FINAL_PIPELINE =
+        new Setting<>("index.final_pipeline",
+            IngestService.NOOP_PIPELINE_NAME,
+            Function.identity(),
+            Property.Dynamic,
+            Property.IndexScope);
 
     /**
      * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
@@ -373,7 +380,6 @@ public final class IndexSettings {
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
-    private volatile int maxAdjacencyMatrixFilters;
     private volatile int maxRescoreWindow;
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
@@ -384,6 +390,7 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
+    private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
 
     /**
@@ -488,7 +495,6 @@ public final class IndexSettings {
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
-        maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
@@ -530,7 +536,6 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
-        scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
@@ -555,6 +560,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
+        scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
@@ -746,7 +752,7 @@ public final class IndexSettings {
     public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
         this.syncInterval = translogSyncInterval;
     }
-    
+
     /**
      * Returns this interval in which the shards of this index are asynchronously refreshed. {@code -1} means async refresh is disabled.
      */
@@ -779,6 +785,14 @@ public final class IndexSettings {
     public TimeValue getTranslogRetentionAge() {
         assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
         return translogRetentionAge;
+    }
+
+    /**
+     * Returns the maximum number of translog files that that no longer required for persistence should be kept for peer recovery
+     * when soft-deletes is disabled.
+     */
+    public int getTranslogRetentionTotalFiles() {
+        return INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.get(getSettings());
     }
 
     /**
@@ -819,17 +833,6 @@ public final class IndexSettings {
 
     private void setMaxInnerResultWindow(int maxInnerResultWindow) {
         this.maxInnerResultWindow = maxInnerResultWindow;
-    }
-
-    /**
-     * Returns the max number of filters in adjacency_matrix aggregation search requests
-     */
-    public int getMaxAdjacencyMatrixFilters() {
-        return this.maxAdjacencyMatrixFilters;
-    }
-
-    private void setMaxAdjacencyMatrixFilters(int maxAdjacencyFilters) {
-        this.maxAdjacencyMatrixFilters = maxAdjacencyFilters;
     }
 
     /**
@@ -983,6 +986,14 @@ public final class IndexSettings {
 
     public void setDefaultPipeline(String defaultPipeline) {
         this.defaultPipeline = defaultPipeline;
+    }
+
+    public String getRequiredPipeline() {
+        return requiredPipeline;
+    }
+
+    public void setRequiredPipeline(final String requiredPipeline) {
+        this.requiredPipeline = requiredPipeline;
     }
 
     /**

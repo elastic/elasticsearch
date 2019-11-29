@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.slm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,12 +31,14 @@ import java.util.Objects;
 public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeable {
 
     private static final ParseField SNAPSHOT_IN_PROGRESS = new ParseField("in_progress");
+    private static final ParseField POLICY_STATS = new ParseField("stats");
 
     private final SnapshotLifecyclePolicy policy;
     private final long version;
     private final long modifiedDate;
     @Nullable
     private final SnapshotInProgress snapshotInProgress;
+    private final SnapshotLifecycleStats.SnapshotPolicyStats policyStats;
 
     @Nullable
     private final SnapshotInvocationRecord lastSuccess;
@@ -42,13 +46,15 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
     @Nullable
     private final SnapshotInvocationRecord lastFailure;
     public SnapshotLifecyclePolicyItem(SnapshotLifecyclePolicyMetadata policyMetadata,
-                                       @Nullable SnapshotInProgress snapshotInProgress) {
+                                       @Nullable SnapshotInProgress snapshotInProgress,
+                                       @Nullable SnapshotLifecycleStats.SnapshotPolicyStats policyStats) {
         this.policy = policyMetadata.getPolicy();
         this.version = policyMetadata.getVersion();
         this.modifiedDate = policyMetadata.getModifiedDate();
         this.lastSuccess = policyMetadata.getLastSuccess();
         this.lastFailure = policyMetadata.getLastFailure();
         this.snapshotInProgress = snapshotInProgress;
+        this.policyStats = policyStats == null ? new SnapshotLifecycleStats.SnapshotPolicyStats(policy.getId()) : policyStats;
     }
 
     public SnapshotLifecyclePolicyItem(StreamInput in) throws IOException {
@@ -58,19 +64,26 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         this.lastFailure = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         this.snapshotInProgress = in.readOptionalWriteable(SnapshotInProgress::new);
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            this.policyStats = new SnapshotLifecycleStats.SnapshotPolicyStats(in);
+        } else {
+            this.policyStats = new SnapshotLifecycleStats.SnapshotPolicyStats(this.policy.getId());
+        }
     }
 
     // For testing
 
     SnapshotLifecyclePolicyItem(SnapshotLifecyclePolicy policy, long version, long modifiedDate,
                                 SnapshotInvocationRecord lastSuccess, SnapshotInvocationRecord lastFailure,
-                                @Nullable SnapshotInProgress snapshotInProgress) {
+                                @Nullable SnapshotInProgress snapshotInProgress,
+                                SnapshotLifecycleStats.SnapshotPolicyStats policyStats) {
         this.policy = policy;
         this.version = version;
         this.modifiedDate = modifiedDate;
         this.lastSuccess = lastSuccess;
         this.lastFailure = lastFailure;
         this.snapshotInProgress = snapshotInProgress;
+        this.policyStats = policyStats;
     }
     public SnapshotLifecyclePolicy getPolicy() {
         return policy;
@@ -97,6 +110,10 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         return this.snapshotInProgress;
     }
 
+    public SnapshotLifecycleStats.SnapshotPolicyStats getPolicyStats() {
+        return this.policyStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         policy.writeTo(out);
@@ -105,11 +122,14 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         out.writeOptionalWriteable(lastSuccess);
         out.writeOptionalWriteable(lastFailure);
         out.writeOptionalWriteable(snapshotInProgress);
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            this.policyStats.writeTo(out);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(policy, version, modifiedDate, lastSuccess, lastFailure);
+        return Objects.hash(policy, version, modifiedDate, lastSuccess, lastFailure, policyStats);
     }
 
     @Override
@@ -126,7 +146,8 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
             modifiedDate == other.modifiedDate &&
             Objects.equals(lastSuccess, other.lastSuccess) &&
             Objects.equals(lastFailure, other.lastFailure) &&
-            Objects.equals(snapshotInProgress, other.snapshotInProgress);
+            Objects.equals(snapshotInProgress, other.snapshotInProgress) &&
+            Objects.equals(policyStats, other.policyStats);
     }
 
     @Override
@@ -147,6 +168,9 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         if (snapshotInProgress != null) {
             builder.field(SNAPSHOT_IN_PROGRESS.getPreferredName(), snapshotInProgress);
         }
+        builder.startObject(POLICY_STATS.getPreferredName());
+        this.policyStats.toXContent(builder, params);
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -185,6 +209,22 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         public static SnapshotInProgress fromEntry(SnapshotsInProgress.Entry entry) {
             return new SnapshotInProgress(entry.snapshot().getSnapshotId(),
                 entry.state(), entry.startTime(), entry.failure());
+        }
+
+        public SnapshotId getSnapshotId() {
+            return snapshotId;
+        }
+
+        public SnapshotsInProgress.State getState() {
+            return state;
+        }
+
+        public long getStartTime() {
+            return startTime;
+        }
+
+        public String getFailure() {
+            return failure;
         }
 
         @Override

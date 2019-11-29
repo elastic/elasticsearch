@@ -19,11 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.util.List;
@@ -58,14 +60,14 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
             expression.expected = method.typeParameters.get(argument);
             expression.internal = true;
-            expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
+            expression.analyze(scriptRoot, locals);
+            arguments.set(argument, expression.cast(scriptRoot, locals));
         }
 
         statement = true;
@@ -73,18 +75,18 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         if (box.isPrimitive()) {
-            writer.box(MethodWriter.getType(box));
+            methodWriter.box(MethodWriter.getType(box));
         }
 
         for (AExpression argument : arguments) {
-            argument.write(writer, globals);
+            argument.write(classWriter, methodWriter, globals);
         }
 
-        writer.invokeMethodCall(method);
+        methodWriter.invokeMethodCall(method);
     }
 
     @Override

@@ -22,8 +22,8 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import javax.crypto.SecretKeyFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -92,11 +93,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import javax.crypto.SecretKeyFactory;
-
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -194,44 +193,8 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            /*
-             * Check if requested API key name already exists to avoid duplicate key names,
-             * this check is best effort as there could be two nodes executing search and
-             * then index concurrently allowing a duplicate name.
-             */
-            checkDuplicateApiKeyNameAndCreateApiKey(authentication, request, userRoles, listener);
+            createApiKeyAndIndexIt(authentication, request, userRoles, listener);
         }
-    }
-
-    private void checkDuplicateApiKeyNameAndCreateApiKey(Authentication authentication, CreateApiKeyRequest request,
-                                                         Set<RoleDescriptor> userRoles,
-                                                         ActionListener<CreateApiKeyResponse> listener) {
-        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("doc_type", "api_key"))
-                .filter(QueryBuilders.termQuery("name", request.getName()))
-                .filter(QueryBuilders.termQuery("api_key_invalidated", false));
-        final BoolQueryBuilder expiredQuery = QueryBuilders.boolQuery()
-                .should(QueryBuilders.rangeQuery("expiration_time").lte(Instant.now().toEpochMilli()))
-                .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
-        boolQuery.filter(expiredQuery);
-
-        final SearchRequest searchRequest = client.prepareSearch(SECURITY_MAIN_ALIAS)
-            .setQuery(boolQuery)
-            .setVersion(false)
-            .setSize(1)
-            .request();
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, SearchAction.INSTANCE, searchRequest,
-                ActionListener.wrap(
-                        indexResponse -> {
-                            if (indexResponse.getHits().getTotalHits().value > 0) {
-                                listener.onFailure(traceLog("create api key", new ElasticsearchSecurityException(
-                                        "Error creating api key as api key with name [{}] already exists", request.getName())));
-                            } else {
-                                createApiKeyAndIndexIt(authentication, request, userRoles, listener);
-                            }
-                        },
-                        listener::onFailure)));
     }
 
     private void createApiKeyAndIndexIt(Authentication authentication, CreateApiKeyRequest request, Set<RoleDescriptor> roleDescriptorSet,
@@ -244,7 +207,7 @@ public class ApiKeyService {
         try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication, roleDescriptorSet, created, expiration,
             request.getRoleDescriptors(), version)) {
             final IndexRequest indexRequest =
-                client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME)
+                client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setSource(builder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
@@ -331,15 +294,16 @@ public class ApiKeyService {
             }
 
             if (credentials != null) {
+                final String docId = credentials.getId();
                 final GetRequest getRequest = client
-                        .prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, credentials.getId())
+                        .prepareGet(SECURITY_MAIN_ALIAS, docId)
                         .setFetchSource(true)
                         .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
                         try (ApiKeyCredentials ignore = credentials) {
                             final Map<String, Object> source = response.getSource();
-                            validateApiKeyCredentials(source, credentials, clock, listener);
+                            validateApiKeyCredentials(docId, source, credentials, clock, listener);
                         }
                     } else {
                         credentials.close();
@@ -434,17 +398,22 @@ public class ApiKeyService {
 
     /**
      * Validates the ApiKey using the source map
+     * @param docId the identifier of the document that was retrieved from the security index
      * @param source the source map from a get of the ApiKey document
      * @param credentials the credentials provided by the user
      * @param listener the listener to notify after verification
      */
-    void validateApiKeyCredentials(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
+    void validateApiKeyCredentials(String docId, Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
                                    ActionListener<AuthenticationResult> listener) {
+        final String docType = (String) source.get("doc_type");
         final Boolean invalidated = (Boolean) source.get("api_key_invalidated");
-        if (invalidated == null) {
-            listener.onResponse(AuthenticationResult.terminate("api key document is missing invalidated field", null));
+        if ("api_key".equals(docType) == false) {
+            listener.onResponse(
+                AuthenticationResult.unsuccessful("document [" + docId + "] is [" + docType + "] not an api key", null));
+        } else if (invalidated == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("api key document is missing invalidated field", null));
         } else if (invalidated) {
-            listener.onResponse(AuthenticationResult.terminate("api key has been invalidated", null));
+            listener.onResponse(AuthenticationResult.unsuccessful("api key has been invalidated", null));
         } else {
             final String apiKeyHash = (String) source.get("api_key_hash");
             if (apiKeyHash == null) {
@@ -478,7 +447,7 @@ public class ApiKeyService {
                                 listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
                             } else {
                                 apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
-                                validateApiKeyCredentials(source, credentials, clock, listener);
+                                validateApiKeyCredentials(docId, source, credentials, clock, listener);
                             }
                         }, listener::onFailure),
                         threadPool.generic(), threadPool.getThreadContext());
@@ -528,7 +497,7 @@ public class ApiKeyService {
             authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
             listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
         } else {
-            listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
+            listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));
         }
     }
 
@@ -691,28 +660,29 @@ public class ApiKeyService {
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }
+        final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
             final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
-                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                .setQuery(boolQuery)
-                .setVersion(false)
-                .setSize(1000)
-                .setFetchSource(true)
-                .request();
+                    .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                    .setQuery(boolQuery)
+                    .setVersion(false)
+                    .setSize(1000)
+                    .setFetchSource(true)
+                    .request();
             securityIndex.checkIndexVersionThenExecute(listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(client, request, listener,
-                    (SearchHit hit) -> {
-                        Map<String, Object> source = hit.getSourceAsMap();
-                        String name = (String) source.get("name");
-                        String id = hit.getId();
-                        Long creation = (Long) source.get("creation_time");
-                        Long expiration = (Long) source.get("expiration_time");
-                        Boolean invalidated = (Boolean) source.get("api_key_invalidated");
-                        String username = (String) ((Map<String, Object>) source.get("creator")).get("principal");
-                        String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
-                        return new ApiKey(name, id, Instant.ofEpochMilli(creation),
-                            (expiration != null) ? Instant.ofEpochMilli(expiration) : null, invalidated, username, realm);
-                    }));
+                    () -> ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
+                            (SearchHit hit) -> {
+                                Map<String, Object> source = hit.getSourceAsMap();
+                                String name = (String) source.get("name");
+                                String id = hit.getId();
+                                Long creation = (Long) source.get("creation_time");
+                                Long expiration = (Long) source.get("expiration_time");
+                                Boolean invalidated = (Boolean) source.get("api_key_invalidated");
+                                String username = (String) ((Map<String, Object>) source.get("creator")).get("principal");
+                                String realm = (String) ((Map<String, Object>) source.get("creator")).get("realm");
+                                return new ApiKey(name, id, Instant.ofEpochMilli(creation),
+                                        (expiration != null) ? Instant.ofEpochMilli(expiration) : null, invalidated, username, realm);
+                            }));
         }
     }
 
@@ -760,7 +730,7 @@ public class ApiKeyService {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String apiKeyId : apiKeyIds) {
                 UpdateRequest request = client
-                    .prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, apiKeyId)
+                    .prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
                     .setDoc(Collections.singletonMap("api_key_invalidated", true))
                     .request();
                 bulkRequestBuilder.add(request);
@@ -876,22 +846,16 @@ public class ApiKeyService {
     public void getApiKeys(String realmName, String username, String apiKeyName, String apiKeyId,
                            ActionListener<GetApiKeyResponse> listener) {
         ensureEnabled();
-        if (Strings.hasText(realmName) == false && Strings.hasText(username) == false && Strings.hasText(apiKeyName) == false
-            && Strings.hasText(apiKeyId) == false) {
-            logger.trace("none of the parameters [api key id, api key name, username, realm name] were specified for retrieval");
-            listener.onFailure(new IllegalArgumentException("One of [api key id, api key name, username, realm name] must be specified"));
-        } else {
-            findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
-                ActionListener.wrap(apiKeyInfos -> {
-                    if (apiKeyInfos.isEmpty()) {
-                        logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
-                            realmName, username, apiKeyName, apiKeyId);
-                        listener.onResponse(GetApiKeyResponse.emptyResponse());
-                    } else {
-                        listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
-                    }
-                }, listener::onFailure));
-        }
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(realmName, username, apiKeyName, apiKeyId, false, false,
+            ActionListener.wrap(apiKeyInfos -> {
+                if (apiKeyInfos.isEmpty()) {
+                    logger.debug("No active api keys found for realm [{}], user [{}], api key name [{}] and api key id [{}]",
+                        realmName, username, apiKeyName, apiKeyId);
+                    listener.onResponse(GetApiKeyResponse.emptyResponse());
+                } else {
+                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
+                }
+            }, listener::onFailure));
     }
 
     /**

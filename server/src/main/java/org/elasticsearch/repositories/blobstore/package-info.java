@@ -70,10 +70,12 @@
  *      |  |  |- snap-20131011.dat - SMILE serialized {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} for
  *      |  |  |                      snapshot "20131011"
  *      |  |  |- index-123         - SMILE serialized {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} for
- *      |  |  |                      the shard
+ *      |  |  |                      the shard (files with numeric suffixes were created by older versions, newer ES versions use a uuid
+ *      |  |  |                      suffix instead)
  *      |  |
  *      |  |- 1/ - data for shard "1" of index "foo"
  *      |  |  |- __1
+ *      |  |  |- index-Zc2SS8ZgR8JvZAHlSMyMXy - SMILE serialized {@code BlobStoreIndexShardSnapshots} for the shard
  *      |  |  .....
  *      |  |
  *      |  |-2/
@@ -116,21 +118,7 @@
  * </ol>
  * <h2>Creating a Snapshot</h2>
  *
- * <p>Creating a snapshot in the repository happens in the three steps described in detail below.</p>
- *
- * <h3>Initializing a Snapshot in the Repository (Mixed Version Clusters only)</h3>
- *
- * <p>In mixed version clusters that contain a node older than
- * {@link org.elasticsearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION}, creating a snapshot in the repository starts with a
- * call to {@link org.elasticsearch.repositories.Repository#initializeSnapshot} which the blob store repository implements via the
- * following actions:</p>
- * <ol>
- * <li>Verify that no snapshot by the requested name exists.</li>
- * <li>Write a blob containing the cluster metadata to the root of the blob store repository at {@code /meta-${snapshot-uuid}.dat}</li>
- * <li>Write the metadata for each index to a blob in that index's directory at
- * {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}.dat}</li>
- * </ol>
- * TODO: Remove this section once BwC logic it references is removed
+ * <p>Creating a snapshot in the repository happens in the two steps described in detail below.</p>
  *
  * <h3>Writing Shard Data (Segments)</h3>
  *
@@ -146,8 +134,9 @@
  *
  * <ol>
  * <li>Create the {@link org.apache.lucene.index.IndexCommit} for the shard to snapshot.</li>
- * <li>List all blobs in the shard's path. Find the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
- * with name {@code index-${N}} for the highest possible value of {@code N} in the list to get the information of what segment files are
+ * <li>Get the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
+ * with name {@code index-${uuid}} with the {@code uuid} generation returned by
+ * {@link org.elasticsearch.repositories.ShardGenerations#getShardGen} to get the information of what segment files are
  * already available in the blobstore.</li>
  * <li>By comparing the files in the {@code IndexCommit} and the available file list from the previous step, determine the segment files
  * that need to be written to the blob store. For each segment that needs to be added to the blob store, generate a unique name by combining
@@ -157,7 +146,7 @@
  * the shard's path and contains a list of all the files referenced by the snapshot as well as some metadata about the snapshot. See the
  * documentation of {@code BlobStoreIndexShardSnapshot} for details on its contents.</li>
  * <li>Once all the segments and the {@code BlobStoreIndexShardSnapshot} blob have been written, an updated
- * {@code BlobStoreIndexShardSnapshots} blob is written to the shard's path with name {@code index-${N+1}}.</li>
+ * {@code BlobStoreIndexShardSnapshots} blob is written to the shard's path with name {@code index-${newUUID}}.</li>
  * </ol>
  *
  * <h3>Finalizing the Snapshot</h3>
@@ -185,11 +174,6 @@
  *
  * <ol>
  * <li>Get the current {@code RepositoryData} from the latest {@code index-N} blob at the repository root.</li>
- * <li>Write an updated {@code RepositoryData} blob with the deleted snapshot removed to key {@code /index-${N+1}} directly under the
- * repository root.</li>
- * <li>Write an updated {@code index.latest} blob containing {@code N + 1}.</li>
- * <li>Delete the global {@code MetaData} blob {@code meta-${snapshot-uuid}.dat} stored directly under the repository root for the snapshot
- * as well as the {@code SnapshotInfo} blob at {@code /snap-${snapshot-uuid}.dat}.</li>
  * <li>For each index referenced by the snapshot:
  * <ol>
  * <li>Delete the snapshot's {@code IndexMetaData} at {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}}.</li>
@@ -198,16 +182,22 @@
  * <li>Remove the {@code BlobStoreIndexShardSnapshot} blob at {@code /indices/${index-snapshot-uuid}/${i}/snap-${snapshot-uuid}.dat}.</li>
  * <li>List all blobs in the shard path {@code /indices/${index-snapshot-uuid}} and build a new {@code BlobStoreIndexShardSnapshots} from
  * the remaining {@code BlobStoreIndexShardSnapshot} blobs in the shard. Afterwards, write it to the next shard generation blob at
- * {@code /indices/${index-snapshot-uuid}/${i}/index-${N+1}} (The shard's generation is determined from the list of {@code index-N} blobs
- * in the shard directory).</li>
- * <li>Delete all segment blobs (identified by having the data blob prefix {@code __}) in the shard directory which are not referenced by
- * the new {@code BlobStoreIndexShardSnapshots} that has been written in the previous step.</li>
+ * {@code /indices/${index-snapshot-uuid}/${i}/index-${uuid}} (The shard's generation is determined from the map of shard generations in
+ * the {@link org.elasticsearch.repositories.RepositoryData} in the root {@code index-${N}} blob of the repository.</li>
+ * <li>Collect all segment blobs (identified by having the data blob prefix {@code __}) in the shard directory which are not referenced by
+ * the new {@code BlobStoreIndexShardSnapshots} that has been written in the previous step as well as the previous index-${uuid}
+ * blob so that it can be deleted at the end of the snapshot delete process.</li>
+ * </ol>
+ * </li>
+ * <li>Write an updated {@code RepositoryData} blob with the deleted snapshot removed to key {@code /index-${N+1}} directly under the
+ * repository root and the repository generations that were changed in the affected shards adjusted.</li>
+ * <li>Write an updated {@code index.latest} blob containing {@code N + 1}.</li>
+ * <li>Delete the global {@code MetaData} blob {@code meta-${snapshot-uuid}.dat} stored directly under the repository root for the snapshot
+ * as well as the {@code SnapshotInfo} blob at {@code /snap-${snapshot-uuid}.dat}.</li>
+ * <li>Delete all unreferenced blobs previously collected when updating the shard directories. Also, remove any index folders or blobs
+ * under the repository root that are not referenced by the new {@code RepositoryData} written in the previous step.</li>
  * </ol>
  * </li>
  * </ol>
- * </li>
- * </ol>
- * TODO: The above sequence of actions can lead to leaking files when an index completely goes out of scope. Adjust this documentation once
- *       https://github.com/elastic/elasticsearch/issues/13159 is fixed.
  */
 package org.elasticsearch.repositories.blobstore;

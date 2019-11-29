@@ -30,6 +30,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -38,8 +39,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -71,6 +74,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -386,33 +390,48 @@ public final class IndexModule {
             BigArrays bigArrays,
             ThreadPool threadPool,
             ScriptService scriptService,
+            ClusterService clusterService,
             Client client,
             IndicesQueryCache indicesQueryCache,
             MapperRegistry mapperRegistry,
             IndicesFieldDataCache indicesFieldDataCache,
-            NamedWriteableRegistry namedWriteableRegistry)
+            NamedWriteableRegistry namedWriteableRegistry,
+            BooleanSupplier idFieldDataEnabled)
         throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
             indexReaderWrapper.get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
-        final QueryCache queryCache;
-        if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
-            BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
-            if (queryCacheProvider == null) {
-                queryCache = new IndexQueryCache(indexSettings, indicesQueryCache);
+        QueryCache queryCache = null;
+        IndexAnalyzers indexAnalyzers = null;
+        boolean success = false;
+        try {
+            if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
+                BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
+                if (queryCacheProvider == null) {
+                    queryCache = new IndexQueryCache(indexSettings, indicesQueryCache);
+                } else {
+                    queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
+                }
             } else {
-                queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
+                queryCache = new DisabledQueryCache(indexSettings);
             }
-        } else {
-            queryCache = new DisabledQueryCache(indexSettings);
+            if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
+                indexAnalyzers = analysisRegistry.build(indexSettings);
+            }
+            final IndexService indexService = new IndexService(indexSettings, indexCreationContext, environment, xContentRegistry,
+                new SimilarityService(indexSettings, scriptService, similarities), shardStoreDeleter, indexAnalyzers,
+                engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
+                directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
+                indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled);
+            success = true;
+            return indexService;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(queryCache, indexAnalyzers);
+            }
         }
-        return new IndexService(indexSettings, indexCreationContext, environment, xContentRegistry,
-                new SimilarityService(indexSettings, scriptService, similarities),
-                shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
-                client, queryCache, directoryFactory, eventListener, readerWrapperFactory, mapperRegistry,
-                indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
     }
 
     private static IndexStorePlugin.DirectoryFactory getDirectoryFactory(
@@ -452,7 +471,7 @@ public final class IndexModule {
             ScriptService scriptService) throws IOException {
         return new MapperService(indexSettings, analysisRegistry.build(indexSettings), xContentRegistry,
             new SimilarityService(indexSettings, scriptService, similarities), mapperRegistry,
-            () -> { throw new UnsupportedOperationException("no index query shard context available"); });
+            () -> { throw new UnsupportedOperationException("no index query shard context available"); }, () -> false);
     }
 
     /**

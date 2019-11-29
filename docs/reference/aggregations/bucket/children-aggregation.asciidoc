@@ -9,7 +9,7 @@ This aggregation has a single option:
 
 For example, let's say we have an index of questions and answers. The answer type has the following `join` field in the mapping:
 
-[source,console]
+[source,console,id=children-aggregation-example]
 --------------------------------------------------
 PUT child_example
 {
@@ -125,7 +125,7 @@ The above example returns the top question tags and per tag the top answer owner
 
 Possible response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 25,

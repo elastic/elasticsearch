@@ -10,6 +10,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
@@ -24,12 +25,33 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     boolean supportsCategoricalFields();
 
     /**
+     * @param fieldName field for which the allowed categorical types should be returned
+     * @return The types treated as categorical for the given field
+     */
+    Set<String> getAllowedCategoricalTypes(String fieldName);
+
+    /**
      * @return The names and types of the fields that analyzed documents must have for the analysis to operate
      */
     List<RequiredField> getRequiredFields();
 
     /**
+     * @return {@link Map} containing cardinality limits for the selected (analysis-specific) fields
+     */
+    Map<String, Long> getFieldCardinalityLimits();
+
+    /**
      * @return {@code true} if this analysis supports data frame rows with missing values
      */
     boolean supportsMissingValues();
+
+    /**
+     * @return {@code true} if this analysis persists state that can later be used to restore from a given point
+     */
+    boolean persistsState();
+
+    /**
+     * Returns the document id for the analysis state
+     */
+    String getStateDocId(String jobId);
 }

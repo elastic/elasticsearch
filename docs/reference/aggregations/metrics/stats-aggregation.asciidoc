@@ -21,7 +21,7 @@ POST /exams/_search?size=0
 The above aggregation computes the grades statistics over all documents. The aggregation type is `stats` and the `field` setting defines the numeric field of the documents the stats will be computed on. The above will return the following:
 
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

@@ -20,7 +20,7 @@ Previews a {dfeed}.
 
 * If {es} {security-features} are enabled, you must have `monitor_ml`, `monitor`,
 `manage_ml`, or `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-preview-datafeed-desc]]
 ==== {api-description-title}
@@ -48,15 +48,15 @@ it to ensure it is returning the expected data.
 
 The following example obtains a preview of the `datafeed-farequote` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/datafeeds/datafeed-farequote/_preview
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:farequote_datafeed]
 
 The data that is returned for this example is as follows:
-[source,js]
+
+[source,console-result]
 ----
 [
   {
@@ -79,4 +79,3 @@ The data that is returned for this example is as follows:
   }
 ]
 ----
-// TESTRESPONSE

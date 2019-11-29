@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -45,8 +46,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -116,14 +116,14 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
     public SignificantTermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, ValuesSourceType.ANY, valueType);
+        super(name, CoreValuesSourceType.ANY, valueType);
     }
 
     /**
      * Read from a Stream.
      */
     public SignificantTermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY);
+        super(in, CoreValuesSourceType.ANY);
         bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();
         filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -284,11 +284,13 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(context);
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<ValuesSource> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException {
+        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(queryShardContext);
         return new SignificantTermsAggregatorFactory(name, config, includeExclude, executionHint, filterBuilder,
-                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metaData);
+                bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

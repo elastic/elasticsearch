@@ -26,7 +26,7 @@ POST /sales/_search?size=0
 
 Resulting in:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

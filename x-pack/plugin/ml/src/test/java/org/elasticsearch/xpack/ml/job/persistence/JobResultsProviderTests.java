@@ -33,7 +33,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -54,7 +53,6 @@ import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
-import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.mockito.ArgumentCaptor;
@@ -141,14 +139,13 @@ public class JobResultsProviderTests extends ESTestCase {
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
         clientBuilder.prepareAlias(AnomalyDetectorsIndex.jobResultsAliasedName("foo"),
                 AnomalyDetectorsIndex.jobResultsAliasedName("foo123"), jobFilter);
-        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
+        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class));
 
         GetMappingsResponse getMappingsResponse = mock(GetMappingsResponse.class);
-        ImmutableOpenMap<String, MappingMetaData> typeMappings = ImmutableOpenMap.<String, MappingMetaData>of();
 
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings =
-                ImmutableOpenMap.<String, ImmutableOpenMap<String, MappingMetaData>>builder()
-                        .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), typeMappings).build();
+        ImmutableOpenMap<String, MappingMetaData> mappings =
+                ImmutableOpenMap.<String, MappingMetaData>builder()
+                        .fPut(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), null).build();
         when(getMappingsResponse.mappings()).thenReturn(mappings);
         clientBuilder.prepareGetMapping(getMappingsResponse);
 
@@ -210,7 +207,7 @@ public class JobResultsProviderTests extends ESTestCase {
         clientBuilder.createIndexRequest(captor, indexName);
         clientBuilder.prepareAlias(indexName, readAliasName, jobFilter);
         clientBuilder.prepareAlias(indexName, writeAliasName);
-        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class), Result.TYPE.getPreferredName());
+        clientBuilder.preparePutMapping(mock(AcknowledgedResponse.class));
 
         Job.Builder job = buildJobBuilder("foo");
         job.setResultsIndexName("bar");
@@ -1033,10 +1030,6 @@ public class JobResultsProviderTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    private Bucket createBucketAtEpochTime(long epoch) {
-        return new Bucket("foo", new Date(epoch), 123);
-    }
-
     private JobResultsProvider createProvider(Client client) {
         return new JobResultsProvider(client, Settings.EMPTY);
     }
@@ -1052,7 +1045,7 @@ public class JobResultsProviderTests extends ESTestCase {
             fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
-            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), new Text("foo"), fields)
+            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), fields)
                     .sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(_source)));
 
             list.add(hit);

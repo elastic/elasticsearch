@@ -33,7 +33,7 @@ import java.util.List;
 /**
  * Unit tests for {@link MatchQueryBuilder}
  */
-public class MatchQueryBuilderTest extends ESTestCase {
+public class MatchQueryBuilderTests extends ESTestCase {
 
     public void testNewSynonymQuery() {
         MatchQueryBuilder mqb = new MatchQuery(null).new MatchQueryBuilder(new MockAnalyzer(random()),

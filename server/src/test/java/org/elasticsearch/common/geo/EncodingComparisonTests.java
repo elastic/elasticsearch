@@ -149,11 +149,13 @@ public class EncodingComparisonTests extends ESTestCase {
         // System.out.println(s1 + " / " + s2 + " /  diff: " + (double) output1.bytes().length() / output2.bytes().length());
 
         int maxPrecision = 5;
-        TriangleTreeReader reader1 = new TriangleTreeReader(output1.bytes().toBytesRef(), encoder);
+        TriangleTreeReader reader1 = new TriangleTreeReader(encoder);
+        reader1.reset(output1.bytes().toBytesRef());
         //long t1 = System.nanoTime();
         int h1 = getHashesAtLevel(reader1, encoder, "", maxPrecision);
         //long t2 = System.nanoTime();
-        GeometryTreeReader reader2 = new GeometryTreeReader(output2.bytes().toBytesRef(), encoder);
+        GeometryTreeReader reader2 = new GeometryTreeReader(encoder);
+        reader2.reset(output1.bytes().toBytesRef());
         //long t3 = System.nanoTime();
         int h2= getHashesAtLevel(reader2, encoder, "", maxPrecision);
         //long t4 = System.nanoTime();
@@ -163,7 +165,6 @@ public class EncodingComparisonTests extends ESTestCase {
         //String s4 = "Edge tree: " + h2; //(t4 - t3);
         //System.out.println("Query: " + s3 + " / " + s4 + " /  diff: " + (double) (t2 - t1) / (t4 - t3));
     }
-
 
     private int getHashesAtLevel(ShapeTreeReader reader, CoordinateEncoder encoder, String hash, int maxPrecision) throws IOException {
         int hits = 0;

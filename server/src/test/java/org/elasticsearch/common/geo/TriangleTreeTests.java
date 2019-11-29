@@ -31,6 +31,8 @@ public class TriangleTreeTests extends AbstractTreeTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        return new TriangleTreeReader(output.bytes().toBytesRef(), encoder);
+        TriangleTreeReader reader = new TriangleTreeReader(encoder);
+        reader.reset(output.bytes().toBytesRef());
+        return reader;
     }
 }

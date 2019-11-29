@@ -35,13 +35,11 @@ import java.util.Optional;
 public class GeometryTreeReader implements ShapeTreeReader {
 
     private static final int EXTENT_OFFSET = 8;
-    private final int startPosition;
-    private final ByteBufferStreamInput input;
+    private int startPosition;
+    private ByteBufferStreamInput input;
     private final CoordinateEncoder coordinateEncoder;
 
-    public GeometryTreeReader(BytesRef bytesRef, CoordinateEncoder coordinateEncoder) {
-        this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
-        this.startPosition = 0;
+    public GeometryTreeReader(CoordinateEncoder coordinateEncoder) {
         this.coordinateEncoder = coordinateEncoder;
     }
 
@@ -49,6 +47,11 @@ public class GeometryTreeReader implements ShapeTreeReader {
         this.input = input;
         startPosition = input.position();
         this.coordinateEncoder = coordinateEncoder;
+    }
+
+    public void reset(BytesRef bytesRef) {
+        this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        this.startPosition = 0;
     }
 
     @Override

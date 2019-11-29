@@ -36,14 +36,17 @@ import static org.apache.lucene.geo.GeoUtils.orient;
 public class TriangleTreeReader implements ShapeTreeReader {
 
     private final int extentOffset = 8;
-    private final ByteBufferStreamInput input;
+    private ByteBufferStreamInput input;
     private final CoordinateEncoder coordinateEncoder;
     private final Rectangle2D rectangle2D;
 
-    public TriangleTreeReader(BytesRef bytesRef, CoordinateEncoder coordinateEncoder) {
-        this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+    public TriangleTreeReader(CoordinateEncoder coordinateEncoder) {
         this.coordinateEncoder = coordinateEncoder;
         this.rectangle2D = new Rectangle2D();
+    }
+
+    public void reset(BytesRef bytesRef) {
+        this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
     }
 
     /**

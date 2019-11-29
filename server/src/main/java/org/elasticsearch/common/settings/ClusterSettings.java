@@ -77,6 +77,7 @@ import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.IncrementalClusterStateWriter;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -199,6 +200,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             BalancedShardsAllocator.THRESHOLD_SETTING,
             ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
             ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
+            DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING,
             FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING,

@@ -205,7 +205,7 @@ public class ScriptScoreQuery extends Query {
         private final Scorer subQueryScorer;
         private final ExplanationHolder explanation;
 
-        public ScriptScorer(Weight weight, ScoreScript scoreScript, Scorer subQueryScorer,
+        ScriptScorer(Weight weight, ScoreScript scoreScript, Scorer subQueryScorer,
                 ScoreMode subQueryScoreMode, ExplanationHolder explanation) {
             super(weight);
             this.scoreScript = scoreScript;
@@ -249,7 +249,7 @@ public class ScriptScoreQuery extends Query {
         private final Scorable subQueryScorer;
         private final ExplanationHolder explanation;
 
-        public ScriptScorable(ScoreScript scoreScript, Scorable subQueryScorer,
+        ScriptScorable(ScoreScript scoreScript, Scorable subQueryScorer,
                 ScoreMode subQueryScoreMode, ExplanationHolder explanation) {
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {

@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -194,10 +195,8 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(index));
         stopped.set(true);
         for (Thread thread : threads) {
-            thread.join(10000); // only wait 10 seconds here
-            if (thread.isAlive()) {
-                throw new IllegalStateException("indexing should have terminated");
-            }
+            thread.join(ReplicationRequest.DEFAULT_TIMEOUT.millis() / 2);
+            assertFalse(thread.isAlive());
         }
     }
 }

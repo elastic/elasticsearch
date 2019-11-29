@@ -313,7 +313,7 @@ SELECT birth_date, MAX(hire_date) - INTERVAL 1 YEAR AS f FROM test_emp GROUP BY 
 ;
 
 monthOfDatePlusInterval_And_GroupBy
-SELECT WEEK_OF_YEAR(birth_date + INTERVAL 25 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 3 ORDER BY c DESC;
+SELECT WEEK_OF_YEAR(birth_date + INTERVAL 25 YEAR) x, COUNT(*) c FROM test_emp GROUP BY x HAVING c >= 3 ORDER BY c DESC, x ASC;
 
       x:i      |       c:l       
 ---------------+---------------
@@ -324,8 +324,7 @@ null           |10
 30             |4              
 40             |4              
 45             |4              
-1              |3              
-8              |3              
+8              |3
 21             |3              
 28             |3              
 32             |3              

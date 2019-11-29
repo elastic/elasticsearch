@@ -52,6 +52,7 @@ integTest.runner {
     'ml/data_frame_analytics_crud/Test put config with dest index included in source via alias',
     'ml/data_frame_analytics_crud/Test put config with unknown top level field',
     'ml/data_frame_analytics_crud/Test put config with unknown field in outlier detection analysis',
+    'ml/data_frame_analytics_crud/Test put config given analyzed_fields include field excluded by source',
     'ml/data_frame_analytics_crud/Test put config given missing source',
     'ml/data_frame_analytics_crud/Test put config given source with empty index array',
     'ml/data_frame_analytics_crud/Test put config given source with empty string in index array',

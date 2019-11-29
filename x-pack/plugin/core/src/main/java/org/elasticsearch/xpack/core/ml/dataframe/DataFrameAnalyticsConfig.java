@@ -127,7 +127,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Version version;
     private final boolean allowLazyStart;
 
-    public DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
+    private DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
                                     DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
                                     FetchSourceContext analyzedFields, Instant createTime, Version version, boolean allowLazyStart) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);

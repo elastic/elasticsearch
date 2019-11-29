@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -445,6 +446,7 @@ public class Setting<T> implements ToXContentObject {
                 }
                 validator.validate(parsed);
                 validator.validate(parsed, map);
+                validator.validate(parsed, map, exists(settings));
             }
             return parsed;
         } catch (ElasticsearchParseException ex) {
@@ -671,10 +673,11 @@ public class Setting<T> implements ToXContentObject {
 
     public static class AffixSetting<T> extends Setting<T> {
         private final AffixKey key;
-        private final Function<String, Setting<T>> delegateFactory;
+        private final BiFunction<String, String, Setting<T>> delegateFactory;
         private final Set<AffixSetting> dependencies;
 
-        public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory, AffixSetting... dependencies) {
+        public AffixSetting(AffixKey key, Setting<T> delegate, BiFunction<String, String, Setting<T>> delegateFactory,
+                            AffixSetting... dependencies) {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
@@ -689,6 +692,7 @@ public class Setting<T> implements ToXContentObject {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
         }
 
+        @Override
         public Set<Setting<?>> getSettingsDependencies(String settingsKey) {
             if (dependencies.isEmpty()) {
                 return Collections.emptySet();
@@ -713,7 +717,7 @@ public class Setting<T> implements ToXContentObject {
                     final Map<AbstractScopedSettings.SettingUpdater<T>, T> result = new IdentityHashMap<>();
                     Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
                         String namespace = key.getNamespace(aKey);
-                        Setting<T> concreteSetting = getConcreteSetting(aKey);
+                        Setting<T> concreteSetting = getConcreteSetting(namespace, aKey);
                         AbstractScopedSettings.SettingUpdater<T> updater =
                             concreteSetting.newUpdater((v) -> consumer.accept(namespace, v), logger,
                                 (v) -> validator.accept(namespace, v));
@@ -751,7 +755,7 @@ public class Setting<T> implements ToXContentObject {
                     final Map<String, T> result = new IdentityHashMap<>();
                     Stream.concat(matchStream(current), matchStream(previous)).distinct().forEach(aKey -> {
                         String namespace = key.getNamespace(aKey);
-                        Setting<T> concreteSetting = getConcreteSetting(aKey);
+                        Setting<T> concreteSetting = getConcreteSetting(namespace, aKey);
                         AbstractScopedSettings.SettingUpdater<T> updater =
                             concreteSetting.newUpdater((v) -> {}, logger, (v) -> validator.accept(namespace, v));
                         if (updater.hasChanged(current, previous)) {
@@ -786,7 +790,16 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public Setting<T> getConcreteSetting(String key) {
             if (match(key)) {
-                return delegateFactory.apply(key);
+                String namespace = this.key.getNamespace(key);
+                return delegateFactory.apply(namespace, key);
+            } else {
+                throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
+            }
+        }
+
+        private Setting<T> getConcreteSetting(String namespace, String key) {
+            if (match(key)) {
+                return delegateFactory.apply(namespace, key);
             } else {
                 throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
             }
@@ -797,7 +810,7 @@ public class Setting<T> implements ToXContentObject {
          */
         public Setting<T> getConcreteSettingForNamespace(String namespace) {
             String fullKey = key.toConcreteKey(namespace).toString();
-            return getConcreteSetting(fullKey);
+            return getConcreteSetting(namespace, fullKey);
         }
 
         @Override
@@ -834,8 +847,9 @@ public class Setting<T> implements ToXContentObject {
         public Map<String, T> getAsMap(Settings settings) {
             Map<String, T> map = new HashMap<>();
             matchStream(settings).distinct().forEach(key -> {
-                Setting<T> concreteSetting = getConcreteSetting(key);
-                map.put(getNamespace(concreteSetting), concreteSetting.get(settings));
+                String namespace = this.key.getNamespace(key);
+                Setting<T> concreteSetting = getConcreteSetting(namespace, key);
+                map.put(namespace, concreteSetting.get(settings));
             });
             return Collections.unmodifiableMap(map);
         }
@@ -843,9 +857,9 @@ public class Setting<T> implements ToXContentObject {
 
     /**
      * Represents a validator for a setting. The {@link #validate(Object)} method is invoked early in the update setting process with the
-     * value of this setting for a fail-fast validation. Later on, the {@link #validate(Object, Map)} method is invoked with the value of
-     * this setting and a map from the settings specified by {@link #settings()}} to their values. All these values come from the same
-     * {@link Settings} instance.
+     * value of this setting for a fail-fast validation. Later on, the {@link #validate(Object, Map)} and
+     * {@link #validate(Object, Map, boolean)} methods are invoked with the value of this setting and a map from the settings specified by
+     * {@link #settings()}} to their values. All these values come from the same {@link Settings} instance.
      *
      * @param <T> the type of the {@link Setting}
      */
@@ -867,6 +881,18 @@ public class Setting<T> implements ToXContentObject {
          * @param settings a map from the settings specified by {@link #settings()}} to their values
          */
         default void validate(T value, Map<Setting<?>, Object> settings) {
+        }
+
+        /**
+         * Validate this setting against its dependencies, specified by {@link #settings()}. This method allows validation logic
+         * to evaluate whether the setting will be present in the {@link Settings} after the update. The default implementation
+         * does nothing, accepting any value as valid as long as it passes the validation in {@link #validate(Object)}.
+         *
+         * @param value     the value of this setting
+         * @param settings  a map from the settings specified by {@link #settings()}} to their values
+         * @param isPresent boolean indicating if this setting is present
+         */
+        default void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
         }
 
         /**
@@ -1063,6 +1089,12 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, Property... properties) {
         return new Setting<>(key, (s) -> Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key, isFiltered(properties)),
+            properties);
+    }
+
+    public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, Validator<Integer> validator,
+                                              Property... properties) {
+        return new Setting<>(key, Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key, isFiltered(properties)), validator,
             properties);
     }
 
@@ -1318,6 +1350,15 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static <T> Setting<List<T>> listSetting(
+        final String key,
+        final Function<String, T> singleValueParser,
+        final Function<Settings, List<String>> defaultStringValue,
+        final Validator<List<T>> validator,
+        final Property... properties) {
+        return listSetting(key, null, singleValueParser, defaultStringValue, validator, properties);
+    }
+
+    public static <T> Setting<List<T>> listSetting(
             final String key,
             final @Nullable Setting<List<T>> fallbackSetting,
             final Function<String, T> singleValueParser,
@@ -1326,7 +1367,7 @@ public class Setting<T> implements ToXContentObject {
         return listSetting(key, fallbackSetting, singleValueParser, defaultStringValue, v -> {}, properties);
     }
 
-    static <T> Setting<List<T>> listSetting(
+    public static <T> Setting<List<T>> listSetting(
         final String key,
         final @Nullable Setting<List<T>> fallbackSetting,
         final Function<String, T> singleValueParser,
@@ -1584,7 +1625,8 @@ public class Setting<T> implements ToXContentObject {
      * {@link #getConcreteSetting(String)} is used to pull the updater.
      */
     public static <T> AffixSetting<T> prefixKeySetting(String prefix, Function<String, Setting<T>> delegateFactory) {
-        return affixKeySetting(new AffixKey(prefix), delegateFactory);
+        BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
+        return affixKeySetting(new AffixKey(prefix), delegateFactoryWithNamespace);
     }
 
     /**
@@ -1594,12 +1636,19 @@ public class Setting<T> implements ToXContentObject {
      */
     public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory,
                                                       AffixSetting... dependencies) {
-        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactory, dependencies);
+        BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
+        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactoryWithNamespace, dependencies);
     }
 
-    private static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory,
+    public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, BiFunction<String, String, Setting<T>> delegateFactory,
+                                                      AffixSetting... dependencies) {
+        Setting<T> delegate = delegateFactory.apply("_na_", "_na_");
+        return new AffixSetting<>(new AffixKey(prefix, suffix), delegate, delegateFactory, dependencies);
+    }
+
+    private static <T> AffixSetting<T> affixKeySetting(AffixKey key, BiFunction<String, String, Setting<T>> delegateFactory,
                                                        AffixSetting... dependencies) {
-        Setting<T> delegate = delegateFactory.apply("_na_");
+        Setting<T> delegate = delegateFactory.apply("_na_", "_na_");
         return new AffixSetting<>(key, delegate, delegateFactory, dependencies);
     }
 

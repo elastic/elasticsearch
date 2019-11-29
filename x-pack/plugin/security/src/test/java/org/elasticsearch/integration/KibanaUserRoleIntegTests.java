@@ -61,24 +61,21 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     public void testFieldMappings() throws Exception {
         final String index = "logstash-20-12-2015";
-        final String type = "_doc";
         final String field = "foo";
         indexRandom(true, client().prepareIndex().setIndex(index).setSource(field, "bar"));
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().addIndices("logstash-*").setFields("*")
                 .includeDefaults(true).get();
-        FieldMappingMetaData fieldMappingMetaData = response.fieldMappings(index, type, field);
+        FieldMappingMetaData fieldMappingMetaData = response.fieldMappings(index, field);
         assertThat(fieldMappingMetaData, notNullValue());
-        assertThat(fieldMappingMetaData.isNull(), is(false));
 
         response = client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
                 .admin().indices().prepareGetFieldMappings().addIndices("logstash-*")
                 .setFields("*")
                 .includeDefaults(true).get();
-        FieldMappingMetaData fieldMappingMetaData1 = response.fieldMappings(index, type, field);
+        FieldMappingMetaData fieldMappingMetaData1 = response.fieldMappings(index, field);
         assertThat(fieldMappingMetaData1, notNullValue());
-        assertThat(fieldMappingMetaData1.isNull(), is(false));
         assertThat(fieldMappingMetaData1.fullName(), equalTo(fieldMappingMetaData.fullName()));
     }
 

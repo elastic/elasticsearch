@@ -272,7 +272,7 @@ public class SslDiagnosticsTests extends ESTestCase {
     public void testDiagnosticMessageWhenServerProvidesAnEmailSubjAltName() throws Exception {
         final String subjectName = "CN=foo,DC=example,DC=com";
         final X509Certificate certificate = mockCertificateWithIssuer(subjectName,
-            MOCK_ENCODING_1, Collections.singletonList(List.of(1, "foo@example.com")), null);
+            MOCK_ENCODING_1, Collections.singletonList(Arrays.asList(1, "foo@example.com")), null);
         X509Certificate[] chain = new X509Certificate[] { certificate };
 
         final SSLSession session = session("192.168.1.3");
@@ -404,7 +404,7 @@ public class SslDiagnosticsTests extends ESTestCase {
     private Map<String, List<X509Certificate>> trust(Collection<? extends Certificate> caCerts) {
         return caCerts.stream()
             .map(X509Certificate.class::cast)
-            .collect(Collectors.toMap(x -> x.getSubjectX500Principal().getName(), List::of,
+            .collect(Collectors.toMap(x -> x.getSubjectX500Principal().getName(), Collections::singletonList,
                 (List<X509Certificate> a, List<X509Certificate> b) -> {
                     List<X509Certificate> merge = new ArrayList<>();
                     merge.addAll(a);

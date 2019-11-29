@@ -27,7 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.Optional;
 
 /**
- * A tree reader.
+ * A reusable tree reader.
  *
  * This class supports checking bounding box
  * relations against the serialized geometry tree.

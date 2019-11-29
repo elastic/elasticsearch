@@ -27,7 +27,7 @@ import java.nio.ByteBuffer;
 import static org.apache.lucene.geo.GeoUtils.orient;
 
 /**
- * A tree reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
+ * A tree reusable reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
  * {@link TriangleTreeWriter}.
  *
  * This class supports checking bounding box

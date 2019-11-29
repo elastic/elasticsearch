@@ -304,6 +304,7 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),
             DataFrameAnalyticsSource.QUERY.getPreferredName(),
+            DataFrameAnalyticsSource._SOURCE.getPreferredName(),
             OutlierDetection.NAME.getPreferredName(),
             OutlierDetection.N_NEIGHBORS.getPreferredName(),
             OutlierDetection.METHOD.getPreferredName(),

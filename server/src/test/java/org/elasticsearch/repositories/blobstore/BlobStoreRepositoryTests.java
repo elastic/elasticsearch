@@ -82,6 +82,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        client().admin().cluster().prepareDeleteRepository("*").get();
+        super.tearDown();
+    }
+
     public void testRetrieveSnapshots() throws Exception {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());

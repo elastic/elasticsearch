@@ -36,6 +36,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -90,6 +91,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesState;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
@@ -116,6 +118,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
@@ -124,6 +127,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -211,6 +215,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final BlobPath basePath;
 
+    private final ClusterService clusterService;
+
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
@@ -223,6 +229,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final BlobPath basePath) {
         this.metadata = metadata;
         this.threadPool = clusterService.getClusterApplierService().threadPool();
+        this.clusterService = clusterService;
         this.compress = COMPRESS_SETTING.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
@@ -293,7 +300,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             bestGenerationFromCS = bestGeneration(cleanupInProgress.entries());
         }
 
+        final RepositoriesState repositoriesState = state.custom(RepositoriesState.TYPE);
+        if (repositoriesState != null) {
+            final RepositoriesState.State repoState = repositoriesState.state(metadata.name());
+            if (repoState != null) {
+                bestGenerationFromCS = Math.max(bestGenerationFromCS, repoState.generation());
+            }
+        }
+
         final long finalBestGen = bestGenerationFromCS;
+
         latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
     }
 
@@ -1042,26 +1058,73 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
+     * Writing a new index generation is a three step process.
+     * First, the {@link RepositoriesState.State} entry for this repository is set into {@code pending} state while its
+     * generation {@code N} remains unchanged.
+     * Second, the updated {@link RepositoryData} is written to generation {@code N + 1}.
+     * Lastly, the {@link RepositoriesState.State} entry for this repository is updated to the new generation {@code N + 1} and the pending
+     * flag set back to {@code false}.
+     *
      * @param repositoryData RepositoryData to write
      * @param expectedGen    expected repository generation at the start of the operation
      * @param writeShardGens whether to write {@link ShardGenerations} to the new {@link RepositoryData} blob
      * @param listener       completion listener
      */
     protected void writeIndexGen(RepositoryData repositoryData, long expectedGen, boolean writeShardGens, ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
-            assert isReadOnly() == false; // can not write to a read only repository
-            final long currentGen = repositoryData.getGenId();
-            if (currentGen != expectedGen) {
-                // the index file was updated by a concurrent operation, so we were operating on stale
-                // repository data
-                throw new RepositoryException(metadata.name(),
-                    "concurrent modification of the index-N file, expected current generation [" + expectedGen +
-                        "], actual current generation [" + currentGen + "] - possibly due to simultaneous snapshot deletion requests");
+        assert isReadOnly() == false; // can not write to a read only repository
+        final long currentGen = repositoryData.getGenId();
+        if (currentGen != expectedGen) {
+            // the index file was updated by a concurrent operation, so we were operating on stale
+            // repository data
+            throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
+                expectedGen + "], actual current generation [" + currentGen +
+                "] - possibly due to simultaneous snapshot deletion requests");
+        }
+
+        // Step 1: Set repository generation state to the next possible pending generation
+        final StepListener<Long> setPendingStep = new StepListener<>();
+        clusterService.submitStateUpdateTask("set pending repository generation", new ClusterStateUpdateTask() {
+
+            private long newGen;
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final RepositoriesState state = Optional.ofNullable(currentState.<RepositoriesState>custom(RepositoriesState.TYPE))
+                    .orElseGet(() -> RepositoriesState.builder().putState(metadata.name(), expectedGen, expectedGen).build());
+                final RepositoriesState.State repoState = Optional.ofNullable(state.state(metadata.name())).orElseGet(
+                    () -> RepositoriesState.builder().putState(metadata.name(), expectedGen, expectedGen).build().state(metadata.name()));
+                if (repoState.pendingGeneration() != repoState.generation()) {
+                    logger.warn("Trying to write new repository data of generation [{}] over unfinished write, repo is in state [{}]",
+                        repoState.pendingGeneration(), repoState);
+                }
+                if (expectedGen != repoState.generation()) {
+                    throw new IllegalStateException(
+                        "Expected generation [" + expectedGen + "] does not match generation tracked in [" + repoState + "]");
+                }
+                newGen = repoState.pendingGeneration() + 1;
+                final RepositoriesState updated =
+                    RepositoriesState.builder().putAll(state).putState(
+                        metadata.name(), repoState.generation(), newGen).build();
+                return ClusterState.builder(currentState).putCustom(RepositoriesState.TYPE, updated).build();
             }
-            final long newGen = currentGen + 1;
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                setPendingStep.onResponse(newGen);
+            }
+        });
+
+        // Step 2: Write new index-N blob to repository and update index.latest
+        setPendingStep.whenComplete(newGen -> threadPool().generic().execute(ActionRunnable.wrap(listener, l -> {
             if (latestKnownRepoGen.get() >= newGen) {
                 throw new IllegalArgumentException(
-                    "Tried writing generation [" + newGen + "] but repository is at least at generation [" + newGen + "] already");
+                    "Tried writing generation [" + newGen + "] but repository is at least at generation [" + latestKnownRepoGen.get()
+                        + "] already");
             }
             // write the index file
             final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
@@ -1081,18 +1144,49 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 genBytes = bStream.bytes();
             }
             logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
+
+            // Step 3: Update CS to reflect new repository generation.
             writeAtomic(INDEX_LATEST_BLOB, genBytes, false);
-            // delete the N-2 index file if it exists, keep the previous one around as a backup
-            if (newGen - 2 >= 0) {
-                final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
-                try {
-                    blobContainer().deleteBlobIgnoringIfNotExists(oldSnapshotIndexFile);
-                } catch (IOException e) {
-                    logger.warn("Failed to clean up old index blob [{}]", oldSnapshotIndexFile);
+            clusterService.submitStateUpdateTask("update_repo_gen", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    final RepositoriesState state = currentState.custom(RepositoriesState.TYPE);
+                    final RepositoriesState.State repoState = state.state(metadata.name());
+                    final long prevGeneration = repoState.generation();
+                    if (prevGeneration != expectedGen) {
+                        throw new IllegalStateException("Tried to update repo generation to [" + newGen
+                            + "] but saw unexpected generation in state [" + repoState + "]");
+                    }
+                    if (repoState.pendingGeneration() == prevGeneration) {
+                        throw new IllegalStateException(
+                            "Tried to update non-pending repo state [" + repoState + "] after write to generation [" + newGen + "]");
+                    }
+                    final RepositoriesState updated =
+                        RepositoriesState.builder().putAll(state).putState(metadata.name(), newGen, newGen).build();
+                    return ClusterState.builder(currentState).putCustom(RepositoriesState.TYPE, updated).build();
                 }
-            }
-            return null;
-        });
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    l.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    threadPool.generic().execute(ActionRunnable.run(l, () -> {
+                        // delete all now outdated index files
+                        final List<String> oldIndexN = LongStream.range(Math.max(expectedGen, 0), newGen)
+                            .mapToObj(gen -> INDEX_FILE_PREFIX + gen)
+                            .collect(Collectors.toList());
+                        try {
+                            blobContainer().deleteBlobsIgnoringIfNotExists(oldIndexN);
+                        } catch (IOException e) {
+                            logger.warn("Failed to clean up old index blobs {}", oldIndexN);
+                        }
+                    }));
+                }
+            });
+        })), listener::onFailure);
     }
 
     /**

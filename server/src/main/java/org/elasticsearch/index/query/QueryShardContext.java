@@ -255,11 +255,13 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (fieldMapping != null || allowUnmappedFields) {
+        if (fieldMapping != null) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
             return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
+        } else if (allowUnmappedFields) {
+            return null;
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }

@@ -46,7 +46,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -61,6 +63,7 @@ import org.hamcrest.CustomTypeSafeMatcher;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -70,6 +73,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -1200,6 +1204,35 @@ public class IngestServiceTests extends ESTestCase {
 
         // Sanity check that counter has been updated twice:
         assertThat(counter.get(), equalTo(2));
+    }
+
+    public void testCBORParsing() throws Exception {
+        AtomicReference<Object> reference = new AtomicReference<>();
+        Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValueAsBytes("data"));
+        final IngestService ingestService = createWithProcessors(Collections.singletonMap("foo",
+            (factories, tag, config) -> new FakeProcessor("foo", tag, executor)));
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id",
+            new BytesArray("{\"processors\": [{\"foo\" : {}}]}"), XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        assertThat(ingestService.getPipeline("_id"), notNullValue());
+
+        try (final XContentBuilder builder = CborXContent.contentBuilder()) {
+            builder.startObject();
+            builder.field("data", "This is my data".getBytes(StandardCharsets.UTF_8));
+            builder.endObject();
+
+            IndexRequest indexRequest =
+                new IndexRequest("_index").id("_doc-id").source(builder).setPipeline("_id").setFinalPipeline("_none");
+
+            ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest),
+                (integer, e) -> {}, (thread, e) -> {}, indexReq -> {});
+        }
+
+        assertThat(reference.get(), is(instanceOf(byte[].class)));
     }
 
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {

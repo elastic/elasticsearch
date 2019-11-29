@@ -55,6 +55,7 @@ import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecuto
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper.SeqNoFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -226,22 +227,27 @@ public class QueryPhase implements SearchPhase {
 
             CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter = l -> {};
             // try to rewrite numeric or date sort to the optimized distanceFeatureQuery
-            if ((searchContext.sort() != null) && SYS_PROP_REWRITE_SORT) {
-                Query rewrittenQuery = tryRewriteLongSort(searchContext, searcher.getIndexReader(), query, hasFilterCollector);
-                if (rewrittenQuery != null) {
-                    query = rewrittenQuery;
-                    // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the 2nd sort
-                    SortField[] oldSortFields = searchContext.sort().sort.getSort();
-                    DocValueFormat[] oldFormats = searchContext.sort().formats;
-                    SortField[] newSortFields = new SortField[oldSortFields.length + 1];
-                    DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
-                    newSortFields[0] = SortField.FIELD_SCORE;
-                    newFormats[0] = DocValueFormat.RAW;
-                    System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
-                    System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
-                    sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
-                    searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
-                    leafSorter = createLeafSorter(oldSortFields[0]);
+            if (canOptimizeSort(searchContext, hasFilterCollector) && SYS_PROP_REWRITE_SORT) {
+                Query matchAllQuery = tryRewriteMatchAllSort(searchContext);
+                if (matchAllQuery != null) {
+                    query = matchAllQuery;
+                } else {
+                    Query distanceQuery = tryRewriteLongSort(searchContext);
+                    if (distanceQuery != null) {
+                        query = distanceQuery;
+                        // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the 2nd sort
+                        SortField[] oldSortFields = searchContext.sort().sort.getSort();
+                        DocValueFormat[] oldFormats = searchContext.sort().formats;
+                        SortField[] newSortFields = new SortField[oldSortFields.length + 1];
+                        DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
+                        newSortFields[0] = SortField.FIELD_SCORE;
+                        newFormats[0] = DocValueFormat.RAW;
+                        System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
+                        System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
+                        sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
+                        searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
+                        leafSorter = createLeafSorter(oldSortFields[0]);
+                    }
                 }
             }
 
@@ -405,60 +411,129 @@ public class QueryPhase implements SearchPhase {
         return false; // no rescoring when sorting by field
     }
 
-    private static Query tryRewriteLongSort(SearchContext searchContext, IndexReader reader,
-                                            Query query, boolean hasFilterCollector) throws IOException {
-        if (searchContext.searchAfter() != null) return null; //TODO: handle sort optimization with search after
-        if (searchContext.scrollContext() != null) return null;
-        if (searchContext.collapse() != null) return null;
-        if (searchContext.trackScores()) return null;
-        if (searchContext.aggregations() != null) return null;
-        Sort sort = searchContext.sort().sort;
-        SortField sortField = sort.getSort()[0];
-        if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return null;
+    /**
+     * Returns true if the query can be optimized using the primary numeric field sort, false
+     * otherwise.
+     */
+    private static boolean canOptimizeSort(SearchContext context, boolean hasFilterCollector) throws IOException {
+        if (context.mapperService() == null
+                || context.sort() == null
+                || context.collapse() != null
+                || context.aggregations() != null) {
+            return false;
+        }
 
-        // check if this is a field of type Long or Date, that is indexed and has doc values
-        String fieldName = sortField.getField();
-        if (fieldName == null) return null; // happens when _score or _doc is the 1st sort field
-        if (searchContext.mapperService() == null) return null; // mapperService can be null in tests
-        final MappedFieldType fieldType = searchContext.mapperService().fullName(fieldName);
-        if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
-        if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
-        if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
-        if (fieldType.hasDocValues() == false) return null;
+        final Sort sort = context.sort().sort;
+        final IndexReader reader = context.searcher().getIndexReader();
+        final int numDocs = reader.numDocs();
+        final SortField sortField = sort.getSort()[0];
+        final MappedFieldType fieldType = context.mapperService().fullName(sortField.getField());
+        final String fieldName = fieldType.name();
 
+        if (canEarlyTerminate(reader, context.sort())) {
+            // disable this optimization if index sorting matches the query sort since it's already optimized
+            // by index searcher.
+            return false;
+        }
+
+        if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false
+                || fieldType == null
+                || fieldType.indexOptions() == IndexOptions.NONE) {
+            // we only handle indexed long field in this optimization
+            return false;
+        }
+
+        if ((fieldType.typeName().equals("long") == false)
+                && (fieldType instanceof DateFieldType == false)
+                && fieldType instanceof SeqNoFieldType == false) {
+            return false;
+        }
 
         // check that all sorts are actual document fields or _doc
         for (int i = 1; i < sort.getSort().length; i++) {
             SortField sField = sort.getSort()[i];
             String sFieldName = sField.getField();
             if (sFieldName == null) {
-                if (SortField.FIELD_DOC.equals(sField) == false) return null;
+                if (SortField.FIELD_DOC.equals(sField) == false) {
+                    return false;
+                }
             } else {
                 //TODO: find out how to cover _script sort that don't use _score
-                if (searchContext.mapperService().fullName(sFieldName) == null) return null; // could be _script sort that uses _score
+                if (context.mapperService().fullName(sFieldName) == null) {
+                    return false; // could be _script sort that uses _score
+                }
             }
         }
 
-        // check that setting of missing values allows optimization
-        if (sortField.getMissingValue() == null) return null;
-        Long missingValue = (Long) sortField.getMissingValue();
-        boolean missingValuesAccordingToSort = (sortField.getReverse() && (missingValue == Long.MIN_VALUE)) ||
-            ((sortField.getReverse() == false) && (missingValue == Long.MAX_VALUE));
-        if (missingValuesAccordingToSort == false) return null;
-
-        int docCount = PointValues.getDocCount(reader, fieldName);
-        // is not worth to run optimization on small index
-        if (docCount <= 512) return null;
+        // check if the optimization makes sense with the track_total_hits setting
+        if (context.trackTotalHitsUpTo() == Integer.MAX_VALUE) {
+            // with filter, we can't pre-calculate hitsCount, we need to explicitly calculate them => optimization does't make sense
+            if (hasFilterCollector) {
+                return false;
+            }
+            // if we can't pre-calculate hitsCount based on the query type, optimization doesn't make sense
+            if (shortcutTotalHitCount(reader, context.query()) == -1) {
+                return false;
+            }
+        }
 
         // check for multiple values
-        if (PointValues.size(reader, fieldName) != docCount) return null; //TODO: handle multiple values
+        if (PointValues.size(reader, fieldName) != numDocs) {
+            return false; // TODO: handle multiple values
+        }
 
-        // check if the optimization makes sense with the track_total_hits setting
-        if (searchContext.trackTotalHitsUpTo() == Integer.MAX_VALUE) {
-            // with filter, we can't pre-calculate hitsCount, we need to explicitly calculate them => optimization does't make sense
-            if (hasFilterCollector) return null;
-            // if we can't pre-calculate hitsCount based on the query type, optimization does't make sense
-            if (shortcutTotalHitCount(reader, query) == -1) return null;
+        return true;
+    }
+
+    /**
+     * Return a {@link SortedLongQuery} if the request is a {@link MatchAllDocsQuery}
+     * sorted by a numeric long field and <code>null</code> otherwise.
+     */
+    private static Query tryRewriteMatchAllSort(SearchContext context) {
+        final Query query = context.query();
+        final SortField sortField = context.sort().sort.getSort()[0];
+        if ((query != null && query instanceof MatchAllDocsQuery == false)
+                || context.sort().sort.getSort().length > 1
+                || sortField.getReverse()
+                || (context.searchAfter() != null && context.searchAfter().fields.length > 1)) {
+            return null;
+        }
+
+        FieldDoc lastDoc = null;
+        if (context.searchAfter() != null) {
+            lastDoc = context.searchAfter();
+        } else if (context.scrollContext() != null) {
+            lastDoc = (FieldDoc) context.scrollContext().lastEmittedDoc;
+        }
+        long minValue = Long.MIN_VALUE;
+        int minDoc = Integer.MAX_VALUE;
+        if (lastDoc != null) {
+            minValue = (long) lastDoc.fields[0];
+            minDoc = lastDoc.doc;
+        }
+        return new SortedLongQuery(sortField.getField(), context.size(), minValue, minDoc);
+    }
+
+    /**
+     * Rewrite the query into a {@link LongPoint#newDistanceFeatureQuery(String, float, long, long)}
+     * if the request is sorted by a numeric long field and <code>null</code> otherwise.
+     */
+    private static Query tryRewriteLongSort(SearchContext context) throws IOException {
+        final IndexReader reader = context.searcher().getIndexReader();
+        final SortField sortField = context.sort().sort.getSort()[0];
+        final MappedFieldType fieldType = context.mapperService().fullName(sortField.getField());
+        final String fieldName = sortField.getField();
+        if (fieldType.hasDocValues() == false
+                || context.searchAfter() != null // TODO: handle optimization with search after
+                || context.scrollContext() != null // TODO: handle optimization with scroll
+                || context.trackScores()) {
+            return null;
+        }
+
+        int docCount = PointValues.getDocCount(reader, fieldType.name());
+        // is not worth to run optimization on small index
+        if (docCount <= 512) {
+            return null;
         }
 
         byte[] minValueBytes = PointValues.getMinPackedValue(reader, fieldName);
@@ -471,7 +546,9 @@ public class QueryPhase implements SearchPhase {
         if (minValue == maxValue) {
             rewrittenQuery = new DocValuesFieldExistsQuery(fieldName);
         } else {
-            if (indexFieldHasDuplicateData(reader, fieldName)) return null;
+            if (indexFieldHasDuplicateData(reader, fieldName)) {
+                return null;
+            }
             long origin = (sortField.getReverse()) ? maxValue : minValue;
             long pivotDistance = (maxValue - minValue) >>> 1; // division by 2 on the unsigned representation to avoid overflow
             if (pivotDistance == 0) { // 0 if maxValue = (minValue + 1)
@@ -480,7 +557,7 @@ public class QueryPhase implements SearchPhase {
             rewrittenQuery = LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
         }
         rewrittenQuery = new BooleanQuery.Builder()
-            .add(query, BooleanClause.Occur.FILTER) // filter for original query
+            .add(context.query(), BooleanClause.Occur.FILTER) // filter for original query
             .add(rewrittenQuery, BooleanClause.Occur.SHOULD) //should for rewrittenQuery
             .build();
         return rewrittenQuery;

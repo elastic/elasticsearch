@@ -639,6 +639,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final String fieldNameDate = "date-field";
         MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         MappedFieldType fieldTypeDate = new DateFieldMapper.Builder(fieldNameDate).fieldType();
+        fieldTypeLong.setName(fieldNameLong);
+        fieldTypeDate.setName(fieldNameDate);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
         when(mapperService.fullName(fieldNameDate)).thenReturn(fieldTypeDate);
@@ -660,45 +662,56 @@ public class QueryPhaseTests extends IndexShardTestCase {
         writer.close();
         final IndexReader reader = DirectoryReader.open(dir);
 
-        TestSearchContext searchContext =
-            spy(new TestSearchContext(null, indexShard, newOptimizedContextSearcher(reader, 0)));
-        when(searchContext.mapperService()).thenReturn(mapperService);
+        for (boolean withCollectorManager : new boolean[] {true, false}) {
+            TestSearchContext searchContext =
+                spy(new TestSearchContext(null, indexShard, newOptimizedContextSearcher(reader, withCollectorManager)));
+            when(searchContext.mapperService()).thenReturn(mapperService);
+            if (withCollectorManager) {
+                searchContext.parsedQuery(new ParsedQuery(new DocValuesFieldExistsQuery(fieldNameLong)));
+            } else {
+                searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            }
 
-        // 1. Test a sort on long field
-        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
-        sortFieldLong.setMissingValue(Long.MAX_VALUE);
-        final Sort longSort = new Sort(sortFieldLong);
-        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
-        searchContext.sort(sortAndFormats);
-        searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        searchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        searchContext.setSize(10);
-        QueryPhase.executeInternal(searchContext);
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+            final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG);
+            final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
+            final DocValueFormat dateFormat = fieldTypeDate.docValueFormat(null, null);
 
-        // 2. Test a sort on long field + date field
-        final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG);
-        DocValueFormat dateFormat = fieldTypeDate.docValueFormat(null, null);
-        final Sort longDateSort = new Sort(sortFieldLong, sortFieldDate);
-        sortAndFormats = new SortAndFormats(longDateSort, new DocValueFormat[]{DocValueFormat.RAW, dateFormat});
-        searchContext.sort(sortAndFormats);
-        QueryPhase.executeInternal(searchContext);
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+            // 1. Test a sort on long field
+            sortFieldLong.setMissingValue(Long.MAX_VALUE);
+            final Sort longSort = new Sort(sortFieldLong);
+            SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+            searchContext.sort(sortAndFormats);
+            searchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            searchContext.setSize(10);
+            QueryPhase.executeInternal(searchContext);
+            assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
 
-        // 3. Test a sort on date field
-        sortFieldDate.setMissingValue(Long.MAX_VALUE);
-        final Sort dateSort = new Sort(sortFieldDate);
-        sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat});
-        searchContext.sort(sortAndFormats);
-        QueryPhase.executeInternal(searchContext);
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+            // 2. Test a sort on long field + date field
+            if (withCollectorManager) {
+                final Sort longDateSort = new Sort(sortFieldLong, sortFieldDate);
+                sortAndFormats = new SortAndFormats(longDateSort, new DocValueFormat[]{DocValueFormat.RAW, dateFormat});
+                searchContext.sort(sortAndFormats);
+                QueryPhase.executeInternal(searchContext);
+                assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+            }
 
-        // 4. Test a sort on date field + long field
-        final Sort dateLongSort = new Sort(sortFieldDate, sortFieldLong);
-        sortAndFormats = new SortAndFormats(dateLongSort, new DocValueFormat[]{dateFormat, DocValueFormat.RAW});
-        searchContext.sort(sortAndFormats);
-        QueryPhase.executeInternal(searchContext);
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+            // 3. Test a sort on date field
+            sortFieldDate.setMissingValue(Long.MAX_VALUE);
+            final Sort dateSort = new Sort(sortFieldDate);
+            sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat});
+            searchContext.sort(sortAndFormats);
+            QueryPhase.executeInternal(searchContext);
+            assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+
+            // 4. Test a sort on date field + long field
+            if (withCollectorManager) {
+                final Sort dateLongSort = new Sort(sortFieldDate, sortFieldLong);
+                sortAndFormats = new SortAndFormats(dateLongSort, new DocValueFormat[]{dateFormat, DocValueFormat.RAW});
+                searchContext.sort(sortAndFormats);
+                QueryPhase.executeInternal(searchContext);
+                assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+            }
+        }
         reader.close();
         dir.close();
     }
@@ -851,31 +864,31 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     // used to check that numeric long or date sort optimization was run
-    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader, int queryType) {
+    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader, boolean withCollectorManager) {
         return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
 
             @Override
             public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
                     QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
+                assertTrue(withCollectorManager);
                 final Query query = weight.getQuery();
                 assertTrue(query instanceof BooleanQuery);
                 List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
                 assertTrue(clauses.size() == 2);
                 assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
                 assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
-                if (queryType == 0) {
-                    assertTrue (clauses.get(1).getQuery().getClass() ==
-                        LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
-                    );
-                }
-                if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
+                assertTrue (clauses.get(1).getQuery().getClass() ==
+                        LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass());
                 super.search(leaves, weight, manager, result, formats, totalHits);
             }
 
             @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) {
-                assert(false);  // should not be there, expected to search with CollectorManager
+            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                assertFalse(withCollectorManager);
+                final Query query = weight.getQuery();
+                assertTrue(query instanceof SortedLongQuery);
+                super.search(leaves, weight, collector);
             }
         };
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
 public class MixedClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49702")
     public MixedClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
@@ -42,4 +43,3 @@ public class MixedClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return false;
     }
 }
-

@@ -39,9 +39,11 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -69,7 +71,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         analyticsConfig = new DataFrameAnalyticsConfig.Builder()
             .setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null))
             .setDest(new DataFrameAnalyticsDest("my_dest", null))
             .setAnalysis(new Regression("foo"))
             .build();
@@ -115,6 +117,28 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         inOrder.verify(dataFrameRowsJoiner).processRowResults(rowResults2);
 
         assertThat(progressTracker.writingResultsPercent.get(), equalTo(100));
+    }
+
+    public void testProcess_GivenDataFrameRowsJoinerFails() {
+        givenDataFrameRows(2);
+        RowResults rowResults1 = mock(RowResults.class);
+        RowResults rowResults2 = mock(RowResults.class);
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50, null), new AnalyticsResult(rowResults2, 100, null)));
+
+        doThrow(new RuntimeException("some failure")).when(dataFrameRowsJoiner).processRowResults(any(RowResults.class));
+
+        AnalyticsResultProcessor resultProcessor = createResultProcessor();
+
+        resultProcessor.process(process);
+        resultProcessor.awaitForCompletion();
+
+        assertThat(resultProcessor.getFailure(), equalTo("error processing results; some failure"));
+
+        ArgumentCaptor<String> auditCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditor).error(eq(JOB_ID), auditCaptor.capture());
+        assertThat(auditCaptor.getValue(), containsString("Error processing results; some failure"));
+
+        assertThat(progressTracker.writingResultsPercent.get(), equalTo(0));
     }
 
     @SuppressWarnings("unchecked")
@@ -182,9 +206,11 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         // This test verifies the processor knows how to handle a failure on storing the model and completes normally
         ArgumentCaptor<String> auditCaptor = ArgumentCaptor.forClass(String.class);
         verify(auditor).error(eq(JOB_ID), auditCaptor.capture());
-        assertThat(auditCaptor.getValue(), containsString("Error storing trained model with id [" + JOB_ID));
-        assertThat(auditCaptor.getValue(), containsString("[some failure]"));
+        assertThat(auditCaptor.getValue(), containsString("Error processing results; error storing trained model with id [" + JOB_ID));
         Mockito.verifyNoMoreInteractions(auditor);
+
+        assertThat(resultProcessor.getFailure(), startsWith("error processing results; error storing trained model with id [" + JOB_ID));
+        assertThat(progressTracker.writingResultsPercent.get(), equalTo(0));
     }
 
     private void givenProcessResults(List<AnalyticsResult> results) {

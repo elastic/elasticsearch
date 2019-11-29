@@ -1058,11 +1058,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * Writing a new index generation is a three step process.
-     * First, the {@link RepositoriesState.State} entry for this repository is set into {@code pending} state while its
-     * generation {@code N} remains unchanged.
-     * Second, the updated {@link RepositoryData} is written to generation {@code N + 1}.
-     * Lastly, the {@link RepositoriesState.State} entry for this repository is updated to the new generation {@code N + 1} and the pending
-     * flag set back to {@code false}.
+     * First, the {@link RepositoriesState.State} entry for this repository is set into a pending state by incrementing its
+     * pending generation {@code P} while its safe generation {@code N} remains unchanged.
+     * Second, the updated {@link RepositoryData} is written to generation {@code P + 1}.
+     * Lastly, the {@link RepositoriesState.State} entry for this repository is updated to the new generation {@code P + 1} and thus
+     * pending and safe generation are set to the same value marking the end of the update of the repository data.
      *
      * @param repositoryData RepositoryData to write
      * @param expectedGen    expected repository generation at the start of the operation

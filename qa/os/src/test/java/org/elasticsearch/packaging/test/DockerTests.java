@@ -37,7 +37,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -50,7 +49,9 @@ import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getEnabledPlugins;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
+import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
@@ -62,19 +63,19 @@ import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesPattern;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeTrue;
 
 public class DockerTests extends PackagingTestCase {
@@ -241,6 +242,27 @@ public class DockerTests extends PackagingTestCase {
         final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
         assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
         assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+    }
+
+    /**
+     * Check that the default config can be overridden using a bind mount, and that env vars are respected
+     */
+    public void test71BindMountCustomPathWithDifferentUID() throws Exception {
+        final Path tempEsDataDir = tempDir.resolve("esDataDir");
+        // Make the local directory and contents accessible when bind-mounted
+        mkDirWithPrivilegeEscalation(tempEsDataDir, 1500, 0);
+
+        // Restart the container
+        final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), installation.data);
+
+        runContainer(distribution(), volumes, null);
+
+        waitForElasticsearch(installation);
+
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+
+        assertThat(nodesResponse, containsString("\"_nodes\":{\"total\":1,\"successful\":1,\"failed\":0}"));
+        rmDirWithPrivilegeEscalation(tempEsDataDir);
     }
 
     /**

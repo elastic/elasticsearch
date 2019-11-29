@@ -178,21 +178,15 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 }
             });
 
-        private final RetentionLeaseSyncer retentionLeaseSyncer = new RetentionLeaseSyncer() {
-            @Override
-            public void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener) {
-                syncRetentionLeases(shardId, retentionLeases, listener);
-            }
-
-            @Override
-            public void backgroundSync(ShardId shardId, RetentionLeases retentionLeases) {
-                sync(shardId, retentionLeases, ActionListener.wrap(
+        private final RetentionLeaseSyncer retentionLeaseSyncer = new RetentionLeaseSyncer(
+            (shardId, primaryAllocationId, primaryTerm, retentionLeases, listener) ->
+                syncRetentionLeases(shardId, retentionLeases, listener),
+            (shardId, primaryAllocationId, primaryTerm, retentionLeases) -> syncRetentionLeases(shardId, retentionLeases,
+                ActionListener.wrap(
                     r -> { },
                     e -> {
                         throw new AssertionError("failed to background sync retention lease", e);
-                    }));
-            }
-        };
+                    })));
 
         protected ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
@@ -773,7 +767,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-            MappingUpdatePerformer noopMappingUpdater = (update, shardId, type, listener1) -> {};
+            MappingUpdatePerformer noopMappingUpdater = (update, shardId, listener1) -> {};
             TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis, noopMappingUpdater,
                 null, ActionTestUtils.assertNoFailureListener(result -> {
                     TransportWriteActionTestHelper.performPostWriteActions(primary, request,

@@ -340,7 +340,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 UNASSIGNED_SEQ_NO,
                 globalCheckpointListeners::globalCheckpointUpdated,
                 threadPool::absoluteTimeInMillis,
-                (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener),
+                (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
                 this::getSafeCommitInfo);
 
         // the query cache is a node-level thing, however we want the most popular filters
@@ -1578,7 +1578,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
             // We set active because we are now writing operations to the engine; this way,
-            // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
+            // we can flush if we go idle after some time and become inactive.
             active.set(true);
         }
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
@@ -1758,19 +1758,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
-     * indexing operation, and notify listeners that we are now inactive so e.g. sync'd flush can happen.
+     * indexing operation, so we can flush the index.
      */
-    public void checkIdle(long inactiveTimeNS) {
+    public void flushOnIdle(long inactiveTimeNS) {
         Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
-                logger.debug("shard is now inactive");
-                try {
-                    indexEventListener.onShardInactive(this);
-                } catch (Exception e) {
-                    logger.warn("failed to notify index event listener", e);
-                }
+                logger.debug("flushing shard on inactive");
+                threadPool.executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (state != IndexShardState.CLOSED) {
+                            logger.warn("failed to flush shard on inactive", e);
+                        }
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        flush(new FlushRequest().waitIfOngoing(false).force(false));
+                        periodicFlushMetric.inc();
+                    }
+                });
             }
         }
     }
@@ -1783,8 +1792,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return path;
     }
 
-    public void recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, List<IndexShard> localShards,
-                                       ActionListener<Boolean> listener) throws IOException {
+    void recoverFromLocalShards(Consumer<MappingMetaData> mappingUpdateConsumer, List<IndexShard> localShards,
+                                          ActionListener<Boolean> listener) throws IOException {
         assert shardRouting.primary() : "recover from local shards only makes sense if the shard is a primary shard";
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS : "invalid recovery type: " +
             recoveryState.getRecoverySource();
@@ -2182,6 +2191,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
             retentionLeaseSyncer.sync(
                     shardId,
+                    shardRouting.allocationId().getId(),
+                    getPendingPrimaryTerm(),
                     retentionLeases.v2(),
                     ActionListener.wrap(
                             r -> {},
@@ -2191,7 +2202,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     e)));
         } else {
             logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
-            retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2());
+            retentionLeaseSyncer.backgroundSync(
+                shardId, shardRouting.allocationId().getId(), getPendingPrimaryTerm(), retentionLeases.v2());
         }
     }
 
@@ -2462,7 +2474,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void startRecovery(RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
                               PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                              BiConsumer<String, MappingMetaData> mappingUpdateConsumer,
+                              Consumer<MappingMetaData> mappingUpdateConsumer,
                               IndicesService indicesService) {
         // TODO: Create a proper object to encapsulate the recovery context
         // all of the current methods here follow a pattern of:

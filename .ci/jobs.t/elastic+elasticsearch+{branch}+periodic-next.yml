@@ -5,7 +5,3 @@
     description: "Periodic testing of the Elasticsearch %BRANCH% branch.\n"
     triggers:
       - timed: "H H/1 * * *"
-    builders:
-      - shell: |
-          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+git+push
-          .ci/build.sh -Dbwc.checkout.align=true check

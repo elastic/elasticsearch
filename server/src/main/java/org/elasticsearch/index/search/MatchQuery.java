@@ -433,7 +433,6 @@ public class MatchQuery {
                     // phrase
                     if (hasSynonyms) {
                         // complex phrase with synonyms
-                        // TODO how to deboost synonyms here?
                         return analyzeMultiPhrase(field, stream, phraseSlop);
                     } else {
                         // simple phrase

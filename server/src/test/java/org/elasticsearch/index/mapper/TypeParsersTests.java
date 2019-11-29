@@ -236,14 +236,14 @@ public class TypeParsersTests extends ESTestCase {
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null);
 
         {
-            Map<String, Object> mapping = Map.of("meta", 3);
+            Map<String, Object> mapping = new HashMap<>(Map.of("meta", 3));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] must be an object, got Integer[3] for field [foo]", e.getMessage());
         }
 
         {
-            Map<String, Object> mapping = Map.of("meta", Map.of("veryloooooooooooongkey", 3L));
+            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("veryloooooooooooongkey", 3L)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]",
@@ -251,8 +251,8 @@ public class TypeParsersTests extends ESTestCase {
         }
 
         {
-            Map<String, Object> mapping = Map.of("meta", Map.of(
-                    "foo1", 3L, "foo2", 4L, "foo3", 5L, "foo4", 6L, "foo5", 7L, "foo6", 8L));
+            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of(
+                    "foo1", 3L, "foo2", 4L, "foo3", 5L, "foo4", 6L, "foo5", 7L, "foo6", 8L)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]",
@@ -260,7 +260,7 @@ public class TypeParsersTests extends ESTestCase {
         }
 
         {
-            Map<String, Object> mapping = Map.of("meta", Map.of("foo", Map.of("bar", "baz")));
+            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("foo", Map.of("bar", "baz"))));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertEquals("[meta] values can only be numbers or strings, but got Map1[{bar=baz}] for field [foo]",
@@ -271,7 +271,7 @@ public class TypeParsersTests extends ESTestCase {
             String longString = IntStream.range(0, 51)
                     .mapToObj(Integer::toString)
                     .collect(Collectors.joining());
-            Map<String, Object> mapping = Map.of("meta", Map.of("foo", longString));
+            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("foo", longString)));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
             assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));

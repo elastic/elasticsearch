@@ -991,7 +991,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // Tracks the latest known repository generation in a best-effort way to detect inconsistent listing of root level index-N blobs
     // and concurrent modifications.
     // Protected for use in MockEventuallyConsistentRepository
-    protected final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.EMPTY_REPO_GEN);
+    private final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.EMPTY_REPO_GEN);
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {

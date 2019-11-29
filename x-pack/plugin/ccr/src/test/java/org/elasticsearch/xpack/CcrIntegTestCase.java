@@ -411,7 +411,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     numNodeTasks++;
                 }
             }
-            assertThat(numNodeTasks, equalTo(0));
+            assertThat(listTasksResponse.getTasks().toString(), numNodeTasks, equalTo(0));
         }, 30, TimeUnit.SECONDS);
     }
 

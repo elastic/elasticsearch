@@ -1128,8 +1128,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             indicesService,
                             threadPool,
                             shardStateAction,
-                            actionFilters,
-                            indexNameExpressionResolver)),
+                            actionFilters)),
                     new GlobalCheckpointSyncAction(
                         settings,
                         transportService,
@@ -1137,8 +1136,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indicesService,
                         threadPool,
                         shardStateAction,
-                        actionFilters,
-                        indexNameExpressionResolver),
+                        actionFilters),
                     new RetentionLeaseSyncAction(
                         settings,
                         transportService,
@@ -1146,8 +1144,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indicesService,
                         threadPool,
                         shardStateAction,
-                        actionFilters,
-                        indexNameExpressionResolver),
+                        actionFilters),
                     new RetentionLeaseBackgroundSyncAction(
                         settings,
                         transportService,
@@ -1155,8 +1152,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indicesService,
                         threadPool,
                         shardStateAction,
-                        actionFilters,
-                        indexNameExpressionResolver));
+                        actionFilters));
             Map<ActionType, TransportAction> actions = new HashMap<>();
                 final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                     indicesService,
@@ -1172,7 +1168,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 mappingUpdatedAction.setClient(client);
             final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, indexNameExpressionResolver);
+                actionFilters);
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
                         new IngestService(

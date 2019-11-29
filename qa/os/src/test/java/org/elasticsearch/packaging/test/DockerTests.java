@@ -334,6 +334,10 @@ public class DockerTests extends PackagingTestCase {
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
     public void test83EnvironmentVariablesAreRespectedUnderDockerExec() {
+        // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
+        // tool in question is only in the default distribution.
+        assumeTrue(distribution.isDefault());
+
         runContainer(distribution(), null, Map.of("http.host", "this.is.not.valid"));
 
         // This will fail if the env var above is passed as a -E argument

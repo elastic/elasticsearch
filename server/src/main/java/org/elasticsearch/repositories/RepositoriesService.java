@@ -293,6 +293,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
             // Check if repositories got changed
             if ((oldMetaData == null && newMetaData == null) || (oldMetaData != null && oldMetaData.equals(newMetaData))) {
+                for (Repository repo : repositories.values()) {
+                    repo.updateState(state);
+                }
                 return;
             }
 

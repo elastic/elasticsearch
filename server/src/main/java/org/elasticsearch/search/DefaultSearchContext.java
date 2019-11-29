@@ -25,7 +25,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -123,9 +123,8 @@ final class DefaultSearchContext extends SearchContext {
     private boolean lowLevelCancellation;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
-    private SearchTask task;
+    private SearchShardTask task;
     private final Version minNodeVersion;
-
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -828,12 +827,12 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchTask task) {
+    public void setTask(SearchShardTask task) {
         this.task = task;
     }
 
     @Override
-    public SearchTask getTask() {
+    public SearchShardTask getTask() {
         return task;
     }
 

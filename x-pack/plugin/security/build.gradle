@@ -29,25 +29,25 @@ dependencies {
   compileOnly 'org.bouncycastle:bcpkix-jdk15on:1.59'
 
   // the following are all SAML dependencies - might as well download the whole internet
-  compile "org.opensaml:opensaml-core:3.3.0"
-  compile "org.opensaml:opensaml-saml-api:3.3.0"
-  compile "org.opensaml:opensaml-saml-impl:3.3.0"
-  compile "org.opensaml:opensaml-messaging-api:3.3.0"
-  compile "org.opensaml:opensaml-messaging-impl:3.3.0"
-  compile "org.opensaml:opensaml-security-api:3.3.0"
-  compile "org.opensaml:opensaml-security-impl:3.3.0"
-  compile "org.opensaml:opensaml-profile-api:3.3.0"
-  compile "org.opensaml:opensaml-profile-impl:3.3.0"
-  compile "org.opensaml:opensaml-xmlsec-api:3.3.0"
-  compile "org.opensaml:opensaml-xmlsec-impl:3.3.0"
-  compile "org.opensaml:opensaml-soap-api:3.3.0"
-  compile "org.opensaml:opensaml-soap-impl:3.3.0"
-  compile "org.opensaml:opensaml-storage-api:3.3.0"
-  compile "org.opensaml:opensaml-storage-impl:3.3.0"
-  compile "net.shibboleth.utilities:java-support:7.3.0"
-  compile "org.apache.santuario:xmlsec:2.0.8"
+  compile "org.opensaml:opensaml-core:3.4.5"
+  compile "org.opensaml:opensaml-saml-api:3.4.5"
+  compile "org.opensaml:opensaml-saml-impl:3.4.5"
+  compile "org.opensaml:opensaml-messaging-api:3.4.5"
+  compile "org.opensaml:opensaml-messaging-impl:3.4.5"
+  compile "org.opensaml:opensaml-security-api:3.4.5"
+  compile "org.opensaml:opensaml-security-impl:3.4.5"
+  compile "org.opensaml:opensaml-profile-api:3.4.5"
+  compile "org.opensaml:opensaml-profile-impl:3.4.5"
+  compile "org.opensaml:opensaml-xmlsec-api:3.4.5"
+  compile "org.opensaml:opensaml-xmlsec-impl:3.4.5"
+  compile "org.opensaml:opensaml-soap-api:3.4.5"
+  compile "org.opensaml:opensaml-soap-impl:3.4.5"
+  compile "org.opensaml:opensaml-storage-api:3.4.5"
+  compile "org.opensaml:opensaml-storage-impl:3.4.5"
+  compile "net.shibboleth.utilities:java-support:7.5.1"
+  compile "org.apache.santuario:xmlsec:2.1.4"
   compile "io.dropwizard.metrics:metrics-core:3.2.2"
-  compile "org.cryptacular:cryptacular:1.2.0"
+  compile "org.cryptacular:cryptacular:1.2.3"
   compile "org.slf4j:slf4j-api:${versions.slf4j}"
   compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -178,107 +178,106 @@ forbiddenApisMain {
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
 thirdPartyAudit {
-  ignoreMissingClasses(
-    // SAML dependencies
-    // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes
-    'com.beust.jcommander.JCommander',
-    'com.beust.jcommander.converters.BaseConverter',
-    // [missing classes] Shibboleth + OpenSAML have servlet support that we don't use
-    'javax.servlet.AsyncContext',
-    'javax.servlet.DispatcherType',
-    'javax.servlet.Filter',
-    'javax.servlet.FilterChain',
-    'javax.servlet.FilterConfig',
-    'javax.servlet.RequestDispatcher',
-    'javax.servlet.ServletContext',
-    'javax.servlet.ServletException',
-    'javax.servlet.ServletInputStream',
-    'javax.servlet.ServletOutputStream',
-    'javax.servlet.ServletRequest',
-    'javax.servlet.ServletResponse',
-    'javax.servlet.http.Cookie',
-    'javax.servlet.http.HttpServletRequest',
-    'javax.servlet.http.HttpServletResponse',
-    'javax.servlet.http.HttpServletResponseWrapper',
-    'javax.servlet.http.HttpSession',
-    'javax.servlet.http.Part',
-    // [missing classes] Shibboleth + OpenSAML have velocity support that we don't use
-    'org.apache.velocity.VelocityContext',
-    'org.apache.velocity.app.VelocityEngine',
-    'org.apache.velocity.context.Context',
-    'org.apache.velocity.exception.VelocityException',
-    'org.apache.velocity.runtime.RuntimeServices',
-    'org.apache.velocity.runtime.log.LogChute',
-    'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
-    'org.apache.velocity.runtime.resource.util.StringResourceRepository',
-    // [missing classes] OpenSAML depends on Apache XML security which depends on Xalan, but only for functionality that OpenSAML doesn't use
-    'org.apache.xml.dtm.DTM',
-    'org.apache.xml.utils.PrefixResolver',
-    'org.apache.xml.utils.PrefixResolverDefault',
-    'org.apache.xpath.Expression',
-    'org.apache.xpath.NodeSetDTM',
-    'org.apache.xpath.XPath',
-    'org.apache.xpath.XPathContext',
-    'org.apache.xpath.compiler.FunctionTable',
-    'org.apache.xpath.functions.Function',
-    'org.apache.xpath.objects.XNodeSet',
-    'org.apache.xpath.objects.XObject',
-    // [missing classes] OpenSAML storage has an optional LDAP storage impl
-    'org.ldaptive.AttributeModification',
-    'org.ldaptive.AttributeModificationType',
-    'org.ldaptive.Connection',
-    'org.ldaptive.DeleteOperation',
-    'org.ldaptive.DeleteRequest',
-    'org.ldaptive.LdapAttribute',
-    'org.ldaptive.LdapEntry',
-    'org.ldaptive.LdapException',
-    'org.ldaptive.ModifyOperation',
-    'org.ldaptive.ModifyRequest',
-    'org.ldaptive.Response',
-    'org.ldaptive.ResultCode',
-    'org.ldaptive.SearchOperation',
-    'org.ldaptive.SearchRequest',
-    'org.ldaptive.SearchResult',
-    'org.ldaptive.ext.MergeOperation',
-    'org.ldaptive.ext.MergeRequest',
-    'org.ldaptive.pool.ConnectionPool',
-    'org.ldaptive.pool.PooledConnectionFactory',
-    // [missing classes] OpenSAML storage has an optional JSON-backed storage impl
-    'javax.json.Json',
-    'javax.json.JsonException',
-    'javax.json.JsonNumber',
-    'javax.json.JsonObject',
-    'javax.json.JsonReader',
-    'javax.json.JsonValue$ValueType',
-    'javax.json.JsonValue',
-    'javax.json.stream.JsonGenerator',
-    // [missing classes] OpenSAML storage has an optional JPA storage impl
-    'javax.persistence.EntityManager',
-    'javax.persistence.EntityManagerFactory',
-    'javax.persistence.EntityTransaction',
-    'javax.persistence.LockModeType',
-    'javax.persistence.Query',
-    // [missing classes] OpenSAML storage and HttpClient cache have optional memcache support
-    'net.spy.memcached.CASResponse',
-    'net.spy.memcached.CASValue',
-    'net.spy.memcached.MemcachedClient',
-    'net.spy.memcached.MemcachedClientIF',
-    'net.spy.memcached.CachedData',
-    'net.spy.memcached.internal.OperationFuture',
-    'net.spy.memcached.transcoders.Transcoder',
-    // [missing classes] Http Client cache has optional ehcache support
-    'net.sf.ehcache.Ehcache',
-    'net.sf.ehcache.Element',
-    // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-    'org.slf4j.ext.EventData',
-    // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
-    'org.cryptomator.siv.SivMode',
-    // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
-    'com.google.crypto.tink.subtle.Ed25519Sign',
-    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
-    'com.google.crypto.tink.subtle.Ed25519Verify',
-    'com.google.crypto.tink.subtle.X25519'
-
+  ignoreMissingClasses (
+      // SAML dependencies
+      // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes
+      'com.beust.jcommander.JCommander',
+      'com.beust.jcommander.converters.BaseConverter',
+      // [missing classes] Shibboleth + OpenSAML have servlet support that we don't use
+      'javax.servlet.AsyncContext',
+      'javax.servlet.DispatcherType',
+      'javax.servlet.Filter',
+      'javax.servlet.FilterChain',
+      'javax.servlet.FilterConfig',
+      'javax.servlet.RequestDispatcher',
+      'javax.servlet.ServletContext',
+      'javax.servlet.ServletException',
+      'javax.servlet.ServletInputStream',
+      'javax.servlet.ServletOutputStream',
+      'javax.servlet.ServletRequest',
+      'javax.servlet.ServletResponse',
+      'javax.servlet.http.Cookie',
+      'javax.servlet.http.HttpServletRequest',
+      'javax.servlet.http.HttpServletResponse',
+      'javax.servlet.http.HttpServletResponseWrapper',
+      'javax.servlet.http.HttpSession',
+      'javax.servlet.http.Part',
+      // [missing classes] Shibboleth + OpenSAML have velocity support that we don't use
+      'org.apache.velocity.VelocityContext',
+      'org.apache.velocity.app.VelocityEngine',
+      'org.apache.velocity.context.Context',
+      'org.apache.velocity.exception.VelocityException',
+      'org.apache.velocity.runtime.RuntimeServices',
+      'org.apache.velocity.runtime.log.LogChute',
+      'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
+      'org.apache.velocity.runtime.resource.util.StringResourceRepository',
+      // [missing classes] OpenSAML depends on Apache XML security which depends on Xalan, but only for functionality that OpenSAML doesn't use
+      'org.apache.xml.dtm.DTM',
+      'org.apache.xml.utils.PrefixResolver',
+      'org.apache.xml.utils.PrefixResolverDefault',
+      'org.apache.xpath.Expression',
+      'org.apache.xpath.NodeSetDTM',
+      'org.apache.xpath.XPath',
+      'org.apache.xpath.XPathContext',
+      'org.apache.xpath.compiler.FunctionTable',
+      'org.apache.xpath.functions.Function',
+      'org.apache.xpath.objects.XNodeSet',
+      'org.apache.xpath.objects.XObject',
+      // [missing classes] OpenSAML storage has an optional LDAP storage impl
+      'org.ldaptive.AttributeModification',
+      'org.ldaptive.AttributeModificationType',
+      'org.ldaptive.Connection',
+      'org.ldaptive.DeleteOperation',
+      'org.ldaptive.DeleteRequest',
+      'org.ldaptive.LdapAttribute',
+      'org.ldaptive.LdapEntry',
+      'org.ldaptive.LdapException',
+      'org.ldaptive.ModifyOperation',
+      'org.ldaptive.ModifyRequest',
+      'org.ldaptive.Response',
+      'org.ldaptive.ResultCode',
+      'org.ldaptive.SearchOperation',
+      'org.ldaptive.SearchRequest',
+      'org.ldaptive.SearchResult',
+      'org.ldaptive.ext.MergeOperation',
+      'org.ldaptive.ext.MergeRequest',
+      'org.ldaptive.pool.ConnectionPool',
+      'org.ldaptive.pool.PooledConnectionFactory',
+      // [missing classes] OpenSAML storage has an optional JSON-backed storage impl
+      'javax.json.Json',
+      'javax.json.JsonException',
+      'javax.json.JsonNumber',
+      'javax.json.JsonObject',
+      'javax.json.JsonReader',
+      'javax.json.JsonValue$ValueType',
+      'javax.json.JsonValue',
+      'javax.json.stream.JsonGenerator',
+      // [missing classes] OpenSAML storage has an optional JPA storage impl
+      'javax.persistence.EntityManager',
+      'javax.persistence.EntityManagerFactory',
+      'javax.persistence.EntityTransaction',
+      'javax.persistence.LockModeType',
+      'javax.persistence.Query',
+      // [missing classes] OpenSAML storage and HttpClient cache have optional memcache support
+      'net.spy.memcached.CASResponse',
+      'net.spy.memcached.CASValue',
+      'net.spy.memcached.MemcachedClient',
+      'net.spy.memcached.MemcachedClientIF',
+      'net.spy.memcached.CachedData',
+      'net.spy.memcached.internal.OperationFuture',
+      'net.spy.memcached.transcoders.Transcoder',
+      // [missing classes] Http Client cache has optional ehcache support
+      'net.sf.ehcache.Ehcache',
+      'net.sf.ehcache.Element',
+      // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
+      'org.slf4j.ext.EventData',
+      // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
+      'org.cryptomator.siv.SivMode',
+      // Optional dependency of nimbus-jose-jwt for handling Ed25519 signatures and ECDH with X25519 (RFC 8037)
+      'com.google.crypto.tink.subtle.Ed25519Sign',
+      'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+      'com.google.crypto.tink.subtle.Ed25519Verify',
+      'com.google.crypto.tink.subtle.X25519'
   )
 
   ignoreViolations(

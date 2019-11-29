@@ -20,8 +20,7 @@
   which fields will be included in the analysis. If `analyzed_fields` is not set,
   only the relevant fields will be included. For example, all the numeric fields
   for {oldetection}. For the supported field types, see <<ml-put-dfanalytics-supported-fields>>.
-  Also see {ref}/explain-dfanalytics.html[_explain API] which helps understand
-  field selection. 
+  Also see the <<explain-dfanalytics>> which helps understand field selection.
     
   `includes`:::
     (Optional, array) An array of strings that defines the fields that will be included in 

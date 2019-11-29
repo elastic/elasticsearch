@@ -190,7 +190,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
 
         // First we check in the excludes as they are applied last
         for (String exclude : sourceFiltering.excludes()) {
-            if (patternMatchesFieldPath(exclude, path)) {
+            if (pathMatchesSourcePattern(path, exclude)) {
                 return true;
             }
         }
@@ -203,25 +203,26 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         }
 
         for (String include : sourceFiltering.includes()) {
-            if (patternMatchesFieldPath(include, path)) {
+            if (pathMatchesSourcePattern(path, include)) {
                 return false;
             }
         }
         return true;
     }
 
-    private static boolean patternMatchesFieldPath(String pattern, String path) {
-        if (Regex.isSimpleMatchPattern(pattern)) {
-            return Regex.simpleMatch(pattern, path);
-        } else {
-            if (pattern.equals(path)) {
-                return true;
-            } else {
-                // include as a concrete field name.
-                // Let us take "foo" as an example.
-                // Fields that are "foo.*" will also be included.
-                return Regex.simpleMatch(pattern + ".*", path);
-            }
+    private static boolean pathMatchesSourcePattern(String path, String sourcePattern) {
+        if (sourcePattern.equals(path)) {
+            return true;
         }
+
+        if (Regex.isSimpleMatchPattern(sourcePattern)) {
+            return Regex.simpleMatch(sourcePattern, path);
+        }
+
+        // At this stage sourcePattern is a concrete field name and path is not equal to it.
+        // We should check if path is a nested field of pattern.
+        // Let us take "foo" as an example.
+        // Fields that are "foo.*" should also be matched.
+        return Regex.simpleMatch(sourcePattern + ".*", path);
     }
 }

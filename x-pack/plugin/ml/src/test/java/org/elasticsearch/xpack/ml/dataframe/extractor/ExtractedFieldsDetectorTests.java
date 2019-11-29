@@ -46,6 +46,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     private static final String RESULTS_FIELD = "ml";
 
     private FetchSourceContext sourceFiltering;
+    private FetchSourceContext analyzedFields;
 
     public void testDetect_GivenFloatField() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
@@ -88,8 +89,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_keyword", "keyword").build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+        SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]." +
             " Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
@@ -101,7 +102,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
             "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
@@ -173,7 +174,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildRegressionConfig("foo"), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("required field [foo] is missing; analysis requires fields [foo]"));
     }
@@ -185,11 +186,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_keyword", "keyword")
             .addAggregatableField("foo", "float")
             .build();
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[0], new String[] {"foo"});
+        analyzedFields = new FetchSourceContext(true, new String[0], new String[] {"foo"});
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildRegressionConfig("foo", analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+            SOURCE_INDEX, buildRegressionConfig("foo"), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("required field [foo] is missing; analysis requires fields [foo]"));
     }
@@ -201,11 +202,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_keyword", "keyword")
             .addAggregatableField("foo", "float")
             .build();
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[]  {"some_float", "some_keyword"}, new String[0]);
+        analyzedFields = new FetchSourceContext(true, new String[]  {"some_float", "some_keyword"}, new String[0]);
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildRegressionConfig("foo", analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+            SOURCE_INDEX, buildRegressionConfig("foo"), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("required field [foo] is missing; analysis requires fields [foo]"));
     }
@@ -215,10 +216,10 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("foo", "float")
             .addAggregatableField("bar", "float")
             .build();
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[]  {"foo", "bar"}, new String[] {"foo"});
+        analyzedFields = new FetchSourceContext(true, new String[]  {"foo", "bar"}, new String[] {"foo"});
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
         List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
@@ -241,7 +242,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildRegressionConfig("foo"), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("invalid types [keyword] for required field [foo]; " +
             "expected types are [byte, double, float, half_float, integer, long, scaled_float, short]"));
@@ -257,7 +258,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildClassificationConfig("some_float"), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("invalid types [float] for required field [some_float]; " +
             "expected types are [boolean, byte, integer, ip, keyword, long, short, text]"));
@@ -272,7 +273,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(SOURCE_INDEX,
             buildClassificationConfig("some_keyword"), false, 100, fieldCapabilities, Collections.singletonMap("some_keyword", 3L));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [2] distinct values but there were at least [3]"));
     }
@@ -283,7 +284,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
             "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
@@ -293,11 +294,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField("_id", "float")
             .build();
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[]{"_id"}, new String[0]);
+        analyzedFields = new FetchSourceContext(true, new String[]{"_id"}, new String[0]);
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("No field [_id] could be detected"));
     }
@@ -306,11 +307,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField("foo", "float")
             .build();
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[]{"*"}, new String[] {"bar"});
+        analyzedFields = new FetchSourceContext(true, new String[]{"*"}, new String[] {"bar"});
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("No field [bar] could be detected"));
     }
@@ -320,10 +321,10 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("numeric", "float")
             .addAggregatableField("categorical", "keyword")
             .build();
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, null, new String[] {"categorical"});
+        analyzedFields = new FetchSourceContext(true, null, new String[] {"categorical"});
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
 
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
@@ -368,11 +369,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("my_field2", "float")
             .build();
 
-        FetchSourceContext desiredFields = new FetchSourceContext(true, new String[]{"your_field1", "my*"}, new String[0]);
+        analyzedFields = new FetchSourceContext(true, new String[]{"your_field1", "my*"}, new String[0]);
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(desiredFields), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("No field [your_field1] could be detected"));
     }
@@ -383,11 +384,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("my_field2", "float")
             .build();
 
-        FetchSourceContext desiredFields = new FetchSourceContext(true, new String[0], new String[]{"my_*"});
+        analyzedFields = new FetchSourceContext(true, new String[0], new String[]{"my_*"});
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(desiredFields), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
         assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
             "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
     }
@@ -399,10 +400,10 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("your_field2", "float")
             .build();
 
-        FetchSourceContext desiredFields = new FetchSourceContext(true, new String[]{"your*", "my_*"}, new String[]{"*nope"});
+        analyzedFields = new FetchSourceContext(true, new String[]{"your*", "my_*"}, new String[]{"*nope"});
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(desiredFields), false, 100, fieldCapabilities, Collections.emptyMap());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
         List<String> extractedFieldNames = fieldExtraction.v1().getAllFields().stream().map(ExtractedField::getName)
@@ -424,11 +425,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("your_keyword", "keyword")
             .build();
 
-        FetchSourceContext desiredFields = new FetchSourceContext(true, new String[]{"your*", "my_*"}, new String[]{"*nope"});
+        analyzedFields = new FetchSourceContext(true, new String[]{"your*", "my_*"}, new String[]{"*nope"});
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(desiredFields), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("field [your_keyword] has unsupported type [keyword]. " +
             "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
@@ -444,7 +445,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("A field that matches the dest.results_field [ml] already exists; " +
             "please set a different results_field"));
@@ -481,11 +482,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("your_field2", "float")
             .addAggregatableField("your_keyword", "keyword")
             .build();
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[]{RESULTS_FIELD}, new String[0]);
+        analyzedFields = new FetchSourceContext(true, new String[]{RESULTS_FIELD}, new String[0]);
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), false, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("A field that matches the dest.results_field [ml] already exists; " +
             "please set a different results_field"));
@@ -498,11 +499,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("your_field2", "float")
             .addAggregatableField("your_keyword", "keyword")
             .build();
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[]{RESULTS_FIELD}, new String[0]);
+        analyzedFields = new FetchSourceContext(true, new String[]{RESULTS_FIELD}, new String[0]);
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildOutlierDetectionConfig(analyzedFields), true, 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> extractedFieldsDetector.detect());
+            SOURCE_INDEX, buildOutlierDetectionConfig(), true, 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
         assertThat(e.getMessage(), equalTo("No field [ml] could be detected"));
     }
@@ -816,10 +817,10 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("field_1.keyword", "keyword")
             .addAggregatableField("field_2", "float")
             .build();
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] { "field_1", "field_2" }, new String[0]);
+        analyzedFields = new FetchSourceContext(true, new String[] { "field_1", "field_2" }, new String[0]);
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, buildRegressionConfig("field_2", analyzedFields), false, 100, fieldCapabilities, Collections.emptyMap());
+            SOURCE_INDEX, buildRegressionConfig("field_2"), false, 100, fieldCapabilities, Collections.emptyMap());
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
         assertThat(fieldExtraction.v1().getAllFields().size(), equalTo(2));
@@ -881,10 +882,6 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     }
 
     private DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
-        return buildOutlierDetectionConfig(null);
-    }
-
-    private DataFrameAnalyticsConfig buildOutlierDetectionConfig(FetchSourceContext analyzedFields) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
             .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))
@@ -895,10 +892,6 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
     }
 
     private DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable) {
-        return buildRegressionConfig(dependentVariable, null);
-    }
-
-    private DataFrameAnalyticsConfig buildRegressionConfig(String dependentVariable, FetchSourceContext analyzedFields) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
             .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, sourceFiltering))

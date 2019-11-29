@@ -83,7 +83,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collections;
@@ -833,10 +832,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-pipeline
             request.setDestPipeline("my_pipeline"); // <1>
             // end::reindex-request-pipeline
-            // tag::reindex-request-sort
-            request.addSortField("field1", SortOrder.DESC); // <1>
-            request.addSortField("field2", SortOrder.ASC); // <2>
-            // end::reindex-request-sort
             // tag::reindex-request-script
             request.setScript(
                 new Script(

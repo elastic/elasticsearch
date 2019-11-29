@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -31,7 +30,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SingletonKeywordIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -89,7 +88,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class IndexFieldType extends MappedFieldType {
+    static final class IndexFieldType extends SingletonFieldType {
 
         IndexFieldType() {}
 
@@ -105,17 +104,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public boolean isSearchable() {
-            // The _index field is always searchable.
-            return true;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new MatchAllDocsQuery();
         }
 
         /**
@@ -187,7 +175,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
+            return new SingletonKeywordIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
         }
     }
 

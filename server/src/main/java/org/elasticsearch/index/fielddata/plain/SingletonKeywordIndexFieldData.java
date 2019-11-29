@@ -46,7 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Function;
 
-public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
+public class SingletonKeywordIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -59,16 +59,16 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
+            return new SingletonKeywordIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
         }
 
     }
 
-    private static class ConstantAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
+    private static class SingletonKeywordAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
         private final String value;
 
-        ConstantAtomicFieldData(String value) {
+        SingletonKeywordAtomicFieldData(String value) {
             super(DEFAULT_SCRIPT_FUNCTION);
             this.value = value;
         }
@@ -126,14 +126,14 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     }
 
-    private final ConstantAtomicFieldData atomicFieldData;
+    private final SingletonKeywordAtomicFieldData atomicFieldData;
 
-    private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value) {
+    private SingletonKeywordIndexFieldData(IndexSettings indexSettings, String name, String value) {
         super(indexSettings, name, null, null,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
-        atomicFieldData = new ConstantAtomicFieldData(value);
+        atomicFieldData = new SingletonKeywordAtomicFieldData(value);
     }
 
     @Override

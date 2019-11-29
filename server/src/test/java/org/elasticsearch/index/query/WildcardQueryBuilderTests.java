@@ -152,6 +152,6 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", firstHalfOfIndexName +"*");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(WildcardQueryBuilder.class));
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }      
 }

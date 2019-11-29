@@ -60,7 +60,7 @@ override any settings or mappings specified in an index template.
 
 ===== Comments in index templates
 You can use C-style /* */ block comments in index templates.
-You can includes comments anywhere in the request body,
+You can include comments anywhere in the request body,
 except before the opening curly bracket.
 
 [[getting]]	

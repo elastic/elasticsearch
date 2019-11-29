@@ -24,6 +24,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -81,8 +82,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -1842,4 +1845,50 @@ public class FieldSortIT extends ESIntegTestCase {
             }
         }
     }
+
+    public void testLongSortOptimizationCorrectResults() {
+        assertAcked(prepareCreate("test1")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2))
+            .addMapping("_doc", "long_field", "type=long").get());
+
+        BulkRequestBuilder bulkBuilder = client().prepareBulk();
+        for (int i = 1; i <= 7000; i++) {
+            if (i % 3500 == 0) {
+                bulkBuilder.get();
+                bulkBuilder = client().prepareBulk();
+            }
+            String source = "{\"long_field\":" + randomLong()  + "}";
+            bulkBuilder.add(client().prepareIndex("test1", "_doc").setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+        }
+        refresh();
+
+        //*** 1. sort DESC on long_field
+        SearchResponse searchResponse = client().prepareSearch()
+            .addSort(new FieldSortBuilder("long_field").order(SortOrder.DESC))
+            .setSize(10).get();
+        assertSearchResponse(searchResponse);
+        long previousLong = Long.MAX_VALUE;
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            // check the correct sort order
+            SearchHit hit = searchResponse.getHits().getHits()[i];
+            long currentLong = (long) hit.getSortValues()[0];
+            assertThat("sort order is incorrect", currentLong, lessThanOrEqualTo(previousLong));
+            previousLong = currentLong;
+        }
+
+        //*** 2. sort ASC on long_field
+        searchResponse = client().prepareSearch()
+            .addSort(new FieldSortBuilder("long_field").order(SortOrder.ASC))
+            .setSize(10).get();
+        assertSearchResponse(searchResponse);
+        previousLong = Long.MIN_VALUE;
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            // check the correct sort order
+            SearchHit hit = searchResponse.getHits().getHits()[i];
+            long currentLong = (long) hit.getSortValues()[0];
+            assertThat("sort order is incorrect", currentLong, greaterThanOrEqualTo(previousLong));
+            previousLong = currentLong;
+        }
+    }
+
 }

@@ -1247,23 +1247,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
             private Repository.Factory getRepoFactory(Environment environment) {
                 // Run half the tests with the eventually consistent repository
                 if (blobStoreContext == null) {
-                    return metaData -> {
-                        final Repository repository = new FsRepository(metaData, environment, xContentRegistry(), threadPool) {
-                            @Override
-                            protected void assertSnapshotOrGenericThread() {
-                                // eliminate thread name check as we create repo in the test thread
-                            }
-                        };
-                        repository.start();
-                        return repository;
+                    return metaData -> new FsRepository(metaData, environment, xContentRegistry(), clusterService) {
+                        @Override
+                        protected void assertSnapshotOrGenericThread() {
+                            // eliminate thread name check as we create repo in the test thread
+                        }
                     };
                 } else {
-                    return metaData -> {
-                        final Repository repository = new MockEventuallyConsistentRepository(
-                            metaData, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext, random());
-                        repository.start();
-                        return repository;
-                    };
+                    return metaData ->
+                        new MockEventuallyConsistentRepository(metaData, xContentRegistry(), clusterService, blobStoreContext, random());
                 }
             }
             public void restart() {

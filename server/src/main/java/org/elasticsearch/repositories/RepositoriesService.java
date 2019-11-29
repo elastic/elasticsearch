@@ -287,8 +287,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         try {
+            final ClusterState state = event.state();
             RepositoriesMetaData oldMetaData = event.previousState().getMetaData().custom(RepositoriesMetaData.TYPE);
-            RepositoriesMetaData newMetaData = event.state().getMetaData().custom(RepositoriesMetaData.TYPE);
+            RepositoriesMetaData newMetaData = state.getMetaData().custom(RepositoriesMetaData.TYPE);
 
             // Check if repositories got changed
             if ((oldMetaData == null && newMetaData == null) || (oldMetaData != null && oldMetaData.equals(newMetaData))) {
@@ -343,6 +344,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         builder.put(repositoryMetaData.name(), repository);
                     }
                 }
+            }
+            for (Repository repo : builder.values()) {
+                repo.updateState(state);
             }
             repositories = Collections.unmodifiableMap(builder);
         } catch (Exception ex) {
@@ -411,11 +415,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             throw new RepositoryException(repositoryMetaData.name(),
                 "repository type [" + repositoryMetaData.type() + "] does not exist");
         }
+        Repository repository = null;
         try {
-            Repository repository = factory.create(repositoryMetaData, factories::get);
+            repository = factory.create(repositoryMetaData, factories::get);
             repository.start();
             return repository;
         } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(repository);
             logger.warn(new ParameterizedMessage("failed to create repository [{}][{}]",
                 repositoryMetaData.type(), repositoryMetaData.name()), e);
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);

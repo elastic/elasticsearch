@@ -112,7 +112,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         );
         int docCount = 10;
         for (int i = 1; i <= docCount; i++) {
-            client().prepareIndex("test-index").setId("" + i)
+            client().prepareIndex("test-index", "_doc", "" + i)
                 .setSource("field1", "text" + i, "field2", i)
                 .get();
         }

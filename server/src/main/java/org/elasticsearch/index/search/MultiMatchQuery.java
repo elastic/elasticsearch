@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.TermAndBoost;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -204,6 +205,13 @@ public class MultiMatchQuery extends MatchQuery {
                 disjunctions.add(query);
             }
             return new DisjunctionMaxQuery(disjunctions, tieBreaker);
+        }
+
+        @Override
+        protected Query newSynonymQuery(String field, List<TermAndBoost> termsWithBoosts) {
+            // for now disregard boosts
+            Term[] terms = termsWithBoosts.stream().map(TermAndBoost::getTerm).toArray(size -> new Term[size]);
+            return newSynonymQuery(terms);
         }
 
         @Override

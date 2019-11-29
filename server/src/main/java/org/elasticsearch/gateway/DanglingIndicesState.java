@@ -86,7 +86,7 @@ public class DanglingIndicesState implements ClusterStateListener {
         }
     }
 
-    public boolean isAutoImportDanglingIndicesEnabled() {
+    boolean isAutoImportDanglingIndicesEnabled() {
         return this.isAutoImportDanglingIndicesEnabled;
     }
 

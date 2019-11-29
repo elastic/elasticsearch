@@ -51,7 +51,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final Settings settings = buildSettings(true);
         internalCluster().startNodes(3, settings);
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 2).build());
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
         // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
@@ -73,7 +73,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
     public void testDanglingIndicesAreNotRecoveredWhenSettingIsDisabled() throws Exception {
         internalCluster().startNodes(3, buildSettings(false));
 
-        createIndex(INDEX_NAME, Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 2).build());
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
 
         // Restart node, deleting the index in its absence, so that there is a dangling index to recover
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
@@ -89,7 +89,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         // amount of time
         assertFalse(
             "Did not expect dangling index " + INDEX_NAME + " to be recovered",
-            waitUntil(() -> indexExists(INDEX_NAME), 5, TimeUnit.SECONDS)
+            waitUntil(() -> indexExists(INDEX_NAME), 1, TimeUnit.SECONDS)
         );
     }
 }

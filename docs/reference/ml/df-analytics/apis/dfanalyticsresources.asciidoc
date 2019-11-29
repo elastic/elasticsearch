@@ -16,7 +16,7 @@
   <<dfanalytics-types>>.
   
 `analyzed_fields`::
-  (Optional, sobject) Specify `includes` and/or `excludes` patterns to select
+  (Optional, object) Specify `includes` and/or `excludes` patterns to select
   which fields will be included in the analysis. If `analyzed_fields` is not set,
   only the relevant fields will be included. For example, all the numeric fields
   for {oldetection}. For the supported field types, see <<ml-put-dfanalytics-supported-fields>>.

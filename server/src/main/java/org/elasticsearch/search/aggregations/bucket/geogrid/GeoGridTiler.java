@@ -83,6 +83,8 @@ public interface GeoGridTiler {
 
         protected int setValuesByBruteForceScan(CellIdSource.CellValues values, MultiGeoValues.GeoValue geoValue,
                                                 int precision, MultiGeoValues.BoundingBox bounds) {
+            // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I  can
+            // see that eventually we will be visiting twice the same cell which should not happen.
             int idx = 0;
             String min = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
             String max = Geohash.stringEncode(bounds.maxX(), bounds.maxY(), precision);

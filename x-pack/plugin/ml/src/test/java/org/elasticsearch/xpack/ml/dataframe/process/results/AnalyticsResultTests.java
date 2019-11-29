@@ -40,7 +40,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
             progressPercent = randomIntBetween(0, 100);
         }
         if (randomBoolean()) {
-            inferenceModel = TrainedModelDefinitionTests.createRandomBuilder("model");
+            inferenceModel = TrainedModelDefinitionTests.createRandomBuilder();
         }
         return new AnalyticsResult(rowResults, progressPercent, inferenceModel);
     }

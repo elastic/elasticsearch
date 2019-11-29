@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -33,14 +34,13 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -68,6 +68,8 @@ import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTO
 public class SSLService {
 
     private static final Logger logger = LogManager.getLogger(SSLService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     /**
      * An ordered map of protocol algorithms to SSLContext algorithms. The map is ordered from most
      * secure to least secure. The names in this map are taken from the
@@ -432,6 +434,10 @@ public class SSLService {
         Map<String, Settings> profileSettings = getTransportProfileSSLSettings(settings);
         profileSettings.forEach((key, profileSetting) -> loadConfiguration(key, profileSetting, sslContextHolders));
 
+        for (String context : Arrays.asList("xpack.security.transport.ssl", "xpack.security.http.ssl")) {
+            validateServerConfiguration(context);
+        }
+
         return Collections.unmodifiableMap(sslContextHolders);
     }
 
@@ -447,6 +453,33 @@ public class SSLService {
             return configuration;
         } catch (Exception e) {
             throw new ElasticsearchSecurityException("failed to load SSL configuration [{}]", e, key);
+        }
+    }
+
+    private void validateServerConfiguration(String prefix) {
+        assert prefix.endsWith(".ssl");
+        SSLConfiguration configuration = getSSLConfiguration(prefix);
+        final String enabledSetting = prefix + ".enabled";
+        if (settings.getAsBoolean(enabledSetting, false) == true) {
+            // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
+            final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".");
+            if (isConfigurationValidForServerUsage(configuration) == false) {
+                deprecationLogger.deprecated("invalid SSL configuration for " + prefix +
+                    " - server ssl configuration requires a key and certificate, but these have not been configured; you must set either " +
+                    "[" + configurationSettings.x509KeyPair.keystorePath.getKey() + "], or both [" +
+                    configurationSettings.x509KeyPair.keyPath.getKey() + "] and [" +
+                    configurationSettings.x509KeyPair.certificatePath.getKey() + "]");
+            }
+        } else if (settings.hasValue(enabledSetting) == false) {
+            final List<String> sslSettingNames = settings.keySet().stream()
+                .filter(s -> s.startsWith(prefix))
+                .sorted()
+                .collect(Collectors.toList());
+            if (sslSettingNames.isEmpty() == false) {
+                deprecationLogger.deprecated("invalid configuration for " + prefix + " - [" + enabledSetting +
+                    "] is not set, but the following settings have been configured in elasticsearch.yml : [" +
+                    Strings.collectionToCommaDelimitedString(sslSettingNames) + "]");
+            }
         }
     }
 

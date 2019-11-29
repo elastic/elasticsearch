@@ -121,68 +121,63 @@ public class TransformProgressIT extends ESRestTestCase {
         createReviewsIndex();
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
         DestConfig destConfig = new DestConfig("unnecessary", null);
-        GroupConfig histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
-            Collections.singletonMap("every_50", new HistogramGroupSource("count", 50.0)));
+        GroupConfig histgramGroupConfig = new GroupConfig(
+            Collections.emptyMap(),
+            Collections.singletonMap("every_50", new HistogramGroupSource("count", 50.0))
+        );
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
         PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        TransformConfig config = new TransformConfig("get_progress_transform",
+        TransformConfig config = new TransformConfig(
+            "get_progress_transform",
             sourceConfig,
             destConfig,
             null,
             null,
             null,
             pivotConfig,
-            null);
+            null
+        );
 
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         SearchResponse response = restClient.search(
             TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
-            RequestOptions.DEFAULT);
+            RequestOptions.DEFAULT
+        );
 
-        TransformProgress progress =
-            TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
+        TransformProgress progress = TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
-
         QueryConfig queryConfig = new QueryConfig(Collections.emptyMap(), QueryBuilders.termQuery("user_id", "user_26"));
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        sourceConfig = new SourceConfig(new String[]{REVIEWS_INDEX_NAME}, queryConfig);
-        config = new TransformConfig("get_progress_transform",
-            sourceConfig,
-            destConfig,
-            null,
-            null,
-            null,
-            pivotConfig,
-            null);
+        sourceConfig = new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, queryConfig);
+        config = new TransformConfig("get_progress_transform", sourceConfig, destConfig, null, null, null, pivotConfig, null);
 
-        response = restClient.search(TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
-            RequestOptions.DEFAULT);
+        response = restClient.search(
+            TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
+            RequestOptions.DEFAULT
+        );
         progress = TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(35L));
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
-        histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
-            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", 50.0)));
+        histgramGroupConfig = new GroupConfig(
+            Collections.emptyMap(),
+            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", 50.0))
+        );
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        config = new TransformConfig("get_progress_transform",
-            sourceConfig,
-            destConfig,
-            null,
-            null,
-            null,
-            pivotConfig,
-            null);
+        config = new TransformConfig("get_progress_transform", sourceConfig, destConfig, null, null, null, pivotConfig, null);
 
-        response = restClient.search(TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
-            RequestOptions.DEFAULT);
+        response = restClient.search(
+            TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
+            RequestOptions.DEFAULT
+        );
         progress = TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(0L));
@@ -194,11 +189,9 @@ public class TransformProgressIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        final String token = "Basic " +
-            Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        final String token = "Basic "
+            + Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private class TestRestHighLevelClient extends RestHighLevelClient {

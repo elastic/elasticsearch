@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.enrich.MatchProcessorTests.mapOf;
+import static org.elasticsearch.xpack.enrich.MatchProcessorTests.str;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -70,8 +71,8 @@ public class GeoMatchProcessorTests extends ESTestCase {
             "_tag",
             mockSearch,
             "_name",
-            "location",
-            "entry",
+            str("location"),
+            str("entry"),
             false,
             false,
             "shape",

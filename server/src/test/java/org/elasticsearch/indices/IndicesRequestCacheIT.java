@@ -414,9 +414,49 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 2, 2);
     }
 
+    public void testProfileDisableCache() throws Exception {
+        Client client = client();
+        assertAcked(
+            client.admin().indices().prepareCreate("index")
+                .addMapping("_doc", "k", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get()
+        );
+        indexRandom(true, client.prepareIndex("index", "_doc").setSource("k", "hello"));
+        ensureSearchable("index");
+
+        int expectedHits = 0;
+        int expectedMisses = 0;
+        for (int i = 0; i < 5; i++) {
+            boolean profile = i % 2 == 0;
+            SearchResponse resp = client.prepareSearch("index")
+                .setRequestCache(true)
+                .setProfile(profile)
+                .setQuery(QueryBuilders.termQuery("k", "hello"))
+                .get();
+            assertSearchResponse(resp);
+            ElasticsearchAssertions.assertAllSuccessful(resp);
+            assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
+            if (profile == false) {
+                if (i == 1) {
+                    expectedMisses ++;
+                } else {
+                    expectedHits ++;
+                }
+            }
+            assertCacheState(client, "index", expectedHits, expectedMisses);
+        }
+    }
+
     private static void assertCacheState(Client client, String index, long expectedHits, long expectedMisses) {
-        RequestCacheStats requestCacheStats = client.admin().indices().prepareStats(index).setRequestCache(true).get().getTotal()
-                .getRequestCache();
+        RequestCacheStats requestCacheStats = client.admin().indices().prepareStats(index)
+            .setRequestCache(true)
+            .get().getTotal().getRequestCache();
         // Check the hit count and miss count together so if they are not
         // correct we can see both values
         assertEquals(Arrays.asList(expectedHits, expectedMisses, 0L),

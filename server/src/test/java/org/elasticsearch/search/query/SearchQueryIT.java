@@ -44,6 +44,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -1857,18 +1858,28 @@ public class SearchQueryIT extends ESIntegTestCase {
             .setRouting("custom")
             .setSource("field", "value");
         indexRandom(true, false, indexRequest);
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), true))
+           .get();
+       try {
+           SearchResponse searchResponse = client().prepareSearch()
+               .setQuery(termQuery("routing-alias", "custom"))
+               .addDocValueField("id-alias")
+               .get();
+           assertHitCount(searchResponse, 1L);
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(termQuery("routing-alias", "custom"))
-            .addDocValueField("id-alias")
-            .get();
-        assertHitCount(searchResponse, 1L);
+           SearchHit hit = searchResponse.getHits().getAt(0);
+           assertEquals(2, hit.getFields().size());
+           assertTrue(hit.getFields().containsKey("id-alias"));
 
-        SearchHit hit = searchResponse.getHits().getAt(0);
-        assertEquals(2, hit.getFields().size());
-        assertTrue(hit.getFields().containsKey("id-alias"));
+           DocumentField field = hit.getFields().get("id-alias");
+           assertThat(field.getValue().toString(), equalTo("1"));
+       } finally {
+           // unset cluster setting
+           client().admin().cluster().prepareUpdateSettings()
+               .setTransientSettings(Settings.builder().putNull(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()))
+               .get();
+       }
 
-        DocumentField field = hit.getFields().get("id-alias");
-        assertThat(field.getValue().toString(), equalTo("1"));
    }
 }

@@ -256,7 +256,7 @@ GET /_search
 [[query-dsl-match-query-cutoff]]
 ===== Cutoff frequency
 
-deprecated[7.3.0,"This option can be omitted as the <<query-dsl-match-query>> can skip block of documents efficiently, without any configuration, provided that the total number of hits is not tracked."]
+deprecated[7.3.0,"This option can be omitted as the <<query-dsl-match-query>> can skip blocks of documents efficiently, without any configuration, provided that the total number of hits is not tracked."]
 
 The match query supports a `cutoff_frequency` that allows
 specifying an absolute or relative document frequency where high

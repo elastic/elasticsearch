@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
@@ -33,13 +35,15 @@ import java.util.concurrent.TimeoutException;
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
 
     private final ClusterService clusterService;
+    private final NamedXContentRegistry xContentRegistry;
     private final Map<String, Object> nativeCodeInfo;
 
     @Inject
-    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters,
-                                 ClusterService clusterService, Environment env) {
+    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
+                                 NamedXContentRegistry xContentRegistry, Environment env) {
         super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new);
         this.clusterService = clusterService;
+        this.xContentRegistry = xContentRegistry;
 
         try {
             NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), env);
@@ -85,6 +89,13 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         defaults.put(AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(), defaultModelMemoryLimit());
         defaults.put(AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(), AnalysisLimits.DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT);
         defaults.put(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), Job.DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS);
+        try {
+            defaults.put(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName(),
+                CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(Collections.emptyList())
+                    .asMap(xContentRegistry).get(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName()));
+        } catch (IOException e) {
+            logger.error("failed to convert default categorization analyzer to map", e);
+        }
         return defaults;
     }
 

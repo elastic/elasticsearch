@@ -63,7 +63,7 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
@@ -110,7 +110,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(0);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
 
         final IndexSearcher searcher = shouldCollectSearch ? new IndexSearcher(reader) :
             getAssertingEarlyTerminationSearcher(reader, 0);
@@ -198,7 +198,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher contextSearcher = getAssertingEarlyTerminationSearcher(reader, 0);
         TestSearchContext context = new TestSearchContext(null, indexShard);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
@@ -228,7 +228,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher contextSearcher = new IndexSearcher(reader);
         TestSearchContext context = new TestSearchContext(null, indexShard);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.terminateAfter(1);
         context.setSize(10);
@@ -257,7 +257,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
         assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
 
@@ -271,7 +271,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     public void testQueryCapturesThreadPoolStats() throws Exception {
         TestSearchContext context = new TestSearchContext(null, indexShard);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         Directory dir = newDirectory();
@@ -284,6 +284,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         w.close();
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher contextSearcher = new IndexSearcher(reader);
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
         QuerySearchResult results = context.queryResult();
@@ -313,7 +315,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = null;
         context.scrollContext(scrollContext);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         int size = randomIntBetween(2, 5);
         context.setSize(size);
 
@@ -351,7 +353,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         w.close();
         TestSearchContext context = new TestSearchContext(null, indexShard);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         final IndexReader reader = DirectoryReader.open(dir);
@@ -458,7 +460,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(1);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.sort(new SortAndFormats(sort, new DocValueFormat[] {DocValueFormat.RAW}));
 
         final IndexReader reader = DirectoryReader.open(dir);
@@ -545,7 +547,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             scrollContext.maxScore = Float.NaN;
             scrollContext.totalHits = null;
             context.scrollContext(scrollContext);
-            context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+            context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
             context.setSize(10);
             context.sort(searchSortAndFormat);
 
@@ -599,7 +601,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         IndexSearcher contextSearcher = new IndexSearcher(reader);
         TestSearchContext context = new TestSearchContext(null, indexShard);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         Query q = new SpanNearQuery.Builder("title", true)
             .addClause(new SpanTermQuery(new Term("title", "foo")))
             .addClause(new SpanTermQuery(new Term("title", "bar")))
@@ -704,7 +706,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 .build()
         ));
         context.minimumScore(0.01f);
-        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.setSize(1);
         context.trackTotalHitsUpTo(5);
 

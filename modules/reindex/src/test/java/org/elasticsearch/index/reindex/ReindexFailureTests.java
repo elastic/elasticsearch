@@ -119,7 +119,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                         either(containsString("all shards failed"))
                         .or(containsString("No search context found"))
                         .or(containsString("no such index [source]"))
-                        .or(containsString("Failed to execute phase [query], Partial shards failure"))
+                        .or(containsString("Partial shards failure"))
                 );
                 return;
             }

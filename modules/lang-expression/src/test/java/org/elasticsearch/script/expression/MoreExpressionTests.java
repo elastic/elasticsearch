@@ -79,8 +79,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
 
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-                .addSort(SortBuilders.fieldSort("_id")
-                        .order(SortOrder.ASC))
+                .addSort(SortBuilders.fieldSort("id").order(SortOrder.ASC).unmappedType("long"))
                 .addScriptField("foo", new Script(ScriptType.INLINE, "expression", script, paramsMap));
         return req;
     }
@@ -147,8 +146,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
-                client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
+                client().prepareIndex("test", "doc", "1")
+                    .setSource("id", 1, "date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
+                client().prepareIndex("test", "doc", "2")
+                    .setSource("id", 2, "date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
         SearchResponse rsp = buildRequest("doc['date0'].getSeconds() - doc['date0'].getMinutes()").get();
         assertEquals(2, rsp.getHits().getTotalHits().value);
         SearchHits hits = rsp.getHits();
@@ -175,8 +176,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
-                client().prepareIndex("test", "doc", "2").setSource("date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
+                client().prepareIndex("test", "doc", "1")
+                    .setSource("id", 1, "date0", "2015-04-28T04:02:07Z", "date1", "1985-09-01T23:11:01Z"),
+                client().prepareIndex("test", "doc", "2")
+                    .setSource("id", 2, "date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z"));
         SearchResponse rsp = buildRequest("doc['date0'].date.secondOfMinute - doc['date0'].date.minuteOfHour").get();
         assertEquals(2, rsp.getHits().getTotalHits().value);
         SearchHits hits = rsp.getHits();
@@ -207,15 +210,18 @@ public class MoreExpressionTests extends ESIntegTestCase {
         ensureGreen("test");
 
         Map<String, Object> doc1 = new HashMap<>();
+        doc1.put("id", 1);
         doc1.put("double0", new Double[]{5.0d, 1.0d, 1.5d});
         doc1.put("double1", new Double[]{1.2d, 2.4d});
         doc1.put("double2", 3.0d);
 
         Map<String, Object> doc2 = new HashMap<>();
+        doc2.put("id", 2);
         doc2.put("double0", 5.0d);
         doc2.put("double1", 3.0d);
 
         Map<String, Object> doc3 = new HashMap<>();
+        doc3.put("id", 3);
         doc3.put("double0", new Double[]{5.0d, 1.0d, 1.5d, -1.5d});
         doc3.put("double1", 4.0d);
 
@@ -319,8 +325,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "x", "type=long", "y", "type=long"));
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("x", 4),
-                client().prepareIndex("test", "doc", "2").setSource("y", 2));
+                client().prepareIndex("test", "doc", "1").setSource("id", 1, "x", 4),
+                client().prepareIndex("test", "doc","2").setSource("id", 2, "y", 2));
         SearchResponse rsp = buildRequest("doc['x'] + 1").get();
         ElasticsearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
@@ -348,9 +354,9 @@ public class MoreExpressionTests extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("x", 10),
-                client().prepareIndex("test", "doc", "2").setSource("x", 3),
-                client().prepareIndex("test", "doc", "3").setSource("x", 5));
+                client().prepareIndex("test", "doc", "1").setSource("id", 1, "x", 10),
+                client().prepareIndex("test", "doc", "2").setSource("id", 2, "x", 3),
+                client().prepareIndex("test", "doc", "3").setSource("id", 3, "x", 5));
         // a = int, b = double, c = long
         String script = "doc['x'] * a + b + ((c + doc['x']) > 5000000009 ? 1 : 0)";
         SearchResponse rsp = buildRequest(script, "a", 2, "b", 3.5, "c", 5000000000L).get();
@@ -622,9 +628,9 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("doc", xContentBuilder));
         ensureGreen();
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("price", 1.0, "vip", true),
-                client().prepareIndex("test", "doc", "2").setSource("price", 2.0, "vip", false),
-                client().prepareIndex("test", "doc", "3").setSource("price", 2.0, "vip", false));
+                client().prepareIndex("test", "doc", "1").setSource("id", 1, "price", 1.0, "vip", true),
+                client().prepareIndex("test", "doc", "2").setSource("id", 2, "price", 2.0, "vip", false),
+                client().prepareIndex("test", "doc", "3").setSource("id", 3, "price", 2.0, "vip", false));
         // access .value
         SearchResponse rsp = buildRequest("doc['vip'].value").get();
         assertSearchResponse(rsp);
@@ -653,8 +659,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test");
         indexRandom(true,
-            client().prepareIndex("test", "doc", "1").setSource("foo", 1.0),
-            client().prepareIndex("test", "doc", "2").setSource("foo", 0.0));
+            client().prepareIndex("test", "doc", "1").setSource("id", 1, "foo", 1.0),
+            client().prepareIndex("test", "doc", "2").setSource("id", 2, "foo", 0.0));
         SearchRequestBuilder builder = buildRequest("doc['foo'].value");
         Script script = new Script(ScriptType.INLINE, "expression", "doc['foo'].value", Collections.emptyMap());
         builder.setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.scriptQuery(script)));

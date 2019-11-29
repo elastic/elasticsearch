@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 
@@ -63,21 +64,20 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         oneHotEncoding.put("dog", "animal_dog");
         TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
             .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
-            .setDefinition(new TrainedModelDefinition.Builder()
+            .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
-                .setTrainedModel(buildClassification(true))
-                .setModelId(modelId1))
+                .setTrainedModel(buildClassification(true)))
             .setVersion(Version.CURRENT)
+            .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setCreateTime(Instant.now())
             .setEstimatedOperations(0)
             .setEstimatedHeapMemory(0)
             .build();
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
             .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
-            .setDefinition(new TrainedModelDefinition.Builder()
+            .setParsedDefinition(new TrainedModelDefinition.Builder()
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding)))
-                .setTrainedModel(buildRegression())
-                .setModelId(modelId2))
+                .setTrainedModel(buildRegression()))
             .setVersion(Version.CURRENT)
             .setEstimatedOperations(0)
             .setEstimatedHeapMemory(0)
@@ -119,20 +119,20 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         }});
 
         // Test regression
-        InferModelAction.Request request = new InferModelAction.Request(modelId1, toInfer, new RegressionConfig());
-        InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        InternalInferModelAction.Request request = new InternalInferModelAction.Request(modelId1, toInfer, new RegressionConfig(), true);
+        InternalInferModelAction.Response response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.3, 1.25));
 
-        request = new InferModelAction.Request(modelId1, toInfer2, new RegressionConfig());
-        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        request = new InternalInferModelAction.Request(modelId1, toInfer2, new RegressionConfig(), true);
+        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.65, 1.55));
 
 
         // Test classification
-        request = new InferModelAction.Request(modelId2, toInfer, new ClassificationConfig(0));
-        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(0), true);
+        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults()
                 .stream()
                 .map(i -> ((SingleValueInferenceResults)i).valueAsString())
@@ -140,8 +140,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             contains("not_to_be", "to_be"));
 
         // Get top classes
-        request = new InferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2));
-        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2), true);
+        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults =
             (ClassificationInferenceResults)response.getInferenceResults().get(0);
@@ -159,8 +159,8 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         // Test that top classes restrict the number returned
-        request = new InferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1));
-        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1), true);
+        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
         assertThat(classificationInferenceResults.getTopClasses(), hasSize(1));
@@ -169,9 +169,13 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
     public void testInferMissingModel() {
         String model = "test-infer-missing-model";
-        InferModelAction.Request request = new InferModelAction.Request(model, Collections.emptyList(), new RegressionConfig());
+        InternalInferModelAction.Request request = new InternalInferModelAction.Request(
+            model,
+            Collections.emptyList(),
+            new RegressionConfig(),
+            true);
         try {
-            client().execute(InferModelAction.INSTANCE, request).actionGet();
+            client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         } catch (ElasticsearchException ex) {
             assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
@@ -180,7 +184,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
     private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId) {
         return TrainedModelConfig.builder()
             .setCreatedBy("ml_test")
-            .setDefinition(TrainedModelDefinitionTests.createRandomBuilder(modelId))
+            .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
             .setDescription("trained model config for test")
             .setModelId(modelId);
     }

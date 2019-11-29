@@ -24,6 +24,7 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.SuppressForbidden;
@@ -77,8 +78,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
         final Map<String, HttpHandler> handlers = new HashMap<>(2);
-        handlers.put("/", new GoogleCloudStorageHttpHandler("bucket"));
-        handlers.put("/token", new fixture.gcs.FakeOAuth2HttpHandler());
+        handlers.put("/", new GoogleCloudStorageBlobStoreHttpHandler("bucket"));
+        handlers.put("/token", new FakeOAuth2HttpHandler());
         return Collections.unmodifiableMap(handlers);
     }
 
@@ -186,6 +187,14 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
+    @SuppressForbidden(reason = "this test uses a HttpHandler to emulate a Google Cloud Storage endpoint")
+    private static class GoogleCloudStorageBlobStoreHttpHandler extends GoogleCloudStorageHttpHandler implements BlobStoreHttpHandler {
+
+        GoogleCloudStorageBlobStoreHttpHandler(final String bucket) {
+            super(bucket);
+        }
+    }
+
     /**
      * HTTP handler that injects random  Google Cloud Storage service errors
      *
@@ -204,7 +213,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             if ("/token".equals(exchange.getRequestURI().getPath())) {
                 try {
                     // token content is unique per node (not per request)
-                    return Streams.readFully(exchange.getRequestBody()).utf8ToString();
+                    return Streams.readFully(Streams.noCloseStream(exchange.getRequestBody())).utf8ToString();
                 } catch (IOException e) {
                     throw new AssertionError("Unable to read token request body", e);
                 }

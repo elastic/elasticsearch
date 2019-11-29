@@ -47,9 +47,6 @@ public class License implements ToXContentObject {
         ENTERPRISE,
         TRIAL;
 
-        static final List<String> ALL_TYPE_NAMES =
-            Stream.of(values()).map(LicenseType::getTypeName).collect(Collectors.toUnmodifiableList());
-
         public String getTypeName() {
             return name().toLowerCase(Locale.ROOT);
         }

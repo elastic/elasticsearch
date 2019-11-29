@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service responsible for managing {@link LicensesMetaData}.
@@ -64,8 +65,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return SelfGeneratedLicense.validateSelfGeneratedType(type);
     }, Setting.Property.NodeScope);
 
-    public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES = Setting.listSetting("xpack.license.upload.types",
-        License.LicenseType.ALL_TYPE_NAMES, License.LicenseType::parse, Setting.Property.NodeScope);
+    static final List<License.LicenseType> ALLOWABLE_UPLOAD_TYPES = getAllowableUploadTypes();
+
+    public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES_SETTING = Setting.listSetting("xpack.license.upload.types",
+        ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList()),
+        License.LicenseType::parse, LicenseService::validateUploadTypesSetting, Setting.Property.NodeScope);
 
     // pkg private for tests
     static final TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
@@ -109,7 +113,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     /**
      * Which license types are permitted to be uploaded to the cluster
-     * @see #ALLOWED_LICENSE_TYPES
+     * @see #ALLOWED_LICENSE_TYPES_SETTING
      */
     private final List<License.LicenseType> allowedLicenseTypes;
 
@@ -132,7 +136,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
-        this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES.get(settings);
+        this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
             XPackPlugin.resolveConfigFile(env, "license_mode"), logger,
             () -> updateLicenseState(getLicensesMetaData()));
@@ -203,6 +207,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     public void registerLicense(final PutLicenseRequest request, final ActionListener<PutLicenseResponse> listener) {
         final License newLicense = request.license();
+        final long now = clock.millis();
+        if (!LicenseVerifier.verifyLicense(newLicense) || newLicense.issueDate() > now || newLicense.startDate() > now) {
+            listener.onResponse(new PutLicenseResponse(true, LicensesStatus.INVALID));
+            return;
+        }
         final License.LicenseType licenseType;
         try {
             licenseType = License.LicenseType.resolve(newLicense);
@@ -210,10 +219,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             listener.onFailure(e);
             return;
         }
-        final long now = clock.millis();
-        if (!LicenseVerifier.verifyLicense(newLicense) || newLicense.issueDate() > now || newLicense.startDate() > now) {
-            listener.onResponse(new PutLicenseResponse(true, LicensesStatus.INVALID));
-        } else if (licenseType == License.LicenseType.BASIC) {
+        if (licenseType == License.LicenseType.BASIC) {
             listener.onFailure(new IllegalArgumentException("Registering basic licenses is not allowed."));
         } else if (isAllowedLicenseType(licenseType) == false) {
             listener.onFailure(new IllegalArgumentException(
@@ -598,5 +604,21 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     private static boolean isBoundToLoopback(DiscoveryNode localNode) {
         return localNode.getAddress().address().getAddress().isLoopbackAddress();
+    }
+
+    private static List<License.LicenseType> getAllowableUploadTypes() {
+        return Stream.of(License.LicenseType.values())
+            .filter(t -> t != License.LicenseType.BASIC)
+            .collect(Collectors.toUnmodifiableList());
+    }
+
+    private static void validateUploadTypesSetting(List<License.LicenseType> value) {
+        if (ALLOWABLE_UPLOAD_TYPES.containsAll(value) == false) {
+            throw new IllegalArgumentException("Invalid value [" +
+                value.stream().map(License.LicenseType::getTypeName).collect(Collectors.joining(",")) +
+                "] for " + ALLOWED_LICENSE_TYPES_SETTING.getKey() + ", allowed values are [" +
+                ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.joining(",")) +
+                "]");
+        }
     }
 }

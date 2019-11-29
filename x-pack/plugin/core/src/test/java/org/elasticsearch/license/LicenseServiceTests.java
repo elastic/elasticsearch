@@ -7,7 +7,6 @@ package org.elasticsearch.license;
 
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -68,7 +67,7 @@ public class LicenseServiceTests extends ESTestCase {
     }
 
     /**
-     * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES} is on its default value (all license types)
+     * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES_SETTING} is on its default value (all license types)
      */
     public void testRegisterLicenseWithoutTypeRestrictions() throws Exception {
         assertRegisterValidLicense(Settings.EMPTY,
@@ -76,31 +75,33 @@ public class LicenseServiceTests extends ESTestCase {
     }
 
     /**
-     * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES} is set, and the uploaded license type matches
+     * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES_SETTING} is set,
+     * and the uploaded license type matches
      */
     public void testSuccessfullyRegisterLicenseMatchingTypeRestrictions() throws Exception {
         final List<License.LicenseType> allowed = randomSubsetOf(
-            randomIntBetween(2, License.LicenseType.values().length - 1), License.LicenseType.values());
+            randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 1), LicenseService.ALLOWABLE_UPLOAD_TYPES);
         final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList());
         final Settings settings = Settings.builder()
             .putList("xpack.license.upload.types", allowedNames)
             .build();
-        assertRegisterValidLicense(settings, randomValueOtherThan(License.LicenseType.BASIC, () -> randomFrom(allowed)));
+        assertRegisterValidLicense(settings, randomFrom(allowed));
     }
 
     /**
-     * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES} is set, and the uploaded license type does not match
+     * Tests loading a license when {@link LicenseService#ALLOWED_LICENSE_TYPES_SETTING} is set,
+     * and the uploaded license type does not match
      */
     public void testFailToRegisterLicenseNotMatchingTypeRestrictions() throws Exception {
         final List<License.LicenseType> allowed = randomSubsetOf(
-            randomIntBetween(1, License.LicenseType.values().length - 3), License.LicenseType.values());
+            randomIntBetween(1, LicenseService.ALLOWABLE_UPLOAD_TYPES.size() - 2), LicenseService.ALLOWABLE_UPLOAD_TYPES);
         final List<String> allowedNames = allowed.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList());
         final Settings settings = Settings.builder()
             .putList("xpack.license.upload.types", allowedNames)
             .build();
         final License.LicenseType notAllowed = randomValueOtherThanMany(
-            test -> test == License.LicenseType.BASIC || allowed.contains(test),
-            () -> randomFrom(License.LicenseType.values()));
+            test -> allowed.contains(test),
+            () -> randomFrom(LicenseService.ALLOWABLE_UPLOAD_TYPES));
         assertRegisterDisallowedLicenseType(settings, notAllowed);
     }
 

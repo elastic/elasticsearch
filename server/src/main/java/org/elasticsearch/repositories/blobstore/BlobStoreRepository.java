@@ -283,6 +283,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
         }
         final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+        // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
+        // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet exist
         if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && deletionsInProgress != null) {
             bestGenerationFromCS = bestGeneration(deletionsInProgress.getEntries());
         }

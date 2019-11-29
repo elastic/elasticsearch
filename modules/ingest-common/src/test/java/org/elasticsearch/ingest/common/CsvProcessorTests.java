@@ -167,6 +167,29 @@ public class CsvProcessorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> processDocument(new String[]{"a"}, "abc\rabc"));
     }
 
+    public void testQuotedWhitespaces() throws Exception {
+        assumeFalse("quote needed", quote.isEmpty());
+        IngestDocument document = processDocument(new String[]{"a", "b", "c", "d"},
+            "  abc   " + separator + " def" + separator + "ghi  " + separator + " " + quote + "  ooo  " + quote);
+        assertEquals("abc", document.getFieldValue("a", String.class));
+        assertEquals("def", document.getFieldValue("b", String.class));
+        assertEquals("ghi", document.getFieldValue("c", String.class));
+        assertEquals("  ooo  ", document.getFieldValue("d", String.class));
+    }
+
+    public void testUntrimmed() throws Exception {
+        assumeFalse("quote needed", quote.isEmpty());
+        IngestDocument document = processDocument(new String[]{"a", "b", "c", "d", "e", "f"},
+            "  abc   " + separator + " def" + separator + "ghi  " + separator + "   "
+                + quote + "ooo" + quote + "    " + separator + "  " + quote + "jjj" + quote + "   ", false);
+        assertEquals("  abc   ", document.getFieldValue("a", String.class));
+        assertEquals(" def", document.getFieldValue("b", String.class));
+        assertEquals("ghi  ", document.getFieldValue("c", String.class));
+        assertEquals("ooo", document.getFieldValue("d", String.class));
+        assertEquals("jjj", document.getFieldValue("e", String.class));
+        assertFalse(document.hasField("f"));
+    }
+
     public void testEmptyHeaders() throws Exception {
         assumeTrue("single run only", quote.isEmpty());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -181,11 +204,15 @@ public class CsvProcessorTests extends ESTestCase {
     }
 
     private IngestDocument processDocument(String[] headers, String csv) throws Exception {
+        return processDocument(headers, csv, true);
+    }
+
+    private IngestDocument processDocument(String[] headers, String csv, boolean trim) throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
 
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, csv);
         char quoteChar = quote.isEmpty() ? '"' : quote.charAt(0);
-        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), fieldName, headers, true, separator, quoteChar, false);
+        CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), fieldName, headers, trim, separator, quoteChar, false);
 
         processor.execute(ingestDocument);
 

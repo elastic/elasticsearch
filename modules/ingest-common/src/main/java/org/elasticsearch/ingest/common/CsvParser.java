@@ -89,19 +89,19 @@ final class CsvParser {
 
     private boolean processStart() {
         for (; currentIndex < length; currentIndex++) {
-            char c = line.charAt(currentIndex);
+            char c = currentChar();
             if (c == quote) {
                 state = State.QUOTED;
                 builder.setLength(0);
-                startIndex++;
+                startIndex = currentIndex + 1;
                 return false;
             } else if (c == separator) {
                 startIndex++;
                 if (nextHeader()) {
                     return true;
                 }
-            } else if (trim && (c == ' ' || c == '\t')) {
-                startIndex++;
+            } else if (isWhitespace(c)) {
+                if (trim) startIndex++;
             } else {
                 state = State.UNQUOTED;
                 builder.setLength(0);
@@ -112,17 +112,22 @@ final class CsvParser {
     }
 
     private boolean processUnquoted() {
+        int spaceCount = 0;
         for (; currentIndex < length; currentIndex++) {
-            char c = line.charAt(currentIndex);
+            char c = currentChar();
             if (c == '\n' || c == '\r' || c == quote) {
                 throw new IllegalArgumentException("Illegal character inside unquoted field at " + currentIndex);
+            } else if (trim && isWhitespace(c)) {
+                spaceCount++;
             } else if (c == separator) {
                 state = State.START;
-                if (setField(currentIndex)) {
+                if (setField(currentIndex - spaceCount)) {
                     return true;
                 }
                 startIndex = currentIndex + 1;
                 return false;
+            } else {
+                spaceCount = 0;
             }
         }
         return false;
@@ -130,7 +135,7 @@ final class CsvParser {
 
     private void processQuoted() {
         for (; currentIndex < length; currentIndex++) {
-            if (line.charAt(currentIndex) == quote) {
+            if (currentChar() == quote) {
                 state = State.QUOTED_END;
                 break;
             }
@@ -138,21 +143,43 @@ final class CsvParser {
     }
 
     private boolean processQuotedEnd() {
-        char c = line.charAt(currentIndex);
+        char c = currentChar();
         if (c == quote) {
             builder.append(line, startIndex, currentIndex - 1).append(quote);
             startIndex = currentIndex + 1;
             state = State.QUOTED;
-        } else if (c == separator) {
-            if (setField(currentIndex - 1)) {
-                return true;
-            }
-            startIndex = currentIndex + 1;
-            state = State.START;
-        } else {
-            throw new IllegalArgumentException("Characters after quoted field at " + currentIndex);
+            return false;
         }
-        return false;
+        boolean shouldSetField = true;
+        for (; currentIndex < length; currentIndex++) {
+            c = currentChar();
+            if (isWhitespace(c)) {
+                if (shouldSetField) {
+                    if (setField(currentIndex - 1)) {
+                        return true;
+                    }
+                    shouldSetField = false;
+                }
+            } else if (c == separator) {
+                if (shouldSetField && setField(currentIndex - 1)) {
+                    return true;
+                }
+                startIndex = currentIndex + 1;
+                state = State.START;
+                return false;
+            } else {
+                throw new IllegalArgumentException("character '" + c + "' after quoted field at " + currentIndex);
+            }
+        }
+        return true;
+    }
+
+    private char currentChar() {
+        return line.charAt(currentIndex);
+    }
+
+    private boolean isWhitespace(char c) {
+        return c == ' ' || c == '\t';
     }
 
     private boolean setField(int endIndex) {

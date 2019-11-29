@@ -309,7 +309,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         final long finalBestGen = bestGenerationFromCS;
-
         latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
     }
 
@@ -1097,14 +1096,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn("Trying to write new repository data of generation [{}] over unfinished write, repo is in state [{}]",
                         repoState.pendingGeneration(), repoState);
                 }
-                if (expectedGen != repoState.generation()) {
+                if (expectedGen != RepositoryData.EMPTY_REPO_GEN && expectedGen != repoState.generation()) {
                     throw new IllegalStateException(
                         "Expected generation [" + expectedGen + "] does not match generation tracked in [" + repoState + "]");
                 }
                 newGen = repoState.pendingGeneration() + 1;
+                final long safeGeneration = expectedGen == RepositoryData.EMPTY_REPO_GEN ? RepositoryData.EMPTY_REPO_GEN
+                    : repoState.generation();
                 final RepositoriesState updated =
                     RepositoriesState.builder().putAll(state).putState(
-                        metadata.name(), repoState.generation(), newGen).build();
+                        metadata.name(), safeGeneration, newGen).build();
                 return ClusterState.builder(currentState).putCustom(RepositoriesState.TYPE, updated).build();
             }
 

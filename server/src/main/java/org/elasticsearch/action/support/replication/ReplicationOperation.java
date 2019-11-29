@@ -110,8 +110,6 @@ public class ReplicationOperation<
 
     private void handlePrimaryResult(final PrimaryResultT primaryResult) {
         this.primaryResult = primaryResult;
-        primary.updateLocalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.localCheckpoint());
-        primary.updateGlobalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.globalCheckpoint());
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
             if (logger.isTraceEnabled()) {
@@ -134,6 +132,28 @@ public class ReplicationOperation<
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
             performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup);
         }
+        primaryResult.runPostReplicationActions(new ActionListener<>() {
+
+            @Override
+            public void onResponse(Void aVoid) {
+                try {
+                    primary.updateLocalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.localCheckpoint());
+                    primary.updateGlobalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.globalCheckpoint());
+                } catch (final AlreadyClosedException e) {
+                    // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
+                } catch (final Exception e) {
+                    // fail the primary but fall through and let the rest of operation processing complete
+                    final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for itself");
+                    primary.failShard(message, e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // TODO: fail shard? This will otherwise have the local / global checkpoint info lagging
+                logger.trace("[{}] op [{}] post replication actions failed for [{}]", primary.routingEntry().shardId(), opType, request);
+            }
+        });
         successfulShards.incrementAndGet();  // mark primary as successful
         decPendingAndFinishIfNeeded();
     }
@@ -464,5 +484,9 @@ public class ReplicationOperation<
         @Nullable RequestT replicaRequest();
 
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
+
+        /** trigger actions to be triggered post replication
+         * @param onWriteCompletion*/
+        void runPostReplicationActions(ActionListener<Void> onWriteCompletion);
     }
 }

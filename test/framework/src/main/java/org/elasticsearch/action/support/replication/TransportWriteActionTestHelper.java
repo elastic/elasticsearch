@@ -45,7 +45,7 @@ public abstract class TransportWriteActionTestHelper {
                 throw new AssertionError(ex);
             }
         };
-        new TransportWriteAction.AsyncAfterWriteAction(indexShard, request, location, writerResult, logger).run();
+        new TransportWriteAction.AsyncAfterWriteAction(indexShard, request, location, writerResult, null, logger).run();
         try {
             latch.await();
         } catch (InterruptedException e) {

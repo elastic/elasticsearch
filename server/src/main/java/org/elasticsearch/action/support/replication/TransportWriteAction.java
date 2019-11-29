@@ -130,6 +130,7 @@ public abstract class TransportWriteAction<
         public final Location location;
         public final IndexShard primary;
         ActionListener<Response> listener = null;
+        private final Logger logger;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
                                   @Nullable Location location, @Nullable Exception operationFailure,
@@ -137,17 +138,23 @@ public abstract class TransportWriteAction<
             super(request, finalResponse, operationFailure);
             this.location = location;
             this.primary = primary;
+            this.logger = logger;
             assert location == null || operationFailure == null
                     : "expected either failure to be null or translog location to be null, " +
                     "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
-            if (operationFailure != null) {
+        }
+
+        @Override
+        public void runPostReplicationActions(ActionListener<Void> onWriteCompletion) {
+            if (finalFailure != null) {
                 this.finishedAsyncActions = true;
+                onWriteCompletion.onResponse(null);
             } else {
                 /*
-                 * We call this before replication because this might wait for a refresh and that can take a while.
+                 * We call this after replication because this might wait for a refresh and that can take a while.
                  * This way we wait for the refresh in parallel on the primary and on the replica.
                  */
-                new AsyncAfterWriteAction(primary, request, location, this, logger).run();
+                new AsyncAfterWriteAction(primary, replicaRequest, location, this, onWriteCompletion, logger).run();
             }
         }
 
@@ -200,7 +207,7 @@ public abstract class TransportWriteAction<
             if (operationFailure != null) {
                 this.finishedAsyncActions = true;
             } else {
-                new AsyncAfterWriteAction(replica, request, location, this, logger).run();
+                new AsyncAfterWriteAction(replica, request, location, this, null, logger).run();
             }
         }
 
@@ -277,6 +284,7 @@ public abstract class TransportWriteAction<
         private final AtomicBoolean refreshed = new AtomicBoolean(false);
         private final AtomicReference<Exception> syncFailure = new AtomicReference<>(null);
         private final RespondingWriteResult respond;
+        private final ActionListener<Void> onWriteCompletion;
         private final IndexShard indexShard;
         private final WriteRequest<?> request;
         private final Logger logger;
@@ -285,9 +293,11 @@ public abstract class TransportWriteAction<
                              final WriteRequest<?> request,
                              @Nullable final Translog.Location location,
                              final RespondingWriteResult respond,
+                             final ActionListener<Void> onWriteCompletion,
                              final Logger logger) {
             this.indexShard = indexShard;
             this.request = request;
+            this.onWriteCompletion = onWriteCompletion;
             boolean waitUntilRefresh = false;
             switch (request.getRefreshPolicy()) {
                 case IMMEDIATE:
@@ -352,6 +362,13 @@ public abstract class TransportWriteAction<
             if (sync) {
                 assert pendingOps.get() > 0;
                 indexShard.sync(location, (ex) -> {
+                    if (onWriteCompletion != null) {
+                        if (ex == null) {
+                            onWriteCompletion.onResponse(null);
+                        } else {
+                            onWriteCompletion.onFailure(ex);
+                        }
+                    }
                     syncFailure.set(ex);
                     maybeFinish();
                 });

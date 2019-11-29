@@ -505,6 +505,11 @@ public class ReplicationOperationTests extends ESTestCase {
                 this.shardInfo = shardInfo;
             }
 
+            @Override
+            public void runPostReplicationActions(ActionListener<Void> onWriteCompletion) {
+                onWriteCompletion.onResponse(null);
+            }
+
             public ShardInfo getShardInfo() {
                 return shardInfo;
             }

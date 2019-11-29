@@ -731,6 +731,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 finalResponse.setShardInfo(shardInfo);
             }
 
+            @Override
+            public void runPostReplicationActions(ActionListener<Void> onWriteCompletion) {
+                onWriteCompletion.onResponse(null);
+            }
+
             public void respond(ActionListener<Response> listener) {
                 listener.onResponse(finalResponse);
             }

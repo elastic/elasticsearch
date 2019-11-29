@@ -395,7 +395,7 @@ public abstract class TransportReplicationAction<
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             Response extends ReplicationResponse>
             implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
-        final ReplicaRequest replicaRequest;
+        protected final ReplicaRequest replicaRequest;
         public final Response finalResponseIfSuccessful;
         public final Exception finalFailure;
 
@@ -410,6 +410,11 @@ public abstract class TransportReplicationAction<
             this.replicaRequest = replicaRequest;
             this.finalResponseIfSuccessful = finalResponseIfSuccessful;
             this.finalFailure = finalFailure;
+        }
+
+        @Override
+        public void runPostReplicationActions(ActionListener<Void> onWriteCompletion) {
+            onWriteCompletion.onResponse(null);
         }
 
         public PrimaryResult(ReplicaRequest replicaRequest, Response replicationResponse) {

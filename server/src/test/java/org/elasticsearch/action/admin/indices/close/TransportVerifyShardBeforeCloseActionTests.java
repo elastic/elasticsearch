@@ -348,6 +348,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
             this.shardInfo.set(shardInfo);
         }
 
+        @Override
+        public void runPostReplicationActions(ActionListener<Void> onWriteCompletion) {
+            onWriteCompletion.onResponse(null);
+        }
+
         public ReplicationResponse.ShardInfo getShardInfo() {
             return shardInfo.get();
         }

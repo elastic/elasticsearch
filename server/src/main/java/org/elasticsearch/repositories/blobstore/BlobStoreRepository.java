@@ -244,8 +244,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    protected void doStop() {
-    }
+    protected void doStop() {}
 
     @Override
     protected void doClose() {

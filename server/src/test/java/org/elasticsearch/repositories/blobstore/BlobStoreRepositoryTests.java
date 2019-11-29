@@ -228,7 +228,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         Environment useCompressEnvironment =
             new Environment(useCompressSettings, node().getEnvironment().configFile());
 
-        new FsRepository(metaData, useCompressEnvironment, null, null);
+        new FsRepository(metaData, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService());
 
         assertWarnings("[repositories.fs.compress] setting was deprecated in Elasticsearch and will be removed in a future release!" +
             " See the breaking changes documentation for the next major version.");

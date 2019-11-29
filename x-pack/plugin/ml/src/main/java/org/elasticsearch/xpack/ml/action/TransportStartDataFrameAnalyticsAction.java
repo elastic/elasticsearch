@@ -236,7 +236,7 @@ public class TransportStartDataFrameAnalyticsAction
         // Step 5. Validate mappings can be merged
         ActionListener<StartContext> toValidateMappingsListener = ActionListener.wrap(
             startContext -> MappingsMerger.mergeMappings(client, startContext.config.getHeaders(),
-                startContext.config.getSource().getIndex(), ActionListener.wrap(
+                startContext.config.getSource(), ActionListener.wrap(
                 mappings -> validateMappingsMergeListener.onResponse(startContext), finalListener::onFailure)),
             finalListener::onFailure
         );

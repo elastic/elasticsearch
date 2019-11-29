@@ -189,7 +189,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             client().prepareIndex(index).setId("1")
                 .setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
             client().prepareIndex(index).setId("2")
-                .setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
+                .setSource("{\"id\":\"2\",\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         // searching for either of the terms should return both results since they collate to the same value

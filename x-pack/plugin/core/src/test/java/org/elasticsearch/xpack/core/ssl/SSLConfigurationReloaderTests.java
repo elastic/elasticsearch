@@ -509,16 +509,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     }
 
     private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {
-        final Path keystorePath = tempDir.resolve("testclient.jks");
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
+        final Path keyPath = tempDir.resolve("testclient.pem");
+        final Path certPath = tempDir.resolve("testclientcert.crt"); // testclient.crt filename already used in #testPEMTrustReloadException
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), keyPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), certPath);
 
         if (secureSettings == null) {
             secureSettings = new MockSecureSettings();
         }
-        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
 
         return Settings.builder()
-            .put("xpack.security.transport.ssl.keystore.path", keystorePath.toString())
+            .put("xpack.security.transport.ssl.key", keyPath.toString())
+            .put("xpack.security.transport.ssl.certificate", certPath.toString())
             .setSecureSettings(secureSettings);
     }
 

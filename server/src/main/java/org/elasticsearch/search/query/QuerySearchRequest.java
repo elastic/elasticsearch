@@ -21,7 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -86,7 +86,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     public String getDescription() {

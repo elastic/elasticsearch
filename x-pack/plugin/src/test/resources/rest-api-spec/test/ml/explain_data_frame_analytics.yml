@@ -1,0 +1,308 @@
+---
+"Test neither job id nor body":
+  - do:
+      catch: /Please provide a job \[id\] or the config object/
+      ml.explain_data_frame_analytics:
+        id: ""
+
+---
+"Test both job id and body":
+  - do:
+      catch: /Please provide either a job \[id\] or the config object but not both/
+      ml.explain_data_frame_analytics:
+        id: "foo"
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+
+---
+"Test missing job":
+  - do:
+      catch: missing
+      ml.explain_data_frame_analytics:
+        id: "no_such_job"
+
+---
+"Test id that matches multiple jobs":
+
+  - do:
+      indices.create:
+        index: index-source
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-2"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /expected only one config but matched \[foo-1, foo-2\]/
+      ml.explain_data_frame_analytics:
+        id: "foo-*"
+
+---
+"Test empty data frame given body":
+
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              x:
+                type: float
+              y:
+                type: float
+
+  - do:
+      catch: /Unable to estimate memory usage as no documents in the source indices \[index-source\] contained all the fields selected for analysis/
+      ml.explain_data_frame_analytics:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { x: 1 }
+  - match: { result: "created" }
+
+  # Note that value for "y" is missing and outlier detection analysis does not support missing values.
+  # Hence, the data frame is still considered empty.
+  - do:
+      catch: /Unable to estimate memory usage as no documents in the source indices \[index-source\] contained all the fields selected for analysis/
+      ml.explain_data_frame_analytics:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+
+---
+"Test non-empty data frame given body":
+
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              x:
+                type: float
+              y:
+                type: float
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { x: 1, y: 10 }
+  - match: { result: "created" }
+
+  - do:
+      ml.explain_data_frame_analytics:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { memory_estimation.expected_memory_without_disk: "3kb" }
+  - match: { memory_estimation.expected_memory_with_disk: "3kb" }
+  - length: { field_selection: 2 }
+  - match: { field_selection.0.name: "x" }
+  - match: { field_selection.0.mapping_types: ["float"] }
+  - match: { field_selection.0.is_included: true }
+  - match: { field_selection.0.is_required: false }
+  - match: { field_selection.0.feature_type: "numerical" }
+  - is_false: field_selection.0.reason
+  - match: { field_selection.1.name: "y" }
+  - match: { field_selection.1.mapping_types: ["float"] }
+  - match: { field_selection.1.is_included: true }
+  - match: { field_selection.1.is_required: false }
+  - match: { field_selection.1.feature_type: "numerical" }
+  - is_false: field_selection.1.reason
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { x: 2, y: 20 }
+  - match: { result: "created" }
+
+  - do:
+      ml.explain_data_frame_analytics:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { memory_estimation.expected_memory_without_disk: "4kb" }
+  - match: { memory_estimation.expected_memory_with_disk: "4kb" }
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { x: 3, y: 30 }
+  - match: { result: "created" }
+
+  - do:
+      ml.explain_data_frame_analytics:
+        body:
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { memory_estimation.expected_memory_without_disk: "6kb" }
+  - match: { memory_estimation.expected_memory_with_disk: "5kb" }
+
+---
+"Test field_selection given body":
+
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              field_1:
+                type: integer
+              field_2:
+                type: double
+              field_3:
+                type: date
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { field_1: 3, field_2: 3.14, field_3: "2019-11-11T00:00:00", field_4: "blah" }
+  - match: { result: "created" }
+
+  - do:
+      ml.explain_data_frame_analytics:
+        body:
+          source: { index: "index-source" }
+          analysis: { regression: { dependent_variable: "field_1" } }
+  - is_true: memory_estimation.expected_memory_without_disk
+  - is_true: memory_estimation.expected_memory_with_disk
+  - length: { field_selection: 5 }
+  - match: { field_selection.0.name: "field_1" }
+  - match: { field_selection.0.mapping_types: ["integer"] }
+  - match: { field_selection.0.is_included: true }
+  - match: { field_selection.0.is_required: true }
+  - match: { field_selection.0.feature_type: "numerical" }
+  - is_false: field_selection.0.reason
+  - match: { field_selection.1.name: "field_2" }
+  - match: { field_selection.1.mapping_types: ["double"] }
+  - match: { field_selection.1.is_included: true }
+  - match: { field_selection.1.is_required: false }
+  - match: { field_selection.1.feature_type: "numerical" }
+  - is_false: field_selection.1.reason
+  - match: { field_selection.2.name: "field_3" }
+  - match: { field_selection.2.mapping_types: ["date"] }
+  - match: { field_selection.2.is_included: false }
+  - match: { field_selection.2.is_required: false }
+  - is_false: field_selection.2.feature_type
+  - match: { field_selection.2.reason: "unsupported type; supported types are [boolean, byte, double, float, half_float, integer, ip, keyword, long, scaled_float, short, text]" }
+  - match: { field_selection.3.name: "field_4" }
+  - match: { field_selection.3.mapping_types: ["text"] }
+  - match: { field_selection.3.is_included: false }
+  - match: { field_selection.3.is_required: false }
+  - is_false: field_selection.3.feature_type
+  - match: { field_selection.3.reason: "[field_4.keyword] is preferred because it is aggregatable" }
+  - match: { field_selection.4.name: "field_4.keyword" }
+  - match: { field_selection.4.mapping_types: ["keyword"] }
+  - match: { field_selection.4.is_included: true }
+  - match: { field_selection.4.is_required: false }
+  - match: { field_selection.4.feature_type: "categorical" }
+  - is_false: field_selection.4.reason
+
+---
+"Test field_selection given job":
+
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              field_1:
+                type: integer
+              field_2:
+                type: double
+              field_3:
+                type: date
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { field_1: 3, field_2: 3.14, field_3: "2019-11-11T00:00:00", field_4: "blah" }
+  - match: { result: "created" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "got-a-job-for-this-one"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"regression":{ "dependent_variable": "field_1" }}
+          }
+
+  - do:
+      ml.explain_data_frame_analytics:
+        id: "got-a-job-for-this-one"
+  - is_true: memory_estimation.expected_memory_without_disk
+  - is_true: memory_estimation.expected_memory_with_disk
+  - length: { field_selection: 5 }
+  - match: { field_selection.0.name: "field_1" }
+  - match: { field_selection.0.mapping_types: ["integer"] }
+  - match: { field_selection.0.is_included: true }
+  - match: { field_selection.0.is_required: true }
+  - match: { field_selection.0.feature_type: "numerical" }
+  - is_false: field_selection.0.reason
+  - match: { field_selection.1.name: "field_2" }
+  - match: { field_selection.1.mapping_types: ["double"] }
+  - match: { field_selection.1.is_included: true }
+  - match: { field_selection.1.is_required: false }
+  - match: { field_selection.1.feature_type: "numerical" }
+  - is_false: field_selection.1.reason
+  - match: { field_selection.2.name: "field_3" }
+  - match: { field_selection.2.mapping_types: ["date"] }
+  - match: { field_selection.2.is_included: false }
+  - match: { field_selection.2.is_required: false }
+  - is_false: field_selection.2.feature_type
+  - match: { field_selection.2.reason: "unsupported type; supported types are [boolean, byte, double, float, half_float, integer, ip, keyword, long, scaled_float, short, text]" }
+  - match: { field_selection.3.name: "field_4" }
+  - match: { field_selection.3.mapping_types: ["text"] }
+  - match: { field_selection.3.is_included: false }
+  - match: { field_selection.3.is_required: false }
+  - is_false: field_selection.3.feature_type
+  - match: { field_selection.3.reason: "[field_4.keyword] is preferred because it is aggregatable" }
+  - match: { field_selection.4.name: "field_4.keyword" }
+  - match: { field_selection.4.mapping_types: ["keyword"] }
+  - match: { field_selection.4.is_included: true }
+  - match: { field_selection.4.is_required: false }
+  - match: { field_selection.4.feature_type: "categorical" }
+  - is_false: field_selection.4.reason

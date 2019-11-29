@@ -74,7 +74,7 @@ public class RealmSettings {
      * The {@code Function} takes the <em>realm-type</em> as an argument.
      * @param suffix The suffix of the setting (everything following the realm name in the affix setting)
      * @param delegateFactory A factory to produce the concrete setting.
-     *                       See {@link Setting#affixKeySetting(Setting.AffixKey, Function, Setting.AffixSetting[])}
+     *                       See {@link Setting#affixKeySetting(String, String, Function, Setting.AffixSetting[])}
      */
     public static <T> Function<String, Setting.AffixSetting<T>> affixSetting(String suffix, Function<String, Setting<T>> delegateFactory) {
         return realmType -> Setting.affixKeySetting(realmSettingPrefix(realmType), suffix, delegateFactory);

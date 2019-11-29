@@ -36,6 +36,9 @@ import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -48,7 +51,6 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
-import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
@@ -89,6 +91,8 @@ import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsRequest;
 import org.elasticsearch.client.ml.GetTrainedModelsResponse;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
+import org.elasticsearch.client.ml.GetTrainedModelsStatsResponse;
 import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
@@ -155,10 +159,13 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Confu
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric.ConfusionMatrix;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
+import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.client.ml.inference.TrainedModelStats;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -213,6 +220,7 @@ import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -3460,10 +3468,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testEstimateMemoryUsage() throws Exception {
-        createIndex("estimate-test-source-index");
+    public void testExplainDataFrameAnalytics() throws Exception {
+        createIndex("explain-df-test-source-index");
         BulkRequest bulkRequest =
-            new BulkRequest("estimate-test-source-index")
+            new BulkRequest("explain-df-test-source-index")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; ++i) {
             bulkRequest.add(new IndexRequest().source(XContentType.JSON, "timestamp", 123456789L, "total", 10L));
@@ -3471,22 +3479,33 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
         {
-            // tag::estimate-memory-usage-request
+            // tag::explain-data-frame-analytics-id-request
+            ExplainDataFrameAnalyticsRequest request = new ExplainDataFrameAnalyticsRequest("existing_job_id"); // <1>
+            // end::explain-data-frame-analytics-id-request
+
+            // tag::explain-data-frame-analytics-config-request
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
-                .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("explain-df-test-source-index").build())
                 .setAnalysis(OutlierDetection.createDefault())
                 .build();
-            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config); // <1>
-            // end::estimate-memory-usage-request
+            request = new ExplainDataFrameAnalyticsRequest(config); // <1>
+            // end::explain-data-frame-analytics-config-request
 
-            // tag::estimate-memory-usage-execute
-            EstimateMemoryUsageResponse response = client.machineLearning().estimateMemoryUsage(request, RequestOptions.DEFAULT);
-            // end::estimate-memory-usage-execute
+            // tag::explain-data-frame-analytics-execute
+            ExplainDataFrameAnalyticsResponse response = client.machineLearning().explainDataFrameAnalytics(request,
+                RequestOptions.DEFAULT);
+            // end::explain-data-frame-analytics-execute
 
-            // tag::estimate-memory-usage-response
-            ByteSizeValue expectedMemoryWithoutDisk = response.getExpectedMemoryWithoutDisk(); // <1>
-            ByteSizeValue expectedMemoryWithDisk = response.getExpectedMemoryWithDisk(); // <2>
-            // end::estimate-memory-usage-response
+            // tag::explain-data-frame-analytics-response
+            List<FieldSelection> fieldSelection = response.getFieldSelection(); // <1>
+            MemoryEstimation memoryEstimation = response.getMemoryEstimation(); // <2>
+            // end::explain-data-frame-analytics-response
+
+            assertThat(fieldSelection.size(), equalTo(2));
+            assertThat(fieldSelection.stream().map(FieldSelection::getName).collect(Collectors.toList()), contains("timestamp", "total"));
+
+            ByteSizeValue expectedMemoryWithoutDisk = memoryEstimation.getExpectedMemoryWithoutDisk(); // <1>
+            ByteSizeValue expectedMemoryWithDisk = memoryEstimation.getExpectedMemoryWithDisk(); // <2>
 
             // We are pretty liberal here as this test does not aim at verifying concrete numbers but rather end-to-end user workflow.
             ByteSizeValue lowerBound = new ByteSizeValue(1, ByteSizeUnit.KB);
@@ -3496,14 +3515,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
-                .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("explain-df-test-source-index").build())
                 .setAnalysis(OutlierDetection.createDefault())
                 .build();
-            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config);
-            // tag::estimate-memory-usage-execute-listener
-            ActionListener<EstimateMemoryUsageResponse> listener = new ActionListener<>() {
+            ExplainDataFrameAnalyticsRequest request = new ExplainDataFrameAnalyticsRequest(config);
+            // tag::explain-data-frame-analytics-execute-listener
+            ActionListener<ExplainDataFrameAnalyticsResponse> listener = new ActionListener<>() {
                 @Override
-                public void onResponse(EstimateMemoryUsageResponse response) {
+                public void onResponse(ExplainDataFrameAnalyticsResponse response) {
                     // <1>
                 }
 
@@ -3512,15 +3531,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            // end::estimate-memory-usage-execute-listener
+            // end::explain-data-frame-analytics-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::estimate-memory-usage-execute-async
-            client.machineLearning().estimateMemoryUsageAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::estimate-memory-usage-execute-async
+            // tag::explain-data-frame-analytics-execute-async
+            client.machineLearning().explainDataFrameAnalyticsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::explain-data-frame-analytics-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -3577,6 +3596,105 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetTrainedModelsStats() throws Exception {
+        putTrainedModel("my-trained-model");
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::get-trained-models-stats-request
+            GetTrainedModelsStatsRequest request =
+                new GetTrainedModelsStatsRequest("my-trained-model") // <1>
+                    .setPageParams(new PageParams(0, 1)) // <2>
+                    .setAllowNoMatch(true); // <3>
+            // end::get-trained-models-stats-request
+
+            // tag::get-trained-models-stats-execute
+            GetTrainedModelsStatsResponse response =
+                client.machineLearning().getTrainedModelsStats(request, RequestOptions.DEFAULT);
+            // end::get-trained-models-stats-execute
+
+            // tag::get-trained-models-stats-response
+            List<TrainedModelStats> models = response.getTrainedModelStats();
+            // end::get-trained-models-stats-response
+
+            assertThat(models, hasSize(1));
+        }
+        {
+            GetTrainedModelsStatsRequest request = new GetTrainedModelsStatsRequest("my-trained-model");
+
+            // tag::get-trained-models-stats-execute-listener
+            ActionListener<GetTrainedModelsStatsResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(GetTrainedModelsStatsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-trained-models-stats-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-trained-models-stats-execute-async
+            client.machineLearning()
+                .getTrainedModelsStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-trained-models-stats-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteTrainedModel() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            putTrainedModel("my-trained-model");
+            // tag::delete-trained-model-request
+            DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model"); // <1>
+            // end::delete-trained-model-request
+
+            // tag::delete-trained-model-execute
+            AcknowledgedResponse response = client.machineLearning().deleteTrainedModel(request, RequestOptions.DEFAULT);
+            // end::delete-trained-model-execute
+
+            // tag::delete-trained-model-response
+            boolean deleted = response.isAcknowledged();
+            // end::delete-trained-model-response
+
+            assertThat(deleted, is(true));
+        }
+        {
+            putTrainedModel("my-trained-model");
+            DeleteTrainedModelRequest request = new DeleteTrainedModelRequest("my-trained-model");
+
+            // tag::delete-trained-model-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-trained-model-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-trained-model-execute-async
+            client.machineLearning().deleteTrainedModelAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-trained-model-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();

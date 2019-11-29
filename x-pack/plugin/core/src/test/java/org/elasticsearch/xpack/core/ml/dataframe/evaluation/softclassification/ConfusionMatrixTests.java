@@ -49,22 +49,19 @@ public class ConfusionMatrixTests extends AbstractSerializingTestCase<ConfusionM
     }
 
     public void testEvaluate() {
-        SoftClassificationMetric.ClassInfo classInfo = mock(SoftClassificationMetric.ClassInfo.class);
-        when(classInfo.getName()).thenReturn("foo");
-
         Aggregations aggs = new Aggregations(Arrays.asList(
-            createFilterAgg("confusion_matrix_foo_at_0.25_TP", 1L),
-            createFilterAgg("confusion_matrix_foo_at_0.25_FP", 2L),
-            createFilterAgg("confusion_matrix_foo_at_0.25_TN", 3L),
-            createFilterAgg("confusion_matrix_foo_at_0.25_FN", 4L),
-            createFilterAgg("confusion_matrix_foo_at_0.5_TP", 5L),
-            createFilterAgg("confusion_matrix_foo_at_0.5_FP", 6L),
-            createFilterAgg("confusion_matrix_foo_at_0.5_TN", 7L),
-            createFilterAgg("confusion_matrix_foo_at_0.5_FN", 8L)
+            createFilterAgg("confusion_matrix_at_0.25_TP", 1L),
+            createFilterAgg("confusion_matrix_at_0.25_FP", 2L),
+            createFilterAgg("confusion_matrix_at_0.25_TN", 3L),
+            createFilterAgg("confusion_matrix_at_0.25_FN", 4L),
+            createFilterAgg("confusion_matrix_at_0.5_TP", 5L),
+            createFilterAgg("confusion_matrix_at_0.5_FP", 6L),
+            createFilterAgg("confusion_matrix_at_0.5_TN", 7L),
+            createFilterAgg("confusion_matrix_at_0.5_FN", 8L)
         ));
 
         ConfusionMatrix confusionMatrix = new ConfusionMatrix(Arrays.asList(0.25, 0.5));
-        EvaluationMetricResult result = confusionMatrix.evaluate(classInfo, aggs);
+        EvaluationMetricResult result = confusionMatrix.evaluate(aggs);
 
         String expected = "{\"0.25\":{\"tp\":1,\"fp\":2,\"tn\":3,\"fn\":4},\"0.5\":{\"tp\":5,\"fp\":6,\"tn\":7,\"fn\":8}}";
         assertThat(Strings.toString(result), equalTo(expected));

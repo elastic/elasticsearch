@@ -66,7 +66,10 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             String index = in.readString();
             if (in.getVersion().before(Version.V_8_0_0)) {
                 int typesSize = in.readVInt();
-                assert typesSize == 1;
+                assert typesSize == 1 || typesSize == 0;
+                if (typesSize == 0) {
+                    continue;
+                }
                 in.readString(); // type
             }
             int fieldSize = in.readVInt();

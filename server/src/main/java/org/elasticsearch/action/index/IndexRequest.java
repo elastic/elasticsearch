@@ -101,6 +101,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private XContentType contentType;
 
     private String pipeline;
+    private String finalPipeline;
 
     private boolean isPipelineResolved;
 
@@ -133,6 +134,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         pipeline = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            finalPipeline = in.readOptionalString();
+        }
         if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             isPipelineResolved = in.readBoolean();
         }
@@ -246,6 +250,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("pipeline cannot be an empty string", validationException);
         }
 
+        if (finalPipeline != null && finalPipeline.isEmpty()) {
+            validationException = addValidationError("final pipeline cannot be an empty string", validationException);
+        }
 
         return validationException;
     }
@@ -348,6 +355,26 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public String getPipeline() {
         return this.pipeline;
+    }
+
+    /**
+     * Sets the final ingest pipeline to be executed before indexing the document.
+     *
+     * @param finalPipeline the name of the final pipeline
+     * @return this index request
+     */
+    public IndexRequest setFinalPipeline(final String finalPipeline) {
+        this.finalPipeline = finalPipeline;
+        return this;
+    }
+
+    /**
+     * Returns the final ingest pipeline to be executed before indexing the document.
+     *
+     * @return the name of the final pipeline
+     */
+    public String getFinalPipeline() {
+        return this.finalPipeline;
     }
 
     /**
@@ -686,6 +713,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeLong(version);
         out.writeByte(versionType.getValue());
         out.writeOptionalString(pipeline);
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            out.writeOptionalString(finalPipeline);
+        }
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeBoolean(isPipelineResolved);
         }

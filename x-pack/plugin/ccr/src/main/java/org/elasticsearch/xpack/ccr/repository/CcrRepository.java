@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -426,6 +427,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId leaderShardId) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
+    }
+
+    @Override
+    public void updateState(ClusterState state) {
     }
 
     private void updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,

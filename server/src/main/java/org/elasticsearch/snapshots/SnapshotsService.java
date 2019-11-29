@@ -587,7 +587,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             ExceptionsHelper.stackTrace(exception),
                             0,
                             Collections.emptyList(),
-                            snapshot.getRepositoryStateId(),
+                            snapshot.repositoryStateId(),
                             snapshot.includeGlobalState(),
                             metaDataForSnapshot(snapshot, clusterService.state().metaData()),
                             snapshot.userMetadata(),
@@ -796,7 +796,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
             assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
             SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
-            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.getRepositoryStateId(),
+            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.repositoryStateId(),
                 state.nodes().getMinNodeVersion());
         }
     }
@@ -866,7 +866,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             public void onFailure(Exception e) {
                                 logger.warn("failed to clean up abandoned snapshot {} in INIT state", snapshot.snapshot());
                             }
-                        }, updatedSnapshot.getRepositoryStateId(), false);
+                        }, updatedSnapshot.repositoryStateId(), false);
                     }
                     assert updatedSnapshot.shards().size() == snapshot.shards().size()
                         : "Shard count changed during snapshot status update from [" + snapshot + "] to [" + updatedSnapshot + "]";
@@ -1051,7 +1051,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     failure,
                     entry.shards().size(),
                     unmodifiableList(shardFailures),
-                    entry.getRepositoryStateId(),
+                    entry.repositoryStateId(),
                     entry.includeGlobalState(),
                     metaDataForSnapshot(entry, metaData),
                     entry.userMetadata(),
@@ -1177,7 +1177,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (matchedInProgress.isPresent()) {
                     matchedEntry = matchedInProgress.map(s -> s.snapshot().getSnapshotId());
                     // Derive repository generation if a snapshot is in progress because it will increment the generation when it finishes
-                    repoGenId = matchedInProgress.get().getRepositoryStateId() + 1L;
+                    repoGenId = matchedInProgress.get().repositoryStateId() + 1L;
                 }
             }
             if (matchedEntry.isPresent() == false) {

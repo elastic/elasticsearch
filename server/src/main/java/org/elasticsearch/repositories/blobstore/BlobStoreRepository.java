@@ -35,10 +35,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RepositoryCleanupInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -88,6 +93,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -201,17 +207,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
-     * @param threadPool Threadpool to run long running repository manipulations on asynchronously
+     * @param clusterService ClusterService
      */
     protected BlobStoreRepository(
         final RepositoryMetaData metadata,
         final boolean compress,
         final NamedXContentRegistry namedXContentRegistry,
-        final ThreadPool threadPool) {
+        final ClusterService clusterService) {
         this.compress = compress;
         this.metadata = metadata;
         this.namedXContentRegistry = namedXContentRegistry;
-        this.threadPool = threadPool;
+        this.threadPool = clusterService.getClusterApplierService().threadPool();
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         readOnly = metadata.settings().getAsBoolean("readonly", false);
@@ -238,7 +244,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    protected void doStop() {}
+    protected void doStop() {
+    }
 
     @Override
     protected void doClose() {
@@ -254,6 +261,41 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("cannot close blob store", t);
             }
         }
+    }
+
+    // Inspects all cluster state elements that contain a hint about what the current repository generation is and updates
+    // #latestKnownRepoGen if a newer than currently known generation is found
+    @Override
+    public void updateState(ClusterState state) {
+        if (readOnly) {
+            // No need to waste cycles, no operations can run against a read-only repository
+            return;
+        }
+        long bestGenerationFromCS = RepositoryData.EMPTY_REPO_GEN;
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+        if (snapshotsInProgress != null) {
+            bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
+        }
+        final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+        // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
+        // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet exist
+        if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && deletionsInProgress != null) {
+            bestGenerationFromCS = bestGeneration(deletionsInProgress.getEntries());
+        }
+        final RepositoryCleanupInProgress cleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
+        if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && cleanupInProgress != null) {
+            bestGenerationFromCS = bestGeneration(cleanupInProgress.entries());
+        }
+
+        final long finalBestGen = bestGenerationFromCS;
+        latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
+    }
+
+    private long bestGeneration(Collection<? extends RepositoryOperation> operations) {
+        final String repoName = metadata.name();
+        assert operations.size() <= 1 : "Assumed one or no operations but received " + operations;
+        return operations.stream().filter(e -> e.repository().equals(repoName)).mapToLong(RepositoryOperation::repositoryStateId)
+            .max().orElse(RepositoryData.EMPTY_REPO_GEN);
     }
 
     public ThreadPool threadPool() {

@@ -117,17 +117,6 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
         assertFirstHit(response, hasId("2"));
         assertSecondHit(response, hasId("1"));
 
-        // test phrase
-//        response = client().prepareSearch("test").setQuery(matchPhraseQuery("field1", "fast car")).get();
-//        assertHitCount(response, 2L);
-//        assertFirstHit(response, hasId("1"));
-//        assertSecondHit(response, hasId("2"));
-//
-//        response = client().prepareSearch("test").setQuery(matchPhraseQuery("field1", "fast auto")).get();
-//        assertHitCount(response, 2L);
-//        assertFirstHit(response, hasId("1"));
-//        assertSecondHit(response, hasId("2"));
-
         // test single token case with huge df imbalance
         BulkRequestBuilder prepareBulk = client().prepareBulk();
         int numDocs = 1000;

@@ -594,11 +594,25 @@ public class MatchQuery {
             return newSynonymQuery(field, terms);
         }
 
-        // TODO maybe better to add newSynonymQuery() variant to org.apache.lucene.util.QueryBuilder that also takes boost arguments?
         protected Query newSynonymQuery(String field, List<TermAndBoost> terms) {
             SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
+            // if all terms have same boost value we don't want to apply boosting
+            boolean allSame = true;
+            Float previousValue = null;
             for (TermAndBoost term : terms) {
-              builder.addTerm(term.getTerm(), term.getBoost());
+                float boost = term.getBoost();
+                if (previousValue != null && Float.compare(previousValue, boost) > 0) {
+                    allSame = false;
+                }
+                previousValue = boost;
+            }
+
+            for (TermAndBoost term : terms) {
+              if (allSame == false) {
+                  builder.addTerm(term.getTerm(), term.getBoost());
+              } else {
+                  builder.addTerm(term.getTerm());
+              }
             }
             return builder.build();
         }

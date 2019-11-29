@@ -27,8 +27,6 @@ import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.geo.ShapeTreeReader;
-import org.elasticsearch.common.geo.TriangleTreeReader;
-import org.elasticsearch.common.geo.TriangleTreeWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;

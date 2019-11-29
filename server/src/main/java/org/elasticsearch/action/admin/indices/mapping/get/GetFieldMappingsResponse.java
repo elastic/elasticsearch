@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -68,6 +69,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 int typesSize = in.readVInt();
                 assert typesSize == 1 || typesSize == 0 : "Expected 0 or 1 types but got " + typesSize;
                 if (typesSize == 0) {
+                    indexMapBuilder.put(index, Collections.emptyMap());
                     continue;
                 }
                 in.readString(); // type

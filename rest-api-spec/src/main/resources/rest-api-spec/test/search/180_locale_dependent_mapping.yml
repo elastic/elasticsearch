@@ -1,7 +1,7 @@
 ---
 "Test Index and Search locale dependent mappings / dates":
   - skip:
-      version: " - 6.4.99"
+      version: " - 6.8.4"
       reason: JDK9 only supports this with a special sysproperty added in 6.2.0 and the fix for avoiding multiple 8 prefix is in 6.8.5
   - do:
       indices.create:

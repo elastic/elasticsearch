@@ -103,4 +103,22 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
             assertEquals(new BoostingQueryBuilder(positive.rewrite(createShardContext()), negative.rewrite(createShardContext())), rewrite);
         }
     }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+
+        BoostingQueryBuilder queryBuilder1 = new BoostingQueryBuilder(
+                new TermQueryBuilder("unmapped_field", "foo"), new MatchNoneQueryBuilder());
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder1.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+
+        BoostingQueryBuilder queryBuilder2 = new BoostingQueryBuilder(
+                new MatchAllQueryBuilder(), new TermQueryBuilder("unmapped_field", "foo"));
+        e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder2.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
 }

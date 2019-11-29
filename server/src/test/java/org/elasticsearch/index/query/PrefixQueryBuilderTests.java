@@ -164,14 +164,9 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-        PrefixQueryBuilder queryBuilder = createTestQueryBuilder();
-        if (context.fieldMapper(queryBuilder.fieldName()) == null) {
-            IllegalStateException e = expectThrows(IllegalStateException.class,
-                    () -> queryBuilder.toQuery(context));
-            assertEquals("Rewrite first", e.getMessage());
-        } else {
-            // no exception
-            queryBuilder.toQuery(context);
-        }
+        PrefixQueryBuilder queryBuilder = new PrefixQueryBuilder("unmapped_field", "foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

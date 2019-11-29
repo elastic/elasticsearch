@@ -190,14 +190,9 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-        TermQueryBuilder queryBuilder = createTestQueryBuilder();
-        if (context.fieldMapper(queryBuilder.fieldName()) == null) {
-            IllegalStateException e = expectThrows(IllegalStateException.class,
-                    () -> queryBuilder.toQuery(context));
-            assertEquals("Rewrite first", e.getMessage());
-        } else {
-            // no exception
-            queryBuilder.toQuery(context);
-        }
+        TermQueryBuilder queryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

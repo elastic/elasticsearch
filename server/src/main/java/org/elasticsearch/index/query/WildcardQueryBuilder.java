@@ -209,7 +209,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         MappedFieldType fieldType = context.fieldMapper(fieldName);
 
         if (fieldType == null) {
-            return new MatchNoDocsQuery("unknown field [" + fieldName + "]");
+            throw new IllegalStateException("Rewrite first");
         }
 
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(

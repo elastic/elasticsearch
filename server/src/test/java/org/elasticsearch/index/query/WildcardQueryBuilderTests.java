@@ -159,14 +159,9 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     public void testMustRewrite() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-        WildcardQueryBuilder queryBuilder = createTestQueryBuilder();
-        if (context.fieldMapper(queryBuilder.fieldName()) == null) {
-            IllegalStateException e = expectThrows(IllegalStateException.class,
-                    () -> queryBuilder.toQuery(context));
-            assertEquals("Rewrite first", e.getMessage());
-        } else {
-            // no exception
-            queryBuilder.toQuery(context);
-        }
+        WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("unmapped_field", "foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

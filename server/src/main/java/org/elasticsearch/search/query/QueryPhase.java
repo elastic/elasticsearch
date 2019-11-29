@@ -427,6 +427,9 @@ public class QueryPhase implements SearchPhase {
         final IndexReader reader = context.searcher().getIndexReader();
         final int numDocs = reader.numDocs();
         final SortField sortField = sort.getSort()[0];
+        if (sortField.getField() == null) {
+            return false;
+        }
         final MappedFieldType fieldType = context.mapperService().fullName(sortField.getField());
         final String fieldName = fieldType.name();
 

@@ -153,5 +153,20 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
-    }      
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        WildcardQueryBuilder queryBuilder = createTestQueryBuilder();
+        if (context.fieldMapper(queryBuilder.fieldName()) == null) {
+            IllegalStateException e = expectThrows(IllegalStateException.class,
+                    () -> queryBuilder.toQuery(context));
+            assertEquals("Rewrite first", e.getMessage());
+        } else {
+            // no exception
+            queryBuilder.toQuery(context);
+        }
+    }
 }

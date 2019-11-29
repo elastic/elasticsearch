@@ -38,10 +38,15 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.mapper.TextFieldTypeTests;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 
@@ -93,6 +98,11 @@ public class QueryBuilderStoreTests extends ESTestCase {
             when(queryShardContext.getXContentRegistry()).thenReturn(xContentRegistry());
             when(queryShardContext.getForField(fieldMapper.fieldType()))
                 .thenReturn(new BytesBinaryDVIndexFieldData(new Index("index", "uuid"), fieldMapper.name()));
+            when(queryShardContext.fieldMapper(Mockito.anyString())).thenAnswer(invocation -> {
+                TextFieldType fieldType = new TextFieldType();
+                fieldType.setName((String) invocation.getArguments()[0]);
+                return fieldType;
+            });
             PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), queryShardContext, false);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {

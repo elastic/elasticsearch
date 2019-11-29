@@ -384,9 +384,34 @@ public class PercolatorFieldMapper extends FieldMapper {
         return updated;
     }
 
+    private QueryShardContext getQueryShardContext() {
+        QueryShardContext originarQueryShardContext = this.queryShardContext.get();
+        QueryShardContext queryShardContext = new QueryShardContext(originarQueryShardContext) {
+            @Override
+            public boolean convertNowRangeToMatchAll() {
+                return true;
+            }
+        };
+
+        // This means that fields in the query need to exist in the mapping prior to registering this query
+        // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
+        //
+        // Even worse when fields mentioned in percolator queries do go added to map after the queries have been registered
+        // then the percolator queries don't work as expected any more.
+        //
+        // Query parsing can't introduce new fields in mappings (which happens when registering a percolator query),
+        // because field type can't be inferred from queries (like document do) so the best option here is to disallow
+        // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
+        //
+        // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
+        // as an analyzed string.
+        queryShardContext.setAllowUnmappedFields(false);
+        queryShardContext.setMapUnmappedFieldAsString(isMapUnmappedFieldAsText());
+        return queryShardContext;
+    }
+
     @Override
     public void parse(ParseContext context) throws IOException {
-        QueryShardContext queryShardContext = this.queryShardContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query
@@ -399,6 +424,8 @@ public class PercolatorFieldMapper extends FieldMapper {
                 parser, parser.getTokenLocation()
         );
         verifyQuery(queryBuilder);
+
+        QueryShardContext queryShardContext = getQueryShardContext();
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, queryShardContext, future);
@@ -414,7 +441,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                 return true;
             }
         });
-        Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilderForProcessing);
+        Query query = queryBuilderForProcessing.toQuery(queryShardContext);
         processQuery(query, context);
     }
 
@@ -470,28 +497,6 @@ public class PercolatorFieldMapper extends FieldMapper {
             context.doc().add(field);
         }
         doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
-    }
-
-    static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, XContentParser parser) throws IOException {
-        return toQuery(context, mapUnmappedFieldsAsString, parseQueryBuilder(parser, parser.getTokenLocation()));
-    }
-
-    static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder queryBuilder) throws IOException {
-        // This means that fields in the query need to exist in the mapping prior to registering this query
-        // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
-        //
-        // Even worse when fields mentioned in percolator queries do go added to map after the queries have been registered
-        // then the percolator queries don't work as expected any more.
-        //
-        // Query parsing can't introduce new fields in mappings (which happens when registering a percolator query),
-        // because field type can't be inferred from queries (like document do) so the best option here is to disallow
-        // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
-        //
-        // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
-        // as an analyzed string.
-        context.setAllowUnmappedFields(false);
-        context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
-        return queryBuilder.toQuery(context);
     }
 
     private static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {

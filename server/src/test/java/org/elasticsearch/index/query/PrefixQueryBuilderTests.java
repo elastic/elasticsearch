@@ -160,4 +160,18 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
 
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        PrefixQueryBuilder queryBuilder = createTestQueryBuilder();
+        if (context.fieldMapper(queryBuilder.fieldName()) == null) {
+            IllegalStateException e = expectThrows(IllegalStateException.class,
+                    () -> queryBuilder.toQuery(context));
+            assertEquals("Rewrite first", e.getMessage());
+        } else {
+            // no exception
+            queryBuilder.toQuery(context);
+        }
+    }
 }

@@ -25,7 +25,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
-public class SingletonKeywordFieldMapperTests extends ESSingleNodeTestCase {
+public class ConstantKeywordFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -37,7 +37,7 @@ public class SingletonKeywordFieldMapperTests extends ESSingleNodeTestCase {
     public void testDefaults() throws Exception {
         IndexService indexService = createIndex("test");
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties").startObject("field").field("type", "singleton_keyword")
+                .startObject("properties").startObject("field").field("type", "constant_keyword")
                 .field("value", "foo").endObject().endObject().endObject().endObject());
         DocumentMapper mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
@@ -54,7 +54,7 @@ public class SingletonKeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject().field("field", "bar").endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", illegalSource, XContentType.JSON)));
-        assertEquals("[singleton_keyword] field [field] only accepts values that are equal to the wrapped value [foo], but got [bar]",
+        assertEquals("[constant_keyword] field [field] only accepts values that are equal to the wrapped value [foo], but got [bar]",
                 e.getCause().getMessage());
     }
 

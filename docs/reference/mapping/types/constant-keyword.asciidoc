@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 
-[[singleton-keyword]]
-=== Singleton keyword datatype
+[[constant-keyword]]
+=== Constant keyword datatype
 ++++
-<titleabbrev>Singleton keyword</titleabbrev>
+<titleabbrev>Constant keyword</titleabbrev>
 ++++
 
-Singleton keyword is a specialization of the <<keyword,`keyword`>> field for
+Constant keyword is a specialization of the <<keyword,`keyword`>> field for
 the case that all documents in the index have the same value.
 
 [source,console]
@@ -23,7 +23,7 @@ PUT logs-debug
         "type": "text"
       },
       "level": {
-        "type": "singleton_keyword",
+        "type": "constant_keyword",
         "value": "debug"
       }
     }
@@ -31,7 +31,7 @@ PUT logs-debug
 }
 --------------------------------
 
-`singleton_keyword` supports the same queries and aggregations as `keyword`
+`constant_keyword` supports the same queries and aggregations as `keyword`
 fields do, but takes advantage of the fact that all documents have the same
 value per index to be more efficient.
 
@@ -59,8 +59,8 @@ POST logs-debug/_doc
 However providing a value that is different from the one configured in the
 mapping is disallowed.
 
-[[singleton-keyword-params]]
-==== Parameters for singleton keyword fields
+[[constant-keyword-params]]
+==== Parameters for constant keyword fields
 
 The following mapping parameters are accepted:
 

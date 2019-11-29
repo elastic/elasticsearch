@@ -2,7 +2,7 @@ setup:
 
   - skip:
       version: " - 7.99.99"
-      reason: "singleton_keyword was added in 7.6"
+      reason: "constant_keyword was added in 7.6"
 
   - do:
       indices.create:
@@ -11,7 +11,7 @@ setup:
           mappings:
             properties:
               foo:
-                type: singleton_keyword
+                type: constant_keyword
                 value: bar
 
   - do:
@@ -21,7 +21,7 @@ setup:
           mappings:
             properties:
               foo:
-                type: singleton_keyword
+                type: constant_keyword
                 value: baz
 
   - do:

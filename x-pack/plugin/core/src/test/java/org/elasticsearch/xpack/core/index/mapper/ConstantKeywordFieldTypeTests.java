@@ -13,35 +13,35 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.xpack.core.index.mapper.SingletonKeywordFieldMapper.SingletonKeywordFieldType;
+import org.elasticsearch.xpack.core.index.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
 import org.junit.Before;
 
-public class SingletonKeywordFieldTypeTests extends FieldTypeTestCase {
+public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
     @Before
     public void setupProperties() {
         addModifier(new Modifier("value", false) {
             @Override
             public void modify(MappedFieldType type) {
-                ((SingletonKeywordFieldType) type).setValue("bar");
+                ((ConstantKeywordFieldType) type).setValue("bar");
             }
         });
     }
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new SingletonKeywordFieldType();
+        return new ConstantKeywordFieldType();
     }
 
     public void testTermQuery() {
-        SingletonKeywordFieldType ft = new SingletonKeywordFieldType();
+        ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
         ft.setValue("foo");
         assertEquals(new MatchAllDocsQuery(), ft.termQuery("foo", null));
         assertEquals(new MatchNoDocsQuery(), ft.termQuery("bar", null));
     }
 
     public void testTermsQuery() {
-        SingletonKeywordFieldType ft = new SingletonKeywordFieldType();
+        ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
         ft.setValue("foo");
         assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Collections.singletonList("foo"), null));
         assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Arrays.asList("bar", "foo", "quux"), null));
@@ -51,14 +51,14 @@ public class SingletonKeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardQuery() {
-        SingletonKeywordFieldType ft = new SingletonKeywordFieldType();
+        ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
         ft.setValue("foo");
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("f*o", null, null));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("b*r", null, null));
     }
 
     public void testPrefixQuery() {
-        SingletonKeywordFieldType ft = new SingletonKeywordFieldType();
+        ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
         ft.setValue("foo");
         assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("fo", null, null));
         assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("ba", null, null));

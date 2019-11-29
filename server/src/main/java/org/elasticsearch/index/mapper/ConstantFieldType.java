@@ -26,13 +26,13 @@ import org.elasticsearch.index.query.QueryShardContext;
 /**
  * A {@link MappedFieldType} that has the same value for all documents.
  */
-public abstract class SingletonFieldType extends MappedFieldType {
+public abstract class ConstantFieldType extends MappedFieldType {
 
-    public SingletonFieldType() {
+    public ConstantFieldType() {
         super();
     }
 
-    public SingletonFieldType(SingletonFieldType other) {
+    public ConstantFieldType(ConstantFieldType other) {
         super(other);
     }
 

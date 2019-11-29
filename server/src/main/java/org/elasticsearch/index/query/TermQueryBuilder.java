@@ -27,7 +27,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.SingletonFieldType;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 
 import java.io.IOException;
 
@@ -137,8 +137,8 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             MappedFieldType fieldType = context.fieldMapper(this.fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof SingletonFieldType) {
-                // This logic is correct for all field types, but by only applying it to singleton
+            } else if (fieldType instanceof ConstantFieldType) {
+                // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
                 Query query = fieldType.termQuery(value, context);

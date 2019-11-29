@@ -24,28 +24,28 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SingletonKeywordIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ConstantKeywordIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.SingletonFieldType;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
-public class SingletonKeywordFieldMapper extends FieldMapper {
+public class ConstantKeywordFieldMapper extends FieldMapper {
 
-    public static final String CONTENT_TYPE = "singleton_keyword";
+    public static final String CONTENT_TYPE = "constant_keyword";
 
     public static class Defaults {
         public static final String NULL_VALUE = null;
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, SingletonKeywordFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, ConstantKeywordFieldMapper> {
 
         private static MappedFieldType createFieldType(String value) {
-            SingletonKeywordFieldType ft = new SingletonKeywordFieldType();
+            ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
             ft.setValue(value);
             ft.freeze();
             return ft;
@@ -61,14 +61,14 @@ public class SingletonKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SingletonKeywordFieldType fieldType() {
-            return (SingletonKeywordFieldType) super.fieldType();
+        public ConstantKeywordFieldType fieldType() {
+            return (ConstantKeywordFieldType) super.fieldType();
         }
 
         @Override
-        public SingletonKeywordFieldMapper build(BuilderContext context) {
+        public ConstantKeywordFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new SingletonKeywordFieldMapper(
+            return new ConstantKeywordFieldMapper(
                     name, fieldType, defaultFieldType,
                     context.indexSettings());
         }
@@ -85,25 +85,25 @@ public class SingletonKeywordFieldMapper extends FieldMapper {
                 throw new MapperParsingException("Property [value] of field [" + name +
                         "] must be a number or a string, but got [" + value + "]");
             }
-            return new SingletonKeywordFieldMapper.Builder(name, value.toString());
+            return new ConstantKeywordFieldMapper.Builder(name, value.toString());
         }
     }
 
-    public static final class SingletonKeywordFieldType extends SingletonFieldType {
+    public static final class ConstantKeywordFieldType extends ConstantFieldType {
 
         private String value;
 
-        public SingletonKeywordFieldType() {
+        public ConstantKeywordFieldType() {
             super();
         }
 
-        protected SingletonKeywordFieldType(SingletonKeywordFieldType ref) {
+        protected ConstantKeywordFieldType(ConstantKeywordFieldType ref) {
             super(ref);
             this.value = ref.value;
         }
 
-        public SingletonKeywordFieldType clone() {
-            return new SingletonKeywordFieldType(this);
+        public ConstantKeywordFieldType clone() {
+            return new ConstantKeywordFieldType(this);
         }
 
         @Override
@@ -111,14 +111,14 @@ public class SingletonKeywordFieldMapper extends FieldMapper {
             if (super.equals(o) == false) {
                 return false;
             }
-            SingletonKeywordFieldType other = (SingletonKeywordFieldType) o;
+            ConstantKeywordFieldType other = (ConstantKeywordFieldType) o;
             return Objects.equals(value, other.value);
         }
 
         @Override
         public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
             super.checkCompatibility(otherFT, conflicts);
-            SingletonKeywordFieldType other = (SingletonKeywordFieldType) otherFT;
+            ConstantKeywordFieldType other = (ConstantKeywordFieldType) otherFT;
             if (Objects.equals(value, other.value) == false) {
                 conflicts.add("mapper [" + name() + "] has different [value]");
             }
@@ -147,7 +147,7 @@ public class SingletonKeywordFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new SingletonKeywordIndexFieldData.Builder(mapperService -> value);
+            return new ConstantKeywordIndexFieldData.Builder(mapperService -> value);
         }
 
         private static String valueToString(Object v) {
@@ -199,19 +199,19 @@ public class SingletonKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    protected SingletonKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    protected ConstantKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Settings indexSettings) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
-    protected SingletonKeywordFieldMapper clone() {
-        return (SingletonKeywordFieldMapper) super.clone();
+    protected ConstantKeywordFieldMapper clone() {
+        return (ConstantKeywordFieldMapper) super.clone();
     }
 
     @Override
-    public SingletonKeywordFieldType fieldType() {
-        return (SingletonKeywordFieldType) super.fieldType();
+    public ConstantKeywordFieldType fieldType() {
+        return (ConstantKeywordFieldType) super.fieldType();
     }
 
     @Override
@@ -229,7 +229,7 @@ public class SingletonKeywordFieldMapper extends FieldMapper {
         }
 
         if (Objects.equals(fieldType().value, value) == false) {
-            throw new IllegalArgumentException("[singleton_keyword] field [" + name() +
+            throw new IllegalArgumentException("[constant_keyword] field [" + name() +
                     "] only accepts values that are equal to the wrapped value [" + fieldType().value() + "], but got [" + value + "]");
         }
     }

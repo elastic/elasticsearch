@@ -46,7 +46,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Function;
 
-public class SingletonKeywordIndexFieldData extends AbstractIndexOrdinalsFieldData {
+public class ConstantKeywordIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -59,7 +59,7 @@ public class SingletonKeywordIndexFieldData extends AbstractIndexOrdinalsFieldDa
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new SingletonKeywordIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
+            return new ConstantKeywordIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService));
         }
 
     }
@@ -128,7 +128,7 @@ public class SingletonKeywordIndexFieldData extends AbstractIndexOrdinalsFieldDa
 
     private final SingletonKeywordAtomicFieldData atomicFieldData;
 
-    private SingletonKeywordIndexFieldData(IndexSettings indexSettings, String name, String value) {
+    private ConstantKeywordIndexFieldData(IndexSettings indexSettings, String name, String value) {
         super(indexSettings, name, null, null,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,

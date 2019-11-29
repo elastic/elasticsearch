@@ -21,7 +21,6 @@ package org.elasticsearch.packaging.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
@@ -51,7 +50,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -348,9 +346,9 @@ public class Docker {
 
         final PosixFileAttributes dirAttributes = FileUtils.getPosixFileAttributes(localPath);
         final Map<String, Integer> numericPathOwnership = FileUtils.getNumericUnixPathOwnership(localPath);
-        assertEquals(localPath + " has wrong uid", numericPathOwnership.get("uid").intValue(), uid);
-        assertEquals(localPath + " has wrong gid", numericPathOwnership.get("gid").intValue(), gid);
-        assertEquals(localPath + " has wrong permissions", dirAttributes.permissions(), p770);
+        assertThat(localPath + " has wrong uid", numericPathOwnership.get("uid"), equalTo(uid));
+        assertThat(localPath + " has wrong gid", numericPathOwnership.get("gid"), equalTo(gid));
+        assertThat(localPath + " has wrong permissions", dirAttributes.permissions(), equalTo(p770));
     }
 
     /**
@@ -503,24 +501,6 @@ public class Docker {
         ObjectMapper mapper = new ObjectMapper();
 
         return mapper.readTree(pluginsResponse);
-    }
-
-    public static List<String> getEnabledPlugins(Installation installation) throws Exception {
-        waitForElasticsearch(installation);
-
-        final JsonNode plugins = getJson("_nodes/plugins");
-        final JsonNode modules = plugins.findValue("modules");
-
-        assertTrue(modules.isArray());
-        final ArrayNode jsonNodes = (ArrayNode) modules;
-
-        List<String> pluginClasses = new ArrayList<>();
-
-        for (JsonNode module : jsonNodes) {
-            pluginClasses.add(module.get("classname").asText());
-        }
-
-        return pluginClasses;
     }
 
     public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {

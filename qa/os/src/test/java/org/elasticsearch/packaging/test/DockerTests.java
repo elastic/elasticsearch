@@ -24,6 +24,7 @@ import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Docker.DockerShell;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
@@ -46,7 +47,6 @@ import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
-import static org.elasticsearch.packaging.util.Docker.getEnabledPlugins;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
@@ -65,15 +65,12 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assume.assumeTrue;
@@ -110,14 +107,14 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
-    public void test10Install() {
+    public void test010Install() {
         verifyContainerInstallation(installation, distribution());
     }
 
     /**
      * Check that the /_xpack API endpoint's presence is correct for the type of distribution being tested.
      */
-    public void test11PresenceOfXpack() throws Exception {
+    public void test011PresenceOfXpack() throws Exception {
         waitForElasticsearch(installation);
         final int statusCode = Request.Get("http://localhost:9200/_xpack").execute().returnResponse().getStatusLine().getStatusCode();
 
@@ -131,7 +128,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that no plugins are initially active.
      */
-    public void test20PluginsListWithNoPlugins() {
+    public void test020PluginsListWithNoPlugins() {
         final Installation.Executables bin = installation.executables();
         final Result r = sh.run(bin.elasticsearchPlugin + " list");
 
@@ -139,23 +136,9 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the IngestUserAgentPlugin is enabled.
-     */
-    public void test21IngestUserAgentPluginIsInstalled() throws Exception {
-        assertThat(getEnabledPlugins(installation), hasItem("org.elasticsearch.ingest.useragent.IngestUserAgentPlugin"));
-    }
-
-    /**
-     * Check that the IngestGeoIpPlugin is enabled.
-     */
-    public void test22IngestGeoIpPluginIsInstalled() throws Exception {
-        assertThat(getEnabledPlugins(installation), hasItem("org.elasticsearch.ingest.geoip.IngestGeoIpPlugin"));
-    }
-
-    /**
      * Check that a keystore can be manually created using the provided CLI tool.
      */
-    public void test40CreateKeystoreManually() throws InterruptedException {
+    public void test040CreateKeystoreManually() throws InterruptedException {
         final Installation.Executables bin = installation.executables();
 
         final Path keystorePath = installation.config("elasticsearch.keystore");
@@ -174,7 +157,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the default keystore is automatically created
      */
-    public void test41AutoCreateKeystore() throws Exception {
+    public void test041AutoCreateKeystore() throws Exception {
         final Path keystorePath = installation.config("elasticsearch.keystore");
 
         waitForPathToExist(keystorePath);
@@ -189,7 +172,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the JDK's cacerts file is a symlink to the copy provided by the operating system.
      */
-    public void test42JavaUsesTheOsProvidedKeystore() {
+    public void test042JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout;
 
         assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
@@ -198,7 +181,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that there are Amazon trusted certificates in the cacaerts keystore.
      */
-    public void test43AmazonCaCertsAreInTheKeystore() {
+    public void test043AmazonCaCertsAreInTheKeystore() {
         final boolean matches = sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout.lines()
             .anyMatch(line -> line.contains("amazonrootca"));
 
@@ -209,7 +192,7 @@ public class DockerTests extends PackagingTestCase {
      * Send some basic index, count and delete requests, in order to check that the installation
      * is minimally functional.
      */
-    public void test50BasicApiTests() throws Exception {
+    public void test050BasicApiTests() throws Exception {
         waitForElasticsearch(installation);
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
@@ -220,7 +203,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the default config can be overridden using a bind mount, and that env vars are respected
      */
-    public void test70BindMountCustomPathConfAndJvmOptions() throws Exception {
+    public void test070BindMountCustomPathConfAndJvmOptions() throws Exception {
         copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
         copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
 
@@ -239,37 +222,49 @@ public class DockerTests extends PackagingTestCase {
 
         waitForElasticsearch(installation);
 
-        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-        assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
-        assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+        final JsonNode nodes = getJson("_nodes").get("nodes");
+        final String nodeId = nodes.fieldNames().next();
+
+        final int heapSize = nodes.at("/" + nodeId + "/jvm/mem/heap_init_in_bytes").intValue();
+        final boolean usingCompressedPointers = nodes.at("/" + nodeId + "/jvm/using_compressed_ordinary_object_pointers").asBoolean();
+
+        logger.warn(nodes.at("/" + nodeId + "/jvm/mem/heap_init_in_bytes"));
+
+        assertThat("heap_init_in_bytes", heapSize, equalTo(536870912));
+        assertThat("using_compressed_ordinary_object_pointers", usingCompressedPointers, equalTo(false));
     }
 
     /**
-     * Check that the default config can be overridden using a bind mount, and that env vars are respected
+     * Check that the default config can be overridden using a bind mount, and that env vars are respected.
      */
-    public void test71BindMountCustomPathWithDifferentUID() throws Exception {
-        final Path tempEsDataDir = tempDir.resolve("esDataDir");
-        // Make the local directory and contents accessible when bind-mounted
-        mkDirWithPrivilegeEscalation(tempEsDataDir, 1500, 0);
+    public void test071BindMountCustomPathWithDifferentUID() throws Exception {
+        Platforms.onLinux(() -> {
+            final Path tempEsDataDir = tempDir.resolve("esDataDir");
+            // Make the local directory and contents accessible when bind-mounted
+            mkDirWithPrivilegeEscalation(tempEsDataDir, 1500, 0);
 
-        // Restart the container
-        final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), installation.data);
+            // Restart the container
+            final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), installation.data);
 
-        runContainer(distribution(), volumes, null);
+            runContainer(distribution(), volumes, null);
 
-        waitForElasticsearch(installation);
+            waitForElasticsearch(installation);
 
-        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            final JsonNode nodes = getJson("_nodes");
 
-        assertThat(nodesResponse, containsString("\"_nodes\":{\"total\":1,\"successful\":1,\"failed\":0}"));
-        rmDirWithPrivilegeEscalation(tempEsDataDir);
+            assertThat(nodes.at("/_nodes/total").intValue(), equalTo(1));
+            assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
+            assertThat(nodes.at("/_nodes/failed").intValue(), equalTo(0));
+
+            rmDirWithPrivilegeEscalation(tempEsDataDir);
+        });
     }
 
     /**
      * Check that environment variables can be populated by setting variables with the suffix "_FILE",
      * which point to files that hold the required values.
      */
-    public void test80SetEnvironmentVariablesUsingFiles() throws Exception {
+    public void test080SetEnvironmentVariablesUsingFiles() throws Exception {
         final String optionsFilename = "esJavaOpts.txt";
 
         // ES_JAVA_OPTS_FILE
@@ -296,7 +291,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the elastic user's password can be configured via a file and the ELASTIC_PASSWORD_FILE environment variable.
      */
-    public void test81ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
+    public void test081ConfigurePasswordThroughEnvironmentVariableFile() throws Exception {
         // Test relies on configuring security
         assumeTrue(distribution.isDefault());
 
@@ -342,7 +337,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that environment variables cannot be used with _FILE environment variables.
      */
-    public void test81CannotUseEnvVarsAndFiles() throws Exception {
+    public void test081CannotUseEnvVarsAndFiles() throws Exception {
         final String optionsFilename = "esJavaOpts.txt";
 
         // ES_JAVA_OPTS_FILE
@@ -373,7 +368,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when populating environment variables by setting variables with the suffix "_FILE",
      * the files' permissions are checked.
      */
-    public void test82EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
+    public void test082EnvironmentVariablesUsingFilesHaveCorrectPermissions() throws Exception {
         final String optionsFilename = "esJavaOpts.txt";
 
         // ES_JAVA_OPTS_FILE
@@ -399,7 +394,7 @@ public class DockerTests extends PackagingTestCase {
      * Check whether the elasticsearch-certutil tool has been shipped correctly,
      * and if present then it can execute.
      */
-    public void test90SecurityCliPackaging() {
+    public void test090SecurityCliPackaging() {
         final Installation.Executables bin = installation.executables();
 
         final Path securityCli = installation.lib.resolve("tools").resolve("security-cli");
@@ -422,7 +417,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the elasticsearch-shard tool is shipped in the Docker image and is executable.
      */
-    public void test91ElasticsearchShardCliPackaging() {
+    public void test091ElasticsearchShardCliPackaging() {
         final Installation.Executables bin = installation.executables();
 
         final Result result = sh.run(bin.elasticsearchShard + " -h");
@@ -432,7 +427,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the elasticsearch-node tool is shipped in the Docker image and is executable.
      */
-    public void test92ElasticsearchNodeCliPackaging() {
+    public void test092ElasticsearchNodeCliPackaging() {
         final Installation.Executables bin = installation.executables();
 
         final Result result = sh.run(bin.elasticsearchNode + " -h");
@@ -561,31 +556,15 @@ public class DockerTests extends PackagingTestCase {
         assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
     }
 
-    /**
-     * Check the provided version of Java. This guards against accidentally shipping images with
-     * the wrong version.
-     */
-    public void test131JavaHasExpectedVersion() {
-        final String[] versionLines = sh.run("jdk/bin/java -version").stdout.split("\n");
-
-        assertThat(versionLines, not(emptyArray()));
-
-        assertThat(
-            "Expected Java version to be 13.0.0 or higher",
-            versionLines[0],
-            matchesPattern("openjdk version \"?13\\.\\d+\\.\\d+\"?.*")
-        );
-    }
-
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForElasticsearch(installation);
 
         final JsonNode nodes = getJson("_nodes/stats/os").get("nodes");
 
-        final String nodeName = nodes.fieldNames().next();
+        final String nodeId = nodes.fieldNames().next();
 
-        final JsonNode cgroupStats = nodes.at("/" + nodeName + "/os/cgroup");
-        assertFalse("Couldn't find /nodes/{nodeName}/os/cgroup in API response", cgroupStats.isMissingNode());
+        final JsonNode cgroupStats = nodes.at("/" + nodeId + "/os/cgroup");
+        assertFalse("Couldn't find /nodes/{nodeId}/os/cgroup in API response", cgroupStats.isMissingNode());
 
         assertThat("Failed to find [cpu] in node OS cgroup stats", cgroupStats.get("cpu"), not(nullValue()));
         assertThat("Failed to find [cpuacct] in node OS cgroup stats", cgroupStats.get("cpuacct"), not(nullValue()));

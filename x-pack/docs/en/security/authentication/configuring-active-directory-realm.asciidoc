@@ -243,5 +243,5 @@ include extra properties in the user's metadata.
 --
 By default, `ldap_dn` and `ldap_groups` are populated in the user's metadata. 
 For more information, see 
-{xpack-ref}/active-directory-realm.html#ad-user-metadata[User Metadata in Active Directory Realms]. 
+<<ad-user-metadata>>. 
 --

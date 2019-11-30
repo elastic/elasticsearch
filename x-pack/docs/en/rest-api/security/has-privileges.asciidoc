@@ -52,7 +52,7 @@ should be checked
 All users can use this API, but only to determine their own privileges.
 To check the privileges of other users, you must use the run as feature. For
 more information, see
-{xpack-ref}/run-as-privilege.html[Submitting Requests on Behalf of Other Users].
+<<run-as-privilege>>.
 
 
 ==== Examples

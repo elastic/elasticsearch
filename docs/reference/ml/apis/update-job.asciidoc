@@ -85,7 +85,7 @@ want to re-run this job with an increased `model_memory_limit`.
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-update-job-example]]
 ==== {api-examples-title}

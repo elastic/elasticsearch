@@ -300,12 +300,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             bestGenerationFromCS = bestGeneration(cleanupInProgress.entries());
         }
 
-        final RepositoriesState repositoriesState = state.custom(RepositoriesState.TYPE);
-        if (repositoriesState != null) {
-            final RepositoriesState.State repoState = repositoriesState.state(metadata.name());
-            if (repoState != null) {
-                bestGenerationFromCS = Math.max(bestGenerationFromCS, repoState.generation());
-            }
+        final RepositoriesState.State repoState = RepositoriesState.getOrEmpty(state).state(metadata.name());
+        if (repoState != null) {
+            bestGenerationFromCS = Math.max(bestGenerationFromCS, repoState.generation());
         }
 
         final long finalBestGen = bestGenerationFromCS;
@@ -1088,10 +1085,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final RepositoriesState state = Optional.ofNullable(currentState.<RepositoriesState>custom(RepositoriesState.TYPE))
-                    .orElseGet(() -> RepositoriesState.builder().putState(metadata.name(), expectedGen, expectedGen).build());
-                final RepositoriesState.State repoState = Optional.ofNullable(state.state(metadata.name())).orElseGet(
-                    () -> RepositoriesState.builder().putState(metadata.name(), expectedGen, expectedGen).build().state(metadata.name()));
+                final RepositoriesState state = RepositoriesState.getOrEmpty(currentState);
+                final String repoName = metadata.name();
+                final RepositoriesState.State repoState = Optional.ofNullable(state.state(repoName)).orElseGet(
+                    () -> RepositoriesState.builder().putState(repoName, expectedGen, expectedGen).build().state(repoName));
                 if (repoState.pendingGeneration() != repoState.generation()) {
                     logger.warn("Trying to write new repository data of generation [{}] over unfinished write, repo is in state [{}]",
                         repoState.pendingGeneration(), repoState);
@@ -1100,13 +1097,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw new IllegalStateException(
                         "Expected generation [" + expectedGen + "] does not match generation tracked in [" + repoState + "]");
                 }
-                newGen = repoState.pendingGeneration() + 1;
+                // If we run into the empty repo generation for the expected gen, the repo has been is assumed to have been cleared of all
+                // contents by an external process so we reset the safe generation to the empty generation.
                 final long safeGeneration = expectedGen == RepositoryData.EMPTY_REPO_GEN ? RepositoryData.EMPTY_REPO_GEN
                     : repoState.generation();
-                final RepositoriesState updated =
-                    RepositoriesState.builder().putAll(state).putState(
-                        metadata.name(), safeGeneration, newGen).build();
-                return ClusterState.builder(currentState).putCustom(RepositoriesState.TYPE, updated).build();
+                // Regardless of whether or not the safe generation has been reset, the pending generation always increments so that even
+                // if a repository has been manually cleared of all contents we will never reuse the same repository generation.
+                // This is motivated by the consistency behavior the S3 based blob repository implementation has to support which does not
+                // offer any consistency guarantees when it comes to overwriting the same blob name with different content.
+                newGen = repoState.pendingGeneration() + 1;
+                return ClusterState.builder(currentState).putCustom(
+                    RepositoriesState.TYPE, RepositoriesState.builder().putAll(state).putState(repoName, safeGeneration, newGen).build())
+                    .build();
             }
 
             @Override
@@ -1116,7 +1118,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                assert assertExpectedGeneration(newState);
                 setPendingStep.onResponse(newGen);
+            }
+
+            private boolean assertExpectedGeneration(ClusterState newState) {
+                final RepositoriesState repositoriesState = newState.custom(RepositoriesState.TYPE);
+                final RepositoriesState.State repoState = repositoriesState.state(metadata.name());
+                assert newGen == repoState.pendingGeneration()
+                    : "State [" + repoState + "] did not contain assumed pending generation [" + newGen + "]";
+                return true;
             }
         });
 
@@ -1148,7 +1159,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // Step 3: Update CS to reflect new repository generation.
             writeAtomic(INDEX_LATEST_BLOB, genBytes, false);
-            clusterService.submitStateUpdateTask("update_repo_gen", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("set safe repository generation", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     final RepositoriesState state = currentState.custom(RepositoriesState.TYPE);
@@ -1174,7 +1185,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    threadPool.generic().execute(ActionRunnable.run(l, () -> {
+                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(l, () -> {
                         // delete all now outdated index files
                         final List<String> oldIndexN = LongStream.range(Math.max(expectedGen, 0), newGen)
                             .mapToObj(gen -> INDEX_FILE_PREFIX + gen)

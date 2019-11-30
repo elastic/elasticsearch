@@ -207,7 +207,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     MetaData metaData = currentState.metaData();
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                     RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
-                    final RepositoriesState existingStates = currentState.custom(RepositoriesState.TYPE);
+                    final RepositoriesState existingStates = RepositoriesState.getOrEmpty(currentState);
                     final RepositoriesState.Builder updatedStates = RepositoriesState.builder();
                     if (repositories != null && repositories.repositories().size() > 0) {
                         List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(repositories.repositories().size());
@@ -217,12 +217,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 logger.info("delete repository [{}]", repositoryMetaData.name());
                                 changed = true;
                             } else {
-                                if (existingStates != null) {
-                                    final RepositoriesState.State repoState = existingStates.state(repositoryMetaData.name());
-                                    if (repoState != null) {
-                                        updatedStates.putState(
-                                            repositoryMetaData.name(), repoState.generation(), repoState.pendingGeneration());
-                                    }
+                                final RepositoriesState.State repoState = existingStates.state(repositoryMetaData.name());
+                                if (repoState != null) {
+                                    updatedStates.putState(
+                                        repositoryMetaData.name(), repoState.generation(), repoState.pendingGeneration());
                                 }
                                 repositoriesMetaData.add(repositoryMetaData);
                             }

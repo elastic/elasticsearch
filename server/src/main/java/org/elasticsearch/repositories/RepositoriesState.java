@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,6 +47,8 @@ public final class RepositoriesState extends AbstractNamedDiffable<ClusterState.
 
     public static final String TYPE = "repositories_state";
 
+    private static final RepositoriesState EMPTY = RepositoriesState.builder().build();
+
     private final Map<String, State> states;
 
     private RepositoriesState(Map<String, State> states) {
@@ -56,6 +59,23 @@ public final class RepositoriesState extends AbstractNamedDiffable<ClusterState.
         this(in.readMap(StreamInput::readString, State::new));
     }
 
+    /**
+     * Gets repositories state from the given cluster state or an empty repositories state if none is found in the cluster state.
+     *
+     * @param state cluster state
+     * @return RepositoriesState
+     */
+    public static RepositoriesState getOrEmpty(ClusterState state) {
+        return Objects.requireNonNullElse(state.custom(RepositoriesState.TYPE), RepositoriesState.EMPTY);
+    }
+
+    /**
+     * Get {@link State} for a repository.
+     *
+     * @param repoName repository name
+     * @return State for the repository or {@code null} if none is found
+     */
+    @Nullable
     public State state(String repoName) {
         return states.get(repoName);
     }

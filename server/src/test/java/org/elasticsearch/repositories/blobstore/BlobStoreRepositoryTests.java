@@ -229,8 +229,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     private long getPendingGeneration(Repository repository) {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        return Optional.ofNullable(state.<RepositoriesState>custom(RepositoriesState.TYPE)).map(
-            repositoriesState -> repositoriesState.state(repository.getMetadata().name()))
+        return Optional.ofNullable(RepositoriesState.getOrEmpty(state).state(repository.getMetadata().name()))
             .map(RepositoriesState.State::pendingGeneration).orElse(RepositoryData.EMPTY_REPO_GEN);
     }
 

@@ -20,7 +20,7 @@ the cache or evict specific users.
 User credentials are cached in memory on each node to avoid connecting to a
 remote authentication service or hitting the disk for every incoming request.
 There are realm settings that you can use to configure the user cache. For more
-information, see {xpack-ref}/controlling-user-cache.html[Controlling the User Cache].
+information, see <<controlling-user-cache>>.
 
 To evict roles from the role cache, see the 
 <<security-api-clear-role-cache,Clear Roles Cache API>>.

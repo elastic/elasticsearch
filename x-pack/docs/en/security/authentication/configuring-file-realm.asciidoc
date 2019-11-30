@@ -23,7 +23,7 @@ The `file` realm is added to the realm chain by default. You don't need to
 explicitly configure a `file` realm.
 
 For more information about file realms, see 
-{xpack-ref}/file-realm.html[File-based user authentication].
+<<file-realm>>.
 
 . (Optional) Add a realm configuration of type `file` to `elasticsearch.yml` 
 under the `xpack.security.authc.realms` namespace. At a minimum, you must set 

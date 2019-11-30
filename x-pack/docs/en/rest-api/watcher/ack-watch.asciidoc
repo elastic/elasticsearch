@@ -35,7 +35,7 @@ execution.
 ==== Authorization
 
 You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {xpack-ref}/security-privileges.html[Security Privileges].
+information, see <<security-privileges>>.
 
 
 [float]

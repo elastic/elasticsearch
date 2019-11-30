@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.directory.api.util.Strings;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -39,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -171,6 +174,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     restClient.security().invalidateToken(new InvalidateTokenRequest("fooobar", null, null, null),
                         SECURITY_REQUEST_OPTIONS));
                 assertThat(e.getMessage(), containsString("token malformed"));
+                assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
             }
             restClient.indices().refresh(new RefreshRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
             SearchResponse searchResponse = restClient.search(new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
@@ -455,7 +459,36 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> restClient.security().authenticate(tokenAuthOptions));
-        assertEquals(RestStatus.UNAUTHORIZED, e.status());
+        assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
+    }
+
+    public void testAuthenticateWithWrongToken() throws Exception {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        CreateTokenResponse response = restClient.security().createToken(CreateTokenRequest.passwordGrant(
+            SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
+        assertNotNull(response.getRefreshToken());
+        // First check that the correct access token works by getting cluster health with token
+        assertNoTimeout(client()
+            .filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + response.getAccessToken()))
+            .admin().cluster().prepareHealth().get());
+        // Now attempt to authenticate with an invalid access token string
+        RequestOptions wrongAuthOptions =
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + randomAlphaOfLengthBetween(0, 128)).build();
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+            () -> restClient.security().authenticate(wrongAuthOptions));
+        assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
+        // Now attempt to authenticate with an invalid access token with valid structure (pre 7.2)
+        RequestOptions wrongAuthOptionsPre72 =
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + generateAccessToken(Version.V_7_1_0)).build();
+        ElasticsearchStatusException e1 = expectThrows(ElasticsearchStatusException.class,
+            () -> restClient.security().authenticate(wrongAuthOptionsPre72));
+        assertThat(e1.status(), equalTo(RestStatus.UNAUTHORIZED));
+        // Now attempt to authenticate with an invalid access token with valid structure (after 7.2)
+        RequestOptions wrongAuthOptionsAfter72 =
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + generateAccessToken(Version.V_7_4_0)).build();
+        ElasticsearchStatusException e2 = expectThrows(ElasticsearchStatusException.class,
+            () -> restClient.security().authenticate(wrongAuthOptionsAfter72));
+        assertThat(e2.status(), equalTo(RestStatus.UNAUTHORIZED));
     }
 
     @Before
@@ -475,5 +508,14 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     public void testMetadataIsNotSentToClient() {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
         assertFalse(clusterStateResponse.getState().customs().containsKey(TokenMetaData.TYPE));
+    }
+
+    private String generateAccessToken(Version version) throws Exception {
+        TokenService tokenService = internalCluster().getInstance(TokenService.class);
+        String accessTokenString = UUIDs.randomBase64UUID();
+        if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            accessTokenString = TokenService.hashTokenString(accessTokenString);
+        }
+        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }
 }

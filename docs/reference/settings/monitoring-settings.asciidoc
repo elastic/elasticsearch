@@ -23,7 +23,7 @@ Logstash, configure
 in `logstash.yml`.
 
 For more information, see
-{xpack-ref}/xpack-monitoring.html[Monitoring the Elastic Stack].
+{ref}/monitor-elasticsearch-cluster.html[Monitor a cluster].
 
 [float]
 [[general-monitoring-settings]]
@@ -116,7 +116,7 @@ local exporter that indexes monitoring data on the cluster where it is installed
 Use an HTTP exporter to send data to a separate monitoring cluster. For more
 information, see <<local-exporter-settings,Local Exporter Settings>>,
 <<http-exporter-settings,HTTP Exporter Settings>>, and
-{xpack-ref}/how-monitoring-works.html[How Monitoring Works].
+{ref}/how-monitoring-works.html[How monitoring works].
 
 [float]
 [[local-exporter-settings]]

@@ -27,8 +27,8 @@ way to _authenticate_ users. This simply means that you need a way to validate
 that a user is who they claim to be. For example, you have to make sure only
 the person named _Kelsey Andorra_ can sign in as the user `kandorra`. {security} 
 provides a standalone authentication mechanism that enables you to
-quickly password-protect your cluster. If you're already using {xpack-ref}/ldap-realm.html[LDAP],
-{xpack-ref}/active-directory-realm.html[ Active Directory], or {xpack-ref}/pki-realm.html[ PKI] to manage
+quickly password-protect your cluster. If you're already using <<ldap-realm,LDAP>>,
+<<active-directory-realm,Active Directory>>, or <<pki-realm,PKI>> to manage
 users in your organization, {security} is able to integrate with those
 systems to perform user authentication.
 
@@ -36,11 +36,11 @@ In many cases, simply authenticating users isn't enough. You also need a way to
 control what data users have access to and what tasks they can perform. {security}
 enables you to _authorize_ users by assigning access _privileges_ to _roles_,
 and assigning those roles to users. For example, this
-{xpack-ref}/authorization.html[role-based access control] mechanism (a.k.a RBAC) enables
+<<authorization,role-based access control>> mechanism (a.k.a RBAC) enables
 you to specify that the user `kandorra` can only perform read operations on the
 `events` index and can't do anything at all with other indices.
 
-{security} also supports {xpack-ref}/ip-filtering.html[ IP-based authorization]. You can
+{security} also supports <<ip-filtering,IP-based authorization>>. You can
 whitelist and blacklist specific IP addresses or subnets to control network-level
 access to a server.
 
@@ -52,12 +52,12 @@ A critical part of security is keeping confidential data confidential.
 Elasticsearch has built-in protections against accidental data loss and
 corruption. However, there's nothing to stop deliberate tampering or data
 interception. {security} preserves the integrity of your data by
-{xpack-ref}/ssl-tls.html[encrypting communications] to and from nodes and
-{xpack-ref}/enable-message-authentication.html[authenticating message] to verify that they
+<<ssl-tls,encrypting communications>> to and from nodes and
+<<enable-message-authentication,authenticating message>> to verify that they
 have not been tampered with or corrupted in transit during node-to-node
 communication. For even greater protection, you can increase the
-{xpack-ref}/ciphers.html[encryption strength] and
-{xpack-ref}/separating-node-client-traffic.html[separate client traffic from node-to-node communications].
+<<ciphers,encryption strength>> and
+<<separating-node-client-traffic,separate client traffic from node-to-node communications>>.
 
 
 [float]
@@ -77,15 +77,15 @@ issues.
 * <<security-getting-started, Getting Started>>
   steps through how to install and start using Security for basic authentication.
 
-* {xpack-ref}/how-security-works.html[How Security Works]
+* <<how-security-works>>
   provides more information about how Security supports user authentication,
   authorization, and encryption.
 
-* {xpack-ref}/tribe-clients-integrations.html[Integrations]
+* <<tribe-clients-integrations>>
   shows you how to interact with an Elasticsearch cluster protected by
   {security}.
 
-* {xpack-ref}/security-reference.html[Reference]
+* <<security-reference>>
   provides detailed information about the access privileges you can grant to
   users, the settings you can configure for Security in `elasticsearch.yml`,
   and the files where Security configuration information is stored.

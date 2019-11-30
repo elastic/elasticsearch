@@ -7,7 +7,7 @@
 
 All of these settings can be added to the `elasticsearch.yml` configuration
 file. For more information, see
-{xpack-ref}/auditing.html[Auditing Security Events].
+<<auditing>>.
 
 [[general-audit-settings]]
 ==== General Auditing Settings
@@ -88,7 +88,7 @@ The default value is `true`.
 [[audit-event-ignore-policies]]
 ==== Audit Logfile Event Ignore Policies
 
-These settings affect the {stack-ov}/audit-log-output.html#audit-log-ignore-policy[ignore policies]
+These settings affect the {ref}/audit-log-output.html#audit-log-ignore-policy[ignore policies]
 that enable fine-grained control over which audit events are printed to the log file.
 All of the settings with the same policy name combine to form a single policy.
 If an event matches all of the conditions for a specific policy, it is ignored 
@@ -132,7 +132,7 @@ Controls how often to roll over to a new index: `hourly`, `daily`, `weekly`, or
 `xpack.security.audit.index.events.include`::
 Specifies the audit events to be indexed. The default value is
 `anonymous_access_denied, authentication_failed, realm_authentication_failed, access_granted, access_denied, tampered_request, connection_granted, connection_denied, run_as_granted, run_as_denied`.
-See {xpack-ref}/audit-event-types.html[Audit Entry Types] for the
+See {ref}/audit-event-types.html[Audit entry types] for the
 complete list.
 
 `xpack.security.audit.index.events.exclude`::

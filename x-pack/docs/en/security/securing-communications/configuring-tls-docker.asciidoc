@@ -10,7 +10,7 @@ HTTPS and transport using the {es} Docker image. The example uses
 Docker Compose to manage the containers.
 
 For further details, please refer to
-{xpack-ref}/encrypting-communications.html[Encrypting Communications] and
+<<encrypting-communications>> and
 https://www.elastic.co/subscriptions[available subscriptions].
 
 [float]

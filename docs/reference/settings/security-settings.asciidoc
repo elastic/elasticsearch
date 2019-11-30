@@ -65,8 +65,7 @@ See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
 [[anonymous-access-settings]]
 ==== Anonymous access settings
 You can configure the following anonymous access settings in
-`elasticsearch.yml`.  For more information, see {xpack-ref}/anonymous-access.html[
-Enabling anonymous access].
+`elasticsearch.yml`.  For more information, see <<anonymous-access>>.
 
 `xpack.security.authc.anonymous.username`::
 The username (principal) of the anonymous user. Defaults to `_es_anonymous_user`.
@@ -88,8 +87,7 @@ access. Defaults to `true`.
 
 You can set the following document and field level security
 settings in `elasticsearch.yml`. For more information, see
-{xpack-ref}/field-and-document-access-control.html[Setting up document and field
-level security].
+<<field-and-document-access-control>>.
 
 `xpack.security.dls_fls.enabled`::
 Set to `false` to prevent document and field level security
@@ -144,7 +142,7 @@ xpack.security.authc.realms:
 ----------------------------------------
 
 The valid settings vary depending on the realm type. For more
-information, see {xpack-ref}/setting-up-authentication.html[Setting up authentication].
+information, see <<setting-up-authentication>>.
 
 [float]
 [[ref-realm-settings]]
@@ -250,7 +248,7 @@ The DN template that replaces the user name with the string `{0}`.
 This setting is multivalued; you can specify multiple user contexts.
 Required to operate in user template mode. If `user_search.base_dn` is specified, 
 this setting is not valid. For more information on
-the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
+the different modes, see <<ldap-realm>>.
 +
 --
 NOTE: If any settings starting with `user_search` are specified, the 
@@ -267,7 +265,7 @@ to `memberOf`.
 Specifies a container DN to search for users. Required
 to operated in user search mode. If `user_dn_templates` is specified, this 
 setting is not valid. For more information on
-the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
+the different modes, see <<ldap-realm>>.
 
 `user_search.scope`::
 The scope of the user search. Valid values are `sub_tree`, `one_level` or
@@ -340,12 +338,12 @@ the filter.  If not set, the user DN is passed into the filter. Defaults to Empt
 If set to `true`, the names of any unmapped LDAP groups are used as role names 
 and assigned to the user. A group is considered to be _unmapped_ if it is not 
 referenced in a
-{xpack-ref}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
+<<mapping-roles-file,role-mapping file>>. API-based 
 role mappings are not considered. Defaults to `false`.
 
 `files.role_mapping`::
-The {xpack-ref}/security-files.html[location] for the {xpack-ref}/mapping-roles.html#mapping-roles[
-YAML role mapping configuration file]. Defaults to
+The <<security-files,location>> for the <<mapping-roles,
+YAML role mapping configuration file>>. Defaults to
 `ES_PATH_CONF/role_mapping.yml`.
 
 `follow_referrals`::
@@ -512,7 +510,7 @@ is not referenced in any role-mapping files. API-based role mappings are not
 considered. Defaults to `false`.
 
 `files.role_mapping`::
-The {xpack-ref}/security-files.html[location] for the YAML
+The <<security-files,location>> for the YAML
 role mapping configuration file. Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `user_search.base_dn`::
@@ -738,8 +736,8 @@ The path of a truststore to use. Defaults to the trusted certificates configured
 for SSL. This setting cannot be used with `certificate_authorities`.
 
 `files.role_mapping`::
-Specifies the {xpack-ref}/security-files.html[location] of the
-{xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
+Specifies the <<security-files,location>> of the
+<<mapping-roles,YAML role  mapping configuration file>>.
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `cache.ttl`::
@@ -1139,7 +1137,7 @@ through the list of URLs will continue until a successful connection is made.
 
 You can configure the following TLS/SSL settings in
 `elasticsearch.yml`. For more information, see
-{xpack-ref}/encrypting-communications.html[Encrypting communications]. These settings will be used
+<<encrypting-communications>>. These settings will be used
 for all of {xpack} unless they have been overridden by more specific
 settings such as those for HTTP or Transport.
 
@@ -1383,7 +1381,7 @@ See also <<remote-audit-settings>>.
 [[ip-filtering-settings]]
 ==== IP filtering settings
 
-You can configure the following settings for {xpack-ref}/ip-filtering.html[IP filtering].
+You can configure the following settings for <<ip-filtering,IP filtering>>.
 
 `xpack.security.transport.filter.allow`::
 List of IP addresses to allow.

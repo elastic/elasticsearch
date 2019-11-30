@@ -37,8 +37,7 @@ NOTE: Unless the `force` parameter is used, the {dfeed} must be stopped before i
 ===== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
+For more information, see <<security-privileges>>.
 
 
 ==== Examples

@@ -1,13 +1,13 @@
 [role="xpack"]
 [[auditing-settings]]
-=== Auditing Security Settings
+=== Auditing security settings
 ++++
-<titleabbrev>Auditing Settings</titleabbrev>
+<titleabbrev>Auditing settings</titleabbrev>
 ++++
 
 All of these settings can be added to the `elasticsearch.yml` configuration
 file. For more information, see
-{xpack-ref}/auditing.html[Auditing Security Events].
+<<auditing>>.
 
 [[general-audit-settings]]
 ==== General Auditing Settings
@@ -87,8 +87,7 @@ Controls how often to roll over to a new index: `hourly`, `daily`, `weekly`, or
 `xpack.security.audit.index.events.include`::
 Specifies the audit events to be indexed. The default value is
 `anonymous_access_denied, authentication_failed, realm_authentication_failed, access_granted, access_denied, tampered_request, connection_granted, connection_denied, run_as_granted, run_as_denied`.
-See {xpack-ref}/audit-event-types.html[Audit Entry Types] for the
-complete list.
+See <<audit-event-types>> for the complete list.
 
 `xpack.security.audit.index.events.exclude`::
 Excludes the specified auditing events from indexing. By default, no events are

@@ -60,7 +60,7 @@ To include this metric, the `metric` option should include `queued_watches` or
 
 You must have `manage_watcher` or `monitor_watcher` cluster privileges to use
 this API. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
 [float]
 ==== Examples

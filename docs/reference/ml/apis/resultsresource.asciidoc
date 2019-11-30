@@ -38,7 +38,7 @@ Categorization results contain the definitions of _categories_ that have been
 identified. These are only applicable for jobs that are configured to analyze
 unstructured log data using categorization. These results do not contain a
 timestamp or any calculated scores. For more information, see
-{xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
 
 * <<ml-results-buckets,Buckets>>
 * <<ml-results-influencers,Influencers>>

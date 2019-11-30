@@ -15,7 +15,7 @@ Instantiates a calendar.
 ===== Description
 
 For more information, see
-{xpack-ref}/ml-calendars.html[Calendars and Scheduled Events].
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
 
 ==== Path Parameters
 
@@ -33,7 +33,7 @@ For more information, see
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
 
 ==== Examples

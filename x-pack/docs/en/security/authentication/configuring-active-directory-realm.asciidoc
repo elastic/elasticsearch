@@ -8,7 +8,7 @@ realm and map Active Directory users and groups to {security} roles in the role
 mapping file.
 
 For more information about Active Directory realms, see 
-{xpack-ref}/active-directory-realm.html[Active Directory User Authentication].
+<<active-directory-realm>>.
 
 . Add a realm configuration of type `active_directory` to `elasticsearch.yml`
 under the `xpack.security.authc.realms` namespace. At a minimum, you must set 
@@ -120,7 +120,7 @@ can be configured and is used to perform all operations other than the LDAP bind
 request, which is required to authenticate the credentials provided by the user.
 
 The use of a bind user enables the 
-{xpack-ref}/run-as-privilege.html[run as feature] to be used with the Active 
+<<run-as-privilege,run as feature>> to be used with the Active 
 Directory realm and the ability to maintain a set of pooled connections to 
 Active Directory. These pooled connection reduce the number of resources that 
 must be created and destroyed with every user authentication.
@@ -235,7 +235,7 @@ user:
 <4> The Active Directory distinguished name (DN) of the user `John Doe`.
 
 For more information, see 
-{xpack-ref}/mapping-roles.html[Mapping users and groups to roles].
+<<mapping-roles>>.
 --
 
 . (Optional) Configure the `metadata` setting in the Active Directory realm to 
@@ -244,5 +244,5 @@ include extra properties in the user's metadata.
 --
 By default, `ldap_dn` and `ldap_groups` are populated in the user's metadata. 
 For more information, see 
-{xpack-ref}/active-directory-realm.html#ad-user-metadata[User Metadata in Active Directory Realms]. 
+<<ad-user-metadata>>. 
 --

@@ -28,8 +28,7 @@ https://www.elastic.co/subscriptions.
 ==== Authorization
 
 You must have `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 [float]
 ==== Examples

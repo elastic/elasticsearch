@@ -33,7 +33,7 @@ structure of the data that will be passed to the anomaly detection engine.
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
 
 ==== Security Integration

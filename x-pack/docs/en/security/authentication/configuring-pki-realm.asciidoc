@@ -21,7 +21,7 @@ allow clients without certificates to authenticate with other credentials.
 
 IMPORTANT:  You must enable SSL/TLS and enable client authentication to use PKI.
 
-For more information, see {xpack-ref}/pki-realm.html[PKI User Authentication].
+For more information, see <<pki-realm>>.
 
 . Add a realm configuration of type `pki` to `elasticsearch.yml` under the
 `xpack.security.authc.realms` namespace. At a minimum, you must set the realm 
@@ -172,5 +172,5 @@ the result. The user's distinguished name will be populated under the `pki_dn`
 key. You can also use the authenticate API to validate your role mapping.
 
 For more information, see 
-{xpack-ref}/mapping-roles.html[Mapping Users and Groups to Roles].
+<<mapping-roles>>.
 --

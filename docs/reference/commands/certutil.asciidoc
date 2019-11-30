@@ -220,7 +220,7 @@ Alternatively, you can specify the `--ca-pass`, `--out`, and `--pass` parameters
 By default, this command generates a file called `elastic-certificates.p12`,
 which you can copy to the relevant configuration directory for each Elastic
 product that you want to configure. For more information, see
-{xpack-ref}/ssl-tls.html[Setting Up TLS on a Cluster].
+<<ssl-tls>>.
 
 [float]
 [[certutil-silent]]

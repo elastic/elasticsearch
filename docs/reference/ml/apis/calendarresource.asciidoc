@@ -12,4 +12,4 @@ A calendar resource has the following properties:
   (array) An array of job identifiers. For example: `["total-requests"]`.
 
 For more information, see 
-{xpack-ref}/ml-calendars.html[Calendars and Scheduled Events].
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].

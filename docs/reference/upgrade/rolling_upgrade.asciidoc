@@ -44,7 +44,7 @@ include::synced-flush.asciidoc[]
 --
 
 . *Stop any machine learning jobs that are running.* See
-{xpack-ref}/stopping-ml.html[Stopping Machine Learning].
+{stack-ov}/stopping-ml.html[Stopping {ml}].
 
 . [[upgrade-node]] *Shut down a single node*.
 +

@@ -56,14 +56,60 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
     public void testSingleByteSize() throws Exception {
         testEncryptPacketWise(1, 1, new DefaultBufferedReadAllStrategy());
         testEncryptPacketWise(1, 2, new DefaultBufferedReadAllStrategy());
-        int packetSize = 3 + Randomness.get().nextInt(2046);
+        testEncryptPacketWise(1, 3, new DefaultBufferedReadAllStrategy());
+        int packetSize = 4 + Randomness.get().nextInt(2046);
         testEncryptPacketWise(1, packetSize, new DefaultBufferedReadAllStrategy());
     }
 
-    public void testSizeSmallerThanPacket() throws Exception {
+    public void testSizeSmallerThanPacketSize() throws Exception {
         int packetSize = 3 + Randomness.get().nextInt(2045);
+        testEncryptPacketWise(packetSize - 1, packetSize, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(packetSize - 2, packetSize, new DefaultBufferedReadAllStrategy());
         int size = 1 + Randomness.get().nextInt(packetSize - 1);
         testEncryptPacketWise(size, packetSize, new DefaultBufferedReadAllStrategy());
+    }
+
+    public void testSizeEqualToPacketSize() throws Exception {
+        int packetSize = 1 + Randomness.get().nextInt(2048);
+        testEncryptPacketWise(packetSize, packetSize, new DefaultBufferedReadAllStrategy());
+    }
+
+    public void testSizeLargerThanPacketSize() throws Exception {
+        int packetSize = 1 + Randomness.get().nextInt(2048);
+        testEncryptPacketWise(packetSize + 1, packetSize, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(packetSize + 2, packetSize, new DefaultBufferedReadAllStrategy());
+        int size = packetSize + 3 + Randomness.get().nextInt(packetSize);
+        testEncryptPacketWise(size, packetSize, new DefaultBufferedReadAllStrategy());
+    }
+
+    public void testSizeMultipleOfPacketSize() throws Exception {
+        int packetSize = 1 + Randomness.get().nextInt(512);
+        testEncryptPacketWise(2 * packetSize, packetSize, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(3 * packetSize, packetSize, new DefaultBufferedReadAllStrategy());
+        int packetCount = 4 + Randomness.get().nextInt(12);
+        testEncryptPacketWise(packetCount * packetSize, packetSize, new DefaultBufferedReadAllStrategy());
+    }
+
+    public void testSizeAlmostMultipleOfPacketSize() throws Exception {
+        int packetSize = 3 + Randomness.get().nextInt(510);
+        int packetCount = 2 + Randomness.get().nextInt(15);
+        testEncryptPacketWise(packetCount * packetSize - 1, packetSize, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(packetCount * packetSize - 2, packetSize, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(packetCount * packetSize + 1, packetSize, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(packetCount * packetSize + 2, packetSize, new DefaultBufferedReadAllStrategy());
+    }
+
+    public void testShortPacketSizes() throws Exception {
+        int packetCount = 2 + Randomness.get().nextInt(15);
+        testEncryptPacketWise(2 + Randomness.get().nextInt(15), 1, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(4 + Randomness.get().nextInt(30), 2, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(6 + Randomness.get().nextInt(45), 3, new DefaultBufferedReadAllStrategy());
+    }
+
+    public void testPacketSizeMultipleOfAESBlockSize() throws Exception {
+        int packetSize = 1 + Randomness.get().nextInt(8);
+        testEncryptPacketWise(1 + Randomness.get().nextInt(8192), packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES,
+                new DefaultBufferedReadAllStrategy());
     }
 
     private void testEncryptPacketWise(int size, int packetSize, ReadStrategy readStrategy) throws Exception {

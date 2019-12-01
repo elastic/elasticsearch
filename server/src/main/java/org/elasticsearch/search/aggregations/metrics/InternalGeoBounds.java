@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoExtent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,13 +41,24 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     static final ParseField LON_FIELD = new ParseField("lon");
 
 
-    final GeoExtent extent;
+    final double top;
+    final double bottom;
+    final double posLeft;
+    final double posRight;
+    final double negLeft;
+    final double negRight;
     final boolean wrapLongitude;
 
-    InternalGeoBounds(String name, GeoExtent extent, boolean wrapLongitude,
+    InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
+                      double negLeft, double negRight, boolean wrapLongitude,
                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
-        this.extent = extent;
+        this.top = top;
+        this.bottom = bottom;
+        this.posLeft = posLeft;
+        this.posRight = posRight;
+        this.negLeft = negLeft;
+        this.negRight = negRight;
         this.wrapLongitude = wrapLongitude;
     }
 
@@ -57,13 +67,23 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
      */
     public InternalGeoBounds(StreamInput in) throws IOException {
         super(in);
-        extent = new GeoExtent(in);
+        top = in.readDouble();
+        bottom = in.readDouble();
+        posLeft = in.readDouble();
+        posRight = in.readDouble();
+        negLeft = in.readDouble();
+        negRight = in.readDouble();
         wrapLongitude = in.readBoolean();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        extent.writeTo(out);
+        out.writeDouble(top);
+        out.writeDouble(bottom);
+        out.writeDouble(posLeft);
+        out.writeDouble(posRight);
+        out.writeDouble(negLeft);
+        out.writeDouble(negRight);
         out.writeBoolean(wrapLongitude);
     }
 
@@ -74,13 +94,37 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        GeoExtent extent = new GeoExtent();
+        double top = Double.NEGATIVE_INFINITY;
+        double bottom = Double.POSITIVE_INFINITY;
+        double posLeft = Double.POSITIVE_INFINITY;
+        double posRight = Double.NEGATIVE_INFINITY;
+        double negLeft = Double.POSITIVE_INFINITY;
+        double negRight = Double.NEGATIVE_INFINITY;
+
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoBounds bounds = (InternalGeoBounds) aggregation;
-            extent.addExtent(bounds.extent);
+
+            if (bounds.top > top) {
+                top = bounds.top;
+            }
+            if (bounds.bottom < bottom) {
+                bottom = bounds.bottom;
+            }
+            if (bounds.posLeft < posLeft) {
+                posLeft = bounds.posLeft;
+            }
+            if (bounds.posRight > posRight) {
+                posRight = bounds.posRight;
+            }
+            if (bounds.negLeft < negLeft) {
+                negLeft = bounds.negLeft;
+            }
+            if (bounds.negRight > negRight) {
+                negRight = bounds.negRight;
+            }
         }
-        return new InternalGeoBounds(name, extent, wrapLongitude, pipelineAggregators(),
-                getMetaData());
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators(),
+            getMetaData());
     }
 
     @Override
@@ -88,40 +132,42 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         if (path.isEmpty()) {
             return this;
         } else if (path.size() == 1) {
+            BoundingBox boundingBox = resolveBoundingBox();
             String bBoxSide = path.get(0);
             switch (bBoxSide) {
-            case "top":
-                return extent.maxLat();
-            case "left":
-                return extent.minLon(wrapLongitude);
-            case "bottom":
-                return extent.minLat();
-            case "right":
-                return extent.maxLon(wrapLongitude);
-            default:
-                throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
+                case "top":
+                    return boundingBox.topLeft.lat();
+                case "left":
+                    return boundingBox.topLeft.lon();
+                case "bottom":
+                    return boundingBox.bottomRight.lat();
+                case "right":
+                    return boundingBox.bottomRight.lon();
+                default:
+                    throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
             }
         } else if (path.size() == 2) {
-            GeoPoint cornerPoint;
+            BoundingBox boundingBox = resolveBoundingBox();
+            GeoPoint cornerPoint = null;
             String cornerString = path.get(0);
             switch (cornerString) {
-            case "top_left":
-                cornerPoint = topLeft();
-                break;
-            case "bottom_right":
-                cornerPoint = bottomRight();
-                break;
-            default:
-                throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
+                case "top_left":
+                    cornerPoint = boundingBox.topLeft;
+                    break;
+                case "bottom_right":
+                    cornerPoint = boundingBox.bottomRight;
+                    break;
+                default:
+                    throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
             }
             String latLonString = path.get(1);
             switch (latLonString) {
-            case "lat":
-                return cornerPoint.lat();
-            case "lon":
-                return cornerPoint.lon();
-            default:
-                throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
+                case "lat":
+                    return cornerPoint.lat();
+                case "lon":
+                    return cornerPoint.lon();
+                default:
+                    throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
             }
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
@@ -147,25 +193,61 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         return builder;
     }
 
+    private static class BoundingBox {
+        private final GeoPoint topLeft;
+        private final GeoPoint bottomRight;
+
+        BoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
+            this.topLeft = topLeft;
+            this.bottomRight = bottomRight;
+        }
+
+        public GeoPoint topLeft() {
+            return topLeft;
+        }
+
+        public GeoPoint bottomRight() {
+            return bottomRight;
+        }
+    }
+
+    private BoundingBox resolveBoundingBox() {
+        if (Double.isInfinite(top)) {
+            return null;
+        } else if (Double.isInfinite(posLeft)) {
+            return new BoundingBox(new GeoPoint(top, negLeft), new GeoPoint(bottom, negRight));
+        } else if (Double.isInfinite(negLeft)) {
+            return new BoundingBox(new GeoPoint(top, posLeft), new GeoPoint(bottom, posRight));
+        } else if (wrapLongitude) {
+            double unwrappedWidth = posRight - negLeft;
+            double wrappedWidth = (180 - posLeft) - (-180 - negRight);
+            if (unwrappedWidth <= wrappedWidth) {
+                return new BoundingBox(new GeoPoint(top, negLeft), new GeoPoint(bottom, posRight));
+            } else {
+                return new BoundingBox(new GeoPoint(top, posLeft), new GeoPoint(bottom, negRight));
+            }
+        } else {
+            return new BoundingBox(new GeoPoint(top, negLeft), new GeoPoint(bottom, posRight));
+        }
+    }
+
     @Override
     public GeoPoint topLeft() {
-        double maxLat = extent.maxLat();
-        if (maxLat == Double.NEGATIVE_INFINITY) {
+        BoundingBox boundingBox = resolveBoundingBox();
+        if (boundingBox == null) {
             return null;
         } else {
-            double minLon = extent.minLon(wrapLongitude);
-            return new GeoPoint(maxLat, minLon);
+            return boundingBox.topLeft();
         }
     }
 
     @Override
     public GeoPoint bottomRight() {
-        double minLat = extent.minLat();
-        if (minLat == Double.POSITIVE_INFINITY) {
+        BoundingBox boundingBox = resolveBoundingBox();
+        if (boundingBox == null) {
             return null;
         } else {
-            double maxLon = extent.maxLon(wrapLongitude);
-            return new GeoPoint(minLat, maxLon);
+            return boundingBox.bottomRight();
         }
     }
 
@@ -176,12 +258,17 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         if (super.equals(obj) == false) return false;
 
         InternalGeoBounds other = (InternalGeoBounds) obj;
-        return extent.equals(other.extent) &&
+        return top == other.top &&
+            bottom == other.bottom &&
+            posLeft == other.posLeft &&
+            posRight == other.posRight &&
+            negLeft == other.negLeft &&
+            negRight == other.negRight &&
             wrapLongitude == other.wrapLongitude;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), extent, wrapLongitude);
+        return Objects.hash(super.hashCode(), bottom, posLeft, posRight, negLeft, negRight, wrapLongitude);
     }
 }

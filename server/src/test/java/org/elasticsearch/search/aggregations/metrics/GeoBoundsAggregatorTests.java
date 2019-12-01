@@ -26,7 +26,6 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.geo.GeoExtent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -51,17 +50,24 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
-                assertTrue(Double.isInfinite(bounds.extent.maxLat()));
-                assertTrue(Double.isInfinite(bounds.extent.minLat()));
-                assertTrue(Double.isInfinite(bounds.extent.minLat()));
-                assertTrue(Double.isInfinite(bounds.extent.maxLat()));
+                assertTrue(Double.isInfinite(bounds.top));
+                assertTrue(Double.isInfinite(bounds.bottom));
+                assertTrue(Double.isInfinite(bounds.posLeft));
+                assertTrue(Double.isInfinite(bounds.posRight));
+                assertTrue(Double.isInfinite(bounds.negLeft));
+                assertTrue(Double.isInfinite(bounds.negRight));
                 assertFalse(AggregationInspectionHelper.hasValue(bounds));
             }
         }
     }
 
     public void testRandom() throws Exception {
-        GeoExtent extent  = new GeoExtent();
+        double top = Double.NEGATIVE_INFINITY;
+        double bottom = Double.POSITIVE_INFINITY;
+        double posLeft = Double.POSITIVE_INFINITY;
+        double posRight = Double.NEGATIVE_INFINITY;
+        double negLeft = Double.POSITIVE_INFINITY;
+        double negRight = Double.NEGATIVE_INFINITY;
         int numDocs = randomIntBetween(50, 100);
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -70,7 +76,24 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 int numValues = randomIntBetween(1, 5);
                 for (int j = 0; j < numValues; j++) {
                     GeoPoint point = RandomGeoGenerator.randomPoint(random());
-                    extent.addPoint(point.lat(), point.lon());
+                    if (point.getLat() > top) {
+                        top = point.getLat();
+                    }
+                    if (point.getLat() < bottom) {
+                        bottom = point.getLat();
+                    }
+                    if (point.getLon() >= 0 && point.getLon() < posLeft) {
+                        posLeft = point.getLon();
+                    }
+                    if (point.getLon() >= 0 && point.getLon() > posRight) {
+                        posRight = point.getLon();
+                    }
+                    if (point.getLon() < 0 && point.getLon() < negLeft) {
+                        negLeft = point.getLon();
+                    }
+                    if (point.getLon() < 0 && point.getLon() > negRight) {
+                        negRight = point.getLon();
+                    }
                     doc.add(new LatLonDocValuesField("field", point.getLat(), point.getLon()));
                 }
                 w.addDocument(doc);
@@ -85,12 +108,12 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
-                assertThat(bounds.extent.maxLat(), closeTo(extent.maxLat(), GEOHASH_TOLERANCE));
-                assertThat(bounds.extent.minLat(), closeTo(extent.minLat(), GEOHASH_TOLERANCE));
-                assertThat(bounds.extent.minLon(true), closeTo(extent.minLon(true), GEOHASH_TOLERANCE));
-                assertThat(bounds.extent.minLon(false), closeTo(extent.minLon(false), GEOHASH_TOLERANCE));
-                assertThat(bounds.extent.maxLon(true), closeTo(extent.maxLon(true), GEOHASH_TOLERANCE));
-                assertThat(bounds.extent.maxLon(false), closeTo(extent.maxLon(false), GEOHASH_TOLERANCE));
+                assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
+                assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));
+                assertThat(bounds.posLeft, closeTo(posLeft, GEOHASH_TOLERANCE));
+                assertThat(bounds.posRight, closeTo(posRight, GEOHASH_TOLERANCE));
+                assertThat(bounds.negRight, closeTo(negRight, GEOHASH_TOLERANCE));
+                assertThat(bounds.negLeft, closeTo(negLeft, GEOHASH_TOLERANCE));
                 assertTrue(AggregationInspectionHelper.hasValue(bounds));
             }
         }

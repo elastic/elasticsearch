@@ -373,12 +373,12 @@ public class TransportWriteActionTests extends ESTestCase {
         if (randomBoolean()) {
             threadPool.generic().execute(() -> {
                 waitForBarrier.run();
-                replicaResult.onFailure(null);
+                replicaResult.asyncActionsOnFailure(null);
             });
         } else {
             threadPool.generic().execute(() -> {
                 waitForBarrier.run();
-                replicaResult.onSuccess(false);
+                replicaResult.asyncActionsOnSuccess();
             });
         }
 

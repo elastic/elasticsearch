@@ -146,16 +146,18 @@ public class ReplicationOperation<
                     final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for itself");
                     primary.failShard(message, e);
                 }
+                successfulShards.incrementAndGet();  // mark primary as successful
+                decPendingAndFinishIfNeeded();
             }
 
             @Override
             public void onFailure(Exception e) {
-                // TODO: fail shard? This will otherwise have the local / global checkpoint info lagging
                 logger.trace("[{}] op [{}] post replication actions failed for [{}]", primary.routingEntry().shardId(), opType, request);
+                // TODO: fail shard? This will otherwise have the local / global checkpoint info lagging, or possibly have replicas
+                // go out of sync with the primary
+                finishAsFailed(e);
             }
         });
-        successfulShards.incrementAndGet();  // mark primary as successful
-        decPendingAndFinishIfNeeded();
     }
 
     private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, ReplicationGroup replicationGroup) {
@@ -486,7 +488,8 @@ public class ReplicationOperation<
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
 
         /** trigger actions to be triggered post replication
-         * @param onWriteCompletion*/
-        void runPostReplicationActions(ActionListener<Void> onWriteCompletion);
+         * @param onCompletion calllback that is invoked after post replication actions have completed
+         * */
+        void runPostReplicationActions(ActionListener<Void> onCompletion);
     }
 }

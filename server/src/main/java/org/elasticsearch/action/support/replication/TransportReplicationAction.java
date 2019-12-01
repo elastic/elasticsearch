@@ -398,6 +398,8 @@ public abstract class TransportReplicationAction<
         protected final ReplicaRequest replicaRequest;
         public final Response finalResponseIfSuccessful;
         public final Exception finalFailure;
+        boolean finishedAsyncActions;
+        ActionListener<Response> listener = null;
 
         /**
          * Result of executing a primary operation
@@ -414,7 +416,12 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void runPostReplicationActions(ActionListener<Void> onWriteCompletion) {
-            onWriteCompletion.onResponse(null);
+            if (finalFailure != null) {
+                asyncActionsOnFailure(finalFailure);
+            } else {
+                onWriteCompletion.onResponse(null);
+                asyncActionsOnSuccess();
+            }
         }
 
         public PrimaryResult(ReplicaRequest replicaRequest, Response replicationResponse) {
@@ -433,17 +440,45 @@ public abstract class TransportReplicationAction<
             }
         }
 
-        public void respond(ActionListener<Response> listener) {
-            if (finalResponseIfSuccessful != null) {
-                listener.onResponse(finalResponseIfSuccessful);
-            } else {
-                listener.onFailure(finalFailure);
+        /**
+         * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
+         */
+        protected void respondIfPossible(Exception ex) {
+            assert Thread.holdsLock(this);
+            if (finishedAsyncActions && listener != null) {
+                if (ex == null) {
+                    if (finalResponseIfSuccessful != null) {
+                        listener.onResponse(finalResponseIfSuccessful);
+                    } else {
+                        listener.onFailure(finalFailure);
+                    }
+                } else {
+                    listener.onFailure(ex);
+                }
             }
+        }
+
+        public synchronized void asyncActionsOnFailure(Exception exception) {
+            finishedAsyncActions = true;
+            respondIfPossible(exception);
+        }
+
+        public synchronized void asyncActionsOnSuccess() {
+            finishedAsyncActions = true;
+            respondIfPossible(null);
+        }
+
+        public synchronized void respond(ActionListener<Response> listener) {
+            this.listener = listener;
+            respondIfPossible(null);
         }
     }
 
     public static class ReplicaResult {
         final Exception finalFailure;
+
+        boolean finishedAsyncActions;
+        private ActionListener<TransportResponse.Empty> listener;
 
         public ReplicaResult(Exception finalFailure) {
             this.finalFailure = finalFailure;
@@ -453,12 +488,45 @@ public abstract class TransportReplicationAction<
             this(null);
         }
 
-        public void respond(ActionListener<TransportResponse.Empty> listener) {
-            if (finalFailure == null) {
-                listener.onResponse(TransportResponse.Empty.INSTANCE);
+        public void runPostReplicationActions() {
+            if (finalFailure != null) {
+                asyncActionsOnFailure(finalFailure);
             } else {
-                listener.onFailure(finalFailure);
+                asyncActionsOnSuccess();
             }
+        }
+
+        /**
+         * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
+         */
+        protected void respondIfPossible(Exception ex) {
+            assert Thread.holdsLock(this);
+            if (finishedAsyncActions && listener != null) {
+                if (ex == null) {
+                    if (finalFailure == null) {
+                        listener.onResponse(TransportResponse.Empty.INSTANCE);
+                    } else {
+                        listener.onFailure(finalFailure);
+                    }
+                } else {
+                    listener.onFailure(ex);
+                }
+            }
+        }
+
+        public synchronized void asyncActionsOnFailure(Exception ex) {
+            finishedAsyncActions = true;
+            respondIfPossible(ex);
+        }
+
+        public synchronized void asyncActionsOnSuccess() {
+            finishedAsyncActions = true;
+            respondIfPossible(null);
+        }
+
+        public synchronized void respond(ActionListener<TransportResponse.Empty> listener) {
+            this.listener = listener;
+            respondIfPossible(null);
         }
     }
 
@@ -522,6 +590,7 @@ public abstract class TransportReplicationAction<
                     Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                     this.responseWithFailure(e);
                 }));
+                replicaResult.runPostReplicationActions();
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                 AsyncReplicaAction.this.onFailure(e);

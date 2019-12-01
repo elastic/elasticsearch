@@ -84,7 +84,7 @@ public class CellIdSource extends ValuesSource.Numeric {
         throw new UnsupportedOperationException();
     }
 
-    /** Sorted numeric doc values for geopshapes */
+    /** Sorted numeric doc values for geo shapes */
     protected static class GeoShapeCellValues extends AbstractSortingNumericDocValues {
         private MultiGeoValues geoValues;
         private int precision;
@@ -125,7 +125,7 @@ public class CellIdSource extends ValuesSource.Numeric {
         }
     }
 
-    /** Sorted numeric doc values for geopoints */
+    /** Sorted numeric doc values for geo points */
     protected static class GeoPointCellValues extends AbstractSortingNumericDocValues {
         private MultiGeoValues geoValues;
         private int precision;

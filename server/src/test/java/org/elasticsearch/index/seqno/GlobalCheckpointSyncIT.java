@@ -19,13 +19,10 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -46,23 +43,15 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
-import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.isOneOf;
 
 public class GlobalCheckpointSyncIT extends ESIntegTestCase {
 
@@ -295,54 +284,6 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                     assertThat(seqNoStats.getLocalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));;
                 }
             }
-        }
-    }
-
-    public void testSimpleBulk() throws Exception {
-        String index = "deleted_while_indexing";
-        client().admin().indices().prepareCreate(index).setSettings(Settings.builder().put("number_of_shards", 1)
-            .put("number_of_replicas", 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)).get();
-
-
-        LocalCheckpointTracker tracker = new LocalCheckpointTracker(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
-
-        AtomicBoolean stopped = new AtomicBoolean();
-        Thread[] threads = new Thread[between(10, 20)];
-        AtomicInteger docID = new AtomicInteger();
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                while (stopped.get() == false && docID.get() < 5000) {
-                    String id = Integer.toString(docID.incrementAndGet());
-                    try {
-                        IndexResponse response = client().prepareIndex(index).setId(id)
-                            .setSource(Map.of("f", randomNonNegativeLong()), XContentType.JSON).get();
-                        tracker.markSeqNoAsProcessed(response.getSeqNo());
-                        logger.info("--> index id={} seq_no={}", response.getId(), response.getSeqNo());
-                    } catch (ElasticsearchException ignore) {
-                        logger.info("--> fail to index id={}", id);
-                    }
-                }
-            });
-            threads[i].start();
-        }
-
-        Thread.sleep(500);
-
-        logger.info("Checkpoint: {}", tracker.getProcessedCheckpoint());
-
-        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (IndexService indexService : indicesService) {
-                for (IndexShard shard : indexService) {
-                    final SeqNoStats seqNoStats = shard.seqNoStats();
-                    assertThat(seqNoStats.getLocalCheckpoint(), greaterThanOrEqualTo(tracker.getProcessedCheckpoint()));;
-                }
-            }
-        }
-
-        stopped.set(true);
-        for (Thread thread : threads) {
-            thread.join(ReplicationRequest.DEFAULT_TIMEOUT.millis() / 2);
-            assertFalse(thread.isAlive());
         }
     }
 }

@@ -184,19 +184,19 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void runPostReplicationActions() {
+        public void runPostReplicaActions(ActionListener<Void> listener) {
             if (finalFailure != null) {
-                this.finishedAsyncActions = true;
+                listener.onFailure(finalFailure);
             } else {
                 new AsyncAfterWriteAction(replica, request, location, new RespondingWriteResult() {
                     @Override
                     public void onSuccess(boolean forcedRefresh) {
-                        asyncActionsOnSuccess();
+                        listener.onResponse(null);
                     }
 
                     @Override
                     public void onFailure(Exception ex) {
-                        asyncActionsOnFailure(ex);
+                        listener.onFailure(ex);
                     }
                 }, null, logger).run();
             }

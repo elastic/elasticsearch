@@ -73,7 +73,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -418,11 +417,11 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void runPostReplicationActions(ActionListener<Void> onWriteCompletion) {
+        public void runPostReplicationActions(ActionListener<Void> listener) {
             if (finalFailure != null) {
-                onWriteCompletion.onFailure(finalFailure);
+                listener.onFailure(finalFailure);
             } else {
-                onWriteCompletion.onResponse(null);
+                listener.onResponse(null);
             }
         }
 
@@ -446,9 +445,6 @@ public abstract class TransportReplicationAction<
     public static class ReplicaResult {
         final Exception finalFailure;
 
-        boolean finishedAsyncActions;
-        private ActionListener<TransportResponse.Empty> listener;
-
         public ReplicaResult(Exception finalFailure) {
             this.finalFailure = finalFailure;
         }
@@ -457,45 +453,12 @@ public abstract class TransportReplicationAction<
             this(null);
         }
 
-        public void runPostReplicationActions() {
+        public void runPostReplicaActions(ActionListener<Void> listener) {
             if (finalFailure != null) {
-                asyncActionsOnFailure(finalFailure);
+                listener.onFailure(finalFailure);
             } else {
-                asyncActionsOnSuccess();
+                listener.onResponse(null);
             }
-        }
-
-        /**
-         * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
-         */
-        protected void respondIfPossible(Exception ex) {
-            assert Thread.holdsLock(this);
-            if (finishedAsyncActions && listener != null) {
-                if (ex == null) {
-                    if (finalFailure == null) {
-                        listener.onResponse(TransportResponse.Empty.INSTANCE);
-                    } else {
-                        listener.onFailure(finalFailure);
-                    }
-                } else {
-                    listener.onFailure(ex);
-                }
-            }
-        }
-
-        public synchronized void asyncActionsOnFailure(Exception ex) {
-            finishedAsyncActions = true;
-            respondIfPossible(ex);
-        }
-
-        public synchronized void asyncActionsOnSuccess() {
-            finishedAsyncActions = true;
-            respondIfPossible(null);
-        }
-
-        public synchronized void respond(ActionListener<TransportResponse.Empty> listener) {
-            this.listener = listener;
-            respondIfPossible(null);
         }
     }
 
@@ -544,22 +507,23 @@ public abstract class TransportReplicationAction<
             try {
                 assert replica.getActiveOperationsCount() != 0 : "must perform shard operation under a permit";
                 final ReplicaResult replicaResult = shardOperationOnReplica(replicaRequest.getRequest(), replica);
-                replicaResult.respond(ActionListener.wrap(r -> {
-                    final TransportReplicationAction.ReplicaResponse response =
-                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getLastSyncedGlobalCheckpoint());
-                    releasable.close(); // release shard operation lock before responding to caller
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction,
-                            replicaRequest.getRequest().shardId(),
-                            replicaRequest.getRequest());
-                    }
-                    setPhase(task, "finished");
-                    onCompletionListener.onResponse(response);
-                }, e -> {
-                    Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
-                    this.responseWithFailure(e);
-                }));
-                replicaResult.runPostReplicationActions();
+                replicaResult.runPostReplicaActions(
+                    ActionListener.wrap(r -> {
+                        final TransportReplicationAction.ReplicaResponse response =
+                            new ReplicaResponse(replica.getLocalCheckpoint(), replica.getLastSyncedGlobalCheckpoint());
+                        releasable.close(); // release shard operation lock before responding to caller
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction,
+                                replicaRequest.getRequest().shardId(),
+                                replicaRequest.getRequest());
+                        }
+                        setPhase(task, "finished");
+                        onCompletionListener.onResponse(response);
+                    }, e -> {
+                        Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
+                        this.responseWithFailure(e);
+                    })
+                );
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                 AsyncReplicaAction.this.onFailure(e);

@@ -158,7 +158,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TransportWriteAction.WriteReplicaResult<TestRequest> result =
                 testAction.shardOperationOnReplica(request, indexShard);
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.respond(listener);
+        result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard, never()).refresh(any());
@@ -188,7 +188,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TransportWriteAction.WriteReplicaResult<TestRequest> result =
                 testAction.shardOperationOnReplica(request, indexShard);
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.respond(listener);
+        result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard).refresh("refresh_flag_index");
@@ -226,7 +226,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestAction testAction = new TestAction();
         TransportWriteAction.WriteReplicaResult<TestRequest> result = testAction.shardOperationOnReplica(request, indexShard);
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.respond(listener);
+        result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response); // Haven't responded yet
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
@@ -255,10 +255,10 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testDocumentFailureInShardOperationOnReplica() throws Exception {
         TestRequest request = new TestRequest();
         TestAction testAction = new TestAction(randomBoolean(), true);
-        TransportWriteAction.WriteReplicaResult<TestRequest> writeReplicaResult =
+        TransportWriteAction.WriteReplicaResult<TestRequest> result =
                 testAction.shardOperationOnReplica(request, indexShard);
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        writeReplicaResult.respond(listener);
+        result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response);
         assertNotNull(listener.failure);
     }
@@ -368,19 +368,8 @@ public class TransportWriteActionTests extends ESTestCase {
         CountDownLatch completionLatch = new CountDownLatch(1);
         threadPool.generic().execute(() -> {
             waitForBarrier.run();
-            replicaResult.respond(ActionListener.wrap(completionLatch::countDown));
+            replicaResult.runPostReplicaActions(ActionListener.wrap(completionLatch::countDown));
         });
-        if (randomBoolean()) {
-            threadPool.generic().execute(() -> {
-                waitForBarrier.run();
-                replicaResult.asyncActionsOnFailure(null);
-            });
-        } else {
-            threadPool.generic().execute(() -> {
-                waitForBarrier.run();
-                replicaResult.asyncActionsOnSuccess();
-            });
-        }
 
         assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
     }

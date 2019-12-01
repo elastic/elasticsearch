@@ -56,6 +56,7 @@ import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.es.SpanishAnalyzer;
+import org.apache.lucene.analysis.et.EstonianAnalyzer;
 import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
@@ -173,8 +174,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> analyzers = new TreeMap<>();
         analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
-
-        // TODO remove in 8.0
         analyzers.put("pattern", PatternAnalyzerProvider::new);
         analyzers.put("snowball", SnowballAnalyzerProvider::new);
 
@@ -192,6 +191,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.put("danish", DanishAnalyzerProvider::new);
         analyzers.put("dutch", DutchAnalyzerProvider::new);
         analyzers.put("english", EnglishAnalyzerProvider::new);
+        analyzers.put("estonian", EstonianAnalyzerProvider::new);
         analyzers.put("finnish", FinnishAnalyzerProvider::new);
         analyzers.put("french", FrenchAnalyzerProvider::new);
         analyzers.put("galician", GalicianAnalyzerProvider::new);
@@ -344,6 +344,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.add(new PreBuiltAnalyzerProviderFactory("danish", CachingStrategy.LUCENE, DanishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("dutch", CachingStrategy.LUCENE, DutchAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("english", CachingStrategy.LUCENE, EnglishAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("estonian", CachingStrategy.LUCENE, EstonianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("finnish", CachingStrategy.LUCENE, FinnishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("french", CachingStrategy.LUCENE, FrenchAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("galician", CachingStrategy.LUCENE, GalicianAnalyzer::new));

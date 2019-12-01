@@ -12,10 +12,10 @@ dependencies {
 }
 
 forbiddenPatterns {
-    exclude '**/*.key'
-    exclude '**/*.pem'
-    exclude '**/*.p12'
-    exclude '**/*.jks'
+  exclude '**/*.key'
+  exclude '**/*.pem'
+  exclude '**/*.p12'
+  exclude '**/*.jks'
 }
 
 File caFile = project.file('src/test/resources/ssl/ca.p12')

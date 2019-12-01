@@ -248,6 +248,7 @@ public class FetchPhase implements SearchPhase {
         return searchFields;
     }
 
+    @SuppressWarnings("unchecked")
     private SearchHit createNestedSearchHit(SearchContext context,
                                             int nestedTopDocId,
                                             int nestedSubDocId,
@@ -379,7 +380,7 @@ public class FetchPhase implements SearchPhase {
             BitSet parentBits = context.bitsetFilterCache().getBitSetProducer(parentFilter).getBitSet(subReaderContext);
 
             int offset = 0;
-            /**
+            /*
              * Starts from the previous parent and finds the offset of the
              * <code>nestedSubDocID</code> within the nested children. Nested documents
              * are indexed in the same order than in the source array so the offset

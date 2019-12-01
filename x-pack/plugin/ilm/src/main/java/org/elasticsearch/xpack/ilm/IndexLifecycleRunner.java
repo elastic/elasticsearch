@@ -104,7 +104,14 @@ public class IndexLifecycleRunner {
     public void runPeriodicStep(String policy, IndexMetaData indexMetaData) {
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        final Step currentStep;
+        try {
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        } catch (Exception e) {
+            markPolicyRetrievalError(policy, indexMetaData.getIndex(), lifecycleState, e);
+            return;
+        }
+
         if (currentStep == null) {
             if (stepRegistry.policyExists(policy) == false) {
                 markPolicyDoesNotExist(policy, indexMetaData.getIndex(), lifecycleState);
@@ -156,7 +163,7 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private void onErrorMaybeRetryFailedStep(String policy, IndexMetaData indexMetaData) {
+    void onErrorMaybeRetryFailedStep(String policy, IndexMetaData indexMetaData) {
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         Step failedStep = stepRegistry.getStep(indexMetaData, new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(),
@@ -194,7 +201,13 @@ public class IndexLifecycleRunner {
     public void maybeRunAsyncAction(ClusterState currentState, IndexMetaData indexMetaData, String policy, StepKey expectedStepKey) {
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        final Step currentStep;
+        try {
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        } catch (Exception e) {
+            markPolicyRetrievalError(policy, indexMetaData.getIndex(), lifecycleState, e);
+            return;
+        }
         if (currentStep == null) {
             logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized",
                 getCurrentStepKey(lifecycleState), index, policy);
@@ -237,7 +250,13 @@ public class IndexLifecycleRunner {
     public void runPolicyAfterStateChange(String policy, IndexMetaData indexMetaData) {
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        final Step currentStep;
+        try {
+            currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
+        } catch (Exception e) {
+            markPolicyRetrievalError(policy, indexMetaData.getIndex(), lifecycleState, e);
+            return;
+        }
         if (currentStep == null) {
             if (stepRegistry.policyExists(policy) == false) {
                 markPolicyDoesNotExist(policy, indexMetaData.getIndex(), lifecycleState);
@@ -317,13 +336,11 @@ public class IndexLifecycleRunner {
      * @param nextStepKey    The next step to move the index into
      * @param nowSupplier    The current-time supplier for updating when steps changed
      * @param stepRegistry   The steps registry to check a step-key's existence in the index's current policy
-     * @param forcePhaseDefinitionRefresh When true, step information will be recompiled from the latest version of the
-     *                                    policy. Otherwise, existing phase definition is used.
      * @return The updated cluster state where the index moved to <code>nextStepKey</code>
      */
     static ClusterState moveClusterStateToStep(String indexName, ClusterState currentState, StepKey currentStepKey,
                                                StepKey nextStepKey, LongSupplier nowSupplier,
-                                               PolicyStepsRegistry stepRegistry, boolean forcePhaseDefinitionRefresh) {
+                                               PolicyStepsRegistry stepRegistry) {
         IndexMetaData idxMeta = currentState.getMetaData().index(indexName);
         validateTransition(idxMeta, currentStepKey, nextStepKey, stepRegistry);
 
@@ -333,7 +350,7 @@ public class IndexLifecycleRunner {
             indexName, currentStepKey, nextStepKey, policy);
 
         return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey,
-            nextStepKey, nowSupplier, forcePhaseDefinitionRefresh);
+            nextStepKey, nowSupplier, true);
     }
 
     static void validateTransition(IndexMetaData idxMeta, StepKey currentStepKey, StepKey nextStepKey, PolicyStepsRegistry stepRegistry) {
@@ -598,10 +615,14 @@ public class IndexLifecycleRunner {
     }
 
     private void markPolicyDoesNotExist(String policyName, Index index, LifecycleExecutionState executionState) {
-        logger.debug("policy [{}] for index [{}] does not exist, recording this in step_info for this index",
-            policyName, index.getName());
-        setStepInfo(index, policyName, getCurrentStepKey(executionState),
-            new SetStepInfoUpdateTask.ExceptionWrapper(
-                new IllegalArgumentException("policy [" + policyName + "] does not exist")));
+        markPolicyRetrievalError(policyName, index, executionState,
+            new IllegalArgumentException("policy [" + policyName + "] does not exist"));
+    }
+
+    private void markPolicyRetrievalError(String policyName, Index index, LifecycleExecutionState executionState, Exception e) {
+        logger.debug(
+            new ParameterizedMessage("unable to retrieve policy [{}] for index [{}], recording this in step_info for this index",
+            policyName, index.getName()), e);
+        setStepInfo(index, policyName, getCurrentStepKey(executionState), new SetStepInfoUpdateTask.ExceptionWrapper(e));
     }
 }

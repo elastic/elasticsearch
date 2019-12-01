@@ -45,7 +45,7 @@ public interface GeoGridTiler {
      *
      * @return the number of tiles the geoValue intersects
      */
-    int setValues(CellIdSource.CellValues docValues, MultiGeoValues.GeoValue geoValue, int precision);
+    int setValues(CellIdSource.GeoShapeCellValues docValues, MultiGeoValues.GeoValue geoValue, int precision);
 
     class GeoHashGridTiler implements GeoGridTiler {
         public static final GeoHashGridTiler INSTANCE = new GeoHashGridTiler();
@@ -58,12 +58,7 @@ public interface GeoGridTiler {
         }
 
         @Override
-        public int setValues(CellIdSource.CellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
-            if (precision == 0) {
-                values.resizeCell(1);
-                values.add(0, Geohash.longEncode(""));
-                return 1;
-            }
+        public int setValues(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             assert bounds.minX() <= bounds.maxX();
             long numLonCells = (long) ((bounds.maxX() - bounds.minX()) / Geohash.lonWidthInDegrees(precision));
@@ -81,7 +76,7 @@ public interface GeoGridTiler {
             }
         }
 
-        protected int setValuesByBruteForceScan(CellIdSource.CellValues values, MultiGeoValues.GeoValue geoValue,
+        protected int setValuesByBruteForceScan(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue,
                                                 int precision, MultiGeoValues.BoundingBox bounds) {
             // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I  can
             // see that eventually we will be visiting twice the same cell which should not happen.
@@ -105,7 +100,7 @@ public interface GeoGridTiler {
             return idx;
         }
 
-        protected int setValuesByRasterization(String hash, CellIdSource.CellValues values, int valuesIndex,
+        protected int setValuesByRasterization(String hash, CellIdSource.GeoShapeCellValues values, int valuesIndex,
                                                int targetPrecision, MultiGeoValues.GeoValue geoValue) {
             String[] hashes = Geohash.getSubGeohashes(hash);
             for (int i = 0; i < hashes.length; i++) {
@@ -136,7 +131,7 @@ public interface GeoGridTiler {
             return valuesIndex;
         }
 
-        private int setValuesForFullyContainedTile(String hash, CellIdSource.CellValues values, int valuesIndex, int targetPrecision) {
+        private int setValuesForFullyContainedTile(String hash, CellIdSource.GeoShapeCellValues values, int valuesIndex, int targetPrecision) {
             String[] hashes = Geohash.getSubGeohashes(hash);
             for (int i = 0; i < hashes.length; i++) {
                 if (hashes[i].length() == targetPrecision) {
@@ -160,12 +155,7 @@ public interface GeoGridTiler {
         }
 
         @Override
-        public int setValues(CellIdSource.CellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
-            if (precision == 0) {
-                values.resizeCell(1);
-                values.add(0, encode(0, 0, 0));
-                return 1;
-            }
+        public int setValues(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision) {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             assert bounds.minX() <= bounds.maxX();
             final double tiles = 1 << precision;
@@ -192,8 +182,8 @@ public interface GeoGridTiler {
          * @param precision the target precision to split the shape up into
          * @return the number of buckets the geoValue is found in
          */
-        protected int setValuesByBruteForceScan(CellIdSource.CellValues values, MultiGeoValues.GeoValue geoValue, int precision,
-                                             int minXTile, int minYTile, int maxXTile, int maxYTile) {
+        protected int setValuesByBruteForceScan(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision,
+                                                int minXTile, int minYTile, int maxXTile, int maxYTile) {
             int idx = 0;
             for (int i = minXTile; i <= maxXTile; i++) {
                 for (int j = minYTile; j <= maxYTile; j++) {
@@ -207,7 +197,7 @@ public interface GeoGridTiler {
             return idx;
         }
 
-        protected int setValuesByRasterization(int xTile, int yTile, int zTile, CellIdSource.CellValues values, int valuesIndex,
+        protected int setValuesByRasterization(int xTile, int yTile, int zTile, CellIdSource.GeoShapeCellValues values, int valuesIndex,
                                                int targetPrecision, MultiGeoValues.GeoValue geoValue) {
             zTile++;
             for (int i = 0; i < 2; i++) {
@@ -244,7 +234,7 @@ public interface GeoGridTiler {
         }
 
         private int setValuesForFullyContainedTile(int xTile, int yTile, int zTile,
-                                                   CellIdSource.CellValues values, int valuesIndex, int targetPrecision) {
+                                                   CellIdSource.GeoShapeCellValues values, int valuesIndex, int targetPrecision) {
             zTile++;
             for (int i = 0; i < 2; i++) {
                 for (int j = 0; j < 2; j++) {

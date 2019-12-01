@@ -48,15 +48,27 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
         Randomness.get().nextBytes(testPlaintextArray);
     }
 
-    public void testShorterThanPacket() throws Exception {
-        int packetSize = 3 + Randomness.get().nextInt(2044);
+    public void testEmpty() throws Exception {
+        int packetSize = 1 + Randomness.get().nextInt(2048);
+        testEncryptPacketWise(0, packetSize, new DefaultBufferedReadAllStrategy());
+    }
+
+    public void testSingleByteSize() throws Exception {
+        testEncryptPacketWise(1, 1, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(1, 2, new DefaultBufferedReadAllStrategy());
+        int packetSize = 3 + Randomness.get().nextInt(2046);
+        testEncryptPacketWise(1, packetSize, new DefaultBufferedReadAllStrategy());
+    }
+
+    public void testSizeSmallerThanPacket() throws Exception {
+        int packetSize = 3 + Randomness.get().nextInt(2045);
         int size = 1 + Randomness.get().nextInt(packetSize - 1);
         testEncryptPacketWise(size, packetSize, new DefaultBufferedReadAllStrategy());
     }
 
     private void testEncryptPacketWise(int size, int packetSize, ReadStrategy readStrategy) throws Exception {
         int encryptedPacketSize = packetSize + EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
-        int plaintextOffset = Randomness.get().nextInt(testPlaintextArray.length - size);
+        int plaintextOffset = Randomness.get().nextInt(testPlaintextArray.length - size + 1);
         int nonce = Randomness.get().nextInt();
         long counter = EncryptedRepository.PACKET_START_COUNTER;
         try (InputStream encryptionInputStream = new EncryptionPacketsInputStream(new ByteArrayInputStream(testPlaintextArray,
@@ -66,8 +78,8 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
             for (int ciphertextOffset = 0; ciphertextOffset < ciphertextArray.length; ciphertextOffset += encryptedPacketSize) {
                 ByteBuffer ivBuffer = ByteBuffer.wrap(ciphertextArray, ciphertextOffset,
                         EncryptedRepository.GCM_IV_SIZE_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
-                assertThat(ivBuffer.getInt(0), Matchers.is(nonce));
-                assertThat(ivBuffer.getLong(4), Matchers.is(counter++));
+                assertThat(ivBuffer.getInt(), Matchers.is(nonce));
+                assertThat(ivBuffer.getLong(), Matchers.is(counter++));
                 GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_SIZE_IN_BYTES * Byte.SIZE,
                         Arrays.copyOfRange(ciphertextArray, ciphertextOffset,
                                 ciphertextOffset + EncryptedRepository.GCM_IV_SIZE_IN_BYTES));
@@ -77,8 +89,11 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
                         ciphertextOffset + EncryptedRepository.GCM_IV_SIZE_IN_BYTES,
                         packetSize + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES), packetCipher)) {
                     byte[] decryptedCiphertext = packetDecryptionInputStream.readAllBytes();
-                    assertThat(decryptedCiphertext.length, Matchers.is(size));
-                    assertSubArray(decryptedCiphertext, 0, testPlaintextArray, plaintextOffset, size);
+                    int decryptedPacketSize = size <= packetSize ? size : packetSize;
+                    assertThat(decryptedCiphertext.length, Matchers.is(decryptedPacketSize));
+                    assertSubArray(decryptedCiphertext, 0, testPlaintextArray, plaintextOffset, decryptedPacketSize);
+                    size -= decryptedPacketSize;
+                    plaintextOffset += decryptedPacketSize;
                 }
             }
         }

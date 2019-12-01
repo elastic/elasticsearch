@@ -349,8 +349,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         }
 
         @Override
-        public void runPostReplicationActions(ActionListener<Void> onWriteCompletion) {
-            onWriteCompletion.onResponse(null);
+        public void runPostReplicationActions(ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
 
         public ReplicationResponse.ShardInfo getShardInfo() {

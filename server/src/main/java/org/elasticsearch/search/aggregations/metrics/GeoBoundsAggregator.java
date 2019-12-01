@@ -122,7 +122,7 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         DoubleArray negRights;
         BigArrays bigArrays;
 
-        public GeoExtent(BigArrays bigArrays) {
+        GeoExtent(BigArrays bigArrays) {
             tops = bigArrays.newDoubleArray(1, false);
             tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
             bottoms = bigArrays.newDoubleArray(1, false);

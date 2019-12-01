@@ -97,7 +97,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         ensureOpen();
         int bytesAvailable = 0;
         if (resetCalled) {
-            if (position < tail) {
+            if (position <= tail) {
                 bytesAvailable += tail - position;
             } else {
                 bytesAvailable += ringBuffer.length - position + tail;
@@ -114,7 +114,8 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         }
         markCalled = true;
         if (ringBuffer == null) {
-            ringBuffer = new byte[bufferSize];
+            // "+ 1" for the full-buffer sentinel free element
+            ringBuffer = new byte[bufferSize + 1];
             head = tail = position = 0;
         } else {
             head = position;
@@ -135,12 +136,20 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         resetCalled = true;
     }
 
+    @Override
+    public void close() throws IOException {
+        if (false == closed) {
+            closed = true;
+            in.close();
+        }
+    }
+
     private int readFromBuffer(byte[] b, int off, int len) {
         if (position == tail) {
             return 0;
         }
         final int readLength;
-        if (position < tail) {
+        if (position <= tail) {
             readLength = Math.min(len, tail - position);
         } else {
             readLength = Math.min(len, ringBuffer.length - position);
@@ -153,10 +162,23 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         return readLength;
     }
 
+    private int getRemainingBufferCapacity() {
+        if (head == tail) {
+            return ringBuffer.length - 1;
+        } else if (head < tail) {
+            return ringBuffer.length - tail + head - 1;
+        } else {
+            return head - tail - 1;
+        }
+    }
+
     private boolean writeToBuffer(byte[] b, int off, int len) {
-        while (len > 0 && head != tail) {
+        if (len > getRemainingBufferCapacity()) {
+            return false;
+        }
+        while (len > 0) {
             final int writeLength;
-            if (head < tail) {
+            if (head <= tail) {
                 writeLength = Math.min(len, ringBuffer.length - tail);
             } else {
                 writeLength = Math.min(len, head - tail);
@@ -169,18 +191,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
                 tail = 0;
             }
         }
-        if (len != 0) {
-            return false;
-        }
         return true;
-    }
-
-    @Override
-    public void close() throws IOException {
-        if (false == closed) {
-            closed = true;
-            in.close();
-        }
     }
 
     private void ensureOpen() throws IOException {

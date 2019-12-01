@@ -88,7 +88,7 @@ public final class EncryptionPacketsInputStream extends ChainPacketsInputStream 
         Cipher packetCipher = getPacketEncryptionCipher(secretKey, packetIv.array());
         encryptionInputStream = new CipherInputStream(encryptionInputStream, packetCipher);
         encryptionInputStream = new SequenceInputStream(new ByteArrayInputStream(packetIv.array()), encryptionInputStream);
-        encryptionInputStream = new BufferOnMarkInputStream(encryptionInputStream, packetLength);
+        encryptionInputStream = new BufferOnMarkInputStream(encryptionInputStream, encryptedPacketLength);
         return new CountingInputStream(encryptionInputStream, false);
     }
 

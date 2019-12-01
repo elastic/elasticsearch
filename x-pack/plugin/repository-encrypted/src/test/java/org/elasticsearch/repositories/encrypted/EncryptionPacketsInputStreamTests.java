@@ -27,10 +27,6 @@ import java.util.Objects;
 
 public class EncryptionPacketsInputStreamTests extends ESTestCase {
 
-    // test odd packet lengths (multiple of AES_BLOCK_SIZE or not)
-    // test non AES Key
-    // test read strategies (mark/reset)
-
     private static int TEST_ARRAY_SIZE = 1 << 20;
     private static byte[] testPlaintextArray;
     private static SecretKey secretKey;
@@ -108,8 +104,54 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
 
     public void testPacketSizeMultipleOfAESBlockSize() throws Exception {
         int packetSize = 1 + Randomness.get().nextInt(8);
-        testEncryptPacketWise(1 + Randomness.get().nextInt(8192), packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES,
-                new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(1 + Randomness.get().nextInt(packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES),
+                packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES, new DefaultBufferedReadAllStrategy());
+        testEncryptPacketWise(packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES + Randomness.get().nextInt(8192),
+                packetSize * EncryptedRepository.AES_BLOCK_SIZE_IN_BYTES, new DefaultBufferedReadAllStrategy());
+    }
+
+    public void testMarkAtPacketBoundary() throws Exception {
+        int packetSize = 3 + Randomness.get().nextInt(512);
+        int size = 3 * packetSize + Randomness.get().nextInt(512);
+        int plaintextOffset = Randomness.get().nextInt(testPlaintextArray.length - size + 1);
+        int nonce = Randomness.get().nextInt();
+        final byte[] referenceCiphertextArray;
+        try (InputStream encryptionInputStream = new EncryptionPacketsInputStream(new ByteArrayInputStream(testPlaintextArray,
+                plaintextOffset, size), secretKey, nonce, packetSize)) {
+            referenceCiphertextArray = encryptionInputStream.readAllBytes();
+        }
+        int encryptedPacketSize = packetSize + EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        try (InputStream encryptionInputStream = new EncryptionPacketsInputStream(new ByteArrayInputStream(testPlaintextArray,
+                plaintextOffset, size), secretKey, nonce, packetSize)) {
+            // mark at the beginning
+            encryptionInputStream.mark(encryptedPacketSize - 1);
+            byte[] test = encryptionInputStream.readNBytes(encryptedPacketSize - 1);
+            assertSubArray(referenceCiphertextArray, 0, test, 0, test.length);
+            // reset at the beginning
+            encryptionInputStream.reset();
+            test = encryptionInputStream.readNBytes(encryptedPacketSize - 1);
+            assertSubArray(referenceCiphertextArray, 0, test, 0, test.length);
+            // reset at the beginning
+            encryptionInputStream.reset();
+            test = encryptionInputStream.readNBytes(encryptedPacketSize);
+            assertSubArray(referenceCiphertextArray, 0, test, 0, test.length);
+            // mark at the second packet boundary
+            encryptionInputStream.mark(encryptedPacketSize + 1);
+            test = encryptionInputStream.readNBytes(encryptedPacketSize + 1);
+            assertSubArray(referenceCiphertextArray, encryptedPacketSize, test, 0, test.length);
+            // reset at the second packet boundary
+            encryptionInputStream.reset();
+            test = encryptionInputStream.readNBytes(encryptedPacketSize - 1);
+            assertSubArray(referenceCiphertextArray, encryptedPacketSize, test, 0, test.length);
+            // mark just before third packet boundary
+            encryptionInputStream.mark(1);
+            test = encryptionInputStream.readNBytes(1);
+            assertSubArray(referenceCiphertextArray, 2 * encryptedPacketSize - 1, test, 0, test.length);
+            // reset before packet boundary
+            encryptionInputStream.reset();
+            test = encryptionInputStream.readNBytes(2);
+            assertSubArray(referenceCiphertextArray, 2 * encryptedPacketSize - 1, test, 0, test.length);
+        }
     }
 
     private void testEncryptPacketWise(int size, int packetSize, ReadStrategy readStrategy) throws Exception {

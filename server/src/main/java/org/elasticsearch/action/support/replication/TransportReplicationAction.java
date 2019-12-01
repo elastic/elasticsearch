@@ -416,15 +416,6 @@ public abstract class TransportReplicationAction<
             this.finalFailure = finalFailure;
         }
 
-        @Override
-        public void runPostReplicationActions(ActionListener<Void> listener) {
-            if (finalFailure != null) {
-                listener.onFailure(finalFailure);
-            } else {
-                listener.onResponse(null);
-            }
-        }
-
         public PrimaryResult(ReplicaRequest replicaRequest, Response replicationResponse) {
             this(replicaRequest, replicationResponse, null);
         }
@@ -438,6 +429,15 @@ public abstract class TransportReplicationAction<
         public void setShardInfo(ReplicationResponse.ShardInfo shardInfo) {
             if (finalResponseIfSuccessful != null) {
                 finalResponseIfSuccessful.setShardInfo(shardInfo);
+            }
+        }
+
+        @Override
+        public void runPostReplicationActions(ActionListener<Void> listener) {
+            if (finalFailure != null) {
+                listener.onFailure(finalFailure);
+            } else {
+                listener.onResponse(null);
             }
         }
     }

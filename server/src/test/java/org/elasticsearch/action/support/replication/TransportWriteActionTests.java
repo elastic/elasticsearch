@@ -67,9 +67,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -348,30 +345,6 @@ public class TransportWriteActionTests extends ESTestCase {
             assertFalse(success.get());
             assertNotNull(failure.get());
         }
-    }
-
-    public void testConcurrentWriteReplicaResultCompletion() throws InterruptedException {
-        IndexShard replica = mock(IndexShard.class);
-        when(replica.getTranslogDurability()).thenReturn(Translog.Durability.ASYNC);
-        TestRequest request = new TestRequest();
-        request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        TransportWriteAction.WriteReplicaResult<TestRequest> replicaResult = new TransportWriteAction.WriteReplicaResult<>(
-            request, new Translog.Location(0, 0, 0), null, replica, logger);
-        CyclicBarrier barrier = new CyclicBarrier(2);
-        Runnable waitForBarrier = () -> {
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new AssertionError(e);
-            }
-        };
-        CountDownLatch completionLatch = new CountDownLatch(1);
-        threadPool.generic().execute(() -> {
-            waitForBarrier.run();
-            replicaResult.runPostReplicaActions(ActionListener.wrap(completionLatch::countDown));
-        });
-
-        assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {

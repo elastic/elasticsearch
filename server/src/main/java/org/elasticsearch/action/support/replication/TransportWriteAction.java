@@ -141,9 +141,9 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void runPostReplicationActions(ActionListener<Void> onCompletion) {
+        public void runPostReplicationActions(ActionListener<Void> listener) {
             if (finalFailure != null) {
-                onCompletion.onFailure(finalFailure);
+                listener.onFailure(finalFailure);
             } else {
                 /*
                  * We call this after replication because this might wait for a refresh and that can take a while.
@@ -153,14 +153,14 @@ public abstract class TransportWriteAction<
                     @Override
                     public void onSuccess(boolean forcedRefresh) {
                         finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
-                        onCompletion.onResponse(null);
+                        listener.onResponse(null);
                     }
 
                     @Override
                     public void onFailure(Exception ex) {
-                        onCompletion.onFailure(ex);
+                        listener.onFailure(ex);
                     }
-                }, null, logger).run();
+                }, logger).run();
             }
         }
     }
@@ -198,7 +198,7 @@ public abstract class TransportWriteAction<
                     public void onFailure(Exception ex) {
                         listener.onFailure(ex);
                     }
-                }, null, logger).run();
+                }, logger).run();
             }
         }
     }
@@ -243,8 +243,6 @@ public abstract class TransportWriteAction<
         private final AtomicBoolean refreshed = new AtomicBoolean(false);
         private final AtomicReference<Exception> syncFailure = new AtomicReference<>(null);
         private final RespondingWriteResult respond;
-        @Nullable
-        private final ActionListener<Void> onWriteCompletion;
         private final IndexShard indexShard;
         private final WriteRequest<?> request;
         private final Logger logger;
@@ -253,11 +251,9 @@ public abstract class TransportWriteAction<
                              final WriteRequest<?> request,
                              @Nullable final Translog.Location location,
                              final RespondingWriteResult respond,
-                             @Nullable final ActionListener<Void> onWriteCompletion,
                              final Logger logger) {
             this.indexShard = indexShard;
             this.request = request;
-            this.onWriteCompletion = onWriteCompletion;
             boolean waitUntilRefresh = false;
             switch (request.getRefreshPolicy()) {
                 case IMMEDIATE:
@@ -322,13 +318,6 @@ public abstract class TransportWriteAction<
             if (sync) {
                 assert pendingOps.get() > 0;
                 indexShard.sync(location, (ex) -> {
-                    if (onWriteCompletion != null) {
-                        if (ex == null) {
-                            onWriteCompletion.onResponse(null);
-                        } else {
-                            onWriteCompletion.onFailure(ex);
-                        }
-                    }
                     syncFailure.set(ex);
                     maybeFinish();
                 });

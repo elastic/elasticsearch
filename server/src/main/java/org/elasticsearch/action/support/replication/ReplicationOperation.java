@@ -487,9 +487,10 @@ public class ReplicationOperation<
 
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
 
-        /** trigger actions to be triggered post replication
-         * @param onCompletion calllback that is invoked after post replication actions have completed
+        /**
+         * Run actions to be triggered post replication
+         * @param listener calllback that is invoked after post replication actions have completed
          * */
-        void runPostReplicationActions(ActionListener<Void> onCompletion);
+        void runPostReplicationActions(ActionListener<Void> listener);
     }
 }

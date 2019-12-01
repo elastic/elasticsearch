@@ -1,3 +1,9 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
 package org.elasticsearch.repositories.encrypted;
 
 import javax.crypto.Cipher;
@@ -19,10 +25,12 @@ import java.util.Objects;
 
 public final class EncryptionPacketsInputStream extends ChainPacketsInputStream {
 
+    private static final int MAX_PACKET_LENGTH_IN_BYTES = 1 << 30;
+
     private final InputStream source;
     private final SecretKey secretKey;
-    private final ByteBuffer packetIv;
     private final int packetLength;
+    private final ByteBuffer packetIv;
     private final int encryptedPacketLength;
 
     private long counter;
@@ -36,9 +44,12 @@ public final class EncryptionPacketsInputStream extends ChainPacketsInputStream 
     public EncryptionPacketsInputStream(InputStream source, SecretKey secretKey, int nonce, int packetLength) {
         this.source = Objects.requireNonNull(source);
         this.secretKey = Objects.requireNonNull(secretKey);
+        if (packetLength <= 0 || packetLength >= MAX_PACKET_LENGTH_IN_BYTES) {
+            throw new IllegalArgumentException("Invalid packet length [" + packetLength + "]");
+        }
+        this.packetLength = packetLength;
         this.packetIv = ByteBuffer.allocate(EncryptedRepository.GCM_IV_SIZE_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
         this.packetIv.putInt(0, nonce);
-        this.packetLength = packetLength;
         this.encryptedPacketLength = packetLength + EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
         this.counter = EncryptedRepository.PACKET_START_COUNTER;
         this.markCounter = null;
@@ -50,7 +61,7 @@ public final class EncryptionPacketsInputStream extends ChainPacketsInputStream 
         if (currentPacketIn != null && currentPacketIn instanceof CountingInputStream == false) {
             throw new IllegalStateException();
         }
-        if (((CountingInputStream) currentPacketIn).getCount() > encryptedPacketLength) {
+        if (currentPacketIn != null && ((CountingInputStream) currentPacketIn).getCount() > encryptedPacketLength) {
             throw new IllegalStateException();
         }
         return currentPacketIn == null || ((CountingInputStream) currentPacketIn).getCount() == encryptedPacketLength;

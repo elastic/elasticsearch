@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.repositories.encrypted;
 
 import java.io.FilterInputStream;
@@ -117,6 +122,11 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
     }
 
     @Override
+    public boolean markSupported() {
+        return true;
+    }
+
+    @Override
     public void reset() throws IOException {
         ensureOpen();
         if (false == markCalled) {
@@ -165,17 +175,17 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         return true;
     }
 
-    private void ensureOpen() throws IOException {
-        if (closed) {
-            throw new IOException("Stream has been closed");
-        }
-    }
-
     @Override
     public void close() throws IOException {
         if (false == closed) {
             closed = true;
             in.close();
+        }
+    }
+
+    private void ensureOpen() throws IOException {
+        if (closed) {
+            throw new IOException("Stream has been closed");
         }
     }
 

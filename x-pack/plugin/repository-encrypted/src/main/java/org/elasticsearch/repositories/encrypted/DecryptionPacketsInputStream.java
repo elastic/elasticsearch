@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.repositories.encrypted;
 
 import javax.crypto.BadPaddingException;
@@ -11,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -92,7 +98,7 @@ public final class DecryptionPacketsInputStream extends ChainPacketsInputStream 
         if (packetInputStream.read(iv) != iv.length) {
             throw new IOException("Error while reading the heading IV of the packet");
         }
-        ByteBuffer ivBuffer = ByteBuffer.wrap(iv);
+        ByteBuffer ivBuffer = ByteBuffer.wrap(iv).order(ByteOrder.LITTLE_ENDIAN);
         if (ivBuffer.getInt(0) != nonce || ivBuffer.getLong(4) != counter++) {
             throw new IOException("Invalid packet IV");
         }

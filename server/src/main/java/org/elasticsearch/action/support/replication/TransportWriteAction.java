@@ -143,7 +143,7 @@ public abstract class TransportWriteAction<
         @Override
         public void runPostReplicationActions(ActionListener<Void> onCompletion) {
             if (finalFailure != null) {
-                asyncActionsOnFailure(finalFailure);
+                onCompletion.onFailure(finalFailure);
             } else {
                 /*
                  * We call this after replication because this might wait for a refresh and that can take a while.
@@ -154,13 +154,11 @@ public abstract class TransportWriteAction<
                     public void onSuccess(boolean forcedRefresh) {
                         finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
                         onCompletion.onResponse(null);
-                        asyncActionsOnSuccess();
                     }
 
                     @Override
                     public void onFailure(Exception ex) {
                         onCompletion.onFailure(ex);
-                        asyncActionsOnFailure(ex);
                     }
                 }, null, logger).run();
             }

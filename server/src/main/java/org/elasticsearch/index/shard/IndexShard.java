@@ -605,7 +605,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         }
 
-        if (useRetentionLeasesInPeerRecovery == false) {
+        if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             if (getPeerRecoveryRetentionLeases().size() >= routingTable.size()) {
                 logger.debug("turn off the translog retention for the replication group {} " +
                     "as it starts using retention leases exclusively in peer recoveries", shardId);

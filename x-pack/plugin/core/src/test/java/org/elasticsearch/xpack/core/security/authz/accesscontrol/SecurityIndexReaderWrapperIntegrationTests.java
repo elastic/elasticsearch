@@ -72,7 +72,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(mock(User.class));
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(),
+                Settings.builder().put(IndexSettings.ALLOW_UNMAPPED.getKey(), false).build());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
@@ -195,7 +196,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         IndicesAccessControl.IndexAccessControl limitedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
                 FieldPermissions(),
                 DocumentPermissions.filteredBy(queries));
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(),
+                Settings.builder().put(IndexSettings.ALLOW_UNMAPPED.getKey(), false).build());
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();

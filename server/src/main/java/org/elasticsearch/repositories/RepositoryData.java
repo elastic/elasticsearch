@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -146,7 +147,12 @@ public final class RepositoryData {
     public List<IndexId> indicesToUpdateAfterRemovingSnapshot(Collection<SnapshotId> snapshotIds) {
         return indexSnapshots.entrySet().stream()
             .filter(entry -> {
-                if (entry.getValue().containsAll(snapshotIds)) {
+                final Collection<SnapshotId> existingIds = entry.getValue();
+                final boolean containsAll = existingIds.containsAll(snapshotIds);
+                if (containsAll && existingIds.size() > snapshotIds.size()) {
+                    return true;
+                }
+                if (snapshotIds.containsAll(existingIds)) {
                     return false;
                 }
                 for (SnapshotId snapshotId : snapshotIds) {
@@ -211,7 +217,7 @@ public final class RepositoryData {
      *                                changed shard indexed by its shardId
      */
     public RepositoryData removeSnapshot(final Collection<SnapshotId> snapshots, final ShardGenerations updatedShardGenerations) {
-        Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream().filter(snapshots::contains)
+        Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream().filter(Predicate.not(snapshots::contains))
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
         if (newSnapshotIds.size() != snapshotIds.size() - snapshots.size()) {
             final Collection<SnapshotId> notFound = new HashSet<>(snapshots);

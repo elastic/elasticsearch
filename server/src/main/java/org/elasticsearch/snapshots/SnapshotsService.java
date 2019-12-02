@@ -1380,7 +1380,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                               Version version) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             Repository repository = repositoriesService.repository(snapshot.getRepository());
-            repository.deleteSnapshot(snapshot.getSnapshotId(), repositoryStateId, version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
+            repository.deleteSnapshot(Collections.singleton(snapshot.getSnapshotId()), repositoryStateId,
+                version.onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                 ActionListener.wrap(v -> {
                         logger.info("snapshot [{}] deleted", snapshot);
                         removeSnapshotDeletionFromClusterState(snapshot, null, l);

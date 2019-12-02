@@ -493,8 +493,8 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the Docker image has the expected "Label Schema" labels.
-     * @see <a href="https://github.com/opencontainers/image-spec/blob/master/annotations.md">Opencontainers Annotations</a>
+     * Check that the Docker image has the expected "Open Containers Annotations" labels.
+     * @see <a href="https://github.com/opencontainers/image-spec/blob/master/annotations.md">Open Containers Annotations</a>
      */
     public void test110OrgOpencontainersLabels() throws Exception {
         final Map<String, String> labels = getImageLabels(distribution);

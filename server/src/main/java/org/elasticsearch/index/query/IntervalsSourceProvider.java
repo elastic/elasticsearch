@@ -343,18 +343,25 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         private final List<IntervalsSourceProvider> subSources;
         private final boolean ordered;
+        private final boolean allowOverlaps;
         private final int maxGaps;
         private final IntervalFilter filter;
 
-        public Combine(List<IntervalsSourceProvider> subSources, boolean ordered, int maxGaps, IntervalFilter filter) {
+        public Combine(List<IntervalsSourceProvider> subSources, boolean ordered, boolean allowOverlaps, int maxGaps, IntervalFilter filter) {
             this.subSources = subSources;
             this.ordered = ordered;
+            this.allowOverlaps = allowOverlaps;
             this.maxGaps = maxGaps;
             this.filter = filter;
         }
 
         public Combine(StreamInput in) throws IOException {
             this.ordered = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+                this.allowOverlaps = in.readBoolean();
+            } else {
+                this.allowOverlaps = true;
+            }
             this.subSources = in.readNamedWriteableList(IntervalsSourceProvider.class);
             this.maxGaps = in.readInt();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
@@ -362,11 +369,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public IntervalsSource getSource(QueryShardContext ctx, MappedFieldType fieldType) throws IOException {
+            if (allowOverlaps == false && subSources.size() != 2) {
+                throw new IllegalArgumentException("allow_overlaps requires exactly two intervals sources");
+            }
             List<IntervalsSource> ss = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
                 ss.add(provider.getSource(ctx, fieldType));
             }
-            IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, ordered);
+            IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, ordered, allowOverlaps);
             if (filter != null) {
                 return filter.filter(source, ctx, fieldType);
             }
@@ -402,6 +412,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(ordered);
+            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+                out.writeBoolean(allowOverlaps);
+            }
             out.writeNamedWriteableList(subSources);
             out.writeInt(maxGaps);
             out.writeOptionalWriteable(filter);
@@ -411,6 +424,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
             builder.field("ordered", ordered);
+            builder.field("allow_overlaps", allowOverlaps);
             builder.field("max_gaps", maxGaps);
             builder.startArray("intervals");
             for (IntervalsSourceProvider provider : subSources) {
@@ -432,7 +446,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 List<IntervalsSourceProvider> subSources = (List<IntervalsSourceProvider>)args[1];
                 Integer maxGaps = (args[2] == null ? -1 : (Integer)args[2]);
                 IntervalFilter filter = (IntervalFilter) args[3];
-                return new Combine(subSources, ordered, maxGaps, filter);
+                boolean allowOverlaps = (args[4] == null) || (boolean) args[4];
+                return new Combine(subSources, ordered, allowOverlaps, maxGaps, filter);
             });
         static {
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("ordered"));
@@ -440,6 +455,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 new ParseField("intervals"));
             PARSER.declareInt(optionalConstructorArg(), new ParseField("max_gaps"));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> IntervalFilter.fromXContent(p), new ParseField("filter"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("allow_overlaps"));
         }
 
         public static Combine fromXContent(XContentParser parser) {

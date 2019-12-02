@@ -26,12 +26,12 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchesIterator;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchesIterator;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 
@@ -102,7 +102,7 @@ public class IntervalBuilder {
             return analyzeTerm(stream);
         } else if (isGraph) {
             // graph
-            return combineSources(analyzeGraph(stream), maxGaps, ordered);
+            return combineSources(analyzeGraph(stream), maxGaps, ordered, true);
         } else {
             // phrase
             if (hasSynonyms) {
@@ -110,7 +110,7 @@ public class IntervalBuilder {
                 return analyzeSynonyms(stream, maxGaps, ordered);
             } else {
                 // simple phrase
-                return combineSources(analyzeTerms(stream), maxGaps, ordered);
+                return combineSources(analyzeTerms(stream), maxGaps, ordered, true);
             }
         }
 
@@ -123,7 +123,7 @@ public class IntervalBuilder {
         return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
-    protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
+    protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered, boolean allowOverlaps) {
         if (sources.size() == 0) {
             return NO_INTERVALS;
         }
@@ -134,7 +134,8 @@ public class IntervalBuilder {
         if (maxGaps == 0 && ordered) {
             return Intervals.phrase(sourcesArray);
         }
-        IntervalsSource inner = ordered ? Intervals.ordered(sourcesArray) : Intervals.unordered(sourcesArray);
+        IntervalsSource inner = ordered ? Intervals.ordered(sourcesArray) :
+            allowOverlaps ? Intervals.unordered(sourcesArray) : Intervals.unorderedNoOverlaps(sourcesArray[0], sourcesArray[1]);
         if (maxGaps == -1) {
             return inner;
         }
@@ -189,7 +190,7 @@ public class IntervalBuilder {
         else {
             terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
         }
-        return combineSources(terms, maxGaps, ordered);
+        return combineSources(terms, maxGaps, ordered, true);
     }
 
     protected List<IntervalsSource> analyzeGraph(TokenStream source) throws IOException {
@@ -212,7 +213,7 @@ public class IntervalBuilder {
                 Iterator<TokenStream> it = graph.getFiniteStrings(start, end);
                 while (it.hasNext()) {
                     TokenStream ts = it.next();
-                    IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, true);
+                    IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, true, true);
                     if (paths.size() >= maxClauseCount) {
                         throw new BooleanQuery.TooManyClauses();
                     }

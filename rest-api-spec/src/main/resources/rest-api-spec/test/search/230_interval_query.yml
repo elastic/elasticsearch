@@ -186,6 +186,29 @@ setup:
   - match: { hits.total.value: 2 }
 
 ---
+"Test unordered combination without overlaps":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold outside
+                    - any_of:
+                        intervals:
+                          - match:
+                              query: there
+                          - match:
+                              query: theres
+                  ordered: false
+                  allow_overlaps: false
+  - match: { hits.total.value: 1 }
+
+---
 "Test block combination":
   - do:
       search:

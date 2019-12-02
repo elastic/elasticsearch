@@ -104,9 +104,10 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                     subSources.add(createRandomSource(depth + 1));
                 }
                 boolean ordered = randomBoolean();
+                boolean allowOverlaps = randomBoolean() || count != 2;
                 int maxGaps = randomInt(5) - 1;
                 IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1);
-                return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
+                return new IntervalsSourceProvider.Combine(subSources, ordered, allowOverlaps, maxGaps, filter);
             default:
                 return createRandomMatch(depth + 1);
         }
@@ -273,6 +274,67 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                     Intervals.term("SENTENCE"))), 1.5f);
         assertEquals(expected, builder.toQuery(createShardContext()));
 
+    }
+
+    public void testCombineIntervalNoOverlaps() throws IOException {
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": {" +
+            "       \"all_of\" : {" +
+            "           \"ordered\" : true," +
+            "           \"intervals\" : [" +
+            "               { \"match\" : { \"query\" : \"one\" } }," +
+            "               { \"all_of\" : { " +
+            "                   \"ordered\" : false," +
+            "                   \"allow_overlaps\" : false, " +
+            "                   \"intervals\" : [" +
+            "                       { \"match\" : { \"query\" : \"two\" } }," +
+            "                       { \"match\" : { \"query\" : \"three\" } } ] } } ]," +
+            "           \"max_gaps\" : 30," +
+            "           \"filter\" : { " +
+            "               \"contained_by\" : { " +
+            "                   \"match\" : { " +
+            "                       \"query\" : \"SENTENCE\"," +
+            "                       \"analyzer\" : \"keyword\" } } } }," +
+            "       \"boost\" : 1.5 } } }";
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new BoostQuery(new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.containedBy(
+                Intervals.maxgaps(30, Intervals.ordered(
+                    Intervals.term("one"),
+                    Intervals.unorderedNoOverlaps(Intervals.term("two"), Intervals.term("three")))),
+                Intervals.term("SENTENCE"))), 1.5f);
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+    }
+
+    public void testNoOverlapsWithWrongSourceCount() {
+        String json1 = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": {" +
+            "       \"all_of\" : {" +
+            "           \"ordered\" : false," +
+            "           \"allow_overlaps\" : false," +
+            "           \"intervals\" : [" +
+            "               { \"match\" : { \"query\" : \"one\" } }," +
+            "               { \"match\" : { \"query\" : \"two\" } }," +
+            "               { \"match\" : { \"query\" : \"three\" } } ] } } } }";
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            QueryBuilder qb = parseQuery(json1);
+            qb.toQuery(createShardContext());
+        });
+        assertEquals("allow_overlaps requires exactly two intervals sources", e.getMessage());
+
+        String json2 = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": {" +
+            "       \"all_of\" : {" +
+            "           \"ordered\" : false," +
+            "           \"allow_overlaps\" : false," +
+            "           \"intervals\" : [" +
+            "               { \"match\" : { \"query\" : \"three\" } } ] } } } }";
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> {
+            QueryBuilder qb = parseQuery(json2);
+            qb.toQuery(createShardContext());
+        });
+        assertEquals("allow_overlaps requires exactly two intervals sources", e2.getMessage());
     }
 
     public void testCombineDisjunctionInterval() throws IOException {

@@ -98,7 +98,7 @@ set to `0`, the terms must appear next to each other.
 --
 
 `ordered`::
-(Optional, boolean) 
+(Optional, boolean)
 If `true`, matching terms must appear in their specified order. Defaults to
 `false`.
 
@@ -201,6 +201,10 @@ set to `0`, the terms must appear next to each other.
 `ordered`::
 (Optional, boolean) If `true`, intervals produced by the rules should appear in
 the order in which they are specified. Defaults to `false`.
+
+`allow_overlaps`::
+(Optional, boolean) If `false`, ensures that unordered intervals produced by the
+rules do not overlap. Defaults to `true`.  Can only be used with exactly two rules.
 
 `filter`::
 (Optional, <<interval_filter,interval filter>> rule object) Rule used to filter

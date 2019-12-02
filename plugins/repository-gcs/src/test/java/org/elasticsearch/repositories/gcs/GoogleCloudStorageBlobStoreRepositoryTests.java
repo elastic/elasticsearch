@@ -213,7 +213,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             if ("/token".equals(exchange.getRequestURI().getPath())) {
                 try {
                     // token content is unique per node (not per request)
-                    return Streams.readFully(exchange.getRequestBody()).utf8ToString();
+                    return Streams.readFully(Streams.noCloseStream(exchange.getRequestBody())).utf8ToString();
                 } catch (IOException e) {
                     throw new AssertionError("Unable to read token request body", e);
                 }

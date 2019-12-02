@@ -10,6 +10,8 @@
 
 Estimates memory usage for the given {dataframe-analytics-config}.
 
+deprecated::[7.5,Replaced by the `explain {dfanalytics} API` in later releases.]
+
 experimental[]
 
 [[ml-estimate-memory-usage-dfanalytics-request]]

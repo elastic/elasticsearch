@@ -88,7 +88,7 @@ public class TransportBulkActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool("TransportBulkActionTookTests");
+        threadPool = new TestThreadPool(getClass().getName());
         clusterService = createClusterService(threadPool);
         CapturingTransport capturingTransport = new CapturingTransport();
         transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
@@ -173,14 +173,14 @@ public class TransportBulkActionTests extends ESTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
-        boolean result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+        boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
-        result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
@@ -191,15 +191,15 @@ public class TransportBulkActionTests extends ESTestCase {
             .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
         metaData = MetaData.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
-        result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
     }
 
-    public void testResolveRequiredOrDefaultPipelineRequiredPipeline() {
+    public void testResolveFinalPipeline() {
         IndexMetaData.Builder builder = IndexMetaData.builder("idx")
-            .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"))
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetaData.builder("alias").writeIndex(true).build());
@@ -207,52 +207,39 @@ public class TransportBulkActionTests extends ESTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
-        boolean result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+        boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
-        assertThat(indexRequest.getPipeline(), equalTo("required-pipeline"));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
-        result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
-        assertThat(indexRequest.getPipeline(), equalTo("required-pipeline"));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
 
         // index name matches with ITMD:
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder("name1")
             .patterns(Collections.singletonList("id*"))
-            .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"));
+            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
         metaData = MetaData.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
-        result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+        result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
-        assertThat(indexRequest.getPipeline(), equalTo("required-pipeline"));
+        assertThat(indexRequest.getPipeline(), equalTo("_none"));
+        assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
     }
 
-    public void testResolveRequiredOrDefaultAndRequiredPipeline() {
-        IndexTemplateMetaData.Builder builder1 = IndexTemplateMetaData.builder("name1")
-            .patterns(Collections.singletonList("i*"))
-            .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"));
-        IndexTemplateMetaData.Builder builder2 = IndexTemplateMetaData.builder("name2")
-            .patterns(Collections.singletonList("id*"))
-            .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
-        MetaData metaData = MetaData.builder().put(builder1).put(builder2).build();
-
-        IndexRequest indexRequest = new IndexRequest("idx");
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData));
-        assertThat(e.getMessage(),
-            equalTo("required pipeline [required-pipeline] and default pipeline [default-pipeline] can not both be set"));
-    }
-
-    public void testResolveRequiredOrDefaultPipelineRequestPipeline() {
+    public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
         // no pipeline:
         {
             MetaData metaData = MetaData.builder().build();
             IndexRequest indexRequest = new IndexRequest("idx");
-            boolean result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
             assertThat(result, is(false));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
@@ -262,7 +249,7 @@ public class TransportBulkActionTests extends ESTestCase {
         {
             MetaData metaData = MetaData.builder().build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
@@ -276,38 +263,25 @@ public class TransportBulkActionTests extends ESTestCase {
                 .numberOfReplicas(0);
             MetaData metaData = MetaData.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
         }
 
-        // request pipeline with required pipeline:
+        // request pipeline with final pipeline:
         {
             IndexMetaData.Builder builder = IndexMetaData.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"))
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             MetaData metaData = MetaData.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            Exception e = expectThrows(IllegalArgumentException.class,
-                () -> TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData));
-            assertThat(e.getMessage(),
-                equalTo("request pipeline [request-pipeline] can not override required pipeline [required-pipeline]"));
-        }
-
-        // request pipeline set to required pipeline:
-        {
-            IndexMetaData.Builder builder = IndexMetaData.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.REQUIRED_PIPELINE.getKey(), "required-pipeline"))
-                .numberOfShards(1)
-                .numberOfReplicas(0);
-            MetaData metaData = MetaData.builder().put(builder).build();
-            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("required-pipeline").isPipelineResolved(true);
-            boolean result = TransportBulkAction.resolveRequiredOrDefaultPipeline(indexRequest, indexRequest, metaData);
+            boolean result = TransportBulkAction.resolvePipelines(indexRequest, indexRequest, metaData);
             assertThat(result, is(true));
             assertThat(indexRequest.isPipelineResolved(), is(true));
-            assertThat(indexRequest.getPipeline(), equalTo("required-pipeline"));
+            assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
+            assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
         }
     }
 }

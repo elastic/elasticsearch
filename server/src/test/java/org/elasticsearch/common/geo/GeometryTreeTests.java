@@ -31,6 +31,8 @@ public class GeometryTreeTests extends AbstractTreeTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        return new GeometryTreeReader(output.bytes().toBytesRef(), encoder);
+        GeometryTreeReader reader = new GeometryTreeReader(encoder);
+        reader.reset(output.bytes().toBytesRef());
+        return reader;
     }
 }

@@ -102,7 +102,7 @@ public class TransportBulkShardOperationsAction
     }
 
     // public for testing purposes only
-    public static CcrWritePrimaryResult shardOperationOnPrimary(
+    public static WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final ShardId shardId,
             final String historyUUID,
             final List<Translog.Operation> sourceOperations,
@@ -154,7 +154,7 @@ public class TransportBulkShardOperationsAction
         }
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(
             shardId, historyUUID, appliedOperations, maxSeqNoOfUpdatesOrDeletes);
-        return new CcrWritePrimaryResult(replicaRequest, location, primary, logger);
+        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, null, primary, logger);
     }
 
     @Override
@@ -190,21 +190,15 @@ public class TransportBulkShardOperationsAction
         return new BulkShardOperationsResponse(in);
     }
 
-    /**
-     * Custom write result to include global checkpoint after ops have been replicated.
-     */
-    static final class CcrWritePrimaryResult extends WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> {
-        CcrWritePrimaryResult(BulkShardOperationsRequest request, Translog.Location location, IndexShard primary, Logger logger) {
-            super(request, new BulkShardOperationsResponse(), location, null, primary, logger);
-        }
-
-    }
-
     @Override
     protected ActionListener<BulkShardOperationsResponse> getResponseActionListener(
         ActionListener<BulkShardOperationsResponse> referenceClosingListener, IndexShard shard) {
-
         ActionListener<BulkShardOperationsResponse> listener = super.getResponseActionListener(referenceClosingListener, shard);
+        return wrapListener(listener, shard);
+    }
+
+    public static ActionListener<BulkShardOperationsResponse> wrapListener(ActionListener<BulkShardOperationsResponse> listener,
+                                                                           IndexShard shard) {
 
         return ActionListener.wrap(response -> {
             final SeqNoStats seqNoStats = shard.seqNoStats();

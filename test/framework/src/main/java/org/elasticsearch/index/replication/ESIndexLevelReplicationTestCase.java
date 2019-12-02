@@ -601,14 +601,19 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    ActionListener.wrap(result -> result.respond(listener), listener::onFailure), new ReplicasRef(), logger, opType,
-                    primaryTerm).execute();
+                    ActionListener.map(wrapListener(listener, getPrimaryShard()), result -> result.finalResponse),
+                    new ReplicasRef(), logger, opType, primaryTerm)
+                    .execute();
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         }
 
-        IndexShard getPrimaryShard() {
+        protected ActionListener<Response> wrapListener(ActionListener<Response> listener, IndexShard indexShard) {
+            return listener;
+        }
+
+        protected IndexShard getPrimaryShard() {
             return replicationTargets.primary;
         }
 
@@ -732,12 +737,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
-            public void runPostReplicationActions(ActionListener<Void> onWriteCompletion) {
-                onWriteCompletion.onResponse(null);
-            }
-
-            public void respond(ActionListener<Response> listener) {
-                listener.onResponse(finalResponse);
+            public void runPostReplicationActions(ActionListener<Void> listener) {
+                listener.onResponse(null);
             }
         }
 

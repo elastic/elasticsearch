@@ -99,14 +99,22 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         // for count == 0, fields are rendered as `null`, so  we test that we parse to default values used also in the reduce phase
         assertEquals(count > 0 ? aggregation.getSumOfSquares() : 0 , parsed.getSumOfSquares(), 0);
         assertEquals(count > 0 ? aggregation.getVariance() : 0 , parsed.getVariance(), 0);
+        assertEquals(count > 0 ? aggregation.getVariancePopulation() : 0 , parsed.getVariancePopulation(), 0);
+        assertEquals(count > 0 ? aggregation.getVarianceSampling() : 0 , parsed.getVarianceSampling(), 0);
         assertEquals(count > 0 ? aggregation.getStdDeviation() : 0 , parsed.getStdDeviation(), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationPopulation() : 0 , parsed.getStdDeviationPopulation(), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationSampling() : 0 , parsed.getStdDeviationSampling(), 0);
         assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER) : 0 , parsed.getStdDeviationBound(Bounds.LOWER), 0);
         assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER) : 0 , parsed.getStdDeviationBound(Bounds.UPPER), 0);
         // also as_string values are only rendered for count != 0
         if (count > 0) {
             assertEquals(aggregation.getSumOfSquaresAsString(), parsed.getSumOfSquaresAsString());
             assertEquals(aggregation.getVarianceAsString(), parsed.getVarianceAsString());
+            assertEquals(aggregation.getVariancePopulationAsString(), parsed.getVariancePopulationAsString());
+            assertEquals(aggregation.getVarianceSamplingAsString(), parsed.getVarianceSamplingAsString());
             assertEquals(aggregation.getStdDeviationAsString(), parsed.getStdDeviationAsString());
+            assertEquals(aggregation.getStdDeviationPopulationAsString(), parsed.getStdDeviationPopulationAsString());
+            assertEquals(aggregation.getStdDeviationSamplingAsString(), parsed.getStdDeviationSamplingAsString());
             assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.LOWER), parsed.getStdDeviationBoundAsString(Bounds.LOWER));
             assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.UPPER), parsed.getStdDeviationBoundAsString(Bounds.UPPER));
         }

@@ -66,7 +66,19 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         return Math.sqrt(variance(vals));
     }
 
+    private static double stdDevPopulation(int... vals) {
+        return Math.sqrt(variancePopulation(vals));
+    }
+
+    private static double stdDevSampling(int... vals) {
+        return Math.sqrt(varianceSampling(vals));
+    }
+
     private static double variance(int... vals) {
+        return variancePopulation(vals);
+    }
+
+    private static double variancePopulation(int... vals) {
         double sum = 0;
         double sumOfSqrs = 0;
         for (int val : vals) {
@@ -74,6 +86,17 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             sumOfSqrs += val * val;
         }
         double variance  = (sumOfSqrs - ((sum * sum) / vals.length)) / vals.length;
+        return variance < 0  ? 0 : variance;
+    }
+
+    private static double varianceSampling(int... vals) {
+        double sum = 0;
+        double sumOfSqrs = 0;
+        for (int val : vals) {
+            sum += val;
+            sumOfSqrs += val * val;
+        }
+        double variance  = (sumOfSqrs - ((sum * sum) / vals.length)) / (vals.length - 1);
         return variance < 0  ? 0 : variance;
     }
 
@@ -100,6 +123,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(stats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(Double.isNaN(stats.getStdDeviation()), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationPopulation()), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationSampling()), is(true));
         assertThat(Double.isNaN(stats.getAvg()), is(true));
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
@@ -124,7 +149,11 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(0L));
         assertThat(stats.getSumOfSquares(), equalTo(0.0));
         assertThat(stats.getVariance(), equalTo(Double.NaN));
+        assertThat(stats.getVariancePopulation(), equalTo(Double.NaN));
+        assertThat(stats.getVarianceSampling(), equalTo(Double.NaN));
         assertThat(stats.getStdDeviation(), equalTo(Double.NaN));
+        assertThat(stats.getStdDeviationPopulation(), equalTo(Double.NaN));
+        assertThat(stats.getStdDeviationSampling(), equalTo(Double.NaN));
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
     }
@@ -142,6 +171,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertEquals(s1.getMin(), s2.getMin(), 0d);
         assertEquals(s1.getMax(), s2.getMax(), 0d);
         assertEquals(s1.getStdDeviation(), s2.getStdDeviation(), 1e-10);
+        assertEquals(s1.getStdDeviationPopulation(), s2.getStdDeviationPopulation(), 1e-10);
+        assertEquals(s1.getStdDeviationSampling(), s2.getStdDeviationSampling(), 1e-10);
         assertEquals(s1.getSumOfSquares(), s2.getSumOfSquares(), 1e-10);
         assertEquals(s1.getStdDeviationBound(Bounds.LOWER), s2.getStdDeviationBound(Bounds.LOWER), 1e-10);
         assertEquals(s1.getStdDeviationBound(Bounds.UPPER), s2.getStdDeviationBound(Bounds.UPPER), 1e-10);
@@ -167,7 +198,11 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getVariancePopulation(), equalTo(variancePopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviationPopulation(), equalTo(stdDevPopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -191,7 +226,11 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getVariancePopulation(), equalTo(variancePopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviationPopulation(), equalTo(stdDevPopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         checkUpperLowerBounds(stats, 2);
     }
 
@@ -217,9 +256,17 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getSumOfSquares(), equalTo((double) 1 + 4 + 9 + 16 + 25 + 36 + 49 + 64 + 81 + 100));
         assertThat(stats.getSumOfSquaresAsString(), equalTo("0385.0"));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getVariancePopulation(), equalTo(variancePopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         assertThat(stats.getVarianceAsString(), equalTo("0008.2"));
+        assertThat(stats.getVariancePopulationAsString(), equalTo("0008.2"));
+        assertThat(stats.getVarianceSamplingAsString(), equalTo("0009.2"));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviationPopulation(), equalTo(stdDevPopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         assertThat(stats.getStdDeviationAsString(), equalTo("0002.9"));
+        assertThat(stats.getStdDeviationPopulationAsString(), equalTo("0002.9"));
+        assertThat(stats.getStdDeviationSamplingAsString(), equalTo("0003.0"));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -264,9 +311,24 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         double expectedVarianceValue = variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
         assertThat(stats.getVariance(), equalTo(expectedVarianceValue));
         assertThat((double) ((InternalAggregation)global).getProperty("stats.variance"), equalTo(expectedVarianceValue));
+        double expectedVariancePopulationValue = variancePopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        assertThat(stats.getVariancePopulation(), equalTo(expectedVariancePopulationValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.variance_population"),
+                   equalTo(expectedVariancePopulationValue));
+        double expectedVarianceSamplingValue = varianceSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        assertThat(stats.getVarianceSampling(), equalTo(expectedVarianceSamplingValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.variance_sampling"), equalTo(expectedVarianceSamplingValue));
         double expectedStdDevValue = stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
         assertThat(stats.getStdDeviation(), equalTo(expectedStdDevValue));
         assertThat((double) ((InternalAggregation)global).getProperty("stats.std_deviation"), equalTo(expectedStdDevValue));
+        double expectedStdDevPopulationValue = stdDevPopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        assertThat(stats.getStdDeviationPopulation(), equalTo(expectedStdDevValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.std_deviation_population"),
+                   equalTo(expectedStdDevPopulationValue));
+        double expectedStdDevSamplingValue = stdDevSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        assertThat(stats.getStdDeviationSampling(), equalTo(expectedStdDevSamplingValue));
+        assertThat((double) ((InternalAggregation)global).getProperty("stats.std_deviation_sampling"),
+                   equalTo(expectedStdDevSamplingValue));
     }
 
     @Override
@@ -289,7 +351,11 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getVariancePopulation(), equalTo(variancePopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviationPopulation(), equalTo(stdDevPopulation(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -318,7 +384,11 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getVariancePopulation(), equalTo(variancePopulation(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviationPopulation(), equalTo(stdDevPopulation(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -348,7 +418,11 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getVariancePopulation(), equalTo(variancePopulation(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviationPopulation(), equalTo(stdDevPopulation(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(2, 3, 4, 5, 6, 7, 8, 9, 10, 11)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -372,7 +446,15 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121+9+16+25+36+49+64+81+100+121+144));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
+        assertThat(stats.getVariancePopulation(),
+                   equalTo(variancePopulation(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
+        assertThat(stats.getVarianceSampling(),
+                   equalTo(varianceSampling(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
+        assertThat(stats.getStdDeviationPopulation(),
+                   equalTo(stdDevPopulation(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
+        assertThat(stats.getStdDeviationSampling(),
+                   equalTo(stdDevSampling(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -401,7 +483,13 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100+4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getVariancePopulation(),
+                   equalTo(variancePopulation(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getStdDeviationPopulation(),
+                   equalTo(stdDevPopulation(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -431,7 +519,13 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100+4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getVariancePopulation(),
+                   equalTo(variancePopulation(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getStdDeviationPopulation(),
+                   equalTo(stdDevPopulation(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -459,7 +553,11 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
+        assertThat(stats.getVariancePopulation(), equalTo(variancePopulation(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
+        assertThat(stats.getStdDeviationPopulation(), equalTo(stdDevPopulation(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -491,7 +589,11 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(10L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getVariancePopulation(), equalTo(variancePopulation(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getStdDeviationPopulation(), equalTo(stdDevPopulation(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -519,7 +621,15 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121+9+16+25+36+49+64+81+100+121+144));
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
+        assertThat(stats.getVariancePopulation(),
+                   equalTo(variancePopulation(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
+        assertThat(stats.getVarianceSampling(),
+                   equalTo(varianceSampling(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
+        assertThat(stats.getStdDeviationPopulation(),
+                   equalTo(stdDevPopulation(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
+        assertThat(stats.getStdDeviationSampling(),
+                   equalTo(stdDevSampling(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -552,7 +662,13 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getCount(), equalTo(20L));
         assertThat(stats.getSumOfSquares(), equalTo((double) 1+4+9+16+25+36+49+64+81+100+0+1+4+9+16+25+36+49+64+81));
         assertThat(stats.getVariance(), equalTo(variance(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 ,9)));
+        assertThat(stats.getVariancePopulation(),
+                   equalTo(variancePopulation(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 ,9)));
+        assertThat(stats.getVarianceSampling(), equalTo(varianceSampling(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 ,9)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 ,9)));
+        assertThat(stats.getStdDeviationPopulation(),
+                   equalTo(stdDevPopulation(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 ,9)));
+        assertThat(stats.getStdDeviationSampling(), equalTo(stdDevSampling(1, 2, 3, 4, 5, 6, 7, 8 ,9, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 ,9)));
         checkUpperLowerBounds(stats, sigma);
     }
 
@@ -586,6 +702,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             assertThat(stats.getMin(), equalTo(Double.POSITIVE_INFINITY));
             assertThat(stats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
             assertThat(Double.isNaN(stats.getStdDeviation()), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationPopulation()), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationSampling()), is(true));
             assertThat(Double.isNaN(stats.getAvg()), is(true));
             assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
             assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
@@ -625,8 +743,12 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             assertThat(extendedStats.getSum(), equalTo(0.0));
             assertThat(extendedStats.getCount(), equalTo(0L));
             assertThat(extendedStats.getStdDeviation(), equalTo(Double.NaN));
+            assertThat(extendedStats.getStdDeviationPopulation(), equalTo(Double.NaN));
+            assertThat(extendedStats.getStdDeviationSampling(), equalTo(Double.NaN));
             assertThat(extendedStats.getSumOfSquares(), equalTo(0.0));
             assertThat(extendedStats.getVariance(), equalTo(Double.NaN));
+            assertThat(extendedStats.getVariancePopulation(), equalTo(Double.NaN));
+            assertThat(extendedStats.getVarianceSampling(), equalTo(Double.NaN));
             assertThat(extendedStats.getStdDeviationBound(Bounds.LOWER), equalTo(Double.NaN));
             assertThat(extendedStats.getStdDeviationBound(Bounds.UPPER), equalTo(Double.NaN));
 

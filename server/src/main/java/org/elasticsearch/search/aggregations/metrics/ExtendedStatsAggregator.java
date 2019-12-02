@@ -166,7 +166,11 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                 case avg: return Double.NaN;
                 case sum_of_squares: return 0;
                 case variance: return Double.NaN;
+                case variance_population: return Double.NaN;
+                case variance_sampling: return Double.NaN;
                 case std_deviation: return Double.NaN;
+                case std_deviation_population: return Double.NaN;
+                case std_deviation_sampling: return Double.NaN;
                 case std_upper: return Double.NaN;
                 case std_lower: return Double.NaN;
                 default:
@@ -181,7 +185,11 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             case avg: return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
             case sum_of_squares: return sumOfSqrs.get(owningBucketOrd);
             case variance: return variance(owningBucketOrd);
+            case variance_population: return variancePopulation(owningBucketOrd);
+            case variance_sampling: return varianceSampling(owningBucketOrd);
             case std_deviation: return Math.sqrt(variance(owningBucketOrd));
+            case std_deviation_population: return Math.sqrt(variance(owningBucketOrd));
+            case std_deviation_sampling: return  Math.sqrt(varianceSampling(owningBucketOrd));
             case std_upper:
                 return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             case std_lower:
@@ -192,9 +200,20 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     private double variance(long owningBucketOrd) {
+        return variancePopulation(owningBucketOrd);
+    }
+
+    private double variancePopulation(long owningBucketOrd) {
         double sum = sums.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
         double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / count;
+        return variance < 0  ? 0 : variance;
+    }
+
+    private double varianceSampling(long owningBucketOrd) {
+        double sum = sums.get(owningBucketOrd);
+        long count = counts.get(owningBucketOrd);
+        double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / (count - 1);
         return variance < 0  ? 0 : variance;
     }
 

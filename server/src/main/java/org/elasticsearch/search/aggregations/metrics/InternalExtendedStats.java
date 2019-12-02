@@ -33,7 +33,8 @@ import java.util.Objects;
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
     enum Metrics {
 
-        count, sum, min, max, avg, sum_of_squares, variance, std_deviation, std_upper, std_lower;
+        count, sum, min, max, avg, sum_of_squares, variance, variance_population, variance_sampling,
+        std_deviation, std_deviation_population, std_deviation_sampling, std_upper, std_lower;
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
@@ -78,8 +79,20 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         if ("variance".equals(name)) {
             return getVariance();
         }
+        if ("variance_population".equals(name)) {
+            return getVariancePopulation();
+        }
+        if ("variance_sampling".equals(name)) {
+            return getVarianceSampling();
+        }
         if ("std_deviation".equals(name)) {
             return getStdDeviation();
+        }
+        if ("std_deviation_population".equals(name)) {
+            return getStdDeviationPopulation();
+        }
+        if ("std_deviation_sampling".equals(name)) {
+            return getStdDeviationSampling();
         }
         if ("std_upper".equals(name)) {
             return getStdDeviationBound(Bounds.UPPER);
@@ -101,13 +114,34 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getVariance() {
+        return getVariancePopulation();
+    }
+
+    @Override
+    public double getVariancePopulation() {
         double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
         return variance < 0  ? 0 : variance;
     }
 
     @Override
+    public double getVarianceSampling() {
+        double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
+        return variance < 0  ? 0 : variance;
+    }
+
+    @Override
     public double getStdDeviation() {
-        return Math.sqrt(getVariance());
+        return getStdDeviationPopulation();
+    }
+
+    @Override
+    public double getStdDeviationPopulation() {
+        return Math.sqrt(getVariancePopulation());
+    }
+
+    @Override
+    public double getStdDeviationSampling() {
+        return Math.sqrt(getVarianceSampling());
     }
 
     @Override
@@ -130,8 +164,28 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
+    public String getVariancePopulationAsString() {
+        return valueAsString(Metrics.variance_population.name());
+    }
+
+    @Override
+    public String getVarianceSamplingAsString() {
+        return valueAsString(Metrics.variance_sampling.name());
+    }
+
+    @Override
     public String getStdDeviationAsString() {
         return valueAsString(Metrics.std_deviation.name());
+    }
+
+    @Override
+    public String getStdDeviationPopulationAsString() {
+        return valueAsString(Metrics.std_deviation_population.name());
+    }
+
+    @Override
+    public String getStdDeviationSamplingAsString() {
+        return valueAsString(Metrics.std_deviation_sampling.name());
     }
 
     @Override
@@ -168,8 +222,16 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         public static final String SUM_OF_SQRS_AS_STRING = "sum_of_squares_as_string";
         public static final String VARIANCE = "variance";
         public static final String VARIANCE_AS_STRING = "variance_as_string";
+        public static final String VARIANCE_POPULATION = "variance_population";
+        public static final String VARIANCE_POPULATION_AS_STRING = "variance_population_as_string";
+        public static final String VARIANCE_SAMPLING = "variance_sampling";
+        public static final String VARIANCE_SAMPLING_AS_STRING = "variance_sampling_as_string";
         public static final String STD_DEVIATION = "std_deviation";
         public static final String STD_DEVIATION_AS_STRING = "std_deviation_as_string";
+        public static final String STD_DEVIATION_POPULATION = "std_deviation_population";
+        public static final String STD_DEVIATION_POPULATION_AS_STRING = "std_deviation_population_as_string";
+        public static final String STD_DEVIATION_SAMPLING = "std_deviation_sampling";
+        public static final String STD_DEVIATION_SAMPLING_AS_STRING = "std_deviation_sampling_as_string";
         public static final String STD_DEVIATION_BOUNDS = "std_deviation_bounds";
         public static final String STD_DEVIATION_BOUNDS_AS_STRING = "std_deviation_bounds_as_string";
         public static final String UPPER = "upper";
@@ -182,7 +244,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         if (count != 0) {
             builder.field(Fields.SUM_OF_SQRS, sumOfSqrs);
             builder.field(Fields.VARIANCE, getVariance());
+            builder.field(Fields.VARIANCE_POPULATION, getVariancePopulation());
+            builder.field(Fields.VARIANCE_SAMPLING, getVarianceSampling());
             builder.field(Fields.STD_DEVIATION, getStdDeviation());
+            builder.field(Fields.STD_DEVIATION_POPULATION, getStdDeviationPopulation());
+            builder.field(Fields.STD_DEVIATION_SAMPLING, getStdDeviationSampling());
             builder.startObject(Fields.STD_DEVIATION_BOUNDS);
             {
                 builder.field(Fields.UPPER, getStdDeviationBound(Bounds.UPPER));
@@ -192,7 +258,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             if (format != DocValueFormat.RAW) {
                 builder.field(Fields.SUM_OF_SQRS_AS_STRING, format.format(sumOfSqrs));
                 builder.field(Fields.VARIANCE_AS_STRING, format.format(getVariance()));
+                builder.field(Fields.VARIANCE_POPULATION_AS_STRING, format.format(getVariancePopulation()));
+                builder.field(Fields.VARIANCE_SAMPLING_AS_STRING, format.format(getVarianceSampling()));
                 builder.field(Fields.STD_DEVIATION_AS_STRING, getStdDeviationAsString());
+                builder.field(Fields.STD_DEVIATION_POPULATION_AS_STRING, getStdDeviationPopulationAsString());
+                builder.field(Fields.STD_DEVIATION_SAMPLING_AS_STRING, getStdDeviationSamplingAsString());
                 builder.startObject(Fields.STD_DEVIATION_BOUNDS_AS_STRING);
                 {
                     builder.field(Fields.UPPER, getStdDeviationBoundAsString(Bounds.UPPER));
@@ -203,7 +273,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         } else {
             builder.nullField(Fields.SUM_OF_SQRS);
             builder.nullField(Fields.VARIANCE);
+            builder.nullField(Fields.VARIANCE_POPULATION);
+            builder.nullField(Fields.VARIANCE_SAMPLING);
             builder.nullField(Fields.STD_DEVIATION);
+            builder.nullField(Fields.STD_DEVIATION_POPULATION);
+            builder.nullField(Fields.STD_DEVIATION_SAMPLING);
             builder.startObject(Fields.STD_DEVIATION_BOUNDS);
             {
                 builder.nullField(Fields.UPPER);

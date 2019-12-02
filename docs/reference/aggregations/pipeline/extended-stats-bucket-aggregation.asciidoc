@@ -113,7 +113,11 @@ And the following may be the response:
          "sum": 985.0,
          "sum_of_squares": 446725.0,
          "variance": 41105.55555555556,
+         "variance_population": 41105.55555555556,
+         "variance_sampling": 61658.33333333334,
          "std_deviation": 202.74505063146563,
+         "std_deviation_population": 202.74505063146563,
+         "std_deviation_sampling": 248.3109609609156,
          "std_deviation_bounds": {
            "upper": 733.8234345962646,
            "lower": -77.15676792959795

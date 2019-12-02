@@ -29,14 +29,34 @@ public interface ExtendedStats extends Stats {
     double getSumOfSquares();
 
     /**
-     * The variance of the collected values.
+     * The population variance of the collected values.
      */
     double getVariance();
 
     /**
-     * The standard deviation of the collected values.
+     * The population variance of the collected values.
+     */
+    double getVariancePopulation();
+
+    /**
+     * The sampling variance of the collected values.
+     */
+    double getVarianceSampling();
+
+    /**
+     * The population standard deviation of the collected values.
      */
     double getStdDeviation();
+
+    /**
+     * The population standard deviation of the collected values.
+     */
+    double getStdDeviationPopulation();
+
+    /**
+     * The sampling standard deviation of the collected values.
+     */
+    double getStdDeviationSampling();
 
     /**
      * The upper or lower bounds of the stdDeviation
@@ -44,9 +64,19 @@ public interface ExtendedStats extends Stats {
     double getStdDeviationBound(Bounds bound);
 
     /**
-     * The standard deviation of the collected values as a String.
+     * The population standard deviation of the collected values as a String.
      */
     String getStdDeviationAsString();
+
+    /**
+     * The population standard deviation of the collected values as a String.
+     */
+    String getStdDeviationPopulationAsString();
+
+    /**
+     * The sampling standard deviation of the collected values as a String.
+     */
+    String getStdDeviationSamplingAsString();
 
     /**
      * The upper or lower bounds of stdDev of the collected values as a String.
@@ -60,10 +90,19 @@ public interface ExtendedStats extends Stats {
     String getSumOfSquaresAsString();
 
     /**
-     * The variance of the collected values as a String.
+     * The population variance of the collected values as a String.
      */
     String getVarianceAsString();
 
+    /**
+     * The population variance of the collected values as a String.
+     */
+    String getVariancePopulationAsString();
+
+    /**
+     * The sampling variance of the collected values as a String.
+     */
+    String getVarianceSamplingAsString();
 
     enum Bounds {
         UPPER, LOWER

@@ -36,7 +36,11 @@ The above aggregation computes the grades statistics over all documents. The agg
            "sum": 150.0,
            "sum_of_squares": 12500.0,
            "variance": 625.0,
+           "variance_population": 625.0,
+           "variance_sampling": 1250.0,
            "std_deviation": 25.0,
+           "std_deviation_population": 25.0,
+           "std_deviation_sampling": 35.35533905932738,
            "std_deviation_bounds": {
             "upper": 125.0,
             "lower": 25.0
@@ -93,9 +97,9 @@ GET /exams/_search
 {
     "size": 0,
     "aggs" : {
-        "grades_stats" : { 
-            "extended_stats" : { 
-                "script" : { 
+        "grades_stats" : {
+            "extended_stats" : {
+                "script" : {
                     "source" : "doc['grade'].value",
                     "lang" : "painless"
                  }
@@ -114,8 +118,8 @@ GET /exams/_search
 {
     "size": 0,
     "aggs" : {
-        "grades_stats" : { 
-            "extended_stats" : { 
+        "grades_stats" : {
+            "extended_stats" : {
                 "script" : {
                     "id": "my_script",
                     "params": {

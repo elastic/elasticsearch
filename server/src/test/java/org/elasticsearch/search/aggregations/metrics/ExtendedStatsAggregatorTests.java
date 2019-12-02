@@ -54,7 +54,11 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
                 assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
                 assertEquals(Double.NaN, stats.getVariance(), 0);
+                assertEquals(Double.NaN, stats.getVariancePopulation(), 0);
+                assertEquals(Double.NaN, stats.getVarianceSampling(), 0);
                 assertEquals(Double.NaN, stats.getStdDeviation(), 0);
+                assertEquals(Double.NaN, stats.getStdDeviationPopulation(), 0);
+                assertEquals(Double.NaN, stats.getStdDeviationSampling(), 0);
                 assertEquals(0d, stats.getSumOfSquares(), 0);
                 assertFalse(AggregationInspectionHelper.hasValue(stats));
             }
@@ -89,7 +93,11 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
                 assertEquals(expected.sumOfSqrs, stats.getSumOfSquares(), TOLERANCE);
                 assertEquals(expected.stdDev(), stats.getStdDeviation(), TOLERANCE);
+                assertEquals(expected.stdDevPopulation(), stats.getStdDeviationPopulation(), TOLERANCE);
+                assertEquals(expected.stdDevSampling(), stats.getStdDeviationSampling(), TOLERANCE);
                 assertEquals(expected.variance(), stats.getVariance(), TOLERANCE);
+                assertEquals(expected.variancePopulation(), stats.getVariancePopulation(), TOLERANCE);
+                assertEquals(expected.varianceSampling(), stats.getVarianceSampling(), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER, stats.getSigma()),
@@ -122,7 +130,11 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
             stats -> {
                 //since the value(49.95) is a constant, variance should be 0
                 assertEquals(0.0d, stats.getVariance(), TOLERANCE);
+                assertEquals(0.0d, stats.getVariancePopulation(), TOLERANCE);
+                assertEquals(0.0d, stats.getVarianceSampling(), TOLERANCE);
                 assertEquals(0.0d, stats.getStdDeviation(), TOLERANCE);
+                assertEquals(0.0d, stats.getStdDeviationPopulation(), TOLERANCE);
+                assertEquals(0.0d, stats.getStdDeviationSampling(), TOLERANCE);
             }
         );
     }
@@ -154,7 +166,11 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
                 assertEquals(expected.sumOfSqrs, stats.getSumOfSquares(), TOLERANCE);
                 assertEquals(expected.stdDev(), stats.getStdDeviation(), TOLERANCE);
+                assertEquals(expected.stdDevPopulation(), stats.getStdDeviationPopulation(), TOLERANCE);
+                assertEquals(expected.stdDevSampling(), stats.getStdDeviationSampling(), TOLERANCE);
                 assertEquals(expected.variance(), stats.getVariance(), TOLERANCE);
+                assertEquals(expected.variancePopulation(), stats.getVariancePopulation(), TOLERANCE);
+                assertEquals(expected.varianceSampling(), stats.getVarianceSampling(), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER, stats.getSigma()),
@@ -255,6 +271,14 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
             return Math.sqrt(variance());
         }
 
+        double stdDevPopulation() {
+            return Math.sqrt(variancePopulation());
+        }
+
+        double stdDevSampling() {
+            return Math.sqrt(varianceSampling());
+        }
+
         double stdDevBound(ExtendedStats.Bounds bounds, double sigma) {
             if (bounds == ExtendedStats.Bounds.UPPER) {
                 return (sum / count) + (Math.sqrt(variance()) * sigma);
@@ -264,7 +288,16 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         }
 
         double variance() {
+            return variancePopulation();
+        }
+
+        double variancePopulation() {
             double variance = (sumOfSqrs - ((sum * sum) / count)) / count;
+            return variance < 0  ? 0 : variance;
+        }
+
+        double varianceSampling() {
+            double variance = (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
             return variance < 0  ? 0 : variance;
         }
     }

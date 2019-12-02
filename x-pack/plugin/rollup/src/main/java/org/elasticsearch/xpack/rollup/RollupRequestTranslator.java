@@ -319,7 +319,7 @@ public class RollupRequestTranslator {
 
         return translateVSAggBuilder(source, registry, () -> {
             TermsAggregationBuilder rolledTerms
-                    = new TermsAggregationBuilder(source.getName(), source.valueType());
+                    = new TermsAggregationBuilder(source.getName(), source.userValueTypeHint());
             rolledTerms.field(RollupField.formatFieldName(source, RollupField.VALUE));
             rolledTerms.includeExclude(source.includeExclude());
             if (source.collectMode() != null) {

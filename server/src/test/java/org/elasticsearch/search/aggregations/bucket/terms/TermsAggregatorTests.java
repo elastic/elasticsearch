@@ -1227,7 +1227,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         "script", new Script("2.718"));
                     TermsAggregationBuilder termsAgg = terms("terms")
                         .field("field")
-                        .valueType(ValueType.STRING)
+                        .userValueTypeHint(ValueType.STRING)
                         .order(BucketOrder.aggregation("script", true))
                         .subAggregation(bucketScriptAgg);
 

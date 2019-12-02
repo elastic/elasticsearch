@@ -105,7 +105,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
         InternalBuilder internal = PARSER.parse(parser, new InternalBuilder(aggregationName), null);
         // we need to return a PercentilesAggregationBuilder for equality checks to work
         PercentilesAggregationBuilder returnedAgg = new PercentilesAggregationBuilder(internal.name);
-        setIfNotNull(returnedAgg::valueType, internal.valueType());
+        setIfNotNull(returnedAgg::userValueTypeHint, internal.userValueTypeHint());
         setIfNotNull(returnedAgg::format, internal.format());
         setIfNotNull(returnedAgg::missing, internal.missing());
         setIfNotNull(returnedAgg::field, internal.field());

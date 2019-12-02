@@ -65,7 +65,7 @@ public final class ValuesSourceParserHelper {
 
     private static <VS extends ValuesSource, T> void declareFields(
             AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
-            boolean scriptable, boolean formattable, boolean timezoneAware, ValueType targetValueType) {
+            boolean scriptable, boolean formattable, boolean timezoneAware, ValueType expectedInputType) {
 
 
         objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
@@ -74,13 +74,14 @@ public final class ValuesSourceParserHelper {
         objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
             ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
 
-        objectParser.declareField(ValuesSourceAggregationBuilder::valueType, p -> {
+        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> {
             ValueType valueType = ValueType.resolveForScript(p.text());
-            if (targetValueType != null && valueType.isNotA(targetValueType)) {
+            // This checks that the user specified type is compatible with the field type the builder told the parser to expect
+            if (expectedInputType != null && valueType.isNotA(expectedInputType)) {
                 throw new ParsingException(p.getTokenLocation(),
                         "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
                                 + valueType + "]. It can only work on value of type ["
-                                + targetValueType + "]");
+                                + expectedInputType + "]");
             }
             return valueType;
         }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);

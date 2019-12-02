@@ -77,7 +77,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     private final ValueType targetValueType;
     private String field = null;
     private Script script = null;
-    private ValueType valueType = null;
+    private ValueType userValueTypeHint = null;
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
@@ -93,7 +93,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         super(clone, factoriesBuilder, metaData);
         this.targetValueType = clone.targetValueType;
         this.field = clone.field;
-        this.valueType = clone.valueType;
+        this.userValueTypeHint = clone.userValueTypeHint;
         this.format = clone.format;
         this.missing = clone.missing;
         this.timeZone = clone.timeZone;
@@ -139,7 +139,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             script = new Script(in);
         }
         if (in.readBoolean()) {
-            valueType = ValueType.readFromStream(in);
+            userValueTypeHint = ValueType.readFromStream(in);
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
@@ -157,10 +157,10 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         if (hasScript) {
             script.writeTo(out);
         }
-        boolean hasValueType = valueType != null;
+        boolean hasValueType = userValueTypeHint != null;
         out.writeBoolean(hasValueType);
         if (hasValueType) {
-            valueType.writeTo(out);
+            userValueTypeHint.writeTo(out);
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
@@ -221,22 +221,22 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     /**
-     * Sets the {@link ValueType} for the value produced by this aggregation
+     * This setter should only be used during parsing, to set the userValueTypeHint.  This is information the user provides in the json
+     * query to indicate the output type of a script or the type of the 'missing' replacement value.
+     * @param valueType - The parsed {@link ValueType} based on the string the user specified
+     * @return - The modified builder instance, for chaining.
      */
     @SuppressWarnings("unchecked")
-    public AB valueType(ValueType valueType) {
+    public AB userValueTypeHint(ValueType valueType) {
         if (valueType == null) {
             throw new IllegalArgumentException("[valueType] must not be null: [" + name + "]");
         }
-        this.valueType = valueType;
+        this.userValueTypeHint = valueType;
         return (AB) this;
     }
 
-    /**
-     * Gets the {@link ValueType} for the value produced by this aggregation
-     */
-    public ValueType valueType() {
-        return valueType;
+    public ValueType userValueTypeHint() {
+        return userValueTypeHint;
     }
 
     /**
@@ -324,12 +324,12 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      * @return The ValueType we expect this script to yield
      */
     protected ValueType defaultValueType(Script script) {
-        return valueType;
+        return userValueTypeHint;
     }
 
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         return ValuesSourceConfig.resolve(queryShardContext,
-                this.valueType, field, script, missing, timeZone, format, this::resolveScriptAny, this.getType());
+                this.userValueTypeHint, field, script, missing, timeZone, format, this::resolveScriptAny, this.getType());
     }
 
     protected abstract ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
@@ -355,8 +355,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         if (timeZone != null) {
             builder.field("time_zone", timeZone.toString());
         }
-        if (valueType != null) {
-            builder.field("value_type", valueType.getPreferredName());
+        if (userValueTypeHint != null) {
+            builder.field("value_type", userValueTypeHint.getPreferredName());
         }
         doXContentBody(builder, params);
         builder.endObject();
@@ -368,7 +368,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), field, format, missing, script,
-            targetValueType, timeZone, valueType);
+            targetValueType, timeZone, userValueTypeHint);
     }
 
     @Override
@@ -383,6 +383,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             && Objects.equals(script, other.script)
             && Objects.equals(targetValueType, other.targetValueType)
             && Objects.equals(timeZone, other.timeZone)
-            && Objects.equals(valueType, other.valueType);
+            && Objects.equals(userValueTypeHint, other.userValueTypeHint);
     }
 }

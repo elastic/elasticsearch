@@ -99,7 +99,7 @@ public class Docker {
 
         waitForElasticsearchToStart();
 
-        return Installation.ofContainer();
+        return Installation.ofContainer(distribution);
     }
 
     /**

@@ -33,8 +33,10 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.DocValueBits;
+import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -130,10 +132,10 @@ public abstract class ValuesSource {
             }
 
             public abstract SortedSetDocValues ordinalsValues(LeafReaderContext context)
-                    throws IOException;
+                throws IOException;
 
             public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
-                    throws IOException;
+                throws IOException;
 
             /**
              * Whether this values source is able to provide a mapping between global and segment ordinals,
@@ -146,7 +148,7 @@ public abstract class ValuesSource {
 
             /** Returns a mapping from segment ordinals to global ordinals. */
             public abstract LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context)
-                    throws IOException;
+                throws IOException;
 
             public long globalMaxOrd(IndexSearcher indexSearcher) throws IOException {
                 IndexReader indexReader = indexSearcher.getIndexReader();
@@ -678,4 +680,39 @@ public abstract class ValuesSource {
             }
         }
     }
+
+    public abstract static class Histogram extends ValuesSource {
+
+        public abstract HistogramValues getHistogramValues(LeafReaderContext context) throws IOException;
+
+        public static class Fielddata extends Histogram {
+
+            protected final IndexHistogramFieldData indexFieldData;
+
+            public Fielddata(IndexHistogramFieldData indexFieldData) {
+                this.indexFieldData = indexFieldData;
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getBytesValues();
+            }
+
+            @Override
+            public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
+                HistogramValues values = getHistogramValues(context);
+                return new DocValueBits() {
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        return values.advanceExact(doc);
+                    }
+                };
+            }
+
+            public HistogramValues getHistogramValues(LeafReaderContext context) throws IOException {
+                return indexFieldData.load(context).getHistogramValues();
+            }
+        }
+    }
+
 }

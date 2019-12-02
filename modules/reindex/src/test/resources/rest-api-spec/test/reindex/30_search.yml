@@ -77,8 +77,9 @@
 ---
 "Sorting and max_docs in body combined":
   - skip:
-      version: " - 7.2.99"
-      reason: "max_docs introduced in 7.3.0"
+      version: " - 7.5.99"
+      reason: "max_docs introduced in 7.3.0, but sort deprecated in 7.6"
+      features: "warnings"
 
   - do:
       index:
@@ -94,6 +95,9 @@
       indices.refresh: {}
 
   - do:
+      warnings:
+        - The sort option in reindex is deprecated. Instead consider using query
+          filtering to find the desired subset of data.
       reindex:
         refresh: true
         body:

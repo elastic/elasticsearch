@@ -1,6 +1,19 @@
 [role="xpack"]
 [testenv="basic"]
 [[es-monitoring-collectors]]
+
+[IMPORTANT]
+=========================
+Metricbeat is the recommended method for collecting and shipping monitoring data
+to a monitoring cluster.
+
+If you have previously configured internal collection, you should migrate to
+using Metricbeat collection. One should either use Metricbeat collection or
+internal collection described below but not both.
+
+Learn more about <<configuring--metricbeat>>.
+=========================
+
 == Collectors
 
 Collectors, as their name implies, collect things. Each collector runs once for
@@ -79,19 +92,19 @@ with each other, but not with the monitoring cluster (for example, intermittent
 network issues or memory pressure).
 |=======================
 
-{monitoring} uses a single threaded scheduler to run the collection of {es} 
-monitoring data by all of the appropriate collectors on each node. This 
-scheduler is managed locally by each node and its interval is controlled by 
-specifying the `xpack.monitoring.collection.interval`, which defaults to 10 
+{monitoring} uses a single threaded scheduler to run the collection of {es}
+monitoring data by all of the appropriate collectors on each node. This
+scheduler is managed locally by each node and its interval is controlled by
+specifying the `xpack.monitoring.collection.interval`, which defaults to 10
 seconds (`10s`), at either the node or cluster level.
 
 Fundamentally, each collector works on the same principle. Per collection
-interval, each collector is checked to see whether it should run and then the 
-appropriate collectors run. The failure of an individual collector does not 
+interval, each collector is checked to see whether it should run and then the
+appropriate collectors run. The failure of an individual collector does not
 impact any other collector.
 
 Once collection has completed, all of the monitoring data is passed to the
-exporters to route the monitoring data to the monitoring clusters. 
+exporters to route the monitoring data to the monitoring clusters.
 
 If gaps exist in the monitoring charts in {kib}, it is typically because either
 a collector failed or the monitoring cluster did not receive the data (for

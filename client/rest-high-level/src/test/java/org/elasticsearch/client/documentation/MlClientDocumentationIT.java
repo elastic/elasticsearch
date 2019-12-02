@@ -2939,6 +2939,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DataFrameAnalyticsSource sourceConfig = DataFrameAnalyticsSource.builder() // <1>
                 .setIndex("put-test-source-index") // <2>
                 .setQueryConfig(queryConfig) // <3>
+                .setSourceFiltering(new FetchSourceContext(true,
+                    new String[] { "included_field_1", "included_field_2" },
+                    new String[] { "excluded_field" })) // <4>
                 .build();
             // end::put-data-frame-analytics-source-config
 

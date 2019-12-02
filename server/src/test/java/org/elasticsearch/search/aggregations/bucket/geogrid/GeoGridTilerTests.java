@@ -55,7 +55,8 @@ public class GeoGridTilerTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), GeoShapeCoordinateEncoder.INSTANCE);
+        GeometryTreeReader reader = new GeometryTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+        reader.reset(output.bytes().toBytesRef());
         MultiGeoValues.GeoShapeValue value =  new MultiGeoValues.GeoShapeValue(reader);
 
         // test shape within tile bounds
@@ -165,7 +166,8 @@ public class GeoGridTilerTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), GeoShapeCoordinateEncoder.INSTANCE);
+        GeometryTreeReader reader = new GeometryTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+        reader.reset(output.bytes().toBytesRef());
         MultiGeoValues.GeoShapeValue value =  new MultiGeoValues.GeoShapeValue(reader);
 
         // test shape within tile bounds

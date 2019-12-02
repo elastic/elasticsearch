@@ -26,6 +26,8 @@ import org.elasticsearch.common.geo.GeoRelation;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
+import org.elasticsearch.common.geo.ShapeTreeReader;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
@@ -125,22 +127,19 @@ public abstract class MultiGeoValues {
     public static class GeoShapeValue implements GeoValue {
         private static final WellKnownText MISSING_GEOMETRY_PARSER = new WellKnownText(true, new GeographyValidator(true));
 
-        private final GeometryTreeReader reader;
-        private final Extent extent;
+        private final ShapeTreeReader reader;
 
-        public GeoShapeValue(GeometryTreeReader reader) throws IOException {
+        public GeoShapeValue(ShapeTreeReader reader)  {
             this.reader = reader;
-            this.extent = reader.getExtent();
-        }
-
-        public GeoShapeValue(Extent extent) {
-            this.reader = null;
-            this.extent = extent;
         }
 
         @Override
         public BoundingBox boundingBox() {
-            return new BoundingBox(extent, GeoShapeCoordinateEncoder.INSTANCE);
+            try {
+            return new BoundingBox(reader.getExtent(), GeoShapeCoordinateEncoder.INSTANCE);
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to read bounding box", e);
+            }
         }
 
         /**
@@ -185,7 +184,11 @@ public abstract class MultiGeoValues {
             try {
                 Geometry geometry = MISSING_GEOMETRY_PARSER.fromWKT(missing);
                 GeometryTreeWriter writer = new GeometryTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
-                return new GeoShapeValue(writer.getExtent());
+                BytesStreamOutput output = new BytesStreamOutput();
+                writer.writeTo(output);
+                GeometryTreeReader reader  = new GeometryTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+                reader.reset(output.bytes().toBytesRef());
+                return new GeoShapeValue(reader);
             } catch (IOException | ParseException e) {
                 throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
             }

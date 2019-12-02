@@ -2291,8 +2291,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(user.getUsername(), is("Elasticsearch Test Client"));
             RealmInfo authnRealm = resp.getAuthenticationRealm();
             assertThat(authnRealm, is(notNullValue()));
-            assertThat(authnRealm.getName(), is("pki1"));
-            assertThat(authnRealm.getType(), is("pki"));
+            assertThat(authnRealm.getName(), is("_es_token_service"));
+            assertThat(authnRealm.getType(), is("_es_token_service"));
         }
 
         {
@@ -2334,8 +2334,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(user.getUsername(), is("Elasticsearch Test Client"));
             RealmInfo authnRealm = resp.getAuthenticationRealm();
             assertThat(authnRealm, is(notNullValue()));
-            assertThat(authnRealm.getName(), is("pki1"));
-            assertThat(authnRealm.getType(), is("pki"));
+            assertThat(authnRealm.getName(), is("_es_token_service"));
+            assertThat(authnRealm.getType(), is("_es_token_service"));
         }
     }
 

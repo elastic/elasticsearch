@@ -695,8 +695,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         @Override
         protected void performOnReplica(BulkShardOperationsRequest request, IndexShard replica) throws Exception {
             final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
-            replica.acquireReplicaOperationPermit(getPrimaryShard().getPendingPrimaryTerm(), getPrimaryShard().getLastKnownGlobalCheckpoint(),
-                getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(), permitAcquiredFuture, ThreadPool.Names.SAME, request);
+            replica.acquireReplicaOperationPermit(getPrimaryShard().getPendingPrimaryTerm(),
+                getPrimaryShard().getLastKnownGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(), permitAcquiredFuture,
+                ThreadPool.Names.SAME, request);
             final Translog.Location location;
             try (Releasable ignored = permitAcquiredFuture.actionGet()) {
                 location = TransportBulkShardOperationsAction.shardOperationOnReplica(request, replica, logger).location;

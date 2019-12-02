@@ -428,7 +428,7 @@ setup:
 "Test fuzzy match":
   - skip:
       version: " - 8.0.0"
-      reason: "TODO: change to 7.3 in backport"
+      reason: "TODO: change to 7.6 in backport"
   - do:
       search:
         index: test

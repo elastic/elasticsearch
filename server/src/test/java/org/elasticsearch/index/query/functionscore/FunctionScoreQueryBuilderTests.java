@@ -686,7 +686,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             builder.boostMode(randomFrom(CombineFunction.values()));
         }
 
-        Query query = builder.toQuery(createShardContext());
+        QueryShardContext shardContext = createShardContext();
+        Query query = builder.rewrite(shardContext).toQuery(shardContext);
         assertThat(query, instanceOf(FunctionScoreQuery.class));
 
         CombineFunction expectedBoostMode = builder.boostMode() != null
@@ -840,5 +841,28 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             }
         }
         return true;
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+
+        // main query needs rewriting
+        FunctionScoreQueryBuilder functionQueryBuilder1 = new FunctionScoreQueryBuilder(termQueryBuilder);
+        functionQueryBuilder1.setMinScore(1);
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> functionQueryBuilder1.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+
+        // filter needs rewriting
+        FunctionScoreQueryBuilder functionQueryBuilder2 = new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(),
+                new FilterFunctionBuilder[] {
+                        new FilterFunctionBuilder(termQueryBuilder, new RandomScoreFunctionBuilder())
+                });
+        e = expectThrows(IllegalStateException.class,
+                () -> functionQueryBuilder2.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

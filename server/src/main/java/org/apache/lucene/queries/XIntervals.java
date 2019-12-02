@@ -67,6 +67,10 @@ public final class XIntervals {
         return new MultiTermIntervalsSource(ca, 128, prefix.utf8ToString());
     }
 
+    public static IntervalsSource multiterm(CompiledAutomaton ca, String label) {
+        return new MultiTermIntervalsSource(ca, 128, label);
+    }
+
     static class MultiTermIntervalsSource extends IntervalsSource {
 
         private final CompiledAutomaton automaton;

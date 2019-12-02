@@ -121,7 +121,14 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
             ringBuffer = new byte[bufferSize + 1];
             head = tail = position = 0;
         } else {
-            head = position;
+            if (resetCalled) {
+                // mark after reset
+                head = position;
+            } else {
+                // discard buffer leftovers
+                tail = head;
+                position = head;
+            }
         }
     }
 

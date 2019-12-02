@@ -51,6 +51,14 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                     in.reset();
                 }
             }
+            try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), length)) {
+                in.mark(length);
+                for (int readLen = length; readLen >= 1; readLen--) {
+                    byte[] test1 = in.readNBytes(readLen);
+                    assertArray(0, test1);
+                    in.reset();
+                }
+            }
         }
     }
 
@@ -67,6 +75,66 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                         in.reset();
                         byte[] test2 = in.readNBytes(mark);
                         assertArray(offset, test2);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testMarkResetEverywhere() throws Exception {
+        for (int length = 1; length <= 8; length++) {
+            for (int offset = 0; offset < length; offset++) {
+                try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length),
+                        length)) {
+                    // skip first offset bytes
+                    in.readNBytes(offset);
+                    in.mark(length);
+                    for (int readLen = 1; readLen <= length - offset; readLen++) {
+                        byte[] test = in.readNBytes(readLen);
+                        assertArray(offset, test);
+                        in.reset();
+                    }
+                }
+                try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length),
+                        length)) {
+                    // skip first offset bytes
+                    in.readNBytes(offset);
+                    in.mark(length);
+                    for (int readLen = length - offset; readLen >= 1; readLen--) {
+                        byte[] test = in.readNBytes(readLen);
+                        assertArray(offset, test);
+                        in.reset();
+                    }
+                }
+            }
+        }
+    }
+
+    public void testDoubleMarkEverywhere() throws Exception {
+        for (int length = 1; length <= 16; length++) {
+            for (int offset = 0; offset < length; offset++) {
+                for (int readLen = 1; readLen <= length - offset; readLen++) {
+                    for (int markLen = 1; markLen <= length - offset; markLen++) {
+                        try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length),
+                                length)) {
+                            in.readNBytes(offset);
+                            // first mark
+                            in.mark(length - offset);
+                            byte[] test = in.readNBytes(readLen);
+                            assertArray(offset, test);
+                            // reset to first
+                            in.reset();
+                            // advance before/after the first read length
+                            test = in.readNBytes(markLen);
+                            assertArray(offset, test);
+                            // second mark
+                            in.mark(length - offset - markLen);
+                            for (int readLen2 = 1; readLen2 <= length - offset - markLen; readLen2++) {
+                                byte[] test2 = in.readNBytes(readLen2);
+                                assertArray(offset + markLen, test2);
+                                in.reset();
+                            }
+                        }
                     }
                 }
             }

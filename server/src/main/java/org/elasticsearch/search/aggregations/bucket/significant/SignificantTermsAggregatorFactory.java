@@ -59,8 +59,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource>
-        implements Releasable {
+public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory
+    implements Releasable {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(SignificantTermsAggregatorFactory.class));
 
@@ -76,7 +76,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private final SignificanceHeuristic significanceHeuristic;
 
     public SignificantTermsAggregatorFactory(String name,
-                                             ValuesSourceConfig<ValuesSource> config,
+                                             ValuesSourceConfig config,
                                              IncludeExclude includeExclude,
                                              String executionHint,
                                              QueryBuilder filterBuilder,

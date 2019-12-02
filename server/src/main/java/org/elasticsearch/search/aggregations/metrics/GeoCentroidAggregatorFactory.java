@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -33,10 +34,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     GeoCentroidAggregatorFactory(String name,
-                                    ValuesSourceConfig<ValuesSource.GeoPoint> config,
+                                    ValuesSourceConfig config,
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
@@ -53,12 +54,16 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        return new GeoCentroidAggregator(name, searchContext, parent, valuesSource, pipelineAggregators, metaData);
+        if (valuesSource instanceof ValuesSource.GeoPoint == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
+        return new GeoCentroidAggregator(name, searchContext, parent, (ValuesSource.GeoPoint) valuesSource, pipelineAggregators, metaData);
     }
 }

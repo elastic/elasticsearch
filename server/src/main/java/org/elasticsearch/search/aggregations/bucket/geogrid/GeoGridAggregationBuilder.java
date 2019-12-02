@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -43,7 +42,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder>
+public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<GeoGridAggregationBuilder>
         implements MultiBucketAggregationBuilder {
     /* recognized field names in JSON */
     static final ParseField FIELD_PRECISION = new ParseField("precision");
@@ -108,8 +107,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     /**
      * Creates a new instance of the {@link ValuesSourceAggregatorFactory}-derived class specific to the geo aggregation.
      */
-    protected abstract ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> createFactory(
-        String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize,
+    protected abstract ValuesSourceAggregatorFactory createFactory(
+        String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
         QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder, Map<String, Object> metaData
     ) throws IOException;
 
@@ -144,9 +143,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerBuild(QueryShardContext queryShardContext,
-                                                                                ValuesSourceConfig<ValuesSource.GeoPoint> config,
-                                                                                AggregatorFactory parent, Builder subFactoriesBuilder)
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent, Builder subFactoriesBuilder)
                     throws IOException {
         int shardSize = this.shardSize;
 

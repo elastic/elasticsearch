@@ -124,7 +124,7 @@ public class PipelineAggregationHelperTests extends ESTestCase {
      * @param values Array of values to compute metric for
      * @param metric A metric builder which defines what kind of metric should be returned for the values
      */
-    public static double calculateMetric(double[] values, ValuesSourceAggregationBuilder<?, ?> metric) {
+    public static double calculateMetric(double[] values, ValuesSourceAggregationBuilder<?> metric) {
 
         if (metric instanceof MinAggregationBuilder) {
             double accumulator = Double.POSITIVE_INFINITY;

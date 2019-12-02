@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -46,7 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class ParentAggregationBuilder
-        extends ValuesSourceAggregationBuilder<WithOrdinals, ParentAggregationBuilder> {
+        extends ValuesSourceAggregationBuilder<ParentAggregationBuilder> {
 
     public static final String NAME = "parent";
 
@@ -95,22 +94,22 @@ public class ParentAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<WithOrdinals> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig<WithOrdinals> config,
-                                                                     AggregatorFactory parent,
-                                                                     Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       Builder subFactoriesBuilder) throws IOException {
         return new ParentAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
                 subFactoriesBuilder, metaData);
     }
 
     @Override
-    protected ValuesSourceConfig<WithOrdinals> resolveConfig(QueryShardContext queryShardContext) {
-        ValuesSourceConfig<WithOrdinals> config = new ValuesSourceConfig<>(CoreValuesSourceType.BYTES);
+    protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
+        ValuesSourceConfig config = new ValuesSourceConfig(CoreValuesSourceType.BYTES);
         joinFieldResolveConfig(queryShardContext, config);
         return config;
     }
 
-    private void joinFieldResolveConfig(QueryShardContext queryShardContext, ValuesSourceConfig<WithOrdinals> config) {
+    private void joinFieldResolveConfig(QueryShardContext queryShardContext, ValuesSourceConfig config) {
         ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(queryShardContext.getMapperService());
         ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
         if (parentIdFieldMapper != null) {

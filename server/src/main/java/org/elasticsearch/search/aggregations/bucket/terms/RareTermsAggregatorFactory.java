@@ -39,12 +39,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final IncludeExclude includeExclude;
     private final int maxDocCount;
     private final double precision;
 
-    RareTermsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
+    RareTermsAggregatorFactory(String name, ValuesSourceConfig config,
                                       IncludeExclude includeExclude,
                                       QueryShardContext queryShardContext,
                                       AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -34,14 +35,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double[] percents;
     private final int numberOfSignificantValueDigits;
     private final boolean keyed;
 
     HDRPercentilesAggregatorFactory(String name,
-                                        ValuesSourceConfig<Numeric> config,
+                                        ValuesSourceConfig config,
                                         double[] percents,
                                         int numberOfSignificantValueDigits,
                                         boolean keyed,
@@ -66,14 +67,18 @@ class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        return new HDRPercentilesAggregator(name, valuesSource, searchContext, parent, percents, numberOfSignificantValueDigits, keyed,
-                config.format(), pipelineAggregators, metaData);
+        if (valuesSource instanceof Numeric == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
+        return new HDRPercentilesAggregator(name, (Numeric) valuesSource, searchContext, parent, percents, numberOfSignificantValueDigits,
+            keyed, config.format(), pipelineAggregators, metaData);
     }
 
 }

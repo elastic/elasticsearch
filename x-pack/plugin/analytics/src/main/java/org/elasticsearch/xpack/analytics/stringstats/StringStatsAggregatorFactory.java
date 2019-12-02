@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -20,11 +21,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Bytes> {
+class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final boolean showDistribution;
 
-    StringStatsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.Bytes> config,
+    StringStatsAggregatorFactory(String name, ValuesSourceConfig config,
                                  Boolean showDistribution,
                                  QueryShardContext queryShardContext,
                                  AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData)
@@ -43,13 +44,17 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Bytes valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                           SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
-        return new StringStatsAggregator(name, showDistribution, valuesSource, config.format(), searchContext, parent,
+        if (valuesSource instanceof ValuesSource.Bytes == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
+        return new StringStatsAggregator(name, showDistribution, (ValuesSource.Bytes) valuesSource, config.format(), searchContext, parent,
                                          pipelineAggregators, metaData);
     }
 

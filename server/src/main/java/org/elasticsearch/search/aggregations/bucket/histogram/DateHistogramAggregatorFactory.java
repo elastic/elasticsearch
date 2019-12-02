@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class DateHistogramAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource> {
+        extends ValuesSourceAggregatorFactory {
 
     private final long offset;
     private final BucketOrder order;
@@ -47,7 +47,7 @@ public final class DateHistogramAggregatorFactory
     private final Rounding rounding;
     private final Rounding shardRounding;
 
-    public DateHistogramAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
+    public DateHistogramAggregatorFactory(String name, ValuesSourceConfig config,
             long offset, BucketOrder order, boolean keyed, long minDocCount,
             Rounding rounding, Rounding shardRounding, ExtendedBounds extendedBounds, QueryShardContext queryShardContext,
             AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,

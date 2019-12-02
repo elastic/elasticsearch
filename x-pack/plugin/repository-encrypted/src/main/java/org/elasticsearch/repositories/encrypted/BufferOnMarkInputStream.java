@@ -51,9 +51,12 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
             return bytesRead;
         }
         if (markCalled) {
-            if (false == writeToBuffer(b, off, len)) {
+            if (bytesRead > getRemainingBufferCapacity()) {
                 // could not fully write to buffer, invalidate mark
                 markCalled = false;
+                head = tail = position = 0;
+            } else {
+                writeToBuffer(b, off, bytesRead);
             }
         }
         return bytesRead;
@@ -172,16 +175,16 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         }
     }
 
-    private boolean writeToBuffer(byte[] b, int off, int len) {
-        if (len > getRemainingBufferCapacity()) {
-            return false;
-        }
+    private void writeToBuffer(byte[] b, int off, int len) {
         while (len > 0) {
             final int writeLength;
             if (head <= tail) {
-                writeLength = Math.min(len, ringBuffer.length - tail);
+                writeLength = Math.min(len, ringBuffer.length - tail - (head == 0 ? 1 : 0));
             } else {
-                writeLength = Math.min(len, head - tail);
+                writeLength = Math.min(len, head - tail - 1);
+            }
+            if (writeLength == 0) {
+                throw new IllegalStateException();
             }
             System.arraycopy(b, off, ringBuffer, tail, writeLength);
             tail += writeLength;
@@ -189,9 +192,12 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
             len -= writeLength;
             if (tail == ringBuffer.length) {
                 tail = 0;
+                // tail wrap-around overwrites head
+                if (head == 0) {
+                    throw new IllegalStateException();
+                }
             }
         }
-        return true;
     }
 
     private void ensureOpen() throws IOException {

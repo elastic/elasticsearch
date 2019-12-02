@@ -76,8 +76,8 @@ public final class EncryptionPacketsInputStream extends ChainPacketsInputStream 
             throw new NoSuchElementException();
         }
         if (markSourceOnNextPacket != -1) {
-            markSourceOnNextPacket = -1;
             source.mark(markSourceOnNextPacket);
+            markSourceOnNextPacket = -1;
         }
         InputStream encryptionInputStream = new PrefixInputStream(source, packetLength, false);
         packetIv.putLong(4, counter++);

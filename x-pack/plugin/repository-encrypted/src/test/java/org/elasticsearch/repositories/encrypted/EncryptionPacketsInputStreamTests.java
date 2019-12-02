@@ -112,7 +112,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
 
     public void testMarkAtPacketBoundary() throws Exception {
         int packetSize = 3 + Randomness.get().nextInt(512);
-        int size = 3 * packetSize + Randomness.get().nextInt(512);
+        int size = 4 * packetSize + Randomness.get().nextInt(512);
         int plaintextOffset = Randomness.get().nextInt(testPlaintextArray.length - size + 1);
         int nonce = Randomness.get().nextInt();
         final byte[] referenceCiphertextArray;
@@ -125,32 +125,35 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
                 plaintextOffset, size), secretKey, nonce, packetSize)) {
             // mark at the beginning
             encryptionInputStream.mark(encryptedPacketSize - 1);
-            byte[] test = encryptionInputStream.readNBytes(encryptedPacketSize - 1);
+            byte[] test = encryptionInputStream.readNBytes(1 + Randomness.get().nextInt(encryptedPacketSize));
             assertSubArray(referenceCiphertextArray, 0, test, 0, test.length);
             // reset at the beginning
             encryptionInputStream.reset();
-            test = encryptionInputStream.readNBytes(encryptedPacketSize - 1);
+            test = encryptionInputStream.readNBytes(1 + Randomness.get().nextInt(encryptedPacketSize));
             assertSubArray(referenceCiphertextArray, 0, test, 0, test.length);
             // reset at the beginning
             encryptionInputStream.reset();
             test = encryptionInputStream.readNBytes(encryptedPacketSize);
             assertSubArray(referenceCiphertextArray, 0, test, 0, test.length);
             // mark at the second packet boundary
-            encryptionInputStream.mark(encryptedPacketSize + 1);
-            test = encryptionInputStream.readNBytes(encryptedPacketSize + 1);
+            encryptionInputStream.mark(2 * encryptedPacketSize + 1);
+            test = encryptionInputStream.readNBytes(encryptedPacketSize + 1 + Randomness.get().nextInt(encryptedPacketSize));
             assertSubArray(referenceCiphertextArray, encryptedPacketSize, test, 0, test.length);
             // reset at the second packet boundary
             encryptionInputStream.reset();
-            test = encryptionInputStream.readNBytes(encryptedPacketSize - 1);
+            int middlePacketOffset = Randomness.get().nextInt(encryptedPacketSize);
+            test = encryptionInputStream.readNBytes(middlePacketOffset);
             assertSubArray(referenceCiphertextArray, encryptedPacketSize, test, 0, test.length);
-            // mark just before third packet boundary
-            encryptionInputStream.mark(1);
-            test = encryptionInputStream.readNBytes(1);
-            assertSubArray(referenceCiphertextArray, 2 * encryptedPacketSize - 1, test, 0, test.length);
-            // reset before packet boundary
+            // mark before third packet boundary
+            encryptionInputStream.mark(encryptedPacketSize - middlePacketOffset);
+            // read up to the third packet boundary
+            test = encryptionInputStream.readNBytes(encryptedPacketSize - middlePacketOffset);
+            assertSubArray(referenceCiphertextArray, encryptedPacketSize + middlePacketOffset, test, 0, test.length);
+            // reset before the third packet boundary
             encryptionInputStream.reset();
-            test = encryptionInputStream.readNBytes(2);
-            assertSubArray(referenceCiphertextArray, 2 * encryptedPacketSize - 1, test, 0, test.length);
+            test = encryptionInputStream.readNBytes(
+                    encryptedPacketSize - middlePacketOffset + 1 + Randomness.get().nextInt(encryptedPacketSize));
+            assertSubArray(referenceCiphertextArray, encryptedPacketSize - middlePacketOffset, test, 0, test.length);
         }
     }
 
@@ -191,7 +194,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
         Objects.checkFromIndexSize(offset1, length, arr1.length);
         Objects.checkFromIndexSize(offset2, length, arr2.length);
         for (int i = 0; i < length; i++) {
-            assertThat(arr1[offset1 + i], Matchers.is(arr2[offset2 + i]));
+            assertThat("Mismatch at index [" + i + "]", arr1[offset1 + i], Matchers.is(arr2[offset2 + i]));
         }
     }
 

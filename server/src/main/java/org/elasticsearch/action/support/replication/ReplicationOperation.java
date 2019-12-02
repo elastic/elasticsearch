@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 
 public class ReplicationOperation<
             Request extends ReplicationRequest<Request>,
@@ -136,18 +137,7 @@ public class ReplicationOperation<
 
             @Override
             public void onResponse(Void aVoid) {
-                try {
-                    primary.updateLocalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.localCheckpoint());
-                    primary.updateGlobalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.globalCheckpoint());
-                } catch (final AlreadyClosedException e) {
-                    // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
-                } catch (final Exception e) {
-                    // fail the primary but fall through and let the rest of operation processing complete
-                    final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for itself");
-                    primary.failShard(message, e);
-                }
-                successfulShards.incrementAndGet();  // mark primary as successful
-                decPendingAndFinishIfNeeded();
+                updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint);
             }
 
             @Override
@@ -196,18 +186,7 @@ public class ReplicationOperation<
             new ActionListener<>() {
                 @Override
                 public void onResponse(ReplicaResponse response) {
-                    successfulShards.incrementAndGet();
-                    try {
-                        primary.updateLocalCheckpointForShard(shard.allocationId().getId(), response.localCheckpoint());
-                        primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), response.globalCheckpoint());
-                    } catch (final AlreadyClosedException e) {
-                        // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
-                    } catch (final Exception e) {
-                        // fail the primary but fall through and let the rest of operation processing complete
-                        final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
-                        primary.failShard(message, e);
-                    }
-                    decPendingAndFinishIfNeeded();
+                    updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint);
                 }
 
                 @Override
@@ -231,6 +210,22 @@ public class ReplicationOperation<
                     return "[" + replicaRequest + "][" + shard + "]";
                 }
             });
+    }
+
+    private void updateCheckPoints(ShardRouting shard, LongSupplier localCheckpointSupplier, LongSupplier globalCheckpointSupplier) {
+        successfulShards.incrementAndGet();
+        try {
+            primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
+            primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
+        } catch (final AlreadyClosedException e) {
+            // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
+        } catch (final Exception e) {
+            // fail the primary but fall through and let the rest of operation processing complete
+            final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
+            primary.failShard(message, e);
+        } finally {
+            decPendingAndFinishIfNeeded();
+        }
     }
 
     private void onNoLongerPrimary(Exception failure) {

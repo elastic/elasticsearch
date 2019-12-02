@@ -208,7 +208,7 @@ particular, the problem occurred when the number of processors on the transport
 client did not match the number of processors on the server.
 * Ensured that TLS is not required to install a license if you are using
 single-node discovery. For more information, see <<single-node-discovery>> and
-{stack-ov}/ssl-tls.html[Setting up TLS on a Cluster].
+<<ssl-tls>>.
 * Fixed the <<security-api-privileges,has_privileges API>>. In particular, the
 `has_all_requested` field in the API results was not taking cluster privileges
 into consideration.
@@ -280,7 +280,7 @@ Sequence IDs::
 
 Watcher::
 * Fixed the pagerduty action to send context data. For more information, see
-{stack-ov}/actions-pagerduty.html[PagerDuty Action].
+<<actions-pagerduty>>.
 
 //[float]
 //=== Regressions
@@ -577,8 +577,8 @@ Search::
 Security::
 * Added the `manage_index_templates` cluster privilege to the built-in role
 `kibana_system`. For more information, see
-{stack-ov}/security-privileges.html#privileges-list-cluster[Cluster Privileges]
-and {stack-ov}/built-in-roles.html[Built-in Roles].
+<<privileges-list-cluster>>
+and <<built-in-roles>>.
 * Newly created or updated watches execute with the privileges of the user that
 last modified the watch.
 * Added log messages when a PEM key is found when a PEM certificate was
@@ -627,7 +627,7 @@ easier to debug execution failures.
 * Enabled the account monitoring `url` field in the `xpack.notification.jira`
 setting to support customized paths. For more information about configuring Jira
 accounts for use with watches, see
-{stack-ov}/actions-jira.html[Jira Action].
+<<actions-jira>>.
 * Improved handling of exceptions in {watcher} to make it easier to debug 
 problems.
 

@@ -60,13 +60,13 @@ credentials must be valid on both the {kib} server and the monitoring cluster.
 *** If you plan to use {metricbeat} to collect data about {es} or {kib}, 
 create a user that has the `remote_monitoring_collector` built-in role and a 
 user that has the `remote_monitoring_agent` 
-{stack-ov}/built-in-roles.html#built-in-roles-remote-monitoring-agent[built-in role]. 
+<<built-in-roles-remote-monitoring-agent,built-in role>>. 
 Alternatively, use the `remote_monitoring_user`
-{stack-ov}/built-in-users.html[built-in user]. 
+<<built-in-users,built-in user>>. 
 
 *** If you plan to use HTTP exporters to route data through your production 
 cluster, create a user that has the `remote_monitoring_agent` 
-{stack-ov}/built-in-roles.html#built-in-roles-remote-monitoring-agent[built-in role]. 
+<<built-in-roles-remote-monitoring-agent,built-in role>>. 
 +
 --
 For example, the 
@@ -86,7 +86,7 @@ POST /_xpack/security/user/remote_monitor
 // TEST[skip:needs-gold+-license]
 
 Alternatively, use the `remote_monitoring_user`
-{stack-ov}/built-in-users.html[built-in user]. 
+<<built-in-users,built-in user>>. 
 --
 
 . Configure your production cluster to collect data and send it to the 

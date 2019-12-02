@@ -9,8 +9,8 @@ integrate with any identity provider (IdP) that supports at least the SAML 2.0
 Web Browser SSO Profile. 
 
 In SAML terminology, the {stack} is operating as a _service provider_ (SP). For more 
-information, see {stack-ov}/saml-realm.html[SAML authentication] and 
-{stack-ov}/saml-guide.html[Configuring SAML SSO on the {stack}]. 
+information, see <<saml-realm>> and 
+<<saml-guide>>. 
 
 [NOTE]
 --
@@ -55,7 +55,7 @@ download or generate such a document within your IdP administration interface.
 
 Most IdPs will provide an appropriate metadata file with all the features that
 the {stack} requires. For more information, see 
-{stack-ov}/saml-guide-idp.html[The identity provider].
+<<saml-guide-idp>>.
 --
 
 .. Download the IdP metadata document and store it within the `config` directory 
@@ -94,7 +94,7 @@ xpack.security.authc.realms.saml1: <1>
   sp.logout: "https://kibana.example.com/logout" <8>
 ------------------------------------------------------------
 <1> This setting defines a new authentication realm named "saml1". For an 
-introduction to realms, see {stack-ov}/realms.html[Realms]. 
+introduction to realms, see <<realms>>. 
 <2> The `type` must be `saml`.
 <3>  You should define a unique order on each realm in your authentication chain.
 It is recommended that the SAML realm be at the bottom of your authentication 
@@ -129,7 +129,7 @@ we recommend that you include at least one additional realm such as the
 native realm in your authentication chain for use by API clients.
 
 For more information, see 
-{stack-ov}/saml-guide-authentication.html#saml-create-realm[Create a SAML realm].
+<<saml-create-realm>>.
 --
 
 . Add attribute mappings. 
@@ -176,7 +176,7 @@ xpack.security.authc.realms.saml1:
 ------------------------------------------------------------
 
 For more information, see 
-{stack-ov}/saml-guide-authentication.html#saml-attribute-mapping[Attribute mapping]. 
+<<saml-attribute-mapping>>. 
 --
 
 . (Optional) Configure logout services. 
@@ -186,7 +186,7 @@ The SAML protocol supports the concept of Single Logout (SLO). The level of
 support for SLO varies between identity providers. 
 
 For more information, see 
-{stack-ov}/saml-guide-authentication.html#saml-logout[SAML logout]. 
+<<saml-logout>>. 
 --
 
 . (Optional) Configure encryption and signing.
@@ -198,7 +198,7 @@ and logout), and processing encrypted content.
 
 You can configure {es} for signing, encryption, or both, with the same or 
 separate keys. For more information, see 
-{stack-ov}/saml-guide-authentication.html#saml-enc-sign[Encryption and signing]. 
+<<saml-enc-sign>>. 
 --
 
 . (Optional) Generate service provider metadata.
@@ -218,13 +218,13 @@ but this does not automatically grant them access to perform any actions or
 access any data.
 
 Your SAML users cannot do anything until they are assigned roles. This can be done
-through either the {stack-ov}/saml-role-mapping.html[role mapping API], or with
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms].
+through either the <<saml-role-mapping,role mapping API>>, or with
+<<authorization_realms,authorization realms>>.
 
-NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files]
+NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via SAML.
 
 --
 
-. {stack-ov}/saml-kibana.html[Configure {kib} to use SAML SSO]. 
+. <<saml-kibana,Configure {kib} to use SAML SSO>>. 
 

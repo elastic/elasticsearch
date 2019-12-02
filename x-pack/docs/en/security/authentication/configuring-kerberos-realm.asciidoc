@@ -15,7 +15,7 @@ Refer to your Kerberos installation documentation for more information about
 obtaining TGT. {es} clients must first obtain a TGT then initiate the process of 
 authenticating with {es}.
 
-For a summary of Kerberos terminology, see {stack-ov}/kerberos-realm.html[Kerberos authentication].
+For a summary of Kerberos terminology, see <<kerberos-realm>>.
 
 ==== Before you begin
 
@@ -171,10 +171,10 @@ following are the additional user metadata available for role mapping:
 - `kerberos_realm` will be set to Kerberos realm name.
 - `kerberos_user_principal_name` will be set to user principal name from the Kerberos ticket.
 
-For more information, see {stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+For more information, see <<mapping-roles>>.
 
 NOTE: The Kerberos realm supports
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+<<authorization_realms,authorization realms>> as an
 alternative to role mapping.
 
 --

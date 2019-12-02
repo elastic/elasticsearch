@@ -11,8 +11,8 @@ This section demonstrates an easy path to get started with SSL/TLS for both
 HTTPS and transport using the {es} Docker image. The example uses
 Docker Compose to manage the containers.
 
-For further details, please refer to
-{stack-ov}/encrypting-communications.html[Encrypting communications] and
+For further details, refer to
+<<encrypting-communications>> and
 https://www.elastic.co/subscriptions[available subscriptions].
 
 [float]
@@ -184,7 +184,7 @@ volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
 ----
 
 <1> Bootstrap `elastic` with the password defined in `.env`. See
-{stack-ov}/built-in-users.html#bootstrap-elastic-passwords[the Elastic Bootstrap Password].
+<<bootstrap-elastic-passwords,the Elastic bootstrap password>>.
 <2> Automatically generate and apply a trial subscription, in order to enable
 {security-features}.
 <3> Disable verification of authenticity for inter-node communication. Allows

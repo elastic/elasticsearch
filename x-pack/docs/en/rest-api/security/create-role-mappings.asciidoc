@@ -22,10 +22,10 @@ granted to those users.
 
 NOTE: This API does not create roles. Rather, it maps users to existing roles.
 Roles can be created by using <<security-api-roles, Role Management APIs>> or
-{stack-ov}/defining-roles.html#roles-management-file[roles files].
+<<roles-management-file,roles files>>.
 
 For more information, see 
-{stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+<<mapping-roles>>.
 
 
 ==== Path Parameters

@@ -57,7 +57,7 @@ POST /<follower_index>/_ccr/unfollow
 
 If the {es} {security-features} are enabled, you must have `manage_follow_index` 
 index privileges for the follower index. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].  
+<<security-privileges>>.  
 
 ==== Example
 

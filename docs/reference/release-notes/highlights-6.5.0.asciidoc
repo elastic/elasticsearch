@@ -10,7 +10,7 @@ See also <<release-notes-6.5.0,{es} 6.5.0 release notes>>.
 === Audit security events in new structured logs 
 
 By default, when you enable auditing, it uses the 
-{stack-ov}/audit-log-output.html[logfile audit output], which persists events to 
+<<audit-log-output,logfile audit output>>, which persists events to 
 a `<clustername>_audit.log` file in the logs directory. This file is new to 
 version 6.5 and prints audit entries as JSON documents. 
 
@@ -88,7 +88,7 @@ another realm. For example, you could authenticate using PKI then delegate to an
 LDAP realm for role information. The realms that support this feature have a 
 new `authorization_realms` setting that you can configure in the 
 `elasticsearch.yml` file. For more information, see 
-{stack-ov}/realm-chains.html#authorization_realms[Realm chains] and <<realm-settings>>. 
+<<authorization_realms>> and <<realm-settings>>. 
 
 [float]
 [[_cross_cluster_replication_beta_superscript_superscript]]
@@ -115,7 +115,7 @@ it directly to your monitoring cluster, rather than routing it through {es}. Now
 in 6.5, you can also use {metricbeat} to collect and ship data about {es}. If 
 you are monitoring {ls} or Beats, at this time you must still use exporters to 
 route the data. See <<configuring-metricbeat>> and 
-{stack-ov}/how-monitoring-works.html[How monitoring works]. 
+<<how-monitoring-works>>. 
  
 
 ^*^ This functionality is in beta and is subject to change. The design and code 

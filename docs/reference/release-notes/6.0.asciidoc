@@ -144,7 +144,7 @@ Snapshot/Restore::
 Watcher::
 * Fixed handling of Hipchat rooms. For example, room names with spaces did not
 work as expected. For more information, see
-{stack-ov}/actions-hipchat.html[HipChat Action].
+<<actions-hipchat>>.
 
 //[float]
 //=== Regressions
@@ -1122,12 +1122,12 @@ Security::
 {stack-ref}/upgrading-elastic-stack.html[Upgrading the Elastic Stack].
 * Enabled read-only access to the index audit log by the `_xpack` internal user.
 For more information, see
-{stack-ov}/internal-users.html[Internal users].
+<<internal-users>>.
 * Updated the concrete security index such that it is now always named
 `.security-6`. In 6.0 beta and RC releases, it was sometimes named `.security-v6`.
 * Fixed handling of exceptions when retrieving roles from a native roles store.
 For more information about configuring a native realm, see
-{stack-ov}/native-realm.html[Native User Authentication].
+<<native-realm>>.
 
 Sequence IDs::
 * Fire global checkpoint sync under system context {pull}26984[#26984]
@@ -1443,7 +1443,7 @@ Security::
 production. If you try to upgrade to a production license when security is
 enabled, the upgrade is not successful until you configure TLS. For more
 information, see
-{stack-ov}/ssl-tls.html[Setting Up SSL/TLS on a Cluster].
+<<ssl-tls>>.
 * Added bootstrap check that enforces the use of TLS when security is enabled
 and you are using a production license.
 
@@ -1797,11 +1797,11 @@ Search::
 Security::
 * A new bootstrap check enforces that TLS/SSL is required for inter-node
 communication when running in
-{ref}/bootstrap-checks.html#dev-vs-prod-mode[production mode]. See
-{stack-ov}/encrypting-communications.html[Encrypting Communications].
+<<dev-vs-prod-mode,production mode>>. See
+<<encrypting-communications>>.
 * A new bootstrap check enforces that HTTPS is used by the built-in token
 service when running in
-{ref}/bootstrap-checks.html#dev-vs-prod-mode[production mode].
+<<dev-vs-prod-mode,production mode>>.
 To disable the token service, set `xpack.security.authc.token.enabled`
 to `false` in your `elasticsearch.yml`. See
 <<token-service-settings>>.
@@ -2593,10 +2593,10 @@ built-in users when running in
 {ref}/bootstrap-checks.html#dev-vs-prod-mode[production mode].
 You must set `xpack.security.authc.accept_default_password` to `false` in your
 `elasticsearch.yml`. For more information, see <<security-settings>> and
-{stack-ov}/setting-up-authentication.html[User authentication].
+<<setting-up-authentication>>.
 * A new configuration setting is available to disable support for the default
 password (_"changeme"_). For more information, see
-{stack-ov}/built-in-users.html#disabling-default-password[Disable default password functionality].
+<<disabling-default-password>>.
 
 Sequence IDs::
 * Change certain replica failures not to fail the replica shard {pull}22874[#22874] (issue: {issue}10708[#10708])

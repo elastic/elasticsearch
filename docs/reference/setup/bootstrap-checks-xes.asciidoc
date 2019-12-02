@@ -23,8 +23,8 @@ on each node in the cluster. For more information, see <<encrypting-data>>.
 If you use {es} {security-features} and a Public Key Infrastructure (PKI) realm,
 you must configure Transport Layer Security (TLS) on your cluster and enable
 client authentication on the network layers (either transport or http). For more
-information, see {stack-ov}/pki-realm.html[PKI user authentication] and
-{stack-ov}/ssl-tls.html[Setting up TLS on a cluster].
+information, see <<pki-realm>> and
+<<ssl-tls>>.
 
 To pass this bootstrap check, if a PKI realm is enabled, you must configure TLS
 and enable client authentication on at least one network communication layer.
@@ -41,7 +41,7 @@ and copy it to each node in the cluster. By default, role mappings are stored in
 `ES_PATH_CONF/role_mapping.yml`. Alternatively, you can specify a
 different role mapping file for each type of realm and specify its location in
 the `elasticsearch.yml` file. For more information, see
-{stack-ov}/mapping-roles.html#mapping-roles-file[Using role mapping files].
+<<mapping-roles-file>>.
 
 To pass this bootstrap check, the role mapping files must exist and must be
 valid. The Distinguished Names (DNs) that are listed in the role mappings files
@@ -58,10 +58,10 @@ internode-communication.
 
 NOTE: Single-node clusters that use a loopback interface do not have this
 requirement.  For more information, see
-{stack-ov}/encrypting-communications.html[Encrypting communications].
+<<encrypting-communications>>.
 
 To pass this bootstrap check, you must
-{stack-ov}/ssl-tls.html[set up SSL/TLS in your cluster].
+<<ssl-tls>>.
 
 
 [float]

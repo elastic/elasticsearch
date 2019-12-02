@@ -29,7 +29,7 @@ calendar.
 ==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 
 ==== Examples

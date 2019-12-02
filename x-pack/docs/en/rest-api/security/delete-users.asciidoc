@@ -14,7 +14,7 @@ Deletes users from the native realm.
 ==== Description
 
 For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+<<realms>> and <<configuring-native-realm>>. 
 
 ==== Path Parameters
 

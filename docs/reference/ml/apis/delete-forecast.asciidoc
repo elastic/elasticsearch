@@ -55,7 +55,7 @@ For more information, see {stack-ov}/ml-overview.html#ml-forecasting[Forecasting
 ==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 ==== Examples
 

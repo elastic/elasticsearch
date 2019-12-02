@@ -212,7 +212,7 @@ size, which defaults to 100 Mb.
 ==== Authorization
 
 You must have `monitor_ml`, or `monitor` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
 
 [[ml-find-file-structure-examples]]

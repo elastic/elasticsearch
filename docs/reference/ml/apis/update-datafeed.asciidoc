@@ -90,7 +90,7 @@ see <<ml-datafeed-resource>>.
 
 If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
 cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
 
 ==== Security Integration

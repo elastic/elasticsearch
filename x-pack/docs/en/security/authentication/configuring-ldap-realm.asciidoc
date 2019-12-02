@@ -7,7 +7,7 @@ Directory Access Protocol (LDAP) server. To integrate with LDAP, you configure
 an `ldap` realm and map LDAP groups to user roles.
 
 For more information about LDAP realms, see 
-{stack-ov}/ldap-realm.html[LDAP User Authentication].
+<<ldap-realm>>.
 
 . Determine which mode you want to use. The `ldap` realm supports two modes of 
 operation, a user search mode and a mode with specific templates for user DNs. 
@@ -186,13 +186,10 @@ user:
 <2> The LDAP distinguished name (DN) of the `admins` group.
 <3> The LDAP distinguished name (DN) of the `users` group.
 
-For more information, see 
-{stack-ov}/ldap-realm.html#mapping-roles-ldap[Mapping LDAP Groups to Roles] 
-and 
-{stack-ov}/mapping-roles.html[Mapping Users and Groups to Roles].
+For more information, see <<mapping-roles-ldap>> and <<mapping-roles>>.
 
 NOTE: The LDAP realm supports
-{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+<<authorization_realms,authorization realms>> as an
 alternative to role mapping.
 
 --
@@ -203,7 +200,7 @@ fields in the user's metadata.
 --
 By default, `ldap_dn` and `ldap_groups` are populated in the user's metadata. 
 For more information, see 
-{stack-ov}/ldap-realm.html#ldap-user-metadata[User Metadata in LDAP Realms]. 
+<<ldap-user-metadata>>. 
 
 The example below includes the user's common name (`cn`) as an additional
 field in their metadata.

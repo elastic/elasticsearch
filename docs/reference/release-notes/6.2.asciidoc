@@ -204,9 +204,9 @@ mappings automatically. Maintenance is necessary, for example, when new fields
 are introduced or document types change.
 * Added and changed settings for the SAML NameID policy. For example, added the
 `nameid.allow_create` setting and changed the default value for
-the SPNameQualifier setting to blank. See {stack-ov}/saml-realm.html[SAML Authentication].
+the SPNameQualifier setting to blank. See <<saml-realm>>.
 * Fixed handling of an Assertion Consumer Service (ACS) URL with existing query
-parameters. See {stack-ov}/saml-realm.html[SAML Authentication].
+parameters. See <<saml-realm>>.
 * Fixed the PKI realm bootstrap check such that it works with secure settings.
 For more information, see <<bootstrap-checks-xpack>>.
 
@@ -429,7 +429,7 @@ Reindex API::
 
 Security::
 * {security} now supports user authentication using SAML Single Sign on. For
-more information, see {stack-ov}/saml-realm.html[SAML authentication].
+more information, see <<saml-realm>>.
 
 Watcher::
 * Added a transform input for chained input. For more information, see
@@ -582,11 +582,11 @@ hours of its creation to extend the life of a token. For more information, see
 <<security-api-tokens>>.
 * Added principal and role information to `access_granted`, `access_denied`,
 `run_as_granted`, and `run_as_denied` audit events. For more information about
-these events, see {stack-ov}/auditing.html[Auditing Security Events].
+these events, see <<auditing>>.
 * Added audit event ignore policies, which are a way to tune the verbosity of an
 audit trail. These policies define rules for ignoring audit events that match
 specific attribute values. For more information, see
-{stack-ov}/audit-log-output.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies].
+<<audit-log-ignore-policy>>.
 * Added a certificates API, which enables you to retrieve information about the
 X.509 certificates that are used to encrypt communications in your {es} cluster.
 For more information, see <<security-api-ssl>>.
@@ -618,13 +618,13 @@ Translog::
 
 Watcher::
 * Added the ability to set the `index` and `doc_type` dynamically in an index
-action. For more information, see {stack-ov}/actions-index.html[Index Action].
+action. For more information, see <<actions-index>>.
 * Added a `refresh` index action attribute, which enables you to set the
 refresh policy of the write request. For more information, see
-{stack-ov}/actions-index.html[Index Action].
+<<actions-index>>.
 * Added support for actions in slack attachments, which enables you to add
 buttons that can be clicked in slack messages. For more information, see
-{stack-ov}/actions-slack.html[Slack Action].
+<<actions-slack>>.
 * {watcher} indices (`.watch*` and `triggered_watches`) created after upgrading
 to 6.2 have the `auto_expand_replicas: 0-1` setting rather than a fixed setting
 of 1 replica. As a result, {watcher} indices created after upgrading to 6.2 can
@@ -759,7 +759,7 @@ information about this command, see <<setup-passwords>>.
 when you run <<users-command,`users` commands>>.
 * Fixed the ordering of realms in a realm chain, which determines the order in
 which the realms are consulted. For more information, see
-{stack-ov}/realms.html[Realms].
+<<realms>>.
 
 Sequence IDs::
 * Recovery from snapshot may leave seq# gaps {pull}27850[#27850]

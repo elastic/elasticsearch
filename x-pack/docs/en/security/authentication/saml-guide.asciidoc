@@ -629,7 +629,7 @@ through either the
 {ref}/security-api-put-role-mapping.html[add role mapping API], or with
 <<authorization_realms, authorization realms>>.
 
-NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files]
+NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via SAML.
 
 This is an example of a simple role mapping that grants the `kibana_user` role
@@ -879,5 +879,5 @@ Additionally, different security domains have different security requirements th
 specific configuration to be satisfied.
 A conscious effort has been made to mask this complexity with sane defaults and the detailed
 documentation above but in case you encounter issues while configuring a SAML realm, you can
-look through our {stack-ov}/trb-security-saml.html[SAML troubleshooting documentation] that has
+look through our <<trb-security-saml,SAML troubleshooting documentation>> that has
 suggestions and resolutions for common issues.

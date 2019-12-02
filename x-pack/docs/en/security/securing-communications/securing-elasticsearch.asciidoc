@@ -29,7 +29,7 @@ information, see <<security-settings>>.
 <<tls-ldap,encrypt communications between {es} and your LDAP server>>. 
 
 For more information about encrypting communications across the Elastic Stack,
-see {stack-ov}/encrypting-communications.html[Encrypting Communications].
+see <<encrypting-communications>>.
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/node-certificates.asciidoc
 include::node-certificates.asciidoc[]

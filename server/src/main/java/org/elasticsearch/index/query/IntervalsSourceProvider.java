@@ -347,7 +347,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         private final int maxGaps;
         private final IntervalFilter filter;
 
-        public Combine(List<IntervalsSourceProvider> subSources, boolean ordered, boolean allowOverlaps, int maxGaps, IntervalFilter filter) {
+        public Combine(List<IntervalsSourceProvider> subSources, boolean ordered, boolean allowOverlaps,
+                       int maxGaps, IntervalFilter filter) {
             this.subSources = subSources;
             this.ordered = ordered;
             this.allowOverlaps = allowOverlaps;

@@ -21,12 +21,14 @@ package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -36,13 +38,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory<WithOrdinals> {
+public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Query parentFilter;
     private final Query childFilter;
 
     public ParentAggregatorFactory(String name,
-                                   ValuesSourceConfig<WithOrdinals> config,
+                                   ValuesSourceConfig config,
                                    Query childFilter,
                                    Query parentFilter,
                                    QueryShardContext queryShardContext,
@@ -67,12 +69,17 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory<WithO
     }
 
     @Override
-    protected Aggregator doCreateInternal(WithOrdinals valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource rawValuesSource,
                                           SearchContext searchContext, Aggregator children,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
 
+        if (rawValuesSource instanceof WithOrdinals == false) {
+            throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
+                "is not supported for aggregation " + this.name());
+        }
+        WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
         if (collectsFromSingleBucket) {
             return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,

@@ -52,7 +52,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -404,10 +403,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
         return mock(Aggregator.class);
     }
 
-    private ValuesSourceConfig<ValuesSource.Numeric> mockNumericValuesSourceConfig(String fieldName,
-                                                                                   NumberFieldMapper.NumberType numType,
-                                                                                   boolean indexed) {
-        ValuesSourceConfig<ValuesSource.Numeric> config = mock(ValuesSourceConfig.class);
+    private ValuesSourceConfig mockNumericValuesSourceConfig(String fieldName,
+                                                             NumberFieldMapper.NumberType numType,
+                                                             boolean indexed) {
+        ValuesSourceConfig config = mock(ValuesSourceConfig.class);
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType(numType);
         ft.setName(fieldName);
         ft.setIndexOptions(indexed ? IndexOptions.DOCS : IndexOptions.NONE);
@@ -416,8 +415,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
         return config;
     }
 
-    private ValuesSourceConfig<ValuesSource.Numeric> mockDateValuesSourceConfig(String fieldName, boolean indexed) {
-        ValuesSourceConfig<ValuesSource.Numeric> config = mock(ValuesSourceConfig.class);
+    private ValuesSourceConfig mockDateValuesSourceConfig(String fieldName, boolean indexed) {
+        ValuesSourceConfig config = mock(ValuesSourceConfig.class);
         MappedFieldType ft = new DateFieldMapper.Builder(fieldName).fieldType();
         ft.setName(fieldName);
         ft.setIndexOptions(indexed ? IndexOptions.DOCS : IndexOptions.NONE);

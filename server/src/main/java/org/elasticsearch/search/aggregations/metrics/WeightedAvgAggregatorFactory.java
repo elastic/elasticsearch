@@ -37,7 +37,7 @@ import java.util.Map;
 
 class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory<Numeric> {
 
-    WeightedAvgAggregatorFactory(String name, Map<String, ValuesSourceConfig<Numeric>> configs,
+    WeightedAvgAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
                                  DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder,
                                  Map<String, Object> metaData) throws IOException {
@@ -54,7 +54,7 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory<Nu
 
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
-                                            Map<String, ValuesSourceConfig<Numeric>> configs,
+                                            Map<String, ValuesSourceConfig> configs,
                                             DocValueFormat format,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,

@@ -70,7 +70,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<?> config) throws IOException {
+    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         ValuesSource vs = config.toValuesSource(queryShardContext);
         if (vs == null) {
             // The field is unmapped so we use a value source that can parse any type of values.

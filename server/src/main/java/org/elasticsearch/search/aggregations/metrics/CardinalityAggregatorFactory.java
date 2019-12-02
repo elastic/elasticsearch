@@ -33,11 +33,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Long precisionThreshold;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
+    CardinalityAggregatorFactory(String name, ValuesSourceConfig config,
                                     Long precisionThreshold,
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -34,10 +35,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class StatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     StatsAggregatorFactory(String name,
-                            ValuesSourceConfig<Numeric> config,
+                            ValuesSourceConfig config,
                             QueryShardContext queryShardContext,
                             AggregatorFactory parent,
                             AggregatorFactories.Builder subFactoriesBuilder,
@@ -55,12 +56,16 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        return new StatsAggregator(name, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+        if (valuesSource instanceof Numeric == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
+        return new StatsAggregator(name, (Numeric) valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
     }
 }

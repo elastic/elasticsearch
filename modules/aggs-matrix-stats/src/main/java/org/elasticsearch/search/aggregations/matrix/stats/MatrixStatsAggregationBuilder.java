@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatio
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
@@ -81,7 +80,7 @@ public class MatrixStatsAggregationBuilder
 
     @Override
     protected MatrixStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                        Map<String, ValuesSourceConfig<Numeric>> configs,
+                                                        Map<String, ValuesSourceConfig> configs,
                                                         AggregatorFactory parent,
                                                         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, queryShardContext, parent, subFactoriesBuilder, metaData);

@@ -78,7 +78,7 @@ public class GeoCentroidAggregationBuilder
     }
 
     @Override
-    protected GeoCentroidAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource.GeoPoint> config,
+    protected GeoCentroidAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                       AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new GeoCentroidAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }

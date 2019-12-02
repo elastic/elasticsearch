@@ -34,37 +34,37 @@ public final class ValuesSourceParserHelper {
     private ValuesSourceParserHelper() {} // utility class, no instantiation
 
     public static <T> void declareAnyFields(
-        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable, boolean formattable) {
         declareAnyFields(objectParser, scriptable, formattable, false);
     }
 
     public static <T> void declareAnyFields(
-        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable, boolean formattable, boolean timezoneAware) {
         declareFields(objectParser, scriptable, formattable, timezoneAware, null);
     }
 
     public static <T> void declareNumericFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, ?>, T> objectParser,
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
             boolean scriptable, boolean formattable, boolean timezoneAware) {
         declareFields(objectParser, scriptable, formattable, timezoneAware, ValueType.NUMERIC);
     }
 
     public static <T> void declareBytesFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?>, T> objectParser,
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
             boolean scriptable, boolean formattable) {
         declareFields(objectParser, scriptable, formattable, false, ValueType.STRING);
     }
 
     public static <T> void declareGeoFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, ?>, T> objectParser,
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
             boolean scriptable, boolean formattable) {
         declareFields(objectParser, scriptable, formattable, false, ValueType.GEOPOINT);
     }
 
     private static <VS extends ValuesSource, T> void declareFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<VS, ?>, T> objectParser,
+            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
             boolean scriptable, boolean formattable, boolean timezoneAware, ValueType targetValueType) {
 
 

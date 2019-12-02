@@ -47,7 +47,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TermsAggregatorFactory.class));
 
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
@@ -60,7 +60,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     private final boolean showTermDocCountError;
 
     TermsAggregatorFactory(String name,
-                                  ValuesSourceConfig<ValuesSource> config,
+                                  ValuesSourceConfig config,
                                   BucketOrder order,
                                   IncludeExclude includeExclude,
                                   String executionHint,

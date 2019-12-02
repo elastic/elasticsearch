@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -35,14 +36,14 @@ import java.util.List;
 import java.util.Map;
 
 class TDigestPercentileRanksAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+        extends ValuesSourceAggregatorFactory {
 
     private final double[] percents;
     private final double compression;
     private final boolean keyed;
 
     TDigestPercentileRanksAggregatorFactory(String name,
-                                                ValuesSourceConfig<Numeric> config,
+                                                ValuesSourceConfig config,
                                                 double[] percents,
                                                 double compression,
                                                 boolean keyed,
@@ -66,13 +67,17 @@ class TDigestPercentileRanksAggregatorFactory
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        return new TDigestPercentileRanksAggregator(name, valuesSource, searchContext, parent,
+        if (valuesSource instanceof Numeric == false) {
+            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
+                this.name());
+        }
+        return new TDigestPercentileRanksAggregator(name, (Numeric) valuesSource, searchContext, parent,
             percents, compression, keyed, config.format(), pipelineAggregators, metaData);
     }
 

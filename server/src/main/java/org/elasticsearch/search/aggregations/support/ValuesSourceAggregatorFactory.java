@@ -30,12 +30,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory {
+public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
 
-    protected ValuesSourceConfig<VS> config;
+    protected ValuesSourceConfig config;
 
-    public ValuesSourceAggregatorFactory(String name, ValuesSourceConfig<VS> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    public ValuesSourceAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+                                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                         Map<String, Object> metaData) throws IOException {
         super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.config = config;
     }
@@ -43,7 +44,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     @Override
     public Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        VS vs = config.toValuesSource(queryShardContext, this::resolveMissingAny);
+        ValuesSource vs = config.toValuesSource(queryShardContext, this::resolveMissingAny);
         if (vs == null) {
             return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
         }
@@ -70,7 +71,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
                                                  List<PipelineAggregator> pipelineAggregators,
                                                  Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(VS valuesSource,
+    protected abstract Aggregator doCreateInternal(ValuesSource valuesSource,
                                                    SearchContext searchContext,
                                                    Aggregator parent,
                                                    boolean collectsFromSingleBucket,

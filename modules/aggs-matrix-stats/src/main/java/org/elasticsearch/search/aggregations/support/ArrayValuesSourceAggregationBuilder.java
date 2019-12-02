@@ -239,34 +239,34 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final ArrayValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
-                                                                   Builder subFactoriesBuilder) throws IOException {
-        Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(queryShardContext);
-        ArrayValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, configs, parent, subFactoriesBuilder);
+    protected final ArrayValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                               Builder subFactoriesBuilder) throws IOException {
+        Map<String, ValuesSourceConfig> configs = resolveConfig(queryShardContext);
+        ArrayValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected Map<String, ValuesSourceConfig<VS>> resolveConfig(QueryShardContext queryShardContext) {
-        HashMap<String, ValuesSourceConfig<VS>> configs = new HashMap<>();
+    protected Map<String, ValuesSourceConfig> resolveConfig(QueryShardContext queryShardContext) {
+        HashMap<String, ValuesSourceConfig> configs = new HashMap<>();
         for (String field : fields) {
-            ValuesSourceConfig<VS> config = config(queryShardContext, field, null);
+            ValuesSourceConfig config = config(queryShardContext, field, null);
             configs.put(field, config);
         }
         return configs;
     }
 
-    protected abstract ArrayValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
-                                                                Map<String, ValuesSourceConfig<VS>> configs,
-                                                                AggregatorFactory parent,
-                                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract ArrayValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                                     Map<String, ValuesSourceConfig> configs,
+                                                                     AggregatorFactory parent,
+                                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
-    public ValuesSourceConfig<VS> config(QueryShardContext queryShardContext, String field, Script script) {
+    public ValuesSourceConfig config(QueryShardContext queryShardContext, String field, Script script) {
 
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
 
         if (field == null) {
             if (script == null) {
-                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(CoreValuesSourceType.ANY);
+                ValuesSourceConfig config = new ValuesSourceConfig(CoreValuesSourceType.ANY);
                 return config.format(resolveFormat(null, valueType));
             }
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
@@ -277,7 +277,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
                 // on Bytes
                 valuesSourceType = CoreValuesSourceType.BYTES;
             }
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
+            ValuesSourceConfig config = new ValuesSourceConfig(valuesSourceType);
             config.missing(missingMap.get(field));
             return config.format(resolveFormat(format, valueType));
         }
@@ -285,7 +285,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         MappedFieldType fieldType = queryShardContext.getMapperService().fullName(field);
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
+            ValuesSourceConfig config = new ValuesSourceConfig(valuesSourceType);
             config.missing(missingMap.get(field));
             config.format(resolveFormat(format, valueType));
             return config.unmapped(true);
@@ -293,17 +293,17 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
 
         IndexFieldData<?> indexFieldData = queryShardContext.getForField(fieldType);
 
-        ValuesSourceConfig<VS> config;
+        ValuesSourceConfig config;
         if (valuesSourceType == CoreValuesSourceType.ANY) {
             if (indexFieldData instanceof IndexNumericFieldData) {
-                config = new ValuesSourceConfig<>(CoreValuesSourceType.NUMERIC);
+                config = new ValuesSourceConfig(CoreValuesSourceType.NUMERIC);
             } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                config = new ValuesSourceConfig<>(CoreValuesSourceType.GEOPOINT);
+                config = new ValuesSourceConfig(CoreValuesSourceType.GEOPOINT);
             } else {
-                config = new ValuesSourceConfig<>(CoreValuesSourceType.BYTES);
+                config = new ValuesSourceConfig(CoreValuesSourceType.BYTES);
             }
         } else {
-            config = new ValuesSourceConfig<>(valuesSourceType);
+            config = new ValuesSourceConfig(valuesSourceType);
         }
 
         config.fieldContext(new FieldContext(field, indexFieldData, fieldType));

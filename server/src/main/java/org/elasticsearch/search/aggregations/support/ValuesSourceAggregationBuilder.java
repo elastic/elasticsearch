@@ -34,11 +34,11 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
+public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>>
         extends AbstractAggregationBuilder<AB> {
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
-            extends ValuesSourceAggregationBuilder<VS, AB> {
+    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
+            extends ValuesSourceAggregationBuilder<AB> {
 
         protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, targetValueType);
@@ -81,14 +81,14 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
-    protected ValuesSourceConfig<VS> config;
+    protected ValuesSourceConfig config;
 
     protected ValuesSourceAggregationBuilder(String name, ValueType targetValueType) {
         super(name);
         this.targetValueType = targetValueType;
     }
 
-    protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<VS, AB> clone,
+    protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<AB> clone,
                                              Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.targetValueType = clone.targetValueType;
@@ -299,10 +299,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
-                                                              Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig<VS> config = resolveConfig(queryShardContext);
-        ValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
+    protected final ValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                          Builder subFactoriesBuilder) throws IOException {
+        ValuesSourceConfig config = resolveConfig(queryShardContext);
+        ValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -327,16 +327,16 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         return valueType;
     }
 
-    protected ValuesSourceConfig<VS> resolveConfig(QueryShardContext queryShardContext) {
+    protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
         return ValuesSourceConfig.resolve(queryShardContext,
                 valueType, field, script, missing, timeZone, format, this::resolveScriptAny, this.getType());
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig<VS> config,
-                                                                        AggregatorFactory parent,
-                                                                        Builder subFactoriesBuilder) throws IOException;
+    protected abstract ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                                ValuesSourceConfig config,
+                                                                AggregatorFactory parent,
+                                                                Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -377,7 +377,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
-        ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
+        ValuesSourceAggregationBuilder<?> other = (ValuesSourceAggregationBuilder<?>) obj;
         return Objects.equals(field, other.field)
             && Objects.equals(format, other.format)
             && Objects.equals(missing, other.missing)

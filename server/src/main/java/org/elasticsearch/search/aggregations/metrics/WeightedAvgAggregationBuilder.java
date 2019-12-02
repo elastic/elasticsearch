@@ -99,7 +99,7 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
 
     @Override
     protected MultiValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext,
-                                                                     Map<String, ValuesSourceConfig<Numeric>> configs,
+                                                                     Map<String, ValuesSourceConfig> configs,
                                                                      DocValueFormat format,
                                                                      AggregatorFactory parent,
                                                                      Builder subFactoriesBuilder) throws IOException {

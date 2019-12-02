@@ -72,7 +72,7 @@ public interface GeoGridTiler {
             } else if (count <= precision) {
                 return setValuesByBruteForceScan(values, geoValue, precision, bounds);
             } else {
-                return setValuesByRasterization("", values, 0, precision, geoValue);
+                return setValuesByRasterization("", values, 0, precision, geoValue, bounds);
             }
         }
 
@@ -101,11 +101,11 @@ public interface GeoGridTiler {
         }
 
         protected int setValuesByRasterization(String hash, CellIdSource.GeoShapeCellValues values, int valuesIndex,
-                                               int targetPrecision, MultiGeoValues.GeoValue geoValue) {
+                                               int targetPrecision, MultiGeoValues.GeoValue geoValue,
+                                               MultiGeoValues.BoundingBox shapeBounds) {
             String[] hashes = Geohash.getSubGeohashes(hash);
             for (int i = 0; i < hashes.length; i++) {
                 Rectangle rectangle = Geohash.toBoundingBox(hashes[i]);
-                MultiGeoValues.BoundingBox shapeBounds = geoValue.boundingBox();
                 if (shapeBounds.minX() == rectangle.getMaxX() ||
                     shapeBounds.maxY() == rectangle.getMinY()) {
                     continue;
@@ -116,7 +116,7 @@ public interface GeoGridTiler {
                         values.resizeCell(valuesIndex + 1);
                         values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
                     } else {
-                        valuesIndex = setValuesByRasterization(hashes[i], values, valuesIndex, targetPrecision, geoValue);
+                        valuesIndex = setValuesByRasterization(hashes[i], values, valuesIndex, targetPrecision, geoValue, shapeBounds);
                     }
                 } else if (relation == GeoRelation.QUERY_INSIDE) {
                     if (hashes[i].length() == targetPrecision) {
@@ -171,7 +171,7 @@ public interface GeoGridTiler {
             } else if (count <= precision) {
                 return setValuesByBruteForceScan(values, geoValue, precision, minXTile, minYTile, maxXTile, maxYTile);
             } else {
-                return setValuesByRasterization(0, 0, 0, values, 0, precision, geoValue);
+                return setValuesByRasterization(0, 0, 0, values, 0, precision, geoValue, bounds);
             }
         }
 
@@ -198,7 +198,7 @@ public interface GeoGridTiler {
         }
 
         protected int setValuesByRasterization(int xTile, int yTile, int zTile, CellIdSource.GeoShapeCellValues values, int valuesIndex,
-                                               int targetPrecision, MultiGeoValues.GeoValue geoValue) {
+                                               int targetPrecision, MultiGeoValues.GeoValue geoValue, MultiGeoValues.BoundingBox shapeBounds) {
             zTile++;
             for (int i = 0; i < 2; i++) {
                 for (int j = 0; j < 2; j++) {
@@ -206,7 +206,6 @@ public interface GeoGridTiler {
                     int nextY = 2 * yTile + j;
                     Rectangle rectangle = GeoTileUtils.toBoundingBox(nextX, nextY, zTile);
                     // TODO: this looks hacky, maybe the relate method should handle it?
-                    MultiGeoValues.BoundingBox shapeBounds = geoValue.boundingBox();
                     if (shapeBounds.minX() == rectangle.getMaxX() ||
                         shapeBounds.maxY() == rectangle.getMinY()) {
                         continue;
@@ -225,7 +224,7 @@ public interface GeoGridTiler {
                             values.resizeCell(valuesIndex + 1);
                             values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                         } else {
-                            valuesIndex = setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex, targetPrecision, geoValue);
+                            valuesIndex = setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex, targetPrecision, geoValue, shapeBounds);
                         }
                     }
                 }

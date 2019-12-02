@@ -117,7 +117,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile Map<String, Set<String>> changedBuckets;
     private volatile Map<String, Object> changedBucketsAfterKey;
 
-    private long lastCheckpointCleanup = 0L;
+    private volatile long lastCheckpointCleanup = 0L;
 
     public TransformIndexer(
         Executor executor,

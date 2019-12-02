@@ -49,36 +49,30 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
     }
 
     public void testEvaluate() {
-        SoftClassificationMetric.ClassInfo classInfo = mock(SoftClassificationMetric.ClassInfo.class);
-        when(classInfo.getName()).thenReturn("foo");
-
         Aggregations aggs = new Aggregations(Arrays.asList(
-            createFilterAgg("precision_foo_at_0.25_TP", 1L),
-            createFilterAgg("precision_foo_at_0.25_FP", 4L),
-            createFilterAgg("precision_foo_at_0.5_TP", 3L),
-            createFilterAgg("precision_foo_at_0.5_FP", 1L),
-            createFilterAgg("precision_foo_at_0.75_TP", 5L),
-            createFilterAgg("precision_foo_at_0.75_FP", 0L)
+            createFilterAgg("precision_at_0.25_TP", 1L),
+            createFilterAgg("precision_at_0.25_FP", 4L),
+            createFilterAgg("precision_at_0.5_TP", 3L),
+            createFilterAgg("precision_at_0.5_FP", 1L),
+            createFilterAgg("precision_at_0.75_TP", 5L),
+            createFilterAgg("precision_at_0.75_FP", 0L)
         ));
 
         Precision precision = new Precision(Arrays.asList(0.25, 0.5, 0.75));
-        EvaluationMetricResult result = precision.evaluate(classInfo, aggs);
+        EvaluationMetricResult result = precision.evaluate(aggs);
 
         String expected = "{\"0.25\":0.2,\"0.5\":0.75,\"0.75\":1.0}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
 
     public void testEvaluate_GivenZeroTpAndFp() {
-        SoftClassificationMetric.ClassInfo classInfo = mock(SoftClassificationMetric.ClassInfo.class);
-        when(classInfo.getName()).thenReturn("foo");
-
         Aggregations aggs = new Aggregations(Arrays.asList(
-            createFilterAgg("precision_foo_at_1.0_TP", 0L),
-            createFilterAgg("precision_foo_at_1.0_FP", 0L)
+            createFilterAgg("precision_at_1.0_TP", 0L),
+            createFilterAgg("precision_at_1.0_FP", 0L)
         ));
 
         Precision precision = new Precision(Arrays.asList(1.0));
-        EvaluationMetricResult result = precision.evaluate(classInfo, aggs);
+        EvaluationMetricResult result = precision.evaluate(aggs);
 
         String expected = "{\"1.0\":0.0}";
         assertThat(Strings.toString(result), equalTo(expected));

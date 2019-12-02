@@ -34,6 +34,9 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
+/**
+ * A {@link FieldMapper} that assigns every document the same value.
+ */
 public class ConstantKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "constant_keyword";

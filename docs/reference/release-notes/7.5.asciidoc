@@ -2,6 +2,13 @@
 == {es} version 7.5.0
 
 Also see <<breaking-changes-7.5,Breaking changes in 7.5>>.
+[[known-issues-7.5.0]]
+[float]
+=== Known issues
+
+* Stop all {transforms} during a rolling upgrade to 7.5.
+If a {transform} is running during upgrade, the {transform} audit index might disappear.
+(issue: {issue}/49730[#49730])
 
 [[breaking-7.5.0]]
 [float]

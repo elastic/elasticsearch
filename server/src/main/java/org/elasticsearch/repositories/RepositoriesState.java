@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,8 +43,6 @@ import java.util.Objects;
  * See documentation for the package {@link org.elasticsearch.repositories.blobstore} for details.
  */
 public final class RepositoriesState extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
-
-    public static final Version REPO_GEN_IN_CS_VERSION = Version.V_8_0_0;
 
     public static final String TYPE = "repositories_state";
 
@@ -86,7 +85,7 @@ public final class RepositoriesState extends AbstractNamedDiffable<ClusterState.
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return REPO_GEN_IN_CS_VERSION;
+        return RepositoryMetaData.REPO_GEN_IN_CS_VERSION;
     }
 
     @Override

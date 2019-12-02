@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -300,12 +301,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             bestGenerationFromCS = bestGeneration(cleanupInProgress.entries());
         }
 
-        final RepositoriesState.State repoState = RepositoriesState.getOrEmpty(state).state(metadata.name());
-        if (repoState != null) {
-            bestGenerationFromCS = Math.max(bestGenerationFromCS, repoState.generation());
-        }
-
-        final long finalBestGen = bestGenerationFromCS;
+        final long finalBestGen = Math.max(bestGenerationFromCS, getRepoMetaData(state).generation());
         latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
     }
 
@@ -1087,7 +1083,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final RepositoriesState state = RepositoriesState.getOrEmpty(currentState);
+                    final RepositoryMetaData state = RepositoriesState.getOrEmpty(currentState);
                     final String repoName = metadata.name();
                     final RepositoriesState.State repoState = Optional.ofNullable(state.state(repoName)).orElseGet(
                         () -> RepositoriesState.builder().putState(repoName, expectedGen, expectedGen).build().state(repoName));
@@ -1201,6 +1197,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 });
         })), listener::onFailure);
+    }
+
+    private RepositoryMetaData getRepoMetaData(ClusterState state) {
+        final RepositoryMetaData metaData =
+            state.getMetaData().<RepositoriesMetaData>custom(RepositoriesMetaData.TYPE).repository(metadata.name());
+        assert metaData != null;
+        return metaData;
     }
 
     /**

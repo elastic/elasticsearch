@@ -116,7 +116,8 @@ public interface GeoGridTiler {
                         values.resizeCell(valuesIndex + 1);
                         values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
                     } else {
-                        valuesIndex = setValuesByRasterization(hashes[i], values, valuesIndex, targetPrecision, geoValue, shapeBounds);
+                        valuesIndex =
+                            setValuesByRasterization(hashes[i], values, valuesIndex, targetPrecision, geoValue, shapeBounds);
                     }
                 } else if (relation == GeoRelation.QUERY_INSIDE) {
                     if (hashes[i].length() == targetPrecision) {
@@ -131,7 +132,8 @@ public interface GeoGridTiler {
             return valuesIndex;
         }
 
-        private int setValuesForFullyContainedTile(String hash, CellIdSource.GeoShapeCellValues values, int valuesIndex, int targetPrecision) {
+        private int setValuesForFullyContainedTile(String hash, CellIdSource.GeoShapeCellValues values,
+                                                   int valuesIndex, int targetPrecision) {
             String[] hashes = Geohash.getSubGeohashes(hash);
             for (int i = 0; i < hashes.length; i++) {
                 if (hashes[i].length() == targetPrecision) {
@@ -182,8 +184,8 @@ public interface GeoGridTiler {
          * @param precision the target precision to split the shape up into
          * @return the number of buckets the geoValue is found in
          */
-        protected int setValuesByBruteForceScan(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue, int precision,
-                                                int minXTile, int minYTile, int maxXTile, int maxYTile) {
+        protected int setValuesByBruteForceScan(CellIdSource.GeoShapeCellValues values, MultiGeoValues.GeoValue geoValue,
+                                                int precision, int minXTile, int minYTile, int maxXTile, int maxYTile) {
             int idx = 0;
             for (int i = minXTile; i <= maxXTile; i++) {
                 for (int j = minYTile; j <= maxYTile; j++) {
@@ -197,8 +199,9 @@ public interface GeoGridTiler {
             return idx;
         }
 
-        protected int setValuesByRasterization(int xTile, int yTile, int zTile, CellIdSource.GeoShapeCellValues values, int valuesIndex,
-                                               int targetPrecision, MultiGeoValues.GeoValue geoValue, MultiGeoValues.BoundingBox shapeBounds) {
+        protected int setValuesByRasterization(int xTile, int yTile, int zTile, CellIdSource.GeoShapeCellValues values,
+                                               int valuesIndex, int targetPrecision, MultiGeoValues.GeoValue geoValue,
+                                               MultiGeoValues.BoundingBox shapeBounds) {
             zTile++;
             for (int i = 0; i < 2; i++) {
                 for (int j = 0; j < 2; j++) {
@@ -224,7 +227,8 @@ public interface GeoGridTiler {
                             values.resizeCell(valuesIndex + 1);
                             values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
                         } else {
-                            valuesIndex = setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex, targetPrecision, geoValue, shapeBounds);
+                            valuesIndex = setValuesByRasterization(nextX, nextY, zTile, values, valuesIndex,
+                                targetPrecision, geoValue, shapeBounds);
                         }
                     }
                 }

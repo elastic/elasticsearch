@@ -366,7 +366,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
-        this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
+        this.useRetentionLeasesInPeerRecovery =
+            indexSettings.isSoftDeleteEnabled() && replicationTracker.hasAllPeerRecoveryRetentionLeases();
     }
 
     public ThreadPool getThreadPool() {
@@ -605,7 +606,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         if (useRetentionLeasesInPeerRecovery == false) {
-            if (indexSettings.isSoftDeleteEnabled() && getPeerRecoveryRetentionLeases().size() >= routingTable.size()) {
+            if (getPeerRecoveryRetentionLeases().size() >= routingTable.size()) {
                 logger.debug("turn off the translog retention for the replication group {} " +
                     "as it starts using retention leases exclusively in peer recoveries", shardId);
                 useRetentionLeasesInPeerRecovery = true;

@@ -706,6 +706,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49703")
     public void testIndexHasDuplicateData() throws IOException {
         int docsCount = 7000;
         int duplIndex = docsCount * 7 / 10;

@@ -413,6 +413,10 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.collapse() != null) return null;
         if (searchContext.trackScores()) return null;
         if (searchContext.aggregations() != null) return null;
+        if (canEarlyTerminate(reader, searchContext.sort())) {
+            // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher
+            return null;
+        }
         Sort sort = searchContext.sort().sort;
         SortField sortField = sort.getSort()[0];
         if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return null;

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -30,6 +31,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.Defaults;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -38,26 +41,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "constant_keyword";
 
     public static class Defaults {
-        public static final String NULL_VALUE = null;
-        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
+        public static final MappedFieldType FIELD_TYPE = new ConstantKeywordFieldType();
+        static {
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, ConstantKeywordFieldMapper> {
 
-        private static MappedFieldType createFieldType(String value) {
-            ConstantKeywordFieldType ft = new ConstantKeywordFieldType();
-            ft.setValue(value);
-            ft.freeze();
-            return ft;
-        }
-
-        private Builder(String name, MappedFieldType fieldType) {
-            super(name, fieldType, fieldType);
-            builder = this;
-        }
-
         public Builder(String name, String value) {
-            this(name, createFieldType(value));
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            builder = this;
+            fieldType().setValue(value);
         }
 
         @Override

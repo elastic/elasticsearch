@@ -167,3 +167,16 @@ setup:
   - match: { aggregations.foo_terms.buckets.1.doc_count: 1 }
   - length: { aggregations.foo_terms.buckets: 2 }
 
+---
+"Sort":
+
+  - do:
+      search:
+        index: test*
+        body:
+          sort: [ { foo: asc } ]
+
+  - match: { "hits.total.value": 3 }
+  - match: {hits.hits.0._index: test1 }
+  - match: {hits.hits.1._index: test1 }
+  - match: {hits.hits.2._index: test2 }

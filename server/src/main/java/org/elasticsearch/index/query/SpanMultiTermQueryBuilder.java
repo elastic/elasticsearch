@@ -126,7 +126,8 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        // We do the rewrite in toQuery since we need to keep a MultiTermQueryBuilder.
+        // We do the rewrite in toQuery to not have to deal with the case when a multi-term builder rewrites to a non-multi-term
+        // builder.
         QueryBuilder multiTermQueryBuilder = Rewriteable.rewrite(this.multiTermQueryBuilder, context);
         if (multiTermQueryBuilder instanceof MatchNoneQueryBuilder) {
             return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");

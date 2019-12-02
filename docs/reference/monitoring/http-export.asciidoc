@@ -12,7 +12,7 @@ If you have previously configured internal collection, you should migrate to
 using Metricbeat collection. One should either use Metricbeat collection or
 internal collection described below but not both.
 
-Learn more about <<configuring--metricbeat>>.
+Learn more about <<configuring-metricbeat>>.
 =========================
 
 The `http` exporter is the preferred exporter in {monitoring} because it enables

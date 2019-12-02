@@ -78,7 +78,7 @@ public class Case extends ConditionalFunction {
     protected TypeResolution resolveType() {
         DataType expectedResultDataType = null;
         for (IfConditional ifConditional : conditions) {
-            if (DataTypes.isNull(ifConditional.result().dataType()) == false) {
+            if (ifConditional.result().dataType().isNull() == false) {
                 expectedResultDataType = ifConditional.result().dataType();
                 break;
             }

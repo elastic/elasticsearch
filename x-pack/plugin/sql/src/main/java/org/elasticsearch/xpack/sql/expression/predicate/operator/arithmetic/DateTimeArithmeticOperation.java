@@ -56,7 +56,7 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
         DataType l = left().dataType();
         DataType r = right().dataType();
 
-        if (!(r.isDateOrTimeBased() || r.isInterval())|| !(l.isDateOrTimeBased() || l.isInterval())) {
+        if (!(r.isDateOrTimeBased() || r.isInterval() || r.isNull())|| !(l.isDateOrTimeBased() || l.isInterval() || l.isNull())) {
             return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
         }
         return TypeResolution.TYPE_RESOLVED;

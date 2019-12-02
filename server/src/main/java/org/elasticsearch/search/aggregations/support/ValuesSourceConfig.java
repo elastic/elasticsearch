@@ -23,6 +23,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoShapeFieldData;
+import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -117,6 +118,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             config = new ValuesSourceConfig<>(CoreValuesSourceType.RANGE);
         } else if (indexFieldData instanceof IndexGeoShapeFieldData) {
             config = new ValuesSourceConfig<>(CoreValuesSourceType.GEOSHAPE);
+        } else if (indexFieldData instanceof IndexHistogramFieldData) {
+            config = new ValuesSourceConfig<>(CoreValuesSourceType.HISTOGRAM);
         } else {
             if (valueType == null) {
                 config = new ValuesSourceConfig<>(CoreValuesSourceType.BYTES);
@@ -254,7 +257,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     public VS toValuesSource(QueryShardContext context, Function<Object, ValuesSource> resolveMissingAny) {
         if (!valid()) {
             throw new IllegalStateException(
-                    "value source config is invalid; must have either a field context or a script or marked as unwrapped");
+                "value source config is invalid; must have either a field context or a script or marked as unwrapped");
         }
 
         final VS vs;

@@ -47,8 +47,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
     private LongArray counts;
 
     GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
-                                    ValuesSource.Geo valuesSource, List<PipelineAggregator> pipelineAggregators,
-                                    Map<String, Object> metaData) throws IOException {
+                          ValuesSource.Geo valuesSource, List<PipelineAggregator> pipelineAggregators,
+                          Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -70,6 +70,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         final MultiGeoValues values = valuesSource.geoValues(ctx);
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
+
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -94,9 +95,6 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     compensatedSumLon.reset(sumLon, compensationLon);
 
                     // update the sum
-                    //
-                    // this calculates the centroid of centroid of shapes when
-                    // executing against geo-shape fields.
                     for (int i = 0; i < valueCount; ++i) {
                         MultiGeoValues.GeoValue value = values.nextValue();
                         //latitude
@@ -120,8 +118,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         }
         final long bucketCount = counts.get(bucket);
         final GeoPoint bucketCentroid = (bucketCount > 0)
-                ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
-                : null;
+            ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
+            : null;
         return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metaData());
     }
 

@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;;
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;

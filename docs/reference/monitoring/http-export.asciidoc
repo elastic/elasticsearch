@@ -5,20 +5,21 @@
 
 [IMPORTANT]
 =========================
-Metricbeat is the recommended method for collecting and shipping monitoring data
-to a monitoring cluster.
+{metricbeat} is the recommended method for collecting and shipping monitoring
+data to a monitoring cluster.
 
 If you have previously configured internal collection, you should migrate to
-using Metricbeat collection. One should either use Metricbeat collection or
-internal collection described below but not both.
+using {metricbeat} collection. Use either {metricbeat} collection or
+internal collection; do not use both.
 
 Learn more about <<configuring-metricbeat>>.
 =========================
 
-The `http` exporter is the preferred exporter in {monitoring} because it enables
-the use of a separate monitoring cluster. As a secondary benefit, it avoids
-using a production cluster node as a coordinating node for indexing monitoring
-data because all requests are HTTP requests to the monitoring cluster.
+The `http` exporter is the preferred exporter in the {es} {monitor-features}
+because it enables the use of a separate monitoring cluster. As a secondary
+benefit, it avoids using a production cluster node as a coordinating node for
+indexing monitoring data because all requests are HTTP requests to the
+monitoring cluster.
 
 The `http` exporter uses the low-level {es} REST Client, which enables it to
 send its data to any {es} cluster it can access through the network. Its requests

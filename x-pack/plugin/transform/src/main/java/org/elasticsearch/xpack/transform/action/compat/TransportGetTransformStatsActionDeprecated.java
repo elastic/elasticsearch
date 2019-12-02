@@ -11,18 +11,18 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
-import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 public class TransportGetTransformStatsActionDeprecated extends TransportGetTransformStatsAction {
 
     @Inject
-    public TransportGetTransformStatsActionDeprecated(TransportService transportService, ActionFilters actionFilters,
-                                                      ClusterService clusterService,
-                                                      TransformConfigManager transformsConfigManager,
-                                                      TransformCheckpointService transformsCheckpointService) {
-        super(GetTransformStatsActionDeprecated.NAME, transportService, actionFilters, clusterService, transformsConfigManager,
-              transformsCheckpointService);
+    public TransportGetTransformStatsActionDeprecated(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        TransformServices transformServices
+    ) {
+        super(GetTransformStatsActionDeprecated.NAME, transportService, actionFilters, clusterService, transformServices);
     }
 }

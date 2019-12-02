@@ -119,6 +119,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
+                    "id", String.valueOf(i),
                     "field1", English.intToEnglish(i),
                     "field2", i
             );
@@ -136,14 +137,14 @@ public class QueryProfilerIT extends ESIntegTestCase {
         SearchRequestBuilder vanilla = client().prepareSearch("test")
             .setQuery(q)
             .setProfile(false)
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
         SearchRequestBuilder profile = client().prepareSearch("test")
             .setQuery(q)
             .setProfile(true)
-            .addSort("_id", SortOrder.ASC)
+            .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 

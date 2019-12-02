@@ -127,7 +127,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Version version;
     private final boolean allowLazyStart;
 
-    public DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
+    private DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
                                     DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
                                     FetchSourceContext analyzedFields, Instant createTime, Version version, boolean allowLazyStart) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
@@ -416,11 +416,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
 
         /**
-         * Builds {@link DataFrameAnalyticsConfig} object for the purpose of performing memory estimation.
+         * Builds {@link DataFrameAnalyticsConfig} object for the purpose of explaining a job that has not been created yet.
          * Some fields (i.e. "id", "dest") may not be present, therefore we overwrite them here to make {@link DataFrameAnalyticsConfig}'s
          * constructor validations happy.
          */
-        public DataFrameAnalyticsConfig buildForMemoryEstimation() {
+        public DataFrameAnalyticsConfig buildForExplain() {
             return new DataFrameAnalyticsConfig(
                 id != null ? id : "dummy",
                 description,

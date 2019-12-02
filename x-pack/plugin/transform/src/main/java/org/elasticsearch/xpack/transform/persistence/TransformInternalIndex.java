@@ -342,7 +342,10 @@ public final class TransformInternalIndex {
     }
 
     protected static void installLatestVersionedIndexTemplateIfRequired(
-
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Void> listener
+    ) {
         // The check for existence of the template is against local cluster state, so very cheap
         if (haveLatestVersionedIndexTemplate(clusterService.state())) {
             listener.onResponse(null);

@@ -1220,7 +1220,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.getPipeline("_id"), notNullValue());
 
-        try (final XContentBuilder builder = CborXContent.contentBuilder()) {
+        try (XContentBuilder builder = CborXContent.contentBuilder()) {
             builder.startObject();
             builder.field("data", "This is my data".getBytes(StandardCharsets.UTF_8));
             builder.endObject();

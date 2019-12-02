@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 public class DieWithDignityIT extends ESRestTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43413")
     public void testDieWithDignity() throws Exception {
         expectThrows(
             IOException.class,

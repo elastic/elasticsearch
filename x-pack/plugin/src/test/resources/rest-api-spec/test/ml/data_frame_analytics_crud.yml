@@ -1456,7 +1456,8 @@ setup:
                 "eta": 0.5,
                 "maximum_number_trees": 400,
                 "feature_bag_fraction": 0.3,
-                "training_percent": 60.3
+                "training_percent": 60.3,
+                "randomize_seed": 42
               }
             }
           }
@@ -1472,7 +1473,8 @@ setup:
       "maximum_number_trees": 400,
       "feature_bag_fraction": 0.3,
       "prediction_field_name": "foo_prediction",
-      "training_percent": 60.3
+      "training_percent": 60.3,
+      "ranzomize_seed": 42
     }
   }}
   - is_true: create_time
@@ -1796,7 +1798,8 @@ setup:
                 "eta": 0.5,
                 "maximum_number_trees": 400,
                 "feature_bag_fraction": 0.3,
-                "training_percent": 60.3
+                "training_percent": 60.3,
+                "randomize_seed": 24
               }
             }
           }
@@ -1813,6 +1816,7 @@ setup:
       "feature_bag_fraction": 0.3,
       "prediction_field_name": "foo_prediction",
       "training_percent": 60.3,
+      "randomize_seed": 24,
       "num_top_classes": 2
     }
   }}

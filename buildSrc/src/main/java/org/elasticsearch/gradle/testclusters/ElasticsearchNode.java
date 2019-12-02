@@ -415,6 +415,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }
+
+        copyExtraJars();
+
+        copyExtraConfigFiles();
+
         createConfiguration();
 
         if (plugins.isEmpty() == false) {
@@ -438,7 +443,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             runElaticsearchBinScript("elasticsearch-keystore", "create");
 
             keystoreSettings.forEach((key, value) ->
-                runElaticsearchBinScriptWithInput(value.toString(), "elasticsearch-keystore", "add", "-x", key)
+                runElasticsearchBinScriptWithInput(value.toString(), "elasticsearch-keystore", "add", "-x", key)
             );
 
             for (Map.Entry<String, File> entry : keystoreFiles.entrySet()) {
@@ -452,10 +457,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
 
         installModules();
-
-        copyExtraConfigFiles();
-
-        copyExtraJars();
 
         if (isSettingTrue("xpack.security.enabled")) {
             if (credentials.isEmpty()) {
@@ -622,7 +623,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         credentials.add(cred);
     }
 
-    private void runElaticsearchBinScriptWithInput(String input, String tool, String... args) {
+    private void runElasticsearchBinScriptWithInput(String input, String tool, String... args) {
         if (
             Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false &&
                 Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false
@@ -663,7 +664,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void runElaticsearchBinScript(String tool, String... args) {
-        runElaticsearchBinScriptWithInput("", tool, args);
+        runElasticsearchBinScriptWithInput("", tool, args);
     }
 
     private Map<String, String> getESEnvironment() {
@@ -676,6 +677,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (systemProperties.isEmpty() == false) {
             systemPropertiesString = " " + systemProperties.entrySet().stream()
                 .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
+                // ES_PATH_CONF is also set as an environment variable and for a reference to ${ES_PATH_CONF}
+                // to work ES_JAVA_OPTS, we need to make sure that ES_PATH_CONF before ES_JAVA_OPTS. Instead,
+                // we replace the reference with the actual value in other environment variables
+                .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
                 .collect(Collectors.joining(" "));
         }
         String jvmArgsString = "";

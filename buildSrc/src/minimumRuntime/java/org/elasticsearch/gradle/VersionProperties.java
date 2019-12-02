@@ -25,7 +25,8 @@ public class VersionProperties {
 
     public static String getBundledJdk(final String platform) {
         switch (platform) {
-            case "darwin":
+            case "darwin": // fall trough
+            case "mac":
                 return bundledJdkDarwin;
             case "linux":
                 return bundledJdkLinux;

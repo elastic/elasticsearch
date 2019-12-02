@@ -14,10 +14,12 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -31,29 +33,38 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 public class AnalyticsResultProcessor {
 
     private static final Logger LOGGER = LogManager.getLogger(AnalyticsResultProcessor.class);
 
+    /**
+     * While we report progress as we read row results there are other things we need to account for
+     * to report completion. There are other types of results we can't predict the number of like
+     * progress objects and the inference model. Thus, we report a max progress until we know we have
+     * completed processing results.
+     *
+     * It is critical to ensure we do not report complete progress too soon as restarting a job
+     * uses the progress to determine which state to restart from. If we report full progress too soon
+     * we cannot restart a job as we will think the job was finished.
+     */
+    private static final int MAX_PROGRESS_BEFORE_COMPLETION = 98;
+
     private final DataFrameAnalyticsConfig analytics;
     private final DataFrameRowsJoiner dataFrameRowsJoiner;
-    private final Supplier<Boolean> isProcessKilled;
     private final ProgressTracker progressTracker;
     private final TrainedModelProvider trainedModelProvider;
     private final DataFrameAnalyticsAuditor auditor;
     private final List<String> fieldNames;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
     private volatile String failure;
+    private volatile boolean isCancelled;
 
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
-                                    Supplier<Boolean> isProcessKilled, ProgressTracker progressTracker,
-                                    TrainedModelProvider trainedModelProvider, DataFrameAnalyticsAuditor auditor,
-                                    List<String> fieldNames) {
+                                    ProgressTracker progressTracker, TrainedModelProvider trainedModelProvider,
+                                    DataFrameAnalyticsAuditor auditor, List<String> fieldNames) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
-        this.isProcessKilled = Objects.requireNonNull(isProcessKilled);
         this.progressTracker = Objects.requireNonNull(progressTracker);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.auditor = Objects.requireNonNull(auditor);
@@ -70,8 +81,12 @@ public class AnalyticsResultProcessor {
             completionLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.error(new ParameterizedMessage("[{}] Interrupted waiting for results processor to complete", analytics.getId()), e);
+            setAndReportFailure(ExceptionsHelper.serverError("interrupted waiting for results processor to complete", e));
         }
+    }
+
+    public void cancel() {
+        isCancelled = true;
     }
 
     public void process(AnalyticsProcess<AnalyticsResult> process) {
@@ -82,29 +97,37 @@ public class AnalyticsResultProcessor {
         try (DataFrameRowsJoiner resultsJoiner = dataFrameRowsJoiner) {
             Iterator<AnalyticsResult> iterator = process.readAnalyticsResults();
             while (iterator.hasNext()) {
+                if (isCancelled) {
+                    break;
+                }
                 AnalyticsResult result = iterator.next();
                 processResult(result, resultsJoiner);
                 if (result.getRowResults() != null) {
                     processedRows++;
-                    progressTracker.writingResultsPercent.set(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
+                    updateResultsProgress(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
                 }
             }
-            if (isProcessKilled.get() == false) {
-                // This means we completed successfully so we need to set the progress to 100.
-                // This is because due to skipped rows, it is possible the processed rows will not reach the total rows.
-                progressTracker.writingResultsPercent.set(100);
-            }
         } catch (Exception e) {
-            if (isProcessKilled.get()) {
+            if (isCancelled) {
                 // No need to log error as it's due to stopping
             } else {
-                LOGGER.error(new ParameterizedMessage("[{}] Error parsing data frame analytics output", analytics.getId()), e);
-                failure = "error parsing data frame analytics output: [" + e.getMessage() + "]";
+                setAndReportFailure(e);
             }
         } finally {
+            if (isCancelled == false && failure == null) {
+                completeResultsProgress();
+            }
             completionLatch.countDown();
             process.consumeAndCloseOutputStream();
         }
+    }
+
+    private void updateResultsProgress(int progress) {
+        progressTracker.writingResultsPercent.set(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
+    }
+
+    private void completeResultsProgress() {
+        progressTracker.writingResultsPercent.set(100);
     }
 
     private void processResult(AnalyticsResult result, DataFrameRowsJoiner resultsJoiner) {
@@ -132,14 +155,14 @@ public class AnalyticsResultProcessor {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.error(new ParameterizedMessage("[{}] Interrupted waiting for inference model to be stored", analytics.getId()), e);
+            setAndReportFailure(ExceptionsHelper.serverError("interrupted waiting for inference model to be stored"));
         }
     }
 
     private TrainedModelConfig createTrainedModelConfig(TrainedModelDefinition.Builder inferenceModel) {
         Instant createTime = Instant.now();
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
-        TrainedModelDefinition definition = inferenceModel.setModelId(modelId).build();
+        TrainedModelDefinition definition = inferenceModel.build();
         return TrainedModelConfig.builder()
             .setModelId(modelId)
             .setCreatedBy("data-frame-analytics")
@@ -149,8 +172,11 @@ public class AnalyticsResultProcessor {
             .setDescription(analytics.getDescription())
             .setMetadata(Collections.singletonMap("analytics_config",
                 XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
-            .setDefinition(definition)
+            .setEstimatedHeapMemory(definition.ramBytesUsed())
+            .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
+            .setParsedDefinition(inferenceModel)
             .setInput(new TrainedModelInput(fieldNames))
+            .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .build();
     }
 
@@ -160,19 +186,22 @@ public class AnalyticsResultProcessor {
             aBoolean -> {
                 if (aBoolean == false) {
                     LOGGER.error("[{}] Storing trained model responded false", analytics.getId());
+                    setAndReportFailure(ExceptionsHelper.serverError("storing trained model responded false"));
                 } else {
                     LOGGER.info("[{}] Stored trained model with id [{}]", analytics.getId(), trainedModelConfig.getModelId());
                     auditor.info(analytics.getId(), "Stored trained model with id [" + trainedModelConfig.getModelId() + "]");
                 }
             },
-            e -> {
-                LOGGER.error(new ParameterizedMessage("[{}] Error storing trained model [{}]", analytics.getId(),
-                    trainedModelConfig.getModelId()), e);
-                auditor.error(analytics.getId(), "Error storing trained model with id [" + trainedModelConfig.getModelId()
-                    + "]; error message [" + e.getMessage() + "]");
-            }
+            e -> setAndReportFailure(ExceptionsHelper.serverError("error storing trained model with id [{}]", e,
+                trainedModelConfig.getModelId()))
         );
         trainedModelProvider.storeTrainedModel(trainedModelConfig, new LatchedActionListener<>(storeListener, latch));
         return latch;
+    }
+
+    private void setAndReportFailure(Exception e) {
+        LOGGER.error(new ParameterizedMessage("[{}] Error processing results; ", analytics.getId()), e);
+        failure = "error processing results; " + e.getMessage();
+        auditor.error(analytics.getId(), "Error processing results; " + e.getMessage());
     }
 }

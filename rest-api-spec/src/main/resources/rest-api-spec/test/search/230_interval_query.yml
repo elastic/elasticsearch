@@ -21,6 +21,10 @@ setup:
             - '{"text" : "Baby its cold there outside"}'
             - '{"index": {"_index": "test", "_id": "4"}}'
             - '{"text" : "Outside it is cold and wet"}'
+            - '{"index": {"_index": "test", "_id": "5"}}'
+            - '{"text" : "To be or not to be, that is the question"}'
+            - '{"index": {"_index": "test", "_id": "6"}}'
+            - '{"text" : "Id like to be under the sea or not"}'
 
 ---
 "Test ordered matching":
@@ -48,6 +52,18 @@ setup:
                   match:
                     query: "cold outside"
   - match: { hits.total.value: 3 }
+
+---
+"Test unordered matching with duplicates":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                match: "to be or not to be"
+  - match: { hits.total.value: 1 }
 
 ---
 "Test explicit unordered matching":
@@ -185,6 +201,23 @@ setup:
                   ordered: false
   - match: { hits.total.value: 2 }
 
+---
+"Test unordered combination with duplicates":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: "to be"
+                    - match:
+                        query: "to be"
+                  ordered: false
+  - match: { hits.total.value: 2 }
 ---
 "Test block combination":
   - do:

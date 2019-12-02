@@ -222,4 +222,15 @@ public class IntervalBuilderTests extends ESTestCase {
         assertEquals(expected, source);
     }
 
+    public void testUnorderedWithRepeats() throws IOException {
+        IntervalsSource source = BUILDER.analyzeText("to be or not to be", -1, false);
+        IntervalsSource expected = Intervals.unordered(
+            Intervals.ordered(Intervals.term("to"), Intervals.term("to")),
+            Intervals.ordered(Intervals.term("be"), Intervals.term("be")),
+            Intervals.term("or"),
+            Intervals.term("not")
+        );
+        assertEquals(expected, source);
+    }
+
 }

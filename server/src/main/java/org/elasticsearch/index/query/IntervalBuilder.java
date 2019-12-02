@@ -26,12 +26,12 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchesIterator;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchesIterator;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 
@@ -40,7 +40,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Constructs an IntervalsSource based on analyzed text
@@ -130,6 +132,9 @@ public class IntervalBuilder {
         if (sources.size() == 1) {
             return sources.get(0);
         }
+        if (ordered == false) {
+            sources = deduplicate(sources);
+        }
         IntervalsSource[] sourcesArray = sources.toArray(new IntervalsSource[0]);
         if (maxGaps == 0 && ordered) {
             return Intervals.phrase(sourcesArray);
@@ -139,6 +144,30 @@ public class IntervalBuilder {
             return inner;
         }
         return Intervals.maxgaps(maxGaps, inner);
+    }
+
+    protected static List<IntervalsSource> deduplicate(List<IntervalsSource> sources) {
+        Map<IntervalsSource, Integer> counts = new LinkedHashMap<>();   // preserve order for testing
+        for (IntervalsSource source : sources) {
+            counts.compute(source, (k, v) -> v == null ? 1 : v + 1);
+        }
+        if (counts.size() == sources.size()) {
+            return sources;
+        }
+        sources = new ArrayList<>();
+        for (IntervalsSource source : counts.keySet()) {
+            int count = counts.get(source);
+            if (count == 1) {
+                sources.add(source);
+            } else {
+                IntervalsSource[] multiples = new IntervalsSource[count];
+                for (int i = 0; i < count; i++) {
+                    multiples[i] = source;
+                }
+                sources.add(Intervals.ordered(multiples));
+            }
+        }
+        return sources;
     }
 
     protected List<IntervalsSource> analyzeTerms(TokenStream ts) throws IOException {

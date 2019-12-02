@@ -52,7 +52,21 @@ public class ValuesSourceConfig {
     }
 
     /**
-     * Resolve a {@link ValuesSourceConfig} given configuration parameters.
+     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggretation run, and construct a new
+     * {@link ValuesSourceConfig} based on that {@link ValuesSourceType}
+     *
+     * @param context - the query context
+     * @param valueType - User specified value type; used for missing values and scripts
+     * @param field - The field being aggregated over.  At least one of field and script must not be null
+     * @param script - The script the user specified.  At least one of field and script must not be null
+     * @param missing - A user specified value to apply when the field is missing.  Should be of type valueType
+     * @param timeZone - Used to generate a format for dates
+     * @param format - The format string to apply to this field.  Confusingly, this is used for input parsing as well as output formatting
+     *               See https://github.com/elastic/elasticsearch/issues/47469
+     * @param resolveScriptAny - TODO: Get rid of this.
+     * @param aggregationName - Name of the aggregation, generally from the aggregation builder.  This is used as a lookup key in the
+     *                          {@link ValuesSourceRegistry}
+     * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
     public static  ValuesSourceConfig resolve(
         QueryShardContext context,

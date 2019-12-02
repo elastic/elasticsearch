@@ -137,6 +137,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
             throw new IOException("Mark not called or has been invalidated");
         }
         resetCalled = true;
+        position = head;
     }
 
     @Override

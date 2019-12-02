@@ -282,7 +282,7 @@ setup:
         index: .transform-internal-004
   - match: { \.transform-internal-004.mappings.dynamic: "false" }
   - match: { \.transform-internal-004.mappings.properties.id.type: "keyword" }
-    - do:
+  - do:
       indices.get_mapping:
         index: .transform-notifications-000002
   - match: { \.transform-notifications-000002.mappings.dynamic: "false" }

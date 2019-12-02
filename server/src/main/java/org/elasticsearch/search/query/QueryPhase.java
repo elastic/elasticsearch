@@ -567,7 +567,7 @@ public class QueryPhase implements SearchPhase {
      * Returns true if more than 50% of data in the index have the same value
      * The evaluation is approximation based on finding the median value and estimating its count
      */
-    static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
+    private static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
         long docsNoDupl = 0; // number of docs in segments with NO duplicate data that would benefit optimization
         long docsDupl = 0; // number of docs in segments with duplicate data that would NOT benefit optimization
         for (LeafReaderContext lrc : reader.leaves()) {
@@ -578,30 +578,33 @@ public class QueryPhase implements SearchPhase {
                 continue;
             }
             assert(pointValues.size() == docCount); // TODO: modify the code to handle multiple values
-
             int duplDocCount = docCount/2; // expected doc count of duplicate data
-            long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
-            long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
-            boolean hasDuplicateData = true;
-            while ((minValue < maxValue) && hasDuplicateData) {
-                long midValue = Math.floorDiv(minValue, 2) + Math.floorDiv(maxValue, 2); // to avoid overflow first divide each value by 2
-                long countLeft = estimatePointCount(pointValues, minValue, midValue);
-                long countRight = estimatePointCount(pointValues, midValue + 1, maxValue);
-                if ((countLeft >= countRight) && (countLeft > duplDocCount) ) {
-                    maxValue = midValue;
-                } else if ((countRight > countLeft) && (countRight > duplDocCount)) {
-                    minValue = midValue + 1;
-                } else {
-                    hasDuplicateData = false;
-                }
-            }
-            if (hasDuplicateData) {
+            if (pointsHaveDuplicateData(pointValues, duplDocCount)) {
                 docsDupl += docCount;
             } else {
                 docsNoDupl += docCount;
             }
         }
         return (docsDupl > docsNoDupl);
+    }
+
+    static boolean pointsHaveDuplicateData(PointValues pointValues, int duplDocCount) throws IOException {
+        long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
+        long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
+        boolean hasDuplicateData = true;
+        while ((minValue < maxValue) && hasDuplicateData) {
+            long midValue = Math.floorDiv(minValue, 2) + Math.floorDiv(maxValue, 2); // to avoid overflow first divide each value by 2
+            long countLeft = estimatePointCount(pointValues, minValue, midValue);
+            long countRight = estimatePointCount(pointValues, midValue + 1, maxValue);
+            if ((countLeft >= countRight) && (countLeft > duplDocCount) ) {
+                maxValue = midValue;
+            } else if ((countRight > countLeft) && (countRight > duplDocCount)) {
+                minValue = midValue + 1;
+            } else {
+                hasDuplicateData = false;
+            }
+        }
+        return hasDuplicateData;
     }
 
 

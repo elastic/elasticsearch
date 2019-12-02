@@ -67,8 +67,13 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.bkd.BKDReader;
+import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -91,7 +96,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.search.query.QueryPhase.indexFieldHasDuplicateData;
+import static org.elasticsearch.search.query.QueryPhase.pointsHaveDuplicateData;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -703,31 +708,56 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49703")
     public void testIndexHasDuplicateData() throws IOException {
-        int docsCount = 7000;
-        int duplIndex = docsCount * 7 / 10;
-        int duplIndex2 = docsCount * 3 / 10;
+        int docsCount = 5000;
+        int maxPointsInLeafNode = 40;
+        float duplicateRatio = 0.7f;
         long duplicateValue = randomLongBetween(-10000000L, 10000000L);
-        Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
-        for (int docId = 0; docId < docsCount; docId++) {
-            Document doc = new Document();
-            long rndValue = randomLongBetween(-10000000L, 10000000L);
-            long value = (docId < duplIndex) ? duplicateValue : rndValue;
-            long value2 = (docId < duplIndex2) ? duplicateValue : rndValue;
-            doc.add(new LongPoint("duplicateField", value));
-            doc.add(new LongPoint("notDuplicateField", value2));
-            writer.addDocument(doc);
+
+        try (Directory dir = newDirectory()) {
+            BKDWriter w = new BKDWriter(docsCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, docsCount);
+            byte[] longBytes = new byte[8];
+            for (int docId = 0; docId < docsCount; docId++) {
+                long value = randomFloat() < duplicateRatio ? duplicateValue : randomLongBetween(-10000000L, 10000000L);
+                LongPoint.encodeDimension(value, longBytes, 0);
+                w.add(longBytes, docId);
+            }
+            long indexFP;
+            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
+                indexFP = w.finish(out);
+            }
+            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
+                in.seek(indexFP);
+                BKDReader r = new BKDReader(in);
+                assertTrue(pointsHaveDuplicateData(r, r.getDocCount()/2));
+            }
         }
-        writer.close();
-        final IndexReader reader = DirectoryReader.open(dir);
-        boolean hasDuplicateData = indexFieldHasDuplicateData(reader, "duplicateField");
-        boolean hasDuplicateData2 = indexFieldHasDuplicateData(reader, "notDuplicateField");
-        reader.close();
-        dir.close();
-        assertTrue(hasDuplicateData);
-        assertFalse(hasDuplicateData2);
+    }
+
+    public void testIndexHasNoDuplicateData() throws IOException {
+        int docsCount = 5000;
+        int maxPointsInLeafNode = 40;
+        float duplicateRatio = 0.3f;
+        long duplicateValue = randomLongBetween(-10000000L, 10000000L);
+
+        try (Directory dir = newDirectory()) {
+            BKDWriter w = new BKDWriter(docsCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, docsCount);
+            byte[] longBytes = new byte[8];
+            for (int docId = 0; docId < docsCount; docId++) {
+                long value = randomFloat() < duplicateRatio ? duplicateValue : randomLongBetween(-10000000L, 10000000L);
+                LongPoint.encodeDimension(value, longBytes, 0);
+                w.add(longBytes, docId);
+            }
+            long indexFP;
+            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
+                indexFP = w.finish(out);
+            }
+            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
+                in.seek(indexFP);
+                BKDReader r = new BKDReader(in);
+                assertFalse(pointsHaveDuplicateData(r, r.getDocCount()/2));
+            }
+        }
     }
 
     public void testMaxScoreQueryVisitor() {

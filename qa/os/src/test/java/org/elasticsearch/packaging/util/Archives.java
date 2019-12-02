@@ -115,7 +115,7 @@ public class Archives {
 
         sh.chown(fullInstallPath);
 
-        return Installation.ofArchive(fullInstallPath);
+        return Installation.ofArchive(distribution, fullInstallPath);
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {

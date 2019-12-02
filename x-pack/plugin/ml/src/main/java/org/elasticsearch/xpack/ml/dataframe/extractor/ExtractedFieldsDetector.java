@@ -85,6 +85,7 @@ public class ExtractedFieldsDetector {
         fields.removeAll(IGNORE_FIELDS);
         checkResultsFieldIsNotPresent();
         removeFieldsUnderResultsField(fields);
+        applySourceFiltering(fields);
         FetchSourceContext analyzedFields = config.getAnalyzedFields();
 
         // If the user has not explicitly included fields we'll include all compatible fields
@@ -129,6 +130,16 @@ public class ExtractedFieldsDetector {
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
                 resultsField,
                 DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
+        }
+    }
+
+    private void applySourceFiltering(Set<String> fields) {
+        Iterator<String> fieldsIterator = fields.iterator();
+        while (fieldsIterator.hasNext()) {
+            String field = fieldsIterator.next();
+            if (config.getSource().isFieldExcluded(field)) {
+                fieldsIterator.remove();
+            }
         }
     }
 
@@ -203,7 +214,7 @@ public class ExtractedFieldsDetector {
                 .expand(includes, false);
             // If the exclusion set does not match anything, that means the fields are already not present
             // no need to raise if nothing matched
-            Set<String> excludedSet = NameResolver.newUnaliased(fields,
+            Set<String> excludedSet = NameResolver.newUnaliased(fieldCapabilitiesResponse.get().keySet(),
                 (ex) -> new ResourceNotFoundException(
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex)))
                 .expand(excludes, true);

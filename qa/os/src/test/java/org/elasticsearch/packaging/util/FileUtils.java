@@ -33,6 +33,7 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -42,7 +43,9 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -239,6 +242,23 @@ public class FileUtils {
             throw new RuntimeException(e);
         }
     }
+
+    /**
+     * Gets numeric ownership attributes that are supported by Unix filesystems
+     * @return a Map of the uid/gid integer values
+     */
+    public static Map<String, Integer> getNumericUnixPathOwnership(Path path) {
+        Map<String, Integer> numericPathOwnership = new HashMap<>();
+
+        try {
+            numericPathOwnership.put("uid", (int) Files.getAttribute(path, "unix:uid", LinkOption.NOFOLLOW_LINKS));
+            numericPathOwnership.put("gid", (int) Files.getAttribute(path, "unix:gid", LinkOption.NOFOLLOW_LINKS));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return numericPathOwnership;
+    }
+
 
     // vagrant creates /tmp for us in windows so we use that to avoid long paths
     public static Path getTempDir() {

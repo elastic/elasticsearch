@@ -146,7 +146,78 @@ public abstract class PackagingTestCase extends Assert {
         return distribution;
     }
 
-    protected Shell newShell() throws Exception {
+    protected static void install() throws Exception {
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                installation = Archives.installArchive(distribution);
+                Archives.verifyArchiveInstallation(installation, distribution);
+                break;
+            case DEB:
+            case RPM:
+                installation = Packages.installPackage(distribution);
+                Packages.verifyPackageInstallation(installation, distribution, newShell());
+                break;
+            case DOCKER:
+                installation = Docker.runContainer(distribution);
+                Docker.verifyContainerInstallation(installation, distribution);
+        }
+    }
+
+    /**
+     * Starts and stops elasticsearch, and performs assertions while it is running.
+     */
+    protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
+        try {
+            switch (distribution.packaging) {
+                case TAR:
+                case ZIP:
+                    Archives.startElasticsearch(installation, sh);
+                    break;
+                case DEB:
+                case RPM:
+                    Packages.startElasticsearch(sh);
+                    break;
+                case DOCKER:
+                    // nothing, "installing" docker image is running it
+            }
+
+        } catch (Exception e ){
+            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
+                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
+                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+                sh.runIgnoreExitCode("jstack " + pid);
+            }
+            if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
+                logger.warn("Elasticsearch log:\n" +
+                    FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+            }
+            throw e;
+        }
+
+        try {
+            assertions.run();
+        } catch (Exception e) {
+            logger.warn("Elasticsearch log:\n" +
+                FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+            throw e;
+        }
+
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                Archives.stopElasticsearch(installation, sh);
+                break;
+            case DEB:
+            case RPM:
+                Packages.stopElasticsearch(sh);
+                break;
+            case DOCKER:
+                // nothing, removing container is handled externally
+        }
+    }
+
+    protected static Shell newShell() throws Exception {
         Shell sh = new Shell();
         if (distribution().hasJdk == false) {
             Platforms.onLinux(() -> {

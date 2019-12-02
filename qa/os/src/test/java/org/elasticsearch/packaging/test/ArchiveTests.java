@@ -65,7 +65,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test20PluginsListWithNoPlugins() throws Exception {
         final Installation.Executables bin = installation.executables();
-        final Result r = sh.run(bin.elasticsearchPlugin + " list");
+        final Result r = bin.elasticsearchPlugin.run(sh, "list");
 
         assertThat(r.stdout, isEmptyString());
     }

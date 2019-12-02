@@ -7,6 +7,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -660,5 +661,19 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         assertEquals(2, response.getHits().getTotalHits().value);
         assertNotEquals("1", response.getHits().getAt(0).getId());
         assertNotEquals("1", response.getHits().getAt(1).getId());
+    }
+
+    @Override
+    protected XContentBuilder createMapping() throws Exception {
+        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape");
+        if (randomBoolean()) {
+            xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
+            .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
+        }
+        xcb = xcb.endObject().endObject().endObject().endObject();
+
+        return xcb;
     }
 }

@@ -76,18 +76,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
     };
 
-    protected XContentBuilder createMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_shape");
-        if (randomBoolean()) {
-            xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
-            .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
-        }
-        xcb = xcb.endObject().endObject().endObject().endObject();
-
-        return xcb;
-    }
+    protected abstract XContentBuilder createMapping() throws Exception;
 
     public void testNullShape() throws Exception {
         String mapping = Strings.toString(createMapping());

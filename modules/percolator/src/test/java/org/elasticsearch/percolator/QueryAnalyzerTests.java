@@ -1233,6 +1233,16 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.extractions.size(), equalTo(2));
         assertFalse(result.verified);
 
+        q = new BooleanQuery.Builder()
+            .add(q, Occur.MUST)
+            .add(q, Occur.MUST)
+            .build();
+
+        result = analyze(q, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.extractions.size(), equalTo(2));
+        assertFalse(result.verified);
+
         Query q2 = new BooleanQuery.Builder()
             .add(new TermQuery(new Term("f", "v1")), Occur.FILTER)
             .add(IntPoint.newRangeQuery("i", 15, 20), Occur.SHOULD)

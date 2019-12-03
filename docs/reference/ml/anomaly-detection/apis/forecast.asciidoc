@@ -37,7 +37,8 @@ forecast. For more information about this property, see <<ml-job-resource>>.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-forecast-request-body]]
 ==== {api-request-body-title}

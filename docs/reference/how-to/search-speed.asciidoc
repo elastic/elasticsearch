@@ -424,3 +424,147 @@ The <<text,`text`>> field has an <<index-phrases,`index_prefixes`>> option that
 indexes prefixes of all terms and is automatically leveraged by query parsers to
 run prefix queries. If your use-case involves running lots of prefix queries,
 this can speed up queries significantly.
+
+[[faster-filtering-with-constant-keyword]]
+=== Use <<constant-keyword,`constant_keyword`>> to speed up filtering
+
+There is a general rule that the cost of a filter is mostly a function of the
+number of matched documents. For instance, imagine that you have an index with
+cycles. If your index has many more bicycles than tricycles, then applying a
+filter on `cycle_type: tricycle` is much cheaper than applying a filter on
+`cycle_type: bicycle`. There is an exception to this rule, the
+<<query-dsl-match-all-query,`match_all`>> query. The reason is that queries that
+contain `match_all` filters can often remove this filter. For instance assume
+the following query:
+
+[source,console]
+--------------------------------------------------
+GET cycles/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "description": "dutch"
+        }
+      },
+      "filter": {
+        "match_all": {}
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[s/^/PUT cycles\n/]
+
+Elasticsearch will internally execute it the same way as:
+
+[source,console]
+--------------------------------------------------
+GET cycles/_search
+{
+  "query": {
+    "match": {
+      "description": "dutch"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+This makes sense: the filter had no effect in this case. This might not sound
+useful though: why would you add a filter on a `match_all` in the first place?
+This is where the <<constant-keyword,`constant_keyword`>> field comes to play:
+queries on this field rewrite to either a `match_all` query, or a query that
+doesn't match any documents. See the following snippet:
+
+[source,console]
+--------------------------------------------------
+PUT bicycles
+{
+  "mappings": {
+    "properties": {
+      "cycle_type": {
+        "type": "constant_keyword",
+        "value": "bicycle"
+      },
+      "name": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+PUT other_cycles
+{
+  "mappings": {
+    "properties": {
+      "cycle_type": {
+        "type": "keyword"
+      },
+      "name": {
+        "type": "text"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+We are splitting our index in two: one that will contain only bicycles, and
+another one that contains other cycles: unicycles, tricycles, etc. Then at
+search time, we need to update the path to include both indices, but don't
+need to update queries:
+
+
+[source,console]
+--------------------------------------------------
+GET bicycles,other_cycles/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "description": "dutch"
+        }
+      },
+      "filter": {
+        "term": {
+          "cycle_type": "bicycle"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+The filter on `cycle_type` is interesting above: the `bicycle` value doesn't
+exist in the `other_cycles`, so Elasticsearch will very easily figure out that
+this query has no matches. And in the `bicycles` index, this filter will rewrite
+to a `match_all`, so the overall query will then be rewritten to remove the
+filter:
+
+[source,console]
+--------------------------------------------------
+GET bicycles/_search
+{
+  "query": {
+    "match": {
+      "description": "dutch"
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+This is a powerful way of making queries cheaper by putting common values in a
+dedicated index. This idea can also be combined across multiple fields: for
+instance if you track the color of each cycle and your `bicycles` index ends up
+having a majority of black bikes, you could split it into a `bicycles-black`
+and a `bicycles-other-colors` indices.
+
+The `constant_keyword` is not strictly required for this optimization: it is
+also possible to update the client-side logic in order to route queries to the
+relevant indices based on filters. However `constant_keyword` makes it
+transparently and allows to decouple search requests from the index topology,
+for a negligible overhead.

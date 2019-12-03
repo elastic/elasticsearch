@@ -358,7 +358,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public Combine(StreamInput in) throws IOException {
             this.ordered = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 this.allowOverlaps = in.readBoolean();
             } else {
                 this.allowOverlaps = true;
@@ -413,7 +413,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(ordered);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                 out.writeBoolean(allowOverlaps);
             }
             out.writeNamedWriteableList(subSources);

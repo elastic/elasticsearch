@@ -8,19 +8,21 @@ package org.elasticsearch.repositories.encrypted;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Objects;
 
 
 public final class BufferOnMarkInputStream extends FilterInputStream {
 
-    private final int bufferSize;
-    private byte[] ringBuffer;
-    private int head;
-    private int tail;
-    private int position;
-    private boolean markCalled;
-    private boolean resetCalled;
-    private boolean closed;
+    // protected for tests
+    protected final int bufferSize;
+    protected byte[] ringBuffer;
+    protected int head;
+    protected int tail;
+    protected int position;
+    protected boolean markCalled;
+    protected boolean resetCalled;
+    protected boolean closed;
 
     public BufferOnMarkInputStream(InputStream in, int bufferSize) {
         super(Objects.requireNonNull(in));
@@ -212,6 +214,11 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         if (closed) {
             throw new IOException("Stream has been closed");
         }
+    }
+
+    // only for tests
+    protected InputStream getWrapped() {
+        return in;
     }
 
 }

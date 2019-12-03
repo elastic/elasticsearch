@@ -191,6 +191,15 @@ SELECT 4 * -INTERVAL '2' HOURS AS result1, -5 * -INTERVAL '3' HOURS AS result2;
 -0 08:00:00.0  | +0 15:00:00.0
 ;
 
+intervalNullMath
+schema::null_multiply:string|null_sub1:string|null_sub2:string|null_add:string
+SELECT null * INTERVAL '1 23:45' DAY TO MINUTES AS null_multiply, INTERVAL '1' DAY - null AS null_sub1, null - INTERVAL '1' DAY AS null_sub2, INTERVAL 1 DAY + null AS null_add;
+
+  null_multiply  |  null_sub1  |  null_sub2  |  null_add  
+-----------------+-------------+-------------+-------------
+null             |null         |null         |null
+;
+
 intervalAndFieldMultiply
 schema::languages:byte|result:string
 SELECT languages, CAST (languages * INTERVAL '1 10:30' DAY TO MINUTES AS string) AS result FROM test_emp ORDER BY emp_no LIMIT 5;

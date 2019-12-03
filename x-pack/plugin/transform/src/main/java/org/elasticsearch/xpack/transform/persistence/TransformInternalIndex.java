@@ -315,22 +315,39 @@ public final class TransformInternalIndex {
                 .endObject();
     }
 
-    public static boolean haveLatestVersionedIndexTemplate(ClusterState state) {
-        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
-    }
-
     /**
      * This method should be called before any document is indexed that relies on the
-     * existence of the latest index template to create the internal index.  The
-     * reason is that the standard template upgrader only runs when the master node
+     * existence of the latest index templates to create the internal and audit index.
+     * The reason is that the standard template upgrader only runs when the master node
      * is upgraded to the newer version.  If data nodes are upgraded before master
      * nodes and transforms get assigned to those data nodes then without this check
      * the data nodes will index documents into the internal index before the necessary
      * index template is present and this will result in an index with completely
      * dynamic mappings being created (which is very bad).
      */
-    public static void installLatestVersionedIndexTemplateIfRequired(ClusterService clusterService, Client client,
-                                                                     ActionListener<Void> listener) {
+    public static void installLatestIndexTemplatesIfRequired(ClusterService clusterService, Client client, ActionListener<Void> listener) {
+
+        installLatestVersionedIndexTemplateIfRequired(
+            clusterService,
+            client,
+            ActionListener.wrap(r -> { installLatestAuditIndexTemplateIfRequired(clusterService, client, listener); }, listener::onFailure)
+        );
+
+    }
+
+    protected static boolean haveLatestVersionedIndexTemplate(ClusterState state) {
+        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+    }
+
+    protected static boolean haveLatestAuditIndexTemplate(ClusterState state) {
+        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
+    }
+
+    protected static void installLatestVersionedIndexTemplateIfRequired(
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Void> listener
+    ) {
 
         // The check for existence of the template is against local cluster state, so very cheap
         if (haveLatestVersionedIndexTemplate(clusterService.state())) {
@@ -348,13 +365,52 @@ public final class TransformInternalIndex {
                 .settings(indexTemplateMetaData.settings())
                 .mapping(SINGLE_MAPPING_NAME, XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
             ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), TRANSFORM_ORIGIN, request,
-                innerListener, client.admin().indices()::putTemplate);
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                TRANSFORM_ORIGIN,
+                request,
+                innerListener,
+                client.admin().indices()::putTemplate
+            );
         } catch (IOException e) {
             listener.onFailure(e);
         }
     }
 
-    private TransformInternalIndex() {
+    protected static void installLatestAuditIndexTemplateIfRequired(
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Void> listener
+    ) {
+
+        // The check for existence of the template is against local cluster state, so very cheap
+        if (haveLatestAuditIndexTemplate(clusterService.state())) {
+            listener.onResponse(null);
+            return;
+        }
+
+        // Installing the template involves communication with the master node, so it's more expensive but much rarer
+        try {
+            IndexTemplateMetaData indexTemplateMetaData = getAuditIndexTemplateMetaData();
+            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.AUDIT_INDEX).patterns(
+                indexTemplateMetaData.patterns()
+            )
+                .version(indexTemplateMetaData.version())
+                .settings(indexTemplateMetaData.settings())
+                .mapping(SINGLE_MAPPING_NAME, XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
+            ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                TRANSFORM_ORIGIN,
+                request,
+                innerListener,
+                client.admin().indices()::putTemplate
+            );
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
+
+    private TransformInternalIndex() {}
 }

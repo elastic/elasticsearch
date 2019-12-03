@@ -225,6 +225,7 @@ public abstract class AbstractObjectParser<Value, Context>
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken().isValue()
                         || parser.currentToken() == XContentParser.Token.VALUE_NULL
+                        || parser.currentToken() == XContentParser.Token.START_ARRAY
                         || parser.currentToken() == XContentParser.Token.START_OBJECT) {
                     list.add(supplier.get());
                 } else {

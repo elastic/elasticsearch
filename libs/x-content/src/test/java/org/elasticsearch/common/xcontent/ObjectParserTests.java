@@ -585,12 +585,14 @@ public class ObjectParserTests extends ESTestCase {
     public void testArraysOfGenericValues() throws IOException {
         XContentParser parser = createParser(
             JsonXContent.jsonXContent,
-            "{ \"test_array\": [ 1, null, \"3\", 4.2], \"int_array\":  [ 1, 2, 3] }"
+            "{ \"test_array\": [ 1, null, \"3\", 4.2], \"int_array\":  [ 1, 2, 3], \"multi_array\": [ [1, 2], [3, 4] ] }"
         );
         class TestStruct {
             List<Object> testArray = new ArrayList<>();
 
             List<Integer> ints = new ArrayList<>();
+
+            List<List<Integer> > multis = new ArrayList<>();
 
             public void setInts(List<Integer> ints) {
                 this.ints = ints;
@@ -599,6 +601,10 @@ public class ObjectParserTests extends ESTestCase {
             public void setArray(List<Object> testArray) {
                 this.testArray = testArray;
             }
+
+            public void setMultis(List<List<Integer>> multis) {
+                this.multis = multis;
+            }
         }
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");
         TestStruct s = new TestStruct();
@@ -606,9 +612,12 @@ public class ObjectParserTests extends ESTestCase {
         objectParser.declareFieldArray(TestStruct::setArray, (p, c) -> XContentParserUtils.parseFieldsValue(p),
             new ParseField("test_array"), ValueType.VALUE_ARRAY);
         objectParser.declareIntArray(TestStruct::setInts, new ParseField("int_array"));
+        objectParser.declareFieldArray(TestStruct::setMultis, (p, c) -> (List<Integer>) XContentParserUtils.parseFieldsValue(p),
+            new ParseField("multi_array"), ValueType.OBJECT_ARRAY);
         objectParser.parse(parser, s, null);
         assertEquals(s.testArray, Arrays.asList(1, null, "3", 4.2));
         assertEquals(s.ints, Arrays.asList(1, 2, 3));
+        assertEquals(s.multis, Arrays.asList(Arrays.asList(1, 2), Arrays.asList(3, 4)));
 
         parser = createParser(JsonXContent.jsonXContent, "{\"test_array\": 42}");
         s = new TestStruct();

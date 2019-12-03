@@ -124,7 +124,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      * @param other other repositories metadata
      * @return {@code true} iff both instances contain the same repositories apart from differences in generations
      */
-    public boolean equalSettings(@Nullable RepositoriesMetaData other) {
+    public boolean equalsIgnoreGenerations(@Nullable RepositoriesMetaData other) {
         if (other == null) {
             return false;
         }
@@ -132,7 +132,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
             return false;
         }
         for (int i = 0; i < repositories.size(); i++) {
-            if (repositories.get(i).equalSettings(other.repositories.get(i)) == false) {
+            if (repositories.get(i).equalsIgnoreGenerations(other.repositories.get(i)) == false) {
                 return false;
             }
         }

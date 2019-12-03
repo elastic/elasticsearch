@@ -982,7 +982,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // Tracks the latest known repository generation in a best-effort way to detect inconsistent listing of root level index-N blobs
     // and concurrent modifications.
-    // Protected for use in MockEventuallyConsistentRepository
     private final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.EMPTY_REPO_GEN);
 
     @Override
@@ -1123,8 +1122,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 private boolean assertExpectedGeneration(ClusterState newState) {
-                    final RepositoriesMetaData repositoriesMetaData = newState.metaData().custom(RepositoriesMetaData.TYPE);
-                    final RepositoryMetaData repoState = repositoriesMetaData.repository(metadata.name());
+                    final RepositoryMetaData repoState = getRepoMetaData(newState);
                     assert newGen == repoState.pendingGeneration()
                         : "State [" + repoState + "] did not contain assumed pending generation [" + newGen + "]";
                     return true;
@@ -1159,12 +1157,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         final RepositoryMetaData meta = getRepoMetaData(currentState);
-                        final long prevGeneration = meta.generation();
-                        if (prevGeneration != expectedGen) {
+                        if (meta.generation() != expectedGen) {
                             throw new IllegalStateException("Tried to update repo generation to [" + newGen
                                 + "] but saw unexpected generation in state [" + meta + "]");
                         }
-                        if (meta.pendingGeneration() == prevGeneration) {
+                        if (meta.pendingGeneration() == meta.generation()) {
                             throw new IllegalStateException(
                                 "Tried to update non-pending repo state [" + meta + "] after write to generation [" + newGen + "]");
                         }

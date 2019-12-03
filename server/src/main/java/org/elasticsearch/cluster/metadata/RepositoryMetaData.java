@@ -70,7 +70,7 @@ public class RepositoryMetaData {
         this.generation = generation;
         this.pendingGeneration = pendingGeneration;
         assert generation <= pendingGeneration :
-            "Pending generation [" + pendingGeneration + "] must be greater or equal generation [" + generation + "]";
+            "Pending generation [" + pendingGeneration + "] must be greater or equal to generation [" + generation + "]";
     }
 
     /**
@@ -158,7 +158,7 @@ public class RepositoryMetaData {
      * @param other other repository metadata
      * @return {@code true} if both instances equal in all fields but the generation fields
      */
-    public boolean equalSettings(RepositoryMetaData other) {
+    public boolean equalsIgnoreGenerations(RepositoryMetaData other) {
         return name.equals(other.name) && type.equals(other.type()) && settings.equals(other.settings());
     }
 

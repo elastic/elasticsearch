@@ -1,0 +1,19 @@
+{
+  "list_dangling_indices":{
+    "documentation":{
+      "description":"Returns all dangling indices."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_dangling",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

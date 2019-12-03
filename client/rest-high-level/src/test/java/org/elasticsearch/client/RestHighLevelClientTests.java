@@ -764,6 +764,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         String[] notYetSupportedApi = new String[]{
             "cluster.remote_info",
             "create",
+            "list_dangling_indices",
             "get_script_context",
             "get_script_languages",
             "get_source",

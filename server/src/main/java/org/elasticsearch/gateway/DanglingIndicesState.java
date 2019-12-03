@@ -65,24 +65,25 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
-    private final LocalAllocateDangledIndices allocateDangledIndices;
+    private final LocalAllocateDangledIndices danglingIndicesAllocator;
     private final boolean isAutoImportDanglingIndicesEnabled;
 
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     public DanglingIndicesState(NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                                LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {
+                                LocalAllocateDangledIndices danglingIndicesAllocator, ClusterService clusterService) {
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
-        this.allocateDangledIndices = allocateDangledIndices;
+        this.danglingIndicesAllocator = danglingIndicesAllocator;
 
         this.isAutoImportDanglingIndicesEnabled = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
 
-        if (this.isAutoImportDanglingIndicesEnabled) {
-            clusterService.addListener(this);
-        } else {
-            logger.warn(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey() + " is disabled, dangling indices will not be detected or imported");
+        clusterService.addListener(this);
+
+        if (this.isAutoImportDanglingIndicesEnabled == false) {
+            logger.warn(AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey()
+                + " is disabled, dangling indices will not be automatically imported");
         }
     }
 
@@ -106,7 +107,7 @@ public class DanglingIndicesState implements ClusterStateListener {
     /**
      * The current set of dangling indices.
      */
-    Map<Index, IndexMetaData> getDanglingIndices() {
+    public Map<Index, IndexMetaData> getDanglingIndices() {
         // This might be a good use case for CopyOnWriteHashMap
         return Map.copyOf(danglingIndices);
     }
@@ -142,7 +143,7 @@ public class DanglingIndicesState implements ClusterStateListener {
      * that have state on disk, but are not part of the provided meta data, or not detected
      * as dangled already.
      */
-    Map<Index, IndexMetaData> findNewDanglingIndices(final MetaData metaData) {
+    public Map<Index, IndexMetaData> findNewDanglingIndices(final MetaData metaData) {
         final Set<String> excludeIndexPathIds = new HashSet<>(metaData.indices().size() + danglingIndices.size());
         for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
             excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
@@ -188,15 +189,21 @@ public class DanglingIndicesState implements ClusterStateListener {
     }
 
     /**
-     * Allocates the provided list of the dangled indices by sending them to the master node
-     * for allocation.
+     * Allocates the detected list of dangling indices by sending them to the master node
+     * for allocation, provided auto-import is enabled via the
+     * {@link #AUTO_IMPORT_DANGLING_INDICES_SETTING} setting.
      */
     void allocateDanglingIndices() {
+        if (this.isAutoImportDanglingIndicesEnabled == false) {
+            return;
+        }
+
         if (danglingIndices.isEmpty()) {
             return;
         }
+
         try {
-            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
+            danglingIndicesAllocator.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
                 new ActionListener<>() {
                     @Override
                     public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {

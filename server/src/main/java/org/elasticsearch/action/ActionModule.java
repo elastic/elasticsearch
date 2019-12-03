@@ -104,6 +104,8 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
@@ -255,6 +257,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetSnapshotsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetTaskAction;
+import org.elasticsearch.rest.action.admin.cluster.RestListDanglingIndicesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestListTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
@@ -548,6 +551,9 @@ public class ActionModule extends AbstractModule {
         actions.register(RetentionLeaseActions.Renew.INSTANCE, RetentionLeaseActions.Renew.TransportAction.class);
         actions.register(RetentionLeaseActions.Remove.INSTANCE, RetentionLeaseActions.Remove.TransportAction.class);
 
+        // Dangling indices
+        actions.register(ListDanglingIndicesAction.INSTANCE, TransportListDanglingIndicesAction.class);
+
         // internal actions
         actions.register(GlobalCheckpointSyncAction.TYPE, GlobalCheckpointSyncAction.class);
         actions.register(TransportNodesSnapshotsStatus.TYPE, TransportNodesSnapshotsStatus.class);
@@ -680,6 +686,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetPipelineAction(restController));
         registerHandler.accept(new RestDeletePipelineAction(restController));
         registerHandler.accept(new RestSimulatePipelineAction(restController));
+
+        // Dangling indices API
+        registerHandler.accept(new RestListDanglingIndicesAction(restController));
 
         // CAT API
         registerHandler.accept(new RestAllocationAction(restController));

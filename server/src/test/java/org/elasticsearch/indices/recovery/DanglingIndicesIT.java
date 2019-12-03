@@ -19,7 +19,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
+import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.ListDanglingIndicesResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -29,6 +33,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
 import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class DanglingIndicesIT extends ESIntegTestCase {
@@ -91,5 +97,37 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             "Did not expect dangling index " + INDEX_NAME + " to be recovered",
             waitUntil(() -> indexExists(INDEX_NAME), 1, TimeUnit.SECONDS)
         );
+    }
+
+    /**
+     * Check that when dangling indices are discovered, then they can be listed via
+     * the dedicated API endpoint.
+     */
+    public void testDanglingIndicesCanBeListed() throws Exception {
+        internalCluster().startNodes(3, buildSettings(false));
+
+        createIndex(INDEX_NAME, Settings.builder().put("number_of_replicas", 2).build());
+
+        // Restart node, deleting the index in its absence, so that there is a dangling index to recover
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        assertBusy(() -> {
+            final ListDanglingIndicesResponse response = client().admin()
+                .cluster()
+                .listDanglingIndices(new ListDanglingIndicesRequest())
+                .actionGet();
+            assertThat(response.status(), equalTo(RestStatus.OK));
+            assertThat(response.getIndexInfo(), hasSize(1));
+
+            final DanglingIndexInfo danglingIndexInfo = response.getIndexInfo().get(0);
+            assertThat(danglingIndexInfo.getIndexName(), equalTo(INDEX_NAME));
+        });
     }
 }

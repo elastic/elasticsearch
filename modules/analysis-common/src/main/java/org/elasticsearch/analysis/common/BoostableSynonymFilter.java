@@ -252,8 +252,6 @@ public final class BoostableSynonymFilter extends TokenFilter {
   // optional boost factor for synonym tokens
   private final float boost;
 
-  public static final float DEFAULT_SYNONYM_BOOST = 0.95f;
-
   private final FST.Arc<BytesRef> scratchArc;
 
   private final FST<BytesRef> fst;
@@ -270,6 +268,18 @@ public final class BoostableSynonymFilter extends TokenFilter {
    * @param ignoreCase case-folds input for matching with {@link Character#toLowerCase(int)}.
    *                   Note, if you set this to true, it's your responsibility to lowercase
    *                   the input entries when you create the {@link SynonymMap}
+   */
+  public BoostableSynonymFilter(TokenStream input, SynonymMap synonyms, boolean ignoreCase) {
+      this(input, synonyms, ignoreCase, 1.0f);
+  }
+
+  /**
+   * @param input input tokenstream
+   * @param synonyms synonym map
+   * @param ignoreCase case-folds input for matching with {@link Character#toLowerCase(int)}.
+   *                   Note, if you set this to true, it's your responsibility to lowercase
+   *                   the input entries when you create the {@link SynonymMap}
+   * @param boost optional value of {@link BoostAttribute} set on each synonym token
    */
   public BoostableSynonymFilter(TokenStream input, SynonymMap synonyms, boolean ignoreCase, float boost) {
     super(input);
@@ -586,7 +596,9 @@ public final class BoostableSynonymFilter extends TokenFilter {
           clearAttributes();
           termAtt.copyBuffer(output.chars, output.offset, output.length);
           typeAtt.setType(TYPE_SYNONYM);
-          boostAtt.setBoost(boost);
+          if (Float.compare(boost, 1.0f) != 0) {
+              boostAtt.setBoost(boost);
+          }
           int endOffset = outputs.getLastEndOffset();
           if (endOffset == -1) {
             endOffset = input.endOffset;
@@ -627,7 +639,9 @@ public final class BoostableSynonymFilter extends TokenFilter {
           offsetAtt.setOffset(lastStartOffset, lastEndOffset);
           termAtt.copyBuffer(output.chars, output.offset, output.length);
           typeAtt.setType(TYPE_SYNONYM);
-          boostAtt.setBoost(boost);
+          if (Float.compare(boost, 1.0f) != 0) {
+              boostAtt.setBoost(boost);
+          }
           //System.out.println("  set posIncr=" + outputs.posIncr + " outputs=" + outputs);
           posIncrAtt.setPositionIncrement(posIncr);
           //System.out.println("  return token=" + termAtt.toString());

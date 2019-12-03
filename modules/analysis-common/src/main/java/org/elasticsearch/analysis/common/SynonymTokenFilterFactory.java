@@ -45,6 +45,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final DeprecationLogger DEPRECATION_LOGGER
         = new DeprecationLogger(LogManager.getLogger(SynonymTokenFilterFactory.class));
 
+    public static final float DEFAULT_SYNONYM_BOOST = 0.95f;
+
     private final String format;
     private final boolean expand;
     private final boolean lenient;
@@ -70,7 +72,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         boolean updateable = settings.getAsBoolean("updateable", false);
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
-        this.boost = settings.getAsFloat("boost", BoostableSynonymFilter.DEFAULT_SYNONYM_BOOST);
+        this.boost = settings.getAsFloat("boost", DEFAULT_SYNONYM_BOOST);
     }
 
     @Override

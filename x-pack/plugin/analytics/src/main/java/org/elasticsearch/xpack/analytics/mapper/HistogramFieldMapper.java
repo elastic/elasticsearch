@@ -411,11 +411,11 @@ public class HistogramFieldMapper extends FieldMapper {
         boolean isExhausted;
         ByteBufferStreamInput streamInput;
 
-        public InternalHistogramValue() {
+        InternalHistogramValue() {
         }
 
         /** reset the value for the histogram */
-        public void reset(BytesRef bytesRef) {
+        void reset(BytesRef bytesRef) {
             streamInput = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
             isExhausted = false;
             value = 0;

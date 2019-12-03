@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.transform.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -34,6 +36,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportDeleteTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportDeleteTransformAction.class);
 
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
@@ -80,6 +84,7 @@ public class TransportDeleteTransformAction extends TransportMasterNodeAction<Re
                 stopResponse -> transformConfigManager.deleteTransform(request.getId(),
                     ActionListener.wrap(
                         r -> {
+                            logger.debug("[{}] deleted transform", request.getId());
                             auditor.info(request.getId(), "Deleted transform.");
                             listener.onResponse(new AcknowledgedResponse(r));
                         },

@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml;
+package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
 
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -29,7 +28,7 @@ import java.util.stream.Stream;
 
 public class PrecisionMetricResultTests extends AbstractXContentTestCase<PrecisionMetric.Result> {
 
-    static PrecisionMetric.Result randomResult() {
+    public static PrecisionMetric.Result randomResult() {
         return new PrecisionMetric.Result(
             Stream
                 .generate(() -> randomDouble())

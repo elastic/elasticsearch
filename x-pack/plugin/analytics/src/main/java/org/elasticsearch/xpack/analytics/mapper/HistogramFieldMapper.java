@@ -202,7 +202,9 @@ public class HistogramFieldMapper extends FieldMapper {
                                 public HistogramValues getHistogramValues() throws IOException {
                                     try {
                                         final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
+                                        final InternalHistogramValue value = new InternalHistogramValue();
                                         return new HistogramValues() {
+
                                             @Override
                                             public boolean advanceExact(int doc) throws IOException {
                                                 return values.advanceExact(doc);
@@ -211,7 +213,8 @@ public class HistogramFieldMapper extends FieldMapper {
                                             @Override
                                             public HistogramValue histogram() throws IOException {
                                                 try {
-                                                    return getHistogramValue(values.binaryValue());
+                                                    value.reset(values.binaryValue());
+                                                    return value;
                                                 } catch (IOException e) {
                                                     throw new IOException("Cannot load doc value", e);
                                                 }
@@ -220,7 +223,6 @@ public class HistogramFieldMapper extends FieldMapper {
                                     } catch (IOException e) {
                                         throw new IOException("Cannot load doc values", e);
                                     }
-
                                 }
 
                                 @Override
@@ -259,44 +261,6 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
                     };
                 }
-
-                private HistogramValue getHistogramValue(final BytesRef bytesRef) throws IOException {
-                    final ByteBufferStreamInput streamInput = new ByteBufferStreamInput(
-                        ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
-                    return new HistogramValue() {
-                        double value;
-                        int count;
-                        boolean isExhausted;
-
-                        @Override
-                        public boolean next() throws IOException {
-                            if (streamInput.available() > 0) {
-                                count = streamInput.readVInt();
-                                value = streamInput.readDouble();
-                                return true;
-                            }
-                            isExhausted = true;
-                            return false;
-                        }
-
-                        @Override
-                        public double value() {
-                            if (isExhausted) {
-                                throw new IllegalArgumentException("histogram already exhausted");
-                            }
-                            return value;
-                        }
-
-                        @Override
-                        public int count() {
-                            if (isExhausted) {
-                                throw new IllegalArgumentException("histogram already exhausted");
-                            }
-                            return count;
-                        }
-                    };
-                }
-
             };
         }
 
@@ -437,6 +401,52 @@ public class HistogramFieldMapper extends FieldMapper {
         super.doXContentBody(builder, includeDefaults, params);
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
+        }
+    }
+
+    /** re-usable {@link HistogramValue} implementation */
+    private static class InternalHistogramValue extends HistogramValue {
+        double value;
+        int count;
+        boolean isExhausted;
+        ByteBufferStreamInput streamInput;
+
+        public InternalHistogramValue() {
+        }
+
+        /** reset the value for the histogram */
+        public void reset(BytesRef bytesRef) {
+            streamInput = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+            isExhausted = false;
+            value = 0;
+            count = 0;
+        }
+
+        @Override
+        public boolean next() throws IOException {
+            if (streamInput.available() > 0) {
+                count = streamInput.readVInt();
+                value = streamInput.readDouble();
+                return true;
+            }
+            isExhausted = true;
+            return false;
+        }
+
+        @Override
+        public double value() {
+            if (isExhausted) {
+                throw new IllegalArgumentException("histogram already exhausted");
+            }
+            return value;
+        }
+
+        @Override
+        public int count() {
+            if (isExhausted) {
+                throw new IllegalArgumentException("histogram already exhausted");
+            }
+            return count;
         }
     }
 }

@@ -118,6 +118,12 @@ unitTest {
      */
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
     include '**/*Tests.class'
+
+    /*
+     * Some tests in this module set up a lot of transport threads so we reduce the buffer size per transport thread from the 1M default
+     * to keep direct memory usage under control.
+     */
+    systemProperty 'es.transport.buffer.size', '256k'
 }
 
 integTestRunner {

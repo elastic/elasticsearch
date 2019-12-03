@@ -26,7 +26,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;

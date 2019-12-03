@@ -33,7 +33,11 @@ public class Ceil extends MathFunction {
 
     @Override
     public Number fold() {
-        return DataTypeConversion.toInteger((double) super.fold(), dataType());
+        Object result = super.fold();
+        if (result == null) {
+            return null;
+        }
+        return DataTypeConversion.toInteger((double) result, dataType());
     }
 
     @Override

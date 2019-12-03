@@ -487,7 +487,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    public void testSniffStrategyWillNeedToBeRebuiltIfSeedsOrProxyChange() {
+    public void testSniffStrategyWillNeedToBeRebuiltIfNumOfConnectionsOrSeedsOrProxyChange() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
              MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
@@ -516,9 +516,12 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
                     Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias");
                     Setting<?> proxySetting = SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> numConnections = SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS
+                        .getConcreteSettingForNamespace("cluster-alias");
 
                     Settings noChange = Settings.builder()
                         .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .put(numConnections.getKey(), 3)
                         .build();
                     assertFalse(strategy.shouldRebuildConnection(noChange));
                     Settings seedsChanged = Settings.builder()
@@ -530,6 +533,11 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         .put(proxySetting.getKey(), "proxy_address:9300")
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(proxyChanged));
+                    Settings connectionsChanged = Settings.builder()
+                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .put(numConnections.getKey(), 4)
+                        .build();
+                    assertTrue(strategy.shouldRebuildConnection(connectionsChanged));
                 }
             }
         }

@@ -227,6 +227,45 @@ public class BinaryArithmeticTests extends ESTestCase {
         Period p = interval.interval();
         assertEquals(Period.ofYears(2).negated(), p);
     }
+    
+    public void testMulNullInterval() {
+        Literal literal = interval(Period.ofMonths(1), INTERVAL_MONTH);
+        Mul result = new Mul(EMPTY, L(null), literal);
+        assertTrue(result.foldable());
+        assertNull(result.fold());
+        assertEquals(INTERVAL_MONTH, result.dataType());
+        
+        result = new Mul(EMPTY, literal, L(null));
+        assertTrue(result.foldable());
+        assertNull(result.fold());
+        assertEquals(INTERVAL_MONTH, result.dataType());
+    }
+
+    public void testAddNullInterval() {
+        Literal literal = interval(Period.ofMonths(1), INTERVAL_MONTH);
+        Add result = new Add(EMPTY, L(null), literal);
+        assertTrue(result.foldable());
+        assertNull(result.fold());
+        assertEquals(INTERVAL_MONTH, result.dataType());
+        
+        result = new Add(EMPTY, literal, L(null));
+        assertTrue(result.foldable());
+        assertNull(result.fold());
+        assertEquals(INTERVAL_MONTH, result.dataType());
+    }
+
+    public void testSubNullInterval() {
+        Literal literal = interval(Period.ofMonths(1), INTERVAL_MONTH);
+        Sub result = new Sub(EMPTY, L(null), literal);
+        assertTrue(result.foldable());
+        assertNull(result.fold());
+        assertEquals(INTERVAL_MONTH, result.dataType());
+        
+        result = new Sub(EMPTY, literal, L(null));
+        assertTrue(result.foldable());
+        assertNull(result.fold());
+        assertEquals(INTERVAL_MONTH, result.dataType());
+    }
 
     @SuppressWarnings("unchecked")
     private static <T> T add(Object l, Object r) {

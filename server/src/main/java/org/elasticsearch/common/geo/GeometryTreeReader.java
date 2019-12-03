@@ -73,7 +73,8 @@ public class GeometryTreeReader implements ShapeTreeReader {
         if (extent != null) {
             return extent;
         }
-        assert input.readVInt() == 1;
+        int numShapes = input.readVInt();
+        assert numShapes == 1;
         ShapeType shapeType = input.readEnum(ShapeType.class);
         ShapeTreeReader reader = getReader(shapeType, coordinateEncoder, input);
         return reader.getExtent();

@@ -599,7 +599,7 @@ public class MatchQuery {
             Float previousValue = null;
             for (TermAndBoost term : terms) {
                 float boost = term.getBoost();
-                if (previousValue != null && Float.compare(previousValue, boost) > 0) {
+                if (previousValue != null && Float.compare(previousValue, boost) != 0) {
                     allSame = false;
                 }
                 previousValue = boost;

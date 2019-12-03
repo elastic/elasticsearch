@@ -45,16 +45,21 @@ public class MatchQueryBuilderTests extends ESTestCase {
         Term term = new Term("field", "term1");
 
         // when all boosts are the same, we expect boosts in query to be the default of 1.0f
-        termsAndBoosts.add(new TermAndBoost(term, 0.95f));
+        float boost = randomFloat();
+        termsAndBoosts.add(new TermAndBoost(term, boost));
         expected.addTerm(term);
         assertEquals(expected.build(), mqb.newSynonymQuery("field", termsAndBoosts));
-        termsAndBoosts.add(new TermAndBoost(term, 0.95f));
+        termsAndBoosts.add(new TermAndBoost(term, boost));
         expected.addTerm(term);
         assertEquals(expected.build(), mqb.newSynonymQuery("field", termsAndBoosts));
 
-        // when a boost is different, we want to weigh the terms individually
-        termsAndBoosts.add(new TermAndBoost(term, 1.0f));
-        expected.addTerm(term, 1.0f);
+        // when a boost is different for some terms, we want to weigh the terms individually
+        float differentBoost = randomValueOtherThanMany(v -> Float.compare(boost, v) == 0, () -> randomFloat());
+        termsAndBoosts.add(new TermAndBoost(term, differentBoost));
+        expected = new SynonymQuery.Builder("field");
+        expected.addTerm(term, boost);
+        expected.addTerm(term, boost);
+        expected.addTerm(term, differentBoost);
         assertEquals(expected.build(), mqb.newSynonymQuery("field", termsAndBoosts));
     }
 

@@ -22,17 +22,17 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class ScriptLanguagesInfoTests extends ESTestCase {
-    // Test empty types allowed, INLINE only, STORED only, INLINE and STORED - DONE
-    // Test empty contexts allowed with different engines, search only, update only, search and update
-    // Test expression, mustache, painless and empty engines
-
     public void testEmptyTypesAllowedReturnsAllTypes() {
         ScriptService ss = getMockScriptService(Settings.EMPTY);
         ScriptLanguagesInfo info = ss.getScriptLanguages();
@@ -72,5 +72,63 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
         return new ScriptService(settings, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
+
+    public interface MiscContext {
+        void execute();
+        Object newInstance();
+    }
+
+    public void testOnlyScriptEngineContextsReturned() {
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+            Collections.singletonMap("test_script", script -> 1),
+            Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+
+        Map<String, ScriptContext<?>> mockContexts =  scriptEngine.getSupportedContexts().stream().collect(Collectors.toMap(
+            c -> c.name,
+            Function.identity()
+        ));
+        String miscContext = "misc_context";
+        assertFalse(mockContexts.containsKey(miscContext));
+
+        Map<String, ScriptContext<?>> mockAndMiscContexts = new HashMap<>(mockContexts);
+        mockAndMiscContexts.put(miscContext, new ScriptContext<>(miscContext, MiscContext.class));
+
+        ScriptService ss = new ScriptService(Settings.EMPTY, engines, mockAndMiscContexts);
+        ScriptLanguagesInfo info = ss.getScriptLanguages();
+
+        assertTrue(info.languageContexts.containsKey(MockScriptEngine.NAME));
+        assertEquals(1, info.languageContexts.size());
+        assertEquals(mockContexts.keySet(), info.languageContexts.get(MockScriptEngine.NAME));
+    }
+
+    public void testContextsAllowedSettingRespected() {
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+            Collections.singletonMap("test_script", script -> 1),
+            Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+        Map<String, ScriptContext<?>> mockContexts =  scriptEngine.getSupportedContexts().stream().collect(Collectors.toMap(
+            c -> c.name,
+            Function.identity()
+        ));
+
+        List<String> allContexts = new ArrayList<>(mockContexts.keySet());
+        List<String> allowed = allContexts.subList(0, allContexts.size()/2);
+        String miscContext = "misc_context";
+        allowed.add(miscContext);
+        // check that allowing more than available doesn't pollute the returned contexts
+        Settings.Builder settings = Settings.builder().putList("script.allowed_contexts", allowed);
+
+        Map<String, ScriptContext<?>> mockAndMiscContexts = new HashMap<>(mockContexts);
+        mockAndMiscContexts.put(miscContext, new ScriptContext<>(miscContext, MiscContext.class));
+
+        ScriptService ss = new ScriptService(settings.build(), engines, mockAndMiscContexts);
+        ScriptLanguagesInfo info = ss.getScriptLanguages();
+
+        assertTrue(info.languageContexts.containsKey(MockScriptEngine.NAME));
+        assertEquals(1, info.languageContexts.size());
+        assertEquals(new HashSet<>(allContexts.subList(0, allContexts.size()/2)), info.languageContexts.get(MockScriptEngine.NAME));
     }
 }

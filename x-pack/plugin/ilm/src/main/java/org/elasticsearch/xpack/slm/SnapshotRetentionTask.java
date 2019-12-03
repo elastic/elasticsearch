@@ -388,7 +388,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         ActionListener<AcknowledgedResponse> listener) {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot);
         CountDownLatch latch = new CountDownLatch(1);
-        client.admin().cluster().prepareDeleteSnapshots(repo, snapshot.getName())
+        client.admin().cluster().prepareDeleteSnapshots(repo, new String[]{snapshot.getName()})
             .execute(new LatchedActionListener<>(new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {

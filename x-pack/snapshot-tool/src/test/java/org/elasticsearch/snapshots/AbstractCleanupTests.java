@@ -262,12 +262,12 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
             logger.info("--> perform cleanup by removing snapshots");
             assertTrue(client().admin()
                     .cluster()
-                    .prepareDeleteSnapshots("test-repo", "snap1")
+                    .prepareDeleteSnapshots("test-repo", new String[]{"snap1"})
                     .get()
                     .isAcknowledged());
             assertTrue(client().admin()
                     .cluster()
-                    .prepareDeleteSnapshots("test-repo", "snap2")
+                    .prepareDeleteSnapshots("test-repo", new String[]{"snap2"})
                     .get()
                     .isAcknowledged());
         }

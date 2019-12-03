@@ -131,7 +131,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         assertTrue(client().admin()
                 .cluster()
-                .prepareDeleteSnapshots("test-repo", snapshotName)
+                .prepareDeleteSnapshots("test-repo", new String[]{snapshotName})
                 .get()
                 .isAcknowledged());
     }

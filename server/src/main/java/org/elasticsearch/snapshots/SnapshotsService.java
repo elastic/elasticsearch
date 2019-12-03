@@ -1242,7 +1242,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             repositoryStateId
                         );
                         if (deletionsInProgress != null) {
-                            deletionsInProgress = deletionsInProgress.withAddedEntry(entry);
+                            if (deletionsInProgress.getEntries().stream().noneMatch(
+                                e -> e.getSnapshot().getSnapshotId().equals(snapshot))) {
+                                deletionsInProgress = deletionsInProgress.withAddedEntry(entry);
+                            }
                         } else {
                             deletionsInProgress = SnapshotDeletionsInProgress.newInstance(entry);
                         }

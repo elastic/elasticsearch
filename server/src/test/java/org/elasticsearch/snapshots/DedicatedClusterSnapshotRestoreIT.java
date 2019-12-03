@@ -474,7 +474,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> execution was blocked on node [{}], aborting snapshot", blockedNode);
 
         ActionFuture<AcknowledgedResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0))
-            .admin().cluster().prepareDeleteSnapshots("test-repo", "test-snap").execute();
+            .admin().cluster().prepareDeleteSnapshots("test-repo", new String[]{"test-snap"}).execute();
         // Make sure that abort makes some progress
         Thread.sleep(100);
         unblockNode("test-repo", blockedNode);
@@ -1157,7 +1157,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         //  drop 1st one to avoid miscalculation as snapshot reuses some files of prev snapshot
         assertTrue(client.admin().cluster()
-            .prepareDeleteSnapshots(repositoryName, snapshot0)
+            .prepareDeleteSnapshots(repositoryName, new String[]{snapshot0})
             .get().isAcknowledged());
 
         response = client.admin().cluster().prepareSnapshotStatus(repositoryName)

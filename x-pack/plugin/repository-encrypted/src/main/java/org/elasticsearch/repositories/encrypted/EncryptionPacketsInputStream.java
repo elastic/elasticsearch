@@ -83,7 +83,7 @@ public final class EncryptionPacketsInputStream extends ChainPacketsInputStream 
         packetIv.putLong(4, counter++);
         if (counter == EncryptedRepository.PACKET_START_COUNTER) {
             // counter wrap around
-            throw new IOException("Maximum packet count limit exceeded");
+            throw new Error("Maximum packet count limit exceeded");
         }
         Cipher packetCipher = getPacketEncryptionCipher(secretKey, packetIv.array());
         encryptionInputStream = new CipherInputStream(encryptionInputStream, packetCipher);

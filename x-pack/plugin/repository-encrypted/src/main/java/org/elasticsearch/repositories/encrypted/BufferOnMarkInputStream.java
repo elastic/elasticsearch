@@ -128,8 +128,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
                 head = position;
             } else {
                 // discard buffer leftovers
-                tail = head;
-                position = head;
+                head = tail = position = 0;
             }
         }
     }
@@ -175,13 +174,43 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
         return readLength;
     }
 
-    private int getRemainingBufferCapacity() {
+    // protected for tests
+    protected int getRemainingBufferCapacity() {
+        if (ringBuffer == null) {
+            return 0;
+        }
         if (head == tail) {
             return ringBuffer.length - 1;
         } else if (head < tail) {
             return ringBuffer.length - tail + head - 1;
         } else {
             return head - tail - 1;
+        }
+    }
+
+    //protected for tests
+    protected int getRemainingBufferToRead() {
+        if (ringBuffer == null) {
+            return 0;
+        }
+        if (head <= tail) {
+            return tail - position;
+        } else if (position >= head) {
+            return ringBuffer.length - position + tail;
+        } else {
+            return tail - position;
+        }
+    }
+
+    // protected for tests
+    protected int getCurrentBufferCount() {
+        if (ringBuffer == null) {
+            return 0;
+        }
+        if (head <= tail) {
+            return tail - head;
+        } else {
+            return ringBuffer.length - head + tail;
         }
     }
 

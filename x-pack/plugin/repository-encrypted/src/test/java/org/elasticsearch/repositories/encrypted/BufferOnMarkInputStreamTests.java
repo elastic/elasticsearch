@@ -15,12 +15,11 @@ import java.util.Arrays;
 
 public class BufferOnMarkInputStreamTests extends ESTestCase {
 
-    private static int TEST_ARRAY_SIZE = 128;
     private static byte[] testArray;
 
     @BeforeClass
     static void createTestArray() throws Exception {
-        testArray = new byte[TEST_ARRAY_SIZE];
+        testArray = new byte[128];
         for (int i = 0; i < testArray.length; i++) {
             testArray[i] = (byte) i;
         }
@@ -31,11 +30,19 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
             for (int mark = 1; mark <= length; mark++) {
                 try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), mark)) {
                     in.mark(mark);
+                    assertThat(in.getCurrentBufferCount(), Matchers.is(0));
+                    assertThat(in.getRemainingBufferCapacity(), Matchers.is(mark));
                     byte[] test1 = in.readNBytes(mark);
                     assertArray(0, test1);
+                    assertThat(in.getCurrentBufferCount(), Matchers.is(mark));
+                    assertThat(in.getRemainingBufferCapacity(), Matchers.is(0));
                     in.reset();
+                    assertThat(in.getCurrentBufferCount(), Matchers.is(mark));
+                    assertThat(in.getRemainingBufferCapacity(), Matchers.is(0));
                     byte[] test2 = in.readNBytes(mark);
                     assertArray(0, test2);
+                    assertThat(in.getCurrentBufferCount(), Matchers.is(mark));
+                    assertThat(in.getRemainingBufferCapacity(), Matchers.is(0));
                 }
             }
         }
@@ -45,6 +52,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         for (int length = 1; length <= 16; length++) {
             try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), length)) {
                 in.mark(length);
+                // increasing length read/reset
                 for (int readLen = 1; readLen <= length; readLen++) {
                     byte[] test1 = in.readNBytes(readLen);
                     assertArray(0, test1);
@@ -53,6 +61,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
             }
             try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), length)) {
                 in.mark(length);
+                // decreasing length read/reset
                 for (int readLen = length; readLen >= 1; readLen--) {
                     byte[] test1 = in.readNBytes(readLen);
                     assertArray(0, test1);
@@ -70,10 +79,18 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                         // skip first offset bytes
                         in.readNBytes(offset);
                         in.mark(mark);
+                        assertThat(in.getCurrentBufferCount(), Matchers.is(0));
+                        assertThat(in.getRemainingBufferCapacity(), Matchers.is(mark));
                         byte[] test1 = in.readNBytes(mark);
                         assertArray(offset, test1);
+                        assertThat(in.getCurrentBufferCount(), Matchers.is(mark));
+                        assertThat(in.getRemainingBufferCapacity(), Matchers.is(0));
                         in.reset();
+                        assertThat(in.getCurrentBufferCount(), Matchers.is(mark));
+                        assertThat(in.getRemainingBufferCapacity(), Matchers.is(0));
                         byte[] test2 = in.readNBytes(mark);
+                        assertThat(in.getCurrentBufferCount(), Matchers.is(mark));
+                        assertThat(in.getRemainingBufferCapacity(), Matchers.is(0));
                         assertArray(offset, test2);
                     }
                 }
@@ -120,21 +137,69 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                         try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length),
                                 length)) {
                             in.readNBytes(offset);
+                            assertThat(in.getCurrentBufferCount(), Matchers.is(0));
+                            assertThat(in.getRemainingBufferCapacity(), Matchers.is(0));
+                            assertThat(in.getRemainingBufferToRead(), Matchers.is(0));
                             // first mark
                             in.mark(length - offset);
+                            assertThat(in.getCurrentBufferCount(), Matchers.is(0));
+                            assertThat(in.getRemainingBufferCapacity(), Matchers.is(length));
+                            assertThat(in.getRemainingBufferToRead(), Matchers.is(0));
                             byte[] test = in.readNBytes(readLen);
                             assertArray(offset, test);
+                            assertThat(in.getCurrentBufferCount(), Matchers.is(readLen));
+                            assertThat(in.getRemainingBufferCapacity(), Matchers.is(length - readLen));
+                            assertThat(in.getRemainingBufferToRead(), Matchers.is(readLen));
                             // reset to first
                             in.reset();
+                            assertThat(in.getCurrentBufferCount(), Matchers.is(readLen));
+                            assertThat(in.getRemainingBufferCapacity(), Matchers.is(length - readLen));
+                            assertThat(in.getRemainingBufferToRead(), Matchers.is(readLen));
                             // advance before/after the first read length
                             test = in.readNBytes(markLen);
+                            assertThat(in.getCurrentBufferCount(), Matchers.is(Math.max(readLen, markLen)));
+                            assertThat(in.getRemainingBufferCapacity(), Matchers.is(length - Math.max(readLen, markLen)));
+                            if (markLen <= readLen) {
+                                assertThat(in.getRemainingBufferToRead(), Matchers.is(readLen - markLen));
+                            } else {
+                                assertThat(in.resetCalled, Matchers.is(false));
+                            }
                             assertArray(offset, test);
                             // second mark
                             in.mark(length - offset - markLen);
+                            if (markLen <= readLen) {
+                                assertThat(in.getCurrentBufferCount(), Matchers.is(readLen - markLen));
+                                assertThat(in.getRemainingBufferCapacity(), Matchers.is(length - readLen + markLen));
+                                assertThat(in.getRemainingBufferToRead(), Matchers.is(readLen - markLen));
+                            } else {
+                                assertThat(in.getCurrentBufferCount(), Matchers.is(0));
+                                assertThat(in.getRemainingBufferCapacity(), Matchers.is(length));
+                                assertThat(in.getRemainingBufferToRead(), Matchers.is(0));
+                            }
                             for (int readLen2 = 1; readLen2 <= length - offset - markLen; readLen2++) {
                                 byte[] test2 = in.readNBytes(readLen2);
+                                if (markLen + readLen2 <= readLen) {
+                                    assertThat(in.getCurrentBufferCount(), Matchers.is(readLen - markLen));
+                                    assertThat(in.getRemainingBufferCapacity(), Matchers.is(length - readLen + markLen));
+                                    assertThat(in.resetCalled, Matchers.is(true));
+                                    assertThat(in.getRemainingBufferToRead(), Matchers.is(readLen - markLen - readLen2));
+                                } else {
+                                    assertThat(in.getCurrentBufferCount(), Matchers.is(readLen2));
+                                    assertThat(in.getRemainingBufferCapacity(), Matchers.is(length - readLen2));
+                                    assertThat(in.resetCalled, Matchers.is(false));
+                                }
                                 assertArray(offset + markLen, test2);
                                 in.reset();
+                                assertThat(in.resetCalled, Matchers.is(true));
+                                if (markLen + readLen2 <= readLen) {
+                                    assertThat(in.getCurrentBufferCount(), Matchers.is(readLen - markLen));
+                                    assertThat(in.getRemainingBufferCapacity(), Matchers.is(length - readLen + markLen));
+                                    assertThat(in.getRemainingBufferToRead(), Matchers.is(readLen - markLen));
+                                } else {
+                                    assertThat(in.getCurrentBufferCount(), Matchers.is(readLen2));
+                                    assertThat(in.getRemainingBufferCapacity(), Matchers.is(length - readLen2));
+                                    assertThat(in.getRemainingBufferToRead(), Matchers.is(readLen2));
+                                }
                             }
                         }
                     }
@@ -143,9 +208,28 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         }
     }
 
+    public void testMarkWithoutReset() throws Exception {
+        int maxMark = 8;
+        BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, testArray.length), maxMark);
+        int offset = 0;
+        while (offset < testArray.length) {
+            int readLen = Math.min(1 + Randomness.get().nextInt(maxMark), testArray.length - offset);
+            in.mark(Randomness.get().nextInt(readLen));
+            assertThat(in.getCurrentBufferCount(), Matchers.is(0));
+            assertThat(in.getRemainingBufferCapacity(), Matchers.is(maxMark));
+            assertThat(in.getRemainingBufferToRead(), Matchers.is(0));
+            byte[] test = in.readNBytes(readLen);
+            assertThat(in.getCurrentBufferCount(), Matchers.is(readLen));
+            assertThat(in.getRemainingBufferCapacity(), Matchers.is(maxMark - readLen));
+            assertThat(in.getRemainingBufferToRead(), Matchers.is(readLen));
+            assertArray(offset, test);
+            offset += readLen;
+        }
+    }
+
     public void testThreeMarkResetMarkSteps() throws Exception {
-        int length = 16;
-        int stepLen = 8;
+        int length = 8 + Randomness.get().nextInt(8);
+        int stepLen = 4 + Randomness.get().nextInt(4);
         BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), stepLen);
         testMarkResetMarkStep(in, 0, length, stepLen, 2);
     }
@@ -154,9 +238,12 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         stream.mark(stepLen);
         for (int readLen = 1; readLen <= Math.min(stepLen, length - offset); readLen++) {
             for (int markLen = 1; markLen <= Math.min(stepLen, length - offset); markLen++) {
+                // read ahead
                 byte[] test = stream.readNBytes(readLen);
                 assertArray(offset, test);
+                // reset back
                 stream.reset();
+                // read ahead different length
                 test = stream.readNBytes(markLen);
                 assertArray(offset, test);
                 if (step > 0) {
@@ -176,6 +263,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                     cloneStream.closed = stream.closed;
                     testMarkResetMarkStep(cloneStream, offset + markLen, length, stepLen, step - 1);
                 }
+                // reset back
                 stream.reset();
             }
         }

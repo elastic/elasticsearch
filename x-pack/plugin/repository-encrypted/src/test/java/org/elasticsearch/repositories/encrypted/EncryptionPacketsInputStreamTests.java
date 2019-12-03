@@ -153,7 +153,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
             encryptionInputStream.reset();
             test = encryptionInputStream.readNBytes(
                     encryptedPacketSize - middlePacketOffset + 1 + Randomness.get().nextInt(encryptedPacketSize));
-            assertSubArray(referenceCiphertextArray, encryptedPacketSize - middlePacketOffset, test, 0, test.length);
+            assertSubArray(referenceCiphertextArray, encryptedPacketSize + middlePacketOffset, test, 0, test.length);
         }
     }
 

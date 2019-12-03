@@ -104,7 +104,7 @@ public class RepositoryMetaData {
      * Returns the safe repository generation. {@link RepositoryData} for this generation is assumed to exist in the repository.
      * All operations on the repository must be based on the {@link RepositoryData} at this generation.
      * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
-     * on how hits value is used during snapshots.
+     * on how this value is used during snapshots.
      * @return safe repository generation
      */
     public long generation() {
@@ -116,7 +116,7 @@ public class RepositoryMetaData {
      * generation {@link #generation} may exist in the repository and should not be reused for writing new {@link RepositoryData} to the
      * repository.
      * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
-     * on how hits value is used during snapshots.
+     * on how this value is used during snapshots.
      *
      * @return highest pending repository generation
      */

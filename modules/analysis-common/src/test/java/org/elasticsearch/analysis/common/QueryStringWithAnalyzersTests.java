@@ -19,13 +19,25 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -37,9 +49,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 
-public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
+public class QueryStringWithAnalyzersTests extends ESSingleNodeTestCase {
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
+    protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(CommonAnalysisPlugin.class);
     }
 
@@ -67,7 +79,7 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource(
                 "field1", "foo bar baz",
                 "field2", "not needed").get();
-        refresh();
+        client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse response = client()
                 .prepareSearch("test")
@@ -93,7 +105,7 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource("field1", "fast car").get();
         client().prepareIndex("test").setId("2").setSource("field1", "fast auto").get();
-        refresh();
+        client().admin().indices().prepareRefresh("test").get();
 
         // test single token case
         SearchResponse response = client().prepareSearch("test").setQuery(matchQuery("field1", "car")).get();
@@ -125,10 +137,60 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
                     "field1", "fast car"));
         }
         prepareBulk.get();
-        refresh("test");
+        client().admin().indices().prepareRefresh("test").get();
 
         response = client().prepareSearch("test").setQuery(matchQuery("field1", "auto")).get();
         assertHitCount(response, numDocs + 2);
         assertFirstHit(response, hasId("2"));
+    }
+
+    //@Repeat(iterations = 100)
+    public void testMatchQueryWithSynonyms() throws IOException {
+        float randomBoost = (randomFloat() * 0.1f) + 0.80f;
+        Settings settings = Settings.builder()
+                .put("analysis.analyzer.my_analyzer.type", "custom")
+                .put("analysis.analyzer.my_analyzer.tokenizer", "whitespace")
+                .put("analysis.analyzer.my_analyzer.filter", "custom_synonym")
+                .put("analysis.filter.custom_synonym.type", "synonym")
+                .put("analysis.filter.custom_synonym.boost", randomBoost)
+                .putList("analysis.filter.custom_synonym.synonyms", "car, auto")
+                .build();
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("doc")
+                    .startObject("properties")
+                        .startObject("field1")
+                           .field("type", "text")
+                           .field("analyzer", "standard")
+                           .field("search_analyzer", "my_analyzer")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+
+        IndexService indexService = createIndex("test", settings, "doc", mapping);
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+                randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
+
+
+        final MatchQuery matchQuery = new MatchQuery(queryShardContext);
+        SynonymQuery synonymQuery = new SynonymQuery.Builder("field1")
+                .addTerm(new Term("field1", "car"), 1.0f)
+                .addTerm(new Term("field1", "auto"), randomBoost)
+                .build();
+
+        {
+            final Query actual = matchQuery.parse(MatchQuery.Type.BOOLEAN, "field1", "car");
+            final Query expected = synonymQuery;
+            assertEquals(expected, actual);
+        }
+        {
+            final Query actual = matchQuery.parse(MatchQuery.Type.BOOLEAN, "field1", "fast car");
+
+            BooleanQuery expected = new BooleanQuery.Builder()
+                .add((new BooleanClause(new TermQuery(new Term("field1", "fast")), BooleanClause.Occur.SHOULD)))
+                .add((new BooleanClause(synonymQuery, BooleanClause.Occur.SHOULD)))
+                .build();
+            assertEquals(expected, actual);
+        }
     }
 }

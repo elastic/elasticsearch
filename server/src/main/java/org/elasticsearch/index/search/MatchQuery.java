@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
-import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
@@ -34,6 +33,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermAndBoost;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -174,8 +174,6 @@ public class MatchQuery {
     protected ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
-
-    static final float DEFAULT_SYNONYM_BOOST = 0.95f;
 
     public MatchQuery(QueryShardContext context) {
         this.context = context;
@@ -584,11 +582,12 @@ public class MatchQuery {
         protected Query analyzeBoolean(String field, TokenStream stream) throws IOException {
             TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
             TypeAttribute typeAtt = stream.getAttribute(TypeAttribute.class);
+            BoostAttribute boostAtt = stream.getAttribute(BoostAttribute.class);
 
             stream.reset();
             List<TermAndBoost> terms = new ArrayList<>();
             while (stream.incrementToken()) {
-                terms.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getTokenTypeBoost(typeAtt)));
+                terms.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getTokenTypeBoost(typeAtt, boostAtt)));
             }
             return newSynonymQuery(field, terms);
         }
@@ -625,6 +624,7 @@ public class MatchQuery {
             PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
             OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
             TypeAttribute typeAtt = stream.addAttribute(TypeAttribute.class);
+            BoostAttribute boostAtt = stream.addAttribute(BoostAttribute.class);
 
             stream.reset();
             int lastOffset = 0;
@@ -633,7 +633,7 @@ public class MatchQuery {
                     add(q, field, currentQuery, operator, false);
                     currentQuery.clear();
                 }
-                currentQuery.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getTokenTypeBoost(typeAtt)));
+                currentQuery.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getTokenTypeBoost(typeAtt, boostAtt)));
                 lastOffset = offsetAtt.endOffset();
             }
             stream.end();
@@ -661,11 +661,15 @@ public class MatchQuery {
             }
         }
 
-        private float getTokenTypeBoost(TypeAttribute typeAtt) {
+        private float getTokenTypeBoost(TypeAttribute typeAtt, BoostAttribute boostAtt) {
             if (typeAtt == null) {
                 return 1.0f; // default when no type attribute is available
+            } else {
+                if (boostAtt == null) {
+                    return 0.95f; // default when no type attribute is available
+                }
             }
-            return typeAtt.type().contentEquals(SynonymGraphFilter.TYPE_SYNONYM) ? DEFAULT_SYNONYM_BOOST : 1.0f;
+            return boostAtt.getBoost();
         }
 
         @Override

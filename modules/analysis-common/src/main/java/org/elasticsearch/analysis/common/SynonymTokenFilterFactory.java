@@ -22,7 +22,6 @@ package org.elasticsearch.analysis.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +51,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final Settings settings;
     protected final Environment environment;
     protected final AnalysisMode analysisMode;
+    private final float boost;
 
     SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env,
                                       String name, Settings settings) {
@@ -70,6 +70,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         boolean updateable = settings.getAsBoolean("updateable", false);
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
+        this.boost = settings.getAsFloat("boost", BoostableSynonymFilter.DEFAULT_SYNONYM_BOOST);
     }
 
     @Override
@@ -97,7 +98,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return synonyms.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonyms, false);
+                return synonyms.fst == null ? tokenStream : new BoostableSynonymFilter(tokenStream, synonyms, false, boost);
             }
 
             @Override

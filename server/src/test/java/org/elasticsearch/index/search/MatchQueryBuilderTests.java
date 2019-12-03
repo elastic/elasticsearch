@@ -42,13 +42,13 @@ public class MatchQueryBuilderTests extends ESTestCase {
 
         SynonymQuery.Builder expected = new SynonymQuery.Builder("field");
         assertEquals(expected.build(), mqb.newSynonymQuery("field", termsAndBoosts));
-        Term term = new Term("field","term1");
+        Term term = new Term("field", "term1");
 
         // when all boosts are the same, we expect boosts in query to be the default of 1.0f
-        termsAndBoosts.add(new TermAndBoost(term, MatchQuery.DEFAULT_SYNONYM_BOOST));
+        termsAndBoosts.add(new TermAndBoost(term, 0.95f));
         expected.addTerm(term);
         assertEquals(expected.build(), mqb.newSynonymQuery("field", termsAndBoosts));
-        termsAndBoosts.add(new TermAndBoost(term, MatchQuery.DEFAULT_SYNONYM_BOOST));
+        termsAndBoosts.add(new TermAndBoost(term, 0.95f));
         expected.addTerm(term);
         assertEquals(expected.build(), mqb.newSynonymQuery("field", termsAndBoosts));
 

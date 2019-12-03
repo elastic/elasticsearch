@@ -30,7 +30,7 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -165,7 +165,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         if (waitForCompletion == false) {
             // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
             AcknowledgedResponse deleteResponse = execute(
-                    new DeleteSnapshotRequest(repository, snapshot),
+                    new DeleteSnapshotsRequest(repository, snapshot),
                     highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
             );
             assertTrue(deleteResponse.isAcknowledged());
@@ -301,7 +301,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
 
-        DeleteSnapshotRequest request = new DeleteSnapshotRequest(repository, snapshot);
+        DeleteSnapshotsRequest request = new DeleteSnapshotsRequest(repository, snapshot);
         AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync);
 
         assertTrue(response.isAcknowledged());

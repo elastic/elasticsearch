@@ -28,7 +28,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
@@ -267,12 +267,12 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
 
         String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s", repository, snapshot);
 
-        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest();
-        deleteSnapshotRequest.repository(repository);
-        deleteSnapshotRequest.snapshot(snapshot);
-        RequestConvertersTests.setRandomMasterTimeout(deleteSnapshotRequest, expectedParams);
+        DeleteSnapshotsRequest deleteSnapshotsRequest = new DeleteSnapshotsRequest();
+        deleteSnapshotsRequest.repository(repository);
+        deleteSnapshotsRequest.snapshots(new String[]{snapshot});
+        RequestConvertersTests.setRandomMasterTimeout(deleteSnapshotsRequest, expectedParams);
 
-        Request request = SnapshotRequestConverters.deleteSnapshot(deleteSnapshotRequest);
+        Request request = SnapshotRequestConverters.deleteSnapshot(deleteSnapshotsRequest);
         assertThat(request.getEndpoint(), equalTo(endpoint));
         assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
         assertThat(request.getParameters(), equalTo(expectedParams));

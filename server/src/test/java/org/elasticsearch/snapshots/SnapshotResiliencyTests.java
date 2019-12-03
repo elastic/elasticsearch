@@ -40,7 +40,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAct
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -409,7 +409,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
 
         continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
-            new DeleteSnapshotRequest(repoName, snapshotName), deleteSnapshotStepListener));
+            new DeleteSnapshotsRequest(repoName, snapshotName), deleteSnapshotStepListener));
 
         final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
 
@@ -461,7 +461,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(createOtherSnapshotResponseStepListener,
             createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
-                new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.wrap(
+                new DeleteSnapshotsRequest(repoName, snapshotName), ActionListener.wrap(
                     resp -> deleteSnapshotStepListener.onResponse(true),
                     e -> {
                         final Throwable unwrapped =
@@ -547,7 +547,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                 .execute(ActionListener.wrap(() -> {
                                     createdSnapshot.set(true);
                                     testClusterNodes.randomDataNodeSafe().client.admin().cluster().deleteSnapshot(
-                                        new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
+                                        new DeleteSnapshotsRequest(repoName, snapshotName), noopListener());
                                 }));
                             scheduleNow(
                                 () -> testClusterNodes.randomMasterNodeSafe().client.admin().cluster().reroute(

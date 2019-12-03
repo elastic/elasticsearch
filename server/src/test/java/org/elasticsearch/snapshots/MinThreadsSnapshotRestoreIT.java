@@ -84,13 +84,13 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
         logger.info("--> start deletion of first snapshot");
         ActionFuture<AcknowledgedResponse> future =
-            client().admin().cluster().prepareDeleteSnapshot(repo, snapshot2).execute();
+            client().admin().cluster().prepareDeleteSnapshots(repo, snapshot2).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 
         logger.info("--> try deleting the second snapshot, should fail because the first deletion is in progress");
         try {
-            client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).get();
+            client().admin().cluster().prepareDeleteSnapshots(repo, snapshot1).get();
             fail("should not be able to delete snapshots concurrently");
         } catch (ConcurrentSnapshotExecutionException e) {
             assertThat(e.getMessage(), containsString("cannot delete - another snapshot is currently being deleted"));
@@ -103,7 +103,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         assertAcked(future.actionGet());
 
         logger.info("--> delete second snapshot, which should now work");
-        client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).get();
+        client().admin().cluster().prepareDeleteSnapshots(repo, snapshot1).get();
         assertTrue(client().admin().cluster().prepareGetSnapshots(repo).setSnapshots("_all").get().getSnapshots(repo).isEmpty());
     }
 
@@ -129,7 +129,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         String blockedNode = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
         logger.info("--> start deletion of snapshot");
-        ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).execute();
+        ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshots(repo, snapshot1).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 
@@ -184,7 +184,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         String blockedNode = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles(true);
         logger.info("--> start deletion of snapshot");
-        ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot2).execute();
+        ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshots(repo, snapshot2).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 

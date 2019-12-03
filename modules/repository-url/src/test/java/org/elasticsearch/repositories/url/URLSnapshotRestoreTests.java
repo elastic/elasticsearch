@@ -120,7 +120,7 @@ public class URLSnapshotRestoreTests extends ESIntegTestCase {
         assertThat(getSnapshotsResponse.getSnapshots("url-repo").size(), equalTo(1));
 
         logger.info("--> delete snapshot");
-        AcknowledgedResponse deleteSnapshotResponse = client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
+        AcknowledgedResponse deleteSnapshotResponse = client.admin().cluster().prepareDeleteSnapshots("test-repo", "test-snap").get();
         assertAcked(deleteSnapshotResponse);
 
         logger.info("--> list available shapshot again, no snapshots should be returned");

@@ -408,7 +408,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
 
-        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
+        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> client().admin().cluster().deleteSnapshots(
             new DeleteSnapshotsRequest(repoName, snapshotName), deleteSnapshotStepListener));
 
         final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
@@ -460,7 +460,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final StepListener<Boolean> deleteSnapshotStepListener = new StepListener<>();
 
         continueOrDie(createOtherSnapshotResponseStepListener,
-            createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
+            createSnapshotResponse -> client().admin().cluster().deleteSnapshots(
                 new DeleteSnapshotsRequest(repoName, snapshotName), ActionListener.wrap(
                     resp -> deleteSnapshotStepListener.onResponse(true),
                     e -> {
@@ -546,7 +546,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             testClusterNodes.randomDataNodeSafe().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(ActionListener.wrap(() -> {
                                     createdSnapshot.set(true);
-                                    testClusterNodes.randomDataNodeSafe().client.admin().cluster().deleteSnapshot(
+                                    testClusterNodes.randomDataNodeSafe().client.admin().cluster().deleteSnapshots(
                                         new DeleteSnapshotsRequest(repoName, snapshotName), noopListener());
                                 }));
                             scheduleNow(

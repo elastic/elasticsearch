@@ -126,7 +126,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
                 () -> client.admin().cluster().prepareRestoreSnapshot("repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT)).get(),
                 "cluster:admin/snapshot/restore", "snapshot_user");
         assertThrowsAuthorizationException(
-                () -> client.admin().cluster().prepareDeleteSnapshot("repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT)).get(),
+                () -> client.admin().cluster().prepareDeleteSnapshots("repo", randomAlphaOfLength(4).toLowerCase(Locale.ROOT)).get(),
                 "cluster:admin/snapshot/delete", "snapshot_user");
         // try destructive/revealing actions on all indices
         for (final String indexToTest : Arrays.asList(INTERNAL_SECURITY_MAIN_INDEX_7, SECURITY_MAIN_ALIAS, ordinaryIndex)) {

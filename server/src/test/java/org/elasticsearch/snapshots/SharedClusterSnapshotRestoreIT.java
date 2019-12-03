@@ -1301,7 +1301,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> delete all snapshots except the first one and last one");
         for (int i = 1; i < numberOfSnapshots - 1; i++) {
-            client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-" + i).get();
+            client.admin().cluster().prepareDeleteSnapshots("test-repo", "test-snap-" + i).get();
         }
 
         int numberOfFilesAfterDeletion = numberOfFiles(repo);
@@ -1320,7 +1320,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(10L * numberOfSnapshots));
 
         logger.info("--> delete the last snapshot");
-        client.admin().cluster().prepareDeleteSnapshot("test-repo", lastSnapshot).get();
+        client.admin().cluster().prepareDeleteSnapshots("test-repo", lastSnapshot).get();
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
                     "plus one because one backup index-N file should remain");
         assertFileCount(repo, numberOfFiles[0] + 1);
@@ -1466,7 +1466,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
 
         logger.info("--> delete snapshot");
-        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
+        client.admin().cluster().prepareDeleteSnapshots("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
 
@@ -1507,7 +1507,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Files.delete(metadata);
 
         logger.info("--> delete snapshot");
-        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
+        client.admin().cluster().prepareDeleteSnapshots("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareGetSnapshots("test-repo")
@@ -1544,7 +1544,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             outChan.truncate(randomInt(10));
         }
         logger.info("--> delete snapshot");
-        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
+        client.admin().cluster().prepareDeleteSnapshots("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class,
@@ -1605,7 +1605,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotStatusResponse.getSnapshots(), hasSize(1));
         assertThat(snapshotStatusResponse.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo("test-snap"));
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get());
+        assertAcked(client().admin().cluster().prepareDeleteSnapshots("test-repo", "test-snap").get());
         expectThrows(SnapshotMissingException.class, () -> client().admin().cluster()
                 .prepareGetSnapshots("test-repo").addSnapshots("test-snap").get().getSnapshots("test-repo"));
         assertThrows(client().admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap"),
@@ -2019,7 +2019,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(getSnapshotsResponse.getSnapshots("readonly-repo").size(), equalTo(1));
 
         logger.info("--> try deleting snapshot");
-        assertThrows(client.admin().cluster().prepareDeleteSnapshot("readonly-repo", "test-snap"), RepositoryException.class,
+        assertThrows(client.admin().cluster().prepareDeleteSnapshots("readonly-repo", "test-snap"), RepositoryException.class,
             "cannot delete snapshot from a readonly repository");
 
         logger.info("--> try making another snapshot");
@@ -2714,14 +2714,14 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
             logger.info("--> try deleting the snapshot while the restore is in progress (should throw an error)");
             ConcurrentSnapshotExecutionException e = expectThrows(ConcurrentSnapshotExecutionException.class, () ->
-                client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).get());
+                client().admin().cluster().prepareDeleteSnapshots(repoName, snapshotName).get());
             assertEquals(repoName, e.getRepositoryName());
             assertEquals(snapshotName, e.getSnapshotName());
             assertThat(e.getMessage(), containsString("cannot delete snapshot during a restore"));
 
             logger.info("-- try deleting another snapshot while the restore is in progress (should throw an error)");
             e = expectThrows(ConcurrentSnapshotExecutionException.class, () ->
-                client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName2).get());
+                client().admin().cluster().prepareDeleteSnapshots(repoName, snapshotName2).get());
             assertEquals(repoName, e.getRepositoryName());
             assertEquals(snapshotName2, e.getSnapshotName());
             assertThat(e.getMessage(), containsString("cannot delete snapshot during a restore"));
@@ -2760,7 +2760,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 () -> client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("_foo")
                         .get().getSnapshots("test-repo"));
         expectThrows(SnapshotMissingException.class,
-                     () -> client.admin().cluster().prepareDeleteSnapshot("test-repo", "_foo").get());
+                     () -> client.admin().cluster().prepareDeleteSnapshots("test-repo", "_foo").get());
         expectThrows(SnapshotMissingException.class,
                      () -> client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("_foo").get());
     }
@@ -2959,7 +2959,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", snapshotInfo.snapshotId().getName()).get());
+        assertAcked(client().admin().cluster().prepareDeleteSnapshots("test-repo", snapshotInfo.snapshotId().getName()).get());
     }
 
     /**
@@ -3104,7 +3104,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
 
         logger.info("--> delete the first snapshot");
-        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).get();
+        client.admin().cluster().prepareDeleteSnapshots(repositoryName, snapshotName).get();
 
         logger.info("--> try creating a snapshot with the same name, now it should work because the first one was deleted");
         createSnapshotResponse = client.admin()
@@ -3173,7 +3173,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots("test-repo").get(0).snapshotId().getName());
         unblockNode(repositoryName, initialBlockedNode); // unblock node
         responseListener.actionGet(TimeValue.timeValueMillis(10000L)); // timeout after 10 seconds
-        client.admin().cluster().prepareDeleteSnapshot(repositoryName, "snap-on-empty-repo").get();
+        client.admin().cluster().prepareDeleteSnapshots(repositoryName, "snap-on-empty-repo").get();
 
         final int numSnapshots = randomIntBetween(1, 3) + 1;
         logger.info("--> take {} snapshot(s)", numSnapshots - 1);
@@ -3840,7 +3840,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             expectedCount = docCount;
         }
         logger.info("--> deleting snapshot [{}]", snapshotToDelete);
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotToDelete).get());
+        assertAcked(client().admin().cluster().prepareDeleteSnapshots(repoName, snapshotToDelete).get());
         logger.info("--> restoring snapshot [{}]", snapshotToRestore);
         client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotToRestore).setIndices(indexName).setRenamePattern(indexName)
             .setRenameReplacement("restored-3").setWaitForCompletion(true).get();

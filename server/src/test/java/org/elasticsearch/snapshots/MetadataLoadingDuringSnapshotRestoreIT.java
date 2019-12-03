@@ -139,7 +139,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertIndexMetadataLoads("snap", "others", 3);
 
         // Deleting a snapshot does not load the global metadata state but loads each index metadata
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot("repository", "snap").get());
+        assertAcked(client().admin().cluster().prepareDeleteSnapshots("repository", "snap").get());
         assertGlobalMetadataLoads("snap", 1);
         assertIndexMetadataLoads("snap", "docs", 4);
         assertIndexMetadataLoads("snap", "others", 3);

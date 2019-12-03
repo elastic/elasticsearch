@@ -131,7 +131,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         assertTrue(client().admin()
                 .cluster()
-                .prepareDeleteSnapshot("test-repo", snapshotName)
+                .prepareDeleteSnapshots("test-repo", snapshotName)
                 .get()
                 .isAcknowledged());
     }
@@ -216,7 +216,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createDanglingIndex(repo, genericExec);
 
         logger.info("--> deleting a snapshot to trigger repository cleanup");
-        client().admin().cluster().deleteSnapshot(new DeleteSnapshotsRequest("test-repo", snapshotName)).actionGet();
+        client().admin().cluster().deleteSnapshots(new DeleteSnapshotsRequest("test-repo", snapshotName)).actionGet();
 
         assertConsistentRepository(repo, genericExec);
 

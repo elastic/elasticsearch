@@ -74,9 +74,7 @@ public class GeometryTreeReader implements ShapeTreeReader {
             return extent;
         }
         int numShapes = input.readVInt();
-        if (numShapes != 1) {
-            throw new IllegalStateException("geoshape doc-value contains more than one geometry");
-        }
+        assert numShapes == 1;
         ShapeType shapeType = input.readEnum(ShapeType.class);
         ShapeTreeReader reader = getReader(shapeType, coordinateEncoder, input);
         return reader.getExtent();

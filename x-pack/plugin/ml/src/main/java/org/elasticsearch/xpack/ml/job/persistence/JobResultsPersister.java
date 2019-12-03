@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -39,13 +39,13 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -72,24 +72,30 @@ public class JobResultsPersister {
     private static final Logger logger = LogManager.getLogger(JobResultsPersister.class);
 
     private final Client client;
+    private final ResultsPersisterService resultsPersisterService;
 
-    public JobResultsPersister(Client client) {
+    public JobResultsPersister(Client client, ResultsPersisterService resultsPersisterService) {
         this.client = client;
+        this.resultsPersisterService = resultsPersisterService;
     }
 
-    public Builder bulkPersisterBuilder(String jobId) {
-        return new Builder(jobId);
+    public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
+        return new Builder(jobId, resultsPersisterService, shouldRetry);
     }
 
     public class Builder {
         private BulkRequest bulkRequest;
         private final String jobId;
         private final String indexName;
+        private final Supplier<Boolean> shouldRetry;
+        private final ResultsPersisterService resultsPersisterService;
 
-        private Builder(String jobId) {
+        private Builder(String jobId, ResultsPersisterService resultsPersisterService, Supplier<Boolean> shouldRetry) {
             this.jobId = Objects.requireNonNull(jobId);
             indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
             bulkRequest = new BulkRequest();
+            this.shouldRetry = shouldRetry;
+            this.resultsPersisterService = resultsPersisterService;
         }
 
         /**
@@ -99,7 +105,7 @@ public class JobResultsPersister {
          * @param bucket The bucket to persist
          * @return this
          */
-        public Builder persistBucket(Bucket bucket) throws BulkIndexException {
+        public Builder persistBucket(Bucket bucket) {
             // If the supplied bucket has records then create a copy with records
             // removed, because we never persist nested records in buckets
             Bucket bucketWithoutRecords = bucket;
@@ -116,7 +122,7 @@ public class JobResultsPersister {
             return this;
         }
 
-        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) throws BulkIndexException {
+        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) {
             if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                     String id = bucketInfluencer.getId();
@@ -132,7 +138,7 @@ public class JobResultsPersister {
          * @param timingStats timing stats to persist
          * @return this
          */
-        public Builder persistTimingStats(TimingStats timingStats) throws BulkIndexException {
+        public Builder persistTimingStats(TimingStats timingStats) {
             indexResult(
                 TimingStats.documentId(timingStats.getJobId()),
                 timingStats,
@@ -147,7 +153,7 @@ public class JobResultsPersister {
          * @param records the records to persist
          * @return this
          */
-        public Builder persistRecords(List<AnomalyRecord> records)  throws BulkIndexException {
+        public Builder persistRecords(List<AnomalyRecord> records) {
             for (AnomalyRecord record : records) {
                 logger.trace("[{}] ES BULK ACTION: index record to index [{}] with ID [{}]", jobId, indexName, record.getId());
                 indexResult(record.getId(), record, "record");
@@ -163,7 +169,7 @@ public class JobResultsPersister {
          * @param influencers the influencers to persist
          * @return this
          */
-        public Builder persistInfluencers(List<Influencer> influencers) throws BulkIndexException {
+        public Builder persistInfluencers(List<Influencer> influencers) {
             for (Influencer influencer : influencers) {
                 logger.trace("[{}] ES BULK ACTION: index influencer to index [{}] with ID [{}]", jobId, indexName, influencer.getId());
                 indexResult(influencer.getId(), influencer, "influencer");
@@ -172,30 +178,30 @@ public class JobResultsPersister {
             return this;
         }
 
-        public Builder persistModelPlot(ModelPlot modelPlot) throws BulkIndexException {
+        public Builder persistModelPlot(ModelPlot modelPlot) {
             logger.trace("[{}] ES BULK ACTION: index model plot to index [{}] with ID [{}]", jobId, indexName, modelPlot.getId());
             indexResult(modelPlot.getId(), modelPlot, "model plot");
             return this;
         }
 
-        public Builder persistForecast(Forecast forecast) throws BulkIndexException  {
+        public Builder persistForecast(Forecast forecast) {
             logger.trace("[{}] ES BULK ACTION: index forecast to index [{}] with ID [{}]", jobId, indexName, forecast.getId());
             indexResult(forecast.getId(), forecast, Forecast.RESULT_TYPE_VALUE);
             return this;
         }
 
-        public Builder persistForecastRequestStats(ForecastRequestStats forecastRequestStats) throws BulkIndexException  {
+        public Builder persistForecastRequestStats(ForecastRequestStats forecastRequestStats) {
             logger.trace("[{}] ES BULK ACTION: index forecast request stats to index [{}] with ID [{}]", jobId, indexName,
                     forecastRequestStats.getId());
             indexResult(forecastRequestStats.getId(), forecastRequestStats, Forecast.RESULT_TYPE_VALUE);
             return this;
         }
 
-        private void indexResult(String id, ToXContent resultDoc, String resultType) throws BulkIndexException {
+        private void indexResult(String id, ToXContent resultDoc, String resultType) {
             indexResult(id, resultDoc, ToXContent.EMPTY_PARAMS, resultType);
         }
 
-        private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) throws BulkIndexException {
+        private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) {
             try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
                 bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
@@ -210,38 +216,12 @@ public class JobResultsPersister {
         /**
          * Execute the bulk action
          */
-        public void executeRequest() throws BulkIndexException {
+        public void executeRequest() {
             if (bulkRequest.numberOfActions() == 0) {
                 return;
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
-
-            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-                BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
-                if (addRecordsResponse.hasFailures()) {
-                    // If we failed, lets set the bulkRequest to be a collection of the failed requests
-                    BulkRequest bulkRequestOfFailures = new BulkRequest();
-                    Set<String> failedDocIds = new HashSet<>();
-                    addRecordsResponse.forEach(itemResponse -> {
-                        if (itemResponse.isFailed()) {
-                            failedDocIds.add(itemResponse.getId());
-                        }
-                    });
-                    bulkRequest.requests().forEach(docWriteRequest -> {
-                        if (failedDocIds.contains(docWriteRequest.id())) {
-                            bulkRequestOfFailures.add(docWriteRequest);
-                        }
-                    });
-                    logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
-                    bulkRequest = bulkRequestOfFailures;
-                    throw new BulkIndexException(addRecordsResponse);
-                }
-            }
-
-            bulkRequest = new BulkRequest();
-        }
-
-        public void clearBulkRequest() {
+            resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobId, shouldRetry);
             bulkRequest = new BulkRequest();
         }
 
@@ -256,10 +236,10 @@ public class JobResultsPersister {
      *
      * @param category The category to be persisted
      */
-    public void persistCategoryDefinition(CategoryDefinition category) {
+    public void persistCategoryDefinition(CategoryDefinition category, Supplier<Boolean> shouldRetry) {
         Persistable persistable = new Persistable(category.getJobId(), category, category.getId());
 
-        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(category.getJobId())).actionGet();
+        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(category.getJobId()), shouldRetry);
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }
@@ -267,9 +247,9 @@ public class JobResultsPersister {
     /**
      * Persist the quantiles (blocking)
      */
-    public void persistQuantiles(Quantiles quantiles) {
+    public void persistQuantiles(Quantiles quantiles, Supplier<Boolean> shouldRetry) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).actionGet();
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), shouldRetry);
     }
 
     /**
@@ -284,20 +264,22 @@ public class JobResultsPersister {
     /**
      * Persist a model snapshot description
      */
-    public IndexResponse persistModelSnapshot(ModelSnapshot modelSnapshot, WriteRequest.RefreshPolicy refreshPolicy) {
+    public BulkResponse persistModelSnapshot(ModelSnapshot modelSnapshot,
+                                             WriteRequest.RefreshPolicy refreshPolicy,
+                                             Supplier<Boolean> shouldRetry) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.documentId(modelSnapshot));
         persistable.setRefreshPolicy(refreshPolicy);
-        return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId())).actionGet();
+        return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId()), shouldRetry);
     }
 
     /**
      * Persist the memory usage data (blocking)
      */
-    public void persistModelSizeStats(ModelSizeStats modelSizeStats) {
+    public void persistModelSizeStats(ModelSizeStats modelSizeStats, Supplier<Boolean> shouldRetry) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
         Persistable persistable = new Persistable(jobId, modelSizeStats, modelSizeStats.getId());
-        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
+        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId), shouldRetry);
     }
 
     /**
@@ -362,7 +344,7 @@ public class JobResultsPersister {
      * @param timingStats datafeed timing stats to persist
      * @param refreshPolicy refresh policy to apply
      */
-    public IndexResponse persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy) {
+    public BulkResponse persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy) {
         String jobId = timingStats.getJobId();
         logger.trace("[{}] Persisting datafeed timing stats", jobId);
         Persistable persistable = new Persistable(
@@ -371,7 +353,7 @@ public class JobResultsPersister {
             new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
             DatafeedTimingStats.documentId(timingStats.getJobId()));
         persistable.setRefreshPolicy(refreshPolicy);
-        return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
+        return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId), () -> true);
     }
 
     private static XContentBuilder toXContentBuilder(ToXContent obj, ToXContent.Params params) throws IOException {
@@ -404,10 +386,18 @@ public class JobResultsPersister {
             this.refreshPolicy = refreshPolicy;
         }
 
-        ActionFuture<IndexResponse> persist(String indexName) {
-            PlainActionFuture<IndexResponse> actionFuture = PlainActionFuture.newFuture();
-            persist(indexName, actionFuture);
-            return actionFuture;
+        BulkResponse persist(String indexName, Supplier<Boolean> shouldRetry) {
+            logCall(indexName);
+            try {
+                return resultsPersisterService.indexWithRetry(jobId, indexName, object, params, refreshPolicy, id, shouldRetry);
+            } catch (IOException e) {
+                logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
+                IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
+                notCreatedResponse.setResult(Result.NOOP);
+                return new BulkResponse(
+                    new BulkItemResponse[]{new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, notCreatedResponse.build())},
+                    0);
+            }
         }
 
         void persist(String indexName, ActionListener<IndexResponse> listener) {

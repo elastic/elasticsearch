@@ -132,20 +132,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.jobDataCountsPersister = jobDataCountsPersister;
         this.auditor = auditor;
         this.nativeStorageProvider = Objects.requireNonNull(nativeStorageProvider);
-        this.maximumBulkFailureRetries = AutodetectResultProcessor.PERSIST_RESULTS_MAX_RETRIES.get(settings);
         clusterService.addListener(this);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxAllowedRunningJobs);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(AutodetectResultProcessor.PERSIST_RESULTS_MAX_RETRIES, this::setMaximumBulkFailureRetries);
     }
 
     void setMaxAllowedRunningJobs(int maxAllowedRunningJobs) {
         this.maxAllowedRunningJobs = maxAllowedRunningJobs;
-    }
-
-    void setMaximumBulkFailureRetries(int maximumBulkFailureRetries) {
-        this.maximumBulkFailureRetries = maximumBulkFailureRetries;
     }
 
     public synchronized void closeAllJobsOnThisNode(String reason) {
@@ -527,8 +520,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 jobResultsPersister,
                 process,
                 autodetectParams.modelSizeStats(),
-                autodetectParams.timingStats(),
-                maximumBulkFailureRetries);
+                autodetectParams.timingStats());
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autodetectExecutorService);

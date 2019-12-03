@@ -36,7 +36,7 @@ public class TimingStatsReporter {
         return new TimingStats(currentTimingStats);
     }
 
-    public void reportBucket(Bucket bucket) throws JobResultsPersister.BulkIndexException {
+    public void reportBucket(Bucket bucket) {
         currentTimingStats.updateStats(bucket.getProcessingTimeMs());
         currentTimingStats.setLatestRecordTimestamp(bucket.getTimestamp().toInstant().plusSeconds(bucket.getBucketSpan()));
         if (differSignificantly(currentTimingStats, persistedTimingStats)) {
@@ -52,7 +52,7 @@ public class TimingStatsReporter {
         flush();
     }
 
-    private void flush() throws JobResultsPersister.BulkIndexException {
+    private void flush() {
         persistedTimingStats = new TimingStats(currentTimingStats);
         bulkResultsPersister.persistTimingStats(persistedTimingStats);
     }

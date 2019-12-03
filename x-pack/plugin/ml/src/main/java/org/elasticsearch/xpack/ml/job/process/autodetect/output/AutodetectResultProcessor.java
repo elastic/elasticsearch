@@ -10,13 +10,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -47,7 +45,6 @@ import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -75,20 +72,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class AutodetectResultProcessor {
 
-    public static final Setting<Integer> PERSIST_RESULTS_MAX_RETRIES = Setting.intSetting(
-        "xpack.ml.persist_results_max_retries",
-        2,
-        0,
-        15,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope);
-
-    private static final int MAX_RETRY_SLEEP_MILLIS = 5 * 1000;
-    private static final int MIN_RETRY_SLEEP_MILLIS = 50;
-
     private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
-
-    private final Random random = Randomness.get();
 
     private final Client client;
     private final AnomalyDetectionAuditor auditor;
@@ -103,7 +87,6 @@ public class AutodetectResultProcessor {
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
-    private final int maximumFailureRetries;
     private int bucketCount; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
     private boolean deleteInterimRequired;
@@ -120,16 +103,14 @@ public class AutodetectResultProcessor {
                                      JobResultsPersister persister,
                                      AutodetectProcess process,
                                      ModelSizeStats latestModelSizeStats,
-                                     TimingStats timingStats,
-                                     int maximumFailureRetries) {
-        this(client, auditor, jobId, renormalizer, persister, process, latestModelSizeStats, timingStats, new FlushListener(),
-            maximumFailureRetries);
+                                     TimingStats timingStats) {
+        this(client, auditor, jobId, renormalizer, persister, process, latestModelSizeStats, timingStats, new FlushListener());
     }
 
     // Visible for testing
     AutodetectResultProcessor(Client client, AnomalyDetectionAuditor auditor, String jobId, Renormalizer renormalizer,
                               JobResultsPersister persister, AutodetectProcess autodetectProcess, ModelSizeStats latestModelSizeStats,
-                              TimingStats timingStats, FlushListener flushListener, int maximumFailureRetries) {
+                              TimingStats timingStats, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -138,10 +119,9 @@ public class AutodetectResultProcessor {
         this.process = Objects.requireNonNull(autodetectProcess);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
-        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId);
+        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, () -> isDeadOrDying() == false);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
         this.deleteInterimRequired = true;
-        this.maximumFailureRetries = maximumFailureRetries;
     }
 
     public void process() {
@@ -154,10 +134,8 @@ public class AutodetectResultProcessor {
 
             try {
                 if (processKilled == false) {
-                    bulkPersistWithRetry(() -> {
-                        timingStatsReporter.finishReporting();
-                        bulkResultsPersister.executeRequest();
-                    });
+                    timingStatsReporter.finishReporting();
+                    bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
@@ -232,36 +210,34 @@ public class AutodetectResultProcessor {
 
             // persist after deleting interim results in case the new
             // results are also interim
-            bulkPersistWithRetry(() -> {
-                timingStatsReporter.reportBucket(bucket);
-                bulkResultsPersister.persistBucket(bucket).executeRequest();
-            });
+            timingStatsReporter.reportBucket(bucket);
+            bulkResultsPersister.persistBucket(bucket).executeRequest();
             ++bucketCount;
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
-            bulkPersistWithRetry(() -> bulkResultsPersister.persistRecords(records));
+            bulkResultsPersister.persistRecords(records);
         }
         List<Influencer> influencers = result.getInfluencers();
         if (influencers != null && !influencers.isEmpty()) {
-            bulkPersistWithRetry(() -> bulkResultsPersister.persistInfluencers(influencers));
+            bulkResultsPersister.persistInfluencers(influencers);
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {
-            persister.persistCategoryDefinition(categoryDefinition);
+            persister.persistCategoryDefinition(categoryDefinition, () -> isDeadOrDying() == false);
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
-            bulkPersistWithRetry(() -> bulkResultsPersister.persistModelPlot(modelPlot));
+            bulkResultsPersister.persistModelPlot(modelPlot);
         }
         Forecast forecast = result.getForecast();
         if (forecast != null) {
-            bulkPersistWithRetry(() -> bulkResultsPersister.persistForecast(forecast));
+            bulkResultsPersister.persistForecast(forecast);
         }
         ForecastRequestStats forecastRequestStats = result.getForecastRequestStats();
         if (forecastRequestStats != null) {
             LOGGER.trace("Received Forecast Stats [{}]", forecastRequestStats.getId());
-            bulkPersistWithRetry(() -> bulkResultsPersister.persistForecastRequestStats(forecastRequestStats));
+            bulkResultsPersister.persistForecastRequestStats(forecastRequestStats);
 
             // execute the bulk request only in some cases or in doubt
             // otherwise rely on the count-based trigger
@@ -273,7 +249,7 @@ public class AutodetectResultProcessor {
                 case SCHEDULED:
                 case FINISHED:
                 default:
-                    bulkPersistWithRetry(bulkResultsPersister::executeRequest);
+                    bulkResultsPersister.executeRequest();
 
             }
         }
@@ -284,7 +260,11 @@ public class AutodetectResultProcessor {
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
             // We need to refresh in order for the snapshot to be available when we try to update the job with it
-            IndexResponse indexResponse = persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkResponse = persister.persistModelSnapshot(modelSnapshot,
+                WriteRequest.RefreshPolicy.IMMEDIATE,
+                () -> isDeadOrDying() == false);
+            assert bulkResponse.getItems().length == 1;
+            IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
             if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                 updateModelSnapshotOnJob(modelSnapshot);
             }
@@ -292,8 +272,8 @@ public class AutodetectResultProcessor {
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
             LOGGER.debug("[{}] Parsed Quantiles with timestamp {}", jobId, quantiles.getTimestamp());
-            persister.persistQuantiles(quantiles);
-            bulkPersistWithRetry(bulkResultsPersister::executeRequest);
+            persister.persistQuantiles(quantiles, () -> isDeadOrDying() == false);
+            bulkResultsPersister.executeRequest();
 
             if (processKilled == false && renormalizer.isEnabled()) {
                 // We need to make all results written up to these quantiles available for renormalization
@@ -310,7 +290,7 @@ public class AutodetectResultProcessor {
             // through to the data store
             Exception exception = null;
             try {
-                bulkPersistWithRetry(bulkResultsPersister::executeRequest);
+                bulkResultsPersister.executeRequest();
                 persister.commitResultWrites(jobId);
                 LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
             } catch (Exception e) {
@@ -330,60 +310,13 @@ public class AutodetectResultProcessor {
         }
     }
 
-    void bulkPersistWithRetry(CheckedRunnable<JobResultsPersister.BulkIndexException> bulkRunnable) {
-        int attempts = 0;
-        while(attempts <= maximumFailureRetries) {
-            try {
-                bulkRunnable.run();
-                return;
-            } catch (JobResultsPersister.BulkIndexException ex) {
-                if (isDeadOrDying()) {
-                    return;
-                }
-                final int currentAttempt = attempts;
-                LOGGER.trace(
-                    () -> new ParameterizedMessage("[{}] bulk persist failure on attempt [{}] ", jobId, currentAttempt),
-                    ex
-                );
-                attempts++;
-                try {
-                    double backOff = ((1 << attempts) - 1) / 2.0;
-                    int max = (int)(backOff * 100);
-                    // Random Int between [0-Math.max(max, MAX_RETRY_SLEEP_MILLIS))
-                    int randSleep = random.nextInt(Math.max(max, MAX_RETRY_SLEEP_MILLIS));
-                    Thread.sleep(randSleep + MIN_RETRY_SLEEP_MILLIS);
-                } catch (InterruptedException interrupt) {
-                    LOGGER.warn(
-                        () -> new ParameterizedMessage("[{}] failed bulk indexing of results after [{}] attempts due to interrupt",
-                            jobId,
-                            currentAttempt),
-                        ex
-                    );
-                    // propagate the interrupt
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            } catch (Exception e) {
-                if (isDeadOrDying()) {
-                    throw e;
-                }
-                LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
-            }
-        }
-        bulkResultsPersister.clearBulkRequest();
-        LOGGER.warn(
-            new ParameterizedMessage("[{}] failed bulk indexing of results after [{}] attempts",
-                jobId,
-                attempts));
-    }
-
     private void processModelSizeStats(ModelSizeStats modelSizeStats) {
         LOGGER.trace("[{}] Parsed ModelSizeStats: {} / {} / {} / {} / {} / {}",
                 jobId, modelSizeStats.getModelBytes(), modelSizeStats.getTotalByFieldCount(),
                 modelSizeStats.getTotalOverFieldCount(), modelSizeStats.getTotalPartitionFieldCount(),
                 modelSizeStats.getBucketAllocationFailuresCount(), modelSizeStats.getMemoryStatus());
 
-        persister.persistModelSizeStats(modelSizeStats);
+        persister.persistModelSizeStats(modelSizeStats, () -> isDeadOrDying() == false);
         notifyModelMemoryStatusChange(modelSizeStats);
         latestModelSizeStats = modelSizeStats;
     }

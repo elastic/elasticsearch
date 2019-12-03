@@ -36,7 +36,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -184,8 +186,9 @@ public class DockerTests extends PackagingTestCase {
      * Checks that there are Amazon trusted certificates in the cacaerts keystore.
      */
     public void test043AmazonCaCertsAreInTheKeystore() {
-        final boolean matches = sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout.lines()
-            .anyMatch(line -> line.contains("amazonrootca"));
+        final boolean matches = Arrays.stream(
+            sh.run("jdk/bin/keytool -cacerts -storepass changeit -list | grep trustedCertEntry").stdout.split("\n")
+        ).anyMatch(line -> line.contains("amazonrootca"));
 
         assertTrue("Expected Amazon trusted cert in cacerts", matches);
     }
@@ -322,8 +325,8 @@ public class DockerTests extends PackagingTestCase {
             waitForElasticsearch("green", null, installation, "elastic", "hunter2");
         } catch (Exception e) {
             throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
+                "Failed to check whether Elasticsearch had started. This could be because authentication isn't working properly. "
+                    + "Check the container logs",
                 e
             );
         }
@@ -356,7 +359,7 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat(
             dockerLogs.stderr,
-            containsString("ERROR: Both ES_JAVA_OPTS_FILE and ES_JAVA_OPTS are set. These are mutually exclusive.")
+            containsString("ERROR: Both ES_JAVA_OPTS_FILE and ES_JAVA_OPTS are set. These are mutually " + "exclusive.")
         );
     }
 
@@ -382,7 +385,9 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat(
             dockerLogs.stderr,
-            containsString("ERROR: File /run/secrets/" + optionsFilename + " from ES_JAVA_OPTS_FILE must have file permissions 400 or 600")
+            containsString(
+                "ERROR: File /run/secrets/" + optionsFilename + " from ES_JAVA_OPTS_FILE must have " + "file permissions 400 or 600"
+            )
         );
     }
 
@@ -430,7 +435,7 @@ public class DockerTests extends PackagingTestCase {
         assertThat(
             "Failed to find expected message about the elasticsearch-node CLI tool",
             result.stdout,
-            containsString("A CLI tool to do unsafe cluster and index manipulations on current node")
+            containsString("A CLI tool to " + "do unsafe cluster and index manipulations on current node")
         );
     }
 
@@ -452,6 +457,7 @@ public class DockerTests extends PackagingTestCase {
 
     /**
      * Check that the Docker image has the expected "Label Schema" labels.
+     *
      * @see <a href="http://label-schema.org/">Label Schema website</a>
      */
     public void test110OrgLabelSchemaLabels() throws Exception {
@@ -472,7 +478,10 @@ public class DockerTests extends PackagingTestCase {
         }
 
         // TODO: we should check the actual version value
-        final Set<String> dynamicLabels = Set.of("build-date", "vcs-ref", "version");
+        final Set<String> dynamicLabels = new HashSet<>();
+        dynamicLabels.add("build-date");
+        dynamicLabels.add("vcs-ref");
+        dynamicLabels.add("version");
 
         final String prefix = "org.label-schema";
 
@@ -490,6 +499,7 @@ public class DockerTests extends PackagingTestCase {
 
     /**
      * Check that the Docker image has the expected "Open Containers Annotations" labels.
+     *
      * @see <a href="https://github.com/opencontainers/image-spec/blob/master/annotations.md">Open Containers Annotations</a>
      */
     public void test110OrgOpencontainersLabels() throws Exception {
@@ -509,7 +519,10 @@ public class DockerTests extends PackagingTestCase {
         }
 
         // TODO: we should check the actual version value
-        final Set<String> dynamicLabels = Set.of("created", "revision", "version");
+        final Set<String> dynamicLabels = new HashSet<>();
+        dynamicLabels.add("created");
+        dynamicLabels.add("revision");
+        dynamicLabels.add("version");
 
         final String prefix = "org.opencontainers.image";
 
@@ -540,7 +553,9 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Java process running inside the container has the expect PID, UID and username.
      */
     public void test130JavaHasCorrectPidAndOwnership() {
-        final List<String> processes = sh.run("ps -o pid,uid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
+        final List<String> processes = Arrays.stream(sh.run("ps -o pid,uid,user -C java").stdout.split("\n"))
+            .skip(1)
+            .collect(Collectors.toList());
 
         assertThat("Expected a single java process", processes, hasSize(1));
 

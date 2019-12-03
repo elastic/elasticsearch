@@ -293,23 +293,31 @@ public final class BlobStoreTestUtil {
         }
     }
 
+    /**
+     * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
+     * functionality to make {@link BlobStoreRepository} work. Initializes the cluster state as {@link ClusterState#EMPTY_STATE}.
+     *
+     * @return Mock ClusterService
+     */
     public static ClusterService mockClusterService() {
         return mockClusterService(ClusterState.EMPTY_STATE);
     }
 
+    /**
+     * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
+     * functionality to make {@link BlobStoreRepository} work. Initializes the cluster state with a {@link RepositoriesMetaData} instance
+     * that contains the given {@code metadata}.
+     *
+     * @param metaData RepositoryMetaData to initialize the cluster state with
+     * @return Mock ClusterService
+     */
     public static ClusterService mockClusterService(RepositoryMetaData metaData) {
         return mockClusterService(ClusterState.builder(ClusterState.EMPTY_STATE).metaData(
             MetaData.builder().putCustom(RepositoriesMetaData.TYPE,
                 new RepositoriesMetaData(Collections.singletonList(metaData))).build()).build());
     }
 
-    /**
-     * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
-     * functionality to make {@link BlobStoreRepository} work.
-     *
-     * @return Mock ClusterService
-     */
-    public static ClusterService mockClusterService(ClusterState initialState) {
+    private static ClusterService mockClusterService(ClusterState initialState) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
         when(threadPool.generic()).thenReturn(new SameThreadExecutorService());

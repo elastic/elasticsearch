@@ -1208,4 +1208,41 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("field", "a"));
     }
 
+    public void testCombinedRangeAndTermWithMinimumShouldMatch() {
+
+        Query disj = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 0, 10), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .setMinimumNumberShouldMatch(2)
+            .build();
+
+        Result r = analyze(disj, Version.CURRENT);
+        assertThat(r.minimumShouldMatch, equalTo(1));
+
+        Query q = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 0, 10), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.FILTER)
+            .setMinimumNumberShouldMatch(2)
+            .build();
+
+        Result result = analyze(q, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.extractions.size(), equalTo(2));
+        assertFalse(result.verified);
+
+        Query q2 = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("f", "v1")), Occur.FILTER)
+            .add(IntPoint.newRangeQuery("i", 15, 20), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v2")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .setMinimumNumberShouldMatch(1)
+            .build();
+
+        result = analyze(q2, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+    }
+
 }

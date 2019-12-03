@@ -232,7 +232,7 @@ final class QueryAnalyzer {
         List<Result> conjunctions = conjunctionsWithUnknowns.stream().filter(r -> r.isUnknown() == false).collect(Collectors.toList());
         if (conjunctions.isEmpty()) {
             if (conjunctionsWithUnknowns.isEmpty()) {
-                throw new IllegalArgumentException("Must have at least on conjunction sub result");
+                throw new IllegalArgumentException("Must have at least one conjunction sub result");
             }
             return conjunctionsWithUnknowns.get(0); // all conjunctions are unknown, so just return the first one
         }
@@ -261,23 +261,17 @@ final class QueryAnalyzer {
             for (QueryExtraction queryExtraction : result.extractions) {
                 if (queryExtraction.range != null) {
                     // In case of range queries each extraction does not simply increment the
-                    // minimum_should_match
-                    // for that percolator query like for a term based extraction, so that can lead
-                    // to more false
-                    // positives for percolator queries with range queries than term based queries.
-                    // The is because the way number fields are extracted from the document to be
-                    // percolated.
-                    // Per field a single range is extracted and if a percolator query has two or
-                    // more range queries
-                    // on the same field, then the minimum should match can be higher than clauses
-                    // in the CoveringQuery.
-                    // Therefore right now the minimum should match is incremented once per number
-                    // field when processing
-                    // the percolator query at index time.
-                    if (seenRangeFields.add(queryExtraction.range.fieldName)) {
-                        resultMsm = 1;
-                    } else {
-                        resultMsm = 0;
+                    // minimum_should_match for that percolator query like for a term based extraction,
+                    // so that can lead to more false positives for percolator queries with range queries
+                    // than term based queries.
+                    // This is because the way number fields are extracted from the document to be
+                    // percolated.  Per field a single range is extracted and if a percolator query has two or
+                    // more range queries on the same field, then the minimum should match can be higher than clauses
+                    // in the CoveringQuery. Therefore right now the minimum should match is only incremented once per
+                    // number field when processing the percolator query at index time.
+                    if (seenRangeFields.add(queryExtraction.range.fieldName) == false) {
+                        resultMsm = Math.max(0, resultMsm - 1);
+                        verified = false;
                     }
                 }
 

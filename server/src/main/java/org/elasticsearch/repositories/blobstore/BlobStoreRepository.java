@@ -1118,15 +1118,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    assert assertExpectedGeneration(newState);
                     setPendingStep.onResponse(newGen);
-                }
-
-                private boolean assertExpectedGeneration(ClusterState newState) {
-                    final RepositoryMetaData repoState = getRepoMetaData(newState);
-                    assert newGen == repoState.pendingGeneration()
-                        : "State [" + repoState + "] did not contain assumed pending generation [" + newGen + "]";
-                    return true;
                 }
             });
 
@@ -1162,9 +1154,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             throw new IllegalStateException("Tried to update repo generation to [" + newGen
                                 + "] but saw unexpected generation in state [" + meta + "]");
                         }
-                        if (meta.pendingGeneration() == meta.generation()) {
+                        if (meta.pendingGeneration() != newGen) {
                             throw new IllegalStateException(
-                                "Tried to update non-pending repo state [" + meta + "] after write to generation [" + newGen + "]");
+                                "Tried to update from unexpected pending repo generation [" + meta.pendingGeneration() +
+                                    "] after write to generation [" + newGen + "]");
                         }
                         return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.getMetaData())
                             .putCustom(RepositoriesMetaData.TYPE,

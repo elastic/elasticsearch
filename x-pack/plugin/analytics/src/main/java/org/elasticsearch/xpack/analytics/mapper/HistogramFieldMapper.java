@@ -18,10 +18,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -368,7 +370,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     } else if (count > 0) {
                         // we do not add elements with count == 0
                         streamOutput.writeVInt(count);
-                        streamOutput.writeDouble(values.get(i));
+                        streamOutput.writeLong(NumericUtils.doubleToSortableLong(values.get(i)));
                     }
                 }
 
@@ -409,24 +411,25 @@ public class HistogramFieldMapper extends FieldMapper {
         double value;
         int count;
         boolean isExhausted;
-        ByteBufferStreamInput streamInput;
+        ByteArrayDataInput streamInput;
 
         InternalHistogramValue() {
+            streamInput = new ByteArrayDataInput();
         }
 
         /** reset the value for the histogram */
         void reset(BytesRef bytesRef) {
-            streamInput = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+            streamInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
             isExhausted = false;
             value = 0;
             count = 0;
         }
 
         @Override
-        public boolean next() throws IOException {
-            if (streamInput.available() > 0) {
+        public boolean next() {
+            if (streamInput.eof() == false) {
                 count = streamInput.readVInt();
-                value = streamInput.readDouble();
+                value = NumericUtils.sortableLongToDouble(streamInput.readLong());
                 return true;
             }
             isExhausted = true;

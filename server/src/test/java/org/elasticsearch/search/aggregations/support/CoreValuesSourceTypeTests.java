@@ -38,8 +38,9 @@ public class CoreValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertThat(CoreValuesSourceType.BYTES.ordinal(), equalTo(2));
         assertThat(CoreValuesSourceType.GEOPOINT.ordinal(), equalTo(3));
         assertThat(CoreValuesSourceType.RANGE.ordinal(), equalTo(4));
-        assertThat(CoreValuesSourceType.GEOSHAPE.ordinal(), equalTo(5));
-        assertThat(CoreValuesSourceType.GEO.ordinal(), equalTo(6));
+        assertThat(CoreValuesSourceType.HISTOGRAM.ordinal(), equalTo(5));
+        assertThat(CoreValuesSourceType.GEOSHAPE.ordinal(), equalTo(6));
+        assertThat(CoreValuesSourceType.GEO.ordinal(), equalTo(7));
     }
 
     @Override
@@ -49,6 +50,7 @@ public class CoreValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertThat(CoreValuesSourceType.fromString("bytes"), equalTo(CoreValuesSourceType.BYTES));
         assertThat(CoreValuesSourceType.fromString("geopoint"), equalTo(CoreValuesSourceType.GEOPOINT));
         assertThat(CoreValuesSourceType.fromString("range"), equalTo(CoreValuesSourceType.RANGE));
+        assertThat(CoreValuesSourceType.fromString("histogram"), equalTo(CoreValuesSourceType.HISTOGRAM));
         assertThat(CoreValuesSourceType.fromString("geoshape"), equalTo(CoreValuesSourceType.GEOSHAPE));
         assertThat(CoreValuesSourceType.fromString("geo"), equalTo(CoreValuesSourceType.GEO));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -65,8 +67,9 @@ public class CoreValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertReadFromStream(2, CoreValuesSourceType.BYTES);
         assertReadFromStream(3, CoreValuesSourceType.GEOPOINT);
         assertReadFromStream(4, CoreValuesSourceType.RANGE);
-        assertReadFromStream(5, CoreValuesSourceType.GEOSHAPE);
-        assertReadFromStream(6, CoreValuesSourceType.GEO);
+        assertReadFromStream(5, CoreValuesSourceType.HISTOGRAM);
+        assertReadFromStream(6, CoreValuesSourceType.GEOSHAPE);
+        assertReadFromStream(7, CoreValuesSourceType.GEO);
     }
 
     @Override
@@ -76,7 +79,8 @@ public class CoreValuesSourceTypeTests extends AbstractWriteableEnumTestCase {
         assertWriteToStream(CoreValuesSourceType.BYTES, 2);
         assertWriteToStream(CoreValuesSourceType.GEOPOINT, 3);
         assertWriteToStream(CoreValuesSourceType.RANGE, 4);
-        assertWriteToStream(CoreValuesSourceType.GEOSHAPE, 5);
-        assertWriteToStream(CoreValuesSourceType.GEO, 6);
+        assertWriteToStream(CoreValuesSourceType.HISTOGRAM, 5);
+        assertWriteToStream(CoreValuesSourceType.GEOSHAPE, 6);
+        assertWriteToStream(CoreValuesSourceType.GEO, 7);
     }
 }

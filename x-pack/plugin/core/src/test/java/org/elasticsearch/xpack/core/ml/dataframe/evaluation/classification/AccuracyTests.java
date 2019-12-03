@@ -8,17 +8,15 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
 
@@ -48,9 +46,9 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
 
     public void testProcess() {
         Aggregations aggs = new Aggregations(Arrays.asList(
-            createTermsAgg("classification_classes"),
-            createSingleMetricAgg("classification_overall_accuracy", 0.8123),
-            createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
+            mockTerms("classification_classes"),
+            mockSingleValue("classification_overall_accuracy", 0.8123),
+            mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
         Accuracy accuracy = new Accuracy();
@@ -62,16 +60,16 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
     public void testProcess_GivenMissingAgg() {
         {
             Aggregations aggs = new Aggregations(Arrays.asList(
-                createTermsAgg("classification_classes"),
-                createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
+                mockTerms("classification_classes"),
+                mockSingleValue("some_other_single_metric_agg", 0.2377)
             ));
             Accuracy accuracy = new Accuracy();
             expectThrows(NullPointerException.class, () -> accuracy.process(aggs));
         }
         {
             Aggregations aggs = new Aggregations(Arrays.asList(
-                createSingleMetricAgg("classification_overall_accuracy", 0.8123),
-                createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
+                mockSingleValue("classification_overall_accuracy", 0.8123),
+                mockSingleValue("some_other_single_metric_agg", 0.2377)
             ));
             Accuracy accuracy = new Accuracy();
             expectThrows(NullPointerException.class, () -> accuracy.process(aggs));
@@ -81,32 +79,19 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
     public void testProcess_GivenAggOfWrongType() {
         {
             Aggregations aggs = new Aggregations(Arrays.asList(
-                createTermsAgg("classification_classes"),
-                createTermsAgg("classification_overall_accuracy")
+                mockTerms("classification_classes"),
+                mockTerms("classification_overall_accuracy")
             ));
             Accuracy accuracy = new Accuracy();
             expectThrows(ClassCastException.class, () -> accuracy.process(aggs));
         }
         {
             Aggregations aggs = new Aggregations(Arrays.asList(
-                createSingleMetricAgg("classification_classes", 1.0),
-                createSingleMetricAgg("classification_overall_accuracy", 0.8123)
+                mockSingleValue("classification_classes", 1.0),
+                mockSingleValue("classification_overall_accuracy", 0.8123)
             ));
             Accuracy accuracy = new Accuracy();
             expectThrows(ClassCastException.class, () -> accuracy.process(aggs));
         }
-    }
-
-    private static NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, double value) {
-        NumericMetricsAggregation.SingleValue agg = mock(NumericMetricsAggregation.SingleValue.class);
-        when(agg.getName()).thenReturn(name);
-        when(agg.value()).thenReturn(value);
-        return agg;
-    }
-
-    private static Terms createTermsAgg(String name) {
-        Terms agg = mock(Terms.class);
-        when(agg.getName()).thenReturn(name);
-        return agg;
     }
 }

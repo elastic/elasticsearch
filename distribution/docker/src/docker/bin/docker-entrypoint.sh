@@ -85,8 +85,7 @@ declare -a es_opts
 while IFS='=' read -r envvar_key envvar_value
 do
   # Elasticsearch settings need to have at least two dot separated lowercase
-  # words, e.g. `cluster.name`, except for `processors` which we handle
-  # specially
+  # words, e.g. `cluster.name`
   if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
     if [[ ! -z $envvar_value ]]; then
       es_opt="-E${envvar_key}=${envvar_value}"

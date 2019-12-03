@@ -33,6 +33,7 @@ RUN grep ES_DISTRIBUTION_TYPE=tar /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config data logs
 RUN chmod 0775 config data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
+RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):

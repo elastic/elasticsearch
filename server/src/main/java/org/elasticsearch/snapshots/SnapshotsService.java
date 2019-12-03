@@ -1424,10 +1424,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (deletions != null) {
                     boolean changed = false;
                     if (deletions.hasDeletionsInProgress()) {
-                        assert deletions.getEntries().size() == 1 : "should have exactly one deletion in progress";
-                        SnapshotDeletionsInProgress.Entry entry = deletions.getEntries().get(0);
-                        deletions = deletions.withRemovedEntry(entry);
-                        changed = true;
+                        for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries().stream()
+                            .filter(e -> snapshots.contains(e.getSnapshot().getSnapshotId())).collect(Collectors.toList())) {
+                            changed = true;
+                            deletions = deletions.withRemovedEntry(entry);
+                        }
                     }
                     if (changed) {
                         return ClusterState.builder(currentState).putCustom(SnapshotDeletionsInProgress.TYPE, deletions).build();

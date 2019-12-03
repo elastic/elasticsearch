@@ -1300,8 +1300,14 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         int numberOfFilesBeforeDeletion = numberOfFiles(repo);
 
         logger.info("--> delete all snapshots except the first one and last one");
-        for (int i = 1; i < numberOfSnapshots - 1; i++) {
-            client.admin().cluster().prepareDeleteSnapshots("test-repo", new String[]{"test-snap-" + i}).get();
+
+        if (randomBoolean()) {
+            for (int i = 1; i < numberOfSnapshots - 1; i++) {
+                client.admin().cluster().prepareDeleteSnapshots("test-repo", new String[]{"test-snap-" + i}).get();
+            }
+        } else {
+            client.admin().cluster().prepareDeleteSnapshots(
+                "test-repo", IntStream.range(1, numberOfSnapshots - 1).mapToObj(i -> "test-snap-" + i).toArray(String[]::new)).get();
         }
 
         int numberOfFilesAfterDeletion = numberOfFiles(repo);

@@ -173,7 +173,6 @@ Recovery::
 * Do not send recovery requests with CancellableThreads {pull}46287[#46287] (issue: {issue}46178[#46178])
 
 SQL::
-* SQL: Add 3rd optional arg to DATE_PART {pull}47614[#47614] (issue: {issue}47206[#47206])
 * SQL: make date/datetime and interval types compatible in conditional functions {pull}47595[#47595] (issue: {issue}46674[#46674])
 * SQL: use calendar interval of 1y instead of fixed interval for grouping by YEAR and HISTOGRAMs {pull}47558[#47558] (issue: {issue}40162[#40162])
 * SQL: Support queries with HAVING over SELECT {pull}46709[#46709] (issue: {issue}37051[#37051])

@@ -113,6 +113,8 @@ public class ValuesSourceConfig {
                  * specified missing value.
                  */
                 // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
+                // TODO: PLAN - get rid of unmapped; it's only used by valid(), and we're intending to get rid of that.
+                // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
                 ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
                 config = new ValuesSourceConfig(valuesSourceType);
                 config.format(resolveFormat(format, valueType, timeZone));
@@ -250,9 +252,14 @@ public class ValuesSourceConfig {
         return toValuesSource(context, value -> ValuesSource.Bytes.WithOrdinals.EMPTY);
     }
 
-    /** Get a value source given its configuration. A return value of null indicates that
-     *  no value source could be built. */
+    /**
+     * Transform the {@link ValuesSourceType} we selected in resolve into the specific {@link ValuesSource} instance to use for this shard
+     * @param context - Literally just used to get the current time
+     * @param resolveMissingAny - Hook to allow aggregations to select a finer grained ValuesSource based on the user supplied missing value
+     * @return - A {@link ValuesSource} ready to be read from by an aggregator
+     */
     @Nullable
+    // TODO: Replace QueryShardContext with a LongProvider
     public ValuesSource toValuesSource(QueryShardContext context, Function<Object, ValuesSource> resolveMissingAny) {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
@@ -289,6 +296,7 @@ public class ValuesSourceConfig {
         if (missing() == null) {
             return vs;
         }
+        // TODO: This braeks resolveMissingAny, since vs is not of type valueSourceType()
         return valueSourceType().replaceMissing(vs, missing, format, context::nowInMillis);
     }
 }

@@ -749,12 +749,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (o == null || getClass() != o.getClass()) return false;
             IntervalFilter that = (IntervalFilter) o;
             return Objects.equals(type, that.type) &&
+                Objects.equals(script, that.script) &&
                 Objects.equals(filter, that.filter);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, filter);
+            return Objects.hash(type, filter, script);
         }
 
         @Override

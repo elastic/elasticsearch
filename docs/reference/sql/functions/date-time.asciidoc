@@ -55,7 +55,7 @@ s|Description
 
 ==== Operators
 
-Basic arithmetic operators (`+`, `-`, etc) support date/time parameters as indicated below:
+Basic arithmetic operators (`+`, `-`, `*`) support date/time parameters as indicated below:
 
 [source, sql]
 --------------------------------------------------

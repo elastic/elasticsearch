@@ -49,17 +49,15 @@ abstract class OutboundMessage extends NetworkMessage {
         int variableHeaderLength = -1;
         final long preHeaderPosition = bytesStream.position();
 
-        boolean needToWriteHeader = true;
         // TODO: Change to 7.6 after backport
         if (version.onOrAfter(Version.V_8_0_0)) {
             writeVariableHeader(bytesStream);
             variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
-            needToWriteHeader = false;
         }
 
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
             stream.setVersion(version);
-            if (needToWriteHeader) {
+            if (variableHeaderLength != -1) {
                 writeVariableHeader(stream);
             }
             reference = writeMessage(stream);

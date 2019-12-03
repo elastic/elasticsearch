@@ -19,9 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -127,11 +125,6 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
             streamInput.setVersion(remoteVersion);
             return streamInput;
         }
-    }
-
-    @Nullable
-    static Compressor getCompressor(StreamInput streamInput) throws IOException {
-        return CompressorFactory.COMPRESSOR.isCompressed(streamInput) ? CompressorFactory.COMPRESSOR : null;
     }
 
     @Override

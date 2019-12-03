@@ -22,8 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.Compressor;
-import org.elasticsearch.common.compress.NotCompressedException;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -78,31 +77,26 @@ public final class TransportLogger {
                 final boolean isRequest = TransportStatus.isRequest(status);
                 final String type = isRequest ? "request" : "response";
                 Version version = Version.fromId(streamInput.readInt());
-                final String versionString = version.toString();
                 sb.append(" [length: ").append(messageLengthWithHeader);
                 sb.append(", request id: ").append(requestId);
                 sb.append(", type: ").append(type);
-                sb.append(", version: ").append(versionString);
+                sb.append(", version: ").append(version);
 
                 // TODO: Change to 7.6 after backport
-                if (streamInput.getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (version.onOrAfter(Version.V_8_0_0)) {
+                    // Consume the variable header size
+                    streamInput.readInt();
                     sb.append(", header size: ").append(streamInput.readInt()).append('B');
+                } else {
+                    streamInput = decompressingStream(status, version, streamInput);
                 }
 
-                if (isRequest) {
-                    if (TransportStatus.isCompress(status)) {
-                        Compressor compressor;
-                        compressor = InboundMessage.getCompressor(streamInput);
-                        if (compressor == null) {
-                            throw new IllegalStateException(new NotCompressedException());
-                        }
-                        streamInput = compressor.streamInput(streamInput);
-                    }
+                // read and discard headers
+                ThreadContext.readHeadersFromStream(streamInput);
 
-                    // read and discard headers
-                    ThreadContext.readHeadersFromStream(streamInput);
-                    if (streamInput.getVersion().before(Version.V_8_0_0)) {
-                        // discard the features
+                if (isRequest) {
+                    if (version.before(Version.V_8_0_0)) {
+                        // discard features
                         streamInput.readStringArray();
                     }
                     sb.append(", action: ").append(streamInput.readString());
@@ -119,5 +113,19 @@ public final class TransportLogger {
             }
         }
         return sb.toString();
+    }
+
+    private static StreamInput decompressingStream(byte status, Version remoteVersion, StreamInput streamInput) throws IOException {
+        if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
+            try {
+                StreamInput decompressor = CompressorFactory.COMPRESSOR.streamInput(streamInput);
+                decompressor.setVersion(remoteVersion);
+                return decompressor;
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
+            }
+        } else {
+            return streamInput;
+        }
     }
 }

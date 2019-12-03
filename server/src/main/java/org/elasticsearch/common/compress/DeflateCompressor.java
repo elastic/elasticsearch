@@ -67,16 +67,6 @@ public class DeflateCompressor implements Compressor {
     }
 
     @Override
-    public boolean isCompressed(StreamInput input) throws IOException {
-        for (byte b : HEADER) {
-            if (input.readByte() != b) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
     public StreamInput streamInput(StreamInput in) throws IOException {
         final byte[] headerBytes = new byte[HEADER.length];
         int len = 0;

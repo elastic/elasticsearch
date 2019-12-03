@@ -108,16 +108,21 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                Number returned = factory.newInstance(vars).execute();
+                Object returned = factory.newInstance(vars).execute();
                 if (returned == null) {
                     newBuckets.add(bucket);
                 } else {
                     final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
                         (p) -> (InternalAggregation) p).collect(Collectors.toList());
 
-                    InternalSimpleValue simpleValue = new InternalSimpleValue(name(), returned.doubleValue(),
-                        formatter, new ArrayList<>(), metaData());
-                    aggs.add(simpleValue);
+                    InternalAggregation value;
+                    if (returned instanceof Number) {
+                        value = new InternalSimpleValue(name(), ((Number)returned).doubleValue(),
+                         formatter, new ArrayList<>(), metaData());
+                    } else {
+                        value = new InternalStringValue(name(), returned.toString(), new ArrayList<>(), metaData());
+                    }
+                    aggs.add(value);
                     InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
                         bucket);
                     newBuckets.add(newBucket);

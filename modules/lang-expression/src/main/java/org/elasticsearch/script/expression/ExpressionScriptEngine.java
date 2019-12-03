@@ -109,7 +109,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
             BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> new BucketAggregationSelectorScript(parameters) {
                 @Override
                 public boolean execute() {
-                    return factory.newInstance(getParams()).execute().doubleValue() == 1.0;
+                    return ((Number)factory.newInstance(getParams()).execute()).doubleValue() == 1.0;
                 }
             };
             return context.factoryClazz.cast(wrappedFactory);

@@ -9,7 +9,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
@@ -17,9 +16,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MeanSquaredErrorTests extends AbstractSerializingTestCase<MeanSquaredError> {
 
@@ -44,8 +42,8 @@ public class MeanSquaredErrorTests extends AbstractSerializingTestCase<MeanSquar
 
     public void testEvaluate() {
         Aggregations aggs = new Aggregations(Arrays.asList(
-            createSingleMetricAgg("regression_mean_squared_error", 0.8123),
-            createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
+            mockSingleValue("regression_mean_squared_error", 0.8123),
+            mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
         MeanSquaredError mse = new MeanSquaredError();
@@ -58,7 +56,7 @@ public class MeanSquaredErrorTests extends AbstractSerializingTestCase<MeanSquar
 
     public void testEvaluate_GivenMissingAggs() {
         Aggregations aggs = new Aggregations(Collections.singletonList(
-            createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
+            mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 
         MeanSquaredError mse = new MeanSquaredError();
@@ -66,12 +64,5 @@ public class MeanSquaredErrorTests extends AbstractSerializingTestCase<MeanSquar
 
         EvaluationMetricResult result = mse.getResult().get();
         assertThat(result, equalTo(new MeanSquaredError.Result(0.0)));
-    }
-
-    private static NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, double value) {
-        NumericMetricsAggregation.SingleValue agg = mock(NumericMetricsAggregation.SingleValue.class);
-        when(agg.getName()).thenReturn(name);
-        when(agg.value()).thenReturn(value);
-        return agg;
     }
 }

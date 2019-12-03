@@ -12,6 +12,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
@@ -55,10 +56,14 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .build();
+        Settings.Builder builder = Settings.builder();
+        builder.put(super.nodeSettings(nodeOrdinal));
+        builder.put(NetworkModule.HTTP_ENABLED.getKey(), true);
+        // we are randomly running a large number of nodes in these tests so we limit the number of worker threads
+        // since the default of 2 * CPU count might use up too much direct memory for thread-local direct buffers for each node's
+        // transport threads
+        builder.put(Netty4Transport.WORKER_COUNT.getKey(), random().nextInt(3) + 1);
+        return builder.build();
     }
 
     @Override

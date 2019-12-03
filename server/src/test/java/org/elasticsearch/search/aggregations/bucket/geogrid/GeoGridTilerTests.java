@@ -99,7 +99,6 @@ public class GeoGridTilerTests extends ESTestCase {
         int precision = randomIntBetween(1, 10);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
-        assumeFalse("", geometry.type() == ShapeType.MULTIPOLYGON);
         GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
         CellIdSource.GeoShapeCellValues recursiveValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);

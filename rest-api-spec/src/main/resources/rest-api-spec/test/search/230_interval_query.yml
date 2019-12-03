@@ -187,6 +187,9 @@ setup:
 
 ---
 "Test unordered combination without overlaps":
+  - skip:
+      version: "- 8.0.0"
+      reason:  "allow_overlaps parameter added in 7.6"
   - do:
       search:
         index: test

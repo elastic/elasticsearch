@@ -1179,11 +1179,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        if (newGen == 0) {
-                            // This was the first snapshot, no need to run any deletes since we don't have any old index-N in the repo
-                            l.onResponse(null);
-                            return;
-                        }
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(l, () -> {
                             // delete all now outdated index files
                             final List<String> oldIndexN = LongStream.range(Math.max(expectedGen, 0), newGen)

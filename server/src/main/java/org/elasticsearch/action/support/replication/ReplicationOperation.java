@@ -137,7 +137,12 @@ public class ReplicationOperation<
 
             @Override
             public void onResponse(Void aVoid) {
-                updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint);
+                successfulShards.incrementAndGet();
+                try {
+                    updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint);
+                } finally {
+                    decPendingAndFinishIfNeeded();
+                }
             }
 
             @Override
@@ -186,7 +191,12 @@ public class ReplicationOperation<
             new ActionListener<>() {
                 @Override
                 public void onResponse(ReplicaResponse response) {
-                    updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint);
+                    successfulShards.incrementAndGet();
+                    try {
+                        updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint);
+                    } finally {
+                        decPendingAndFinishIfNeeded();
+                    }
                 }
 
                 @Override
@@ -213,7 +223,6 @@ public class ReplicationOperation<
     }
 
     private void updateCheckPoints(ShardRouting shard, LongSupplier localCheckpointSupplier, LongSupplier globalCheckpointSupplier) {
-        successfulShards.incrementAndGet();
         try {
             primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
             primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
@@ -223,8 +232,6 @@ public class ReplicationOperation<
             // fail the primary but fall through and let the rest of operation processing complete
             final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
             primary.failShard(message, e);
-        } finally {
-            decPendingAndFinishIfNeeded();
         }
     }
 

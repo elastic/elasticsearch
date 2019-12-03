@@ -15,7 +15,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -677,32 +676,26 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             try (Releasable ignored = permitFuture.get()) {
                 ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
                     request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
-                ActionTestUtils.assertNoFailureListener(result -> {
-                    TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
-                    listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful));
-                }).onResponse(ccrResult);
+                TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {
                 throw new AssertionError(e);
             }
+            listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful));
         }
 
         @Override
-        protected ActionListener<BulkShardOperationsResponse> wrapListener(ActionListener<BulkShardOperationsResponse> listener,
-                                                                           IndexShard indexShard) {
-            return TransportBulkShardOperationsAction.wrapListener(listener, indexShard);
+        protected void adaptResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+            TransportBulkShardOperationsAction.adaptBulkShardOperationsResponse(response, indexShard);
         }
 
         @Override
         protected void performOnReplica(BulkShardOperationsRequest request, IndexShard replica) throws Exception {
-            final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
-            replica.acquireReplicaOperationPermit(getPrimaryShard().getPendingPrimaryTerm(),
-                getPrimaryShard().getLastKnownGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(), permitAcquiredFuture,
-                ThreadPool.Names.SAME, request);
-            final Translog.Location location;
-            try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-                location = TransportBulkShardOperationsAction.shardOperationOnReplica(request, replica, logger).location;
+            try (Releasable ignored = PlainActionFuture.get(f -> replica.acquireReplicaOperationPermit(
+                getPrimaryShard().getPendingPrimaryTerm(), getPrimaryShard().getLastKnownGlobalCheckpoint(),
+                getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(), f, ThreadPool.Names.SAME, request))) {
+                Translog.Location location = TransportBulkShardOperationsAction.shardOperationOnReplica(request, replica, logger).location;
+                TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
             }
-            TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
         }
     }
 

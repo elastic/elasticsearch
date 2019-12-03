@@ -191,22 +191,15 @@ public class TransportBulkShardOperationsAction
     }
 
     @Override
-    protected ActionListener<BulkShardOperationsResponse> getResponseActionListener(
-        ActionListener<BulkShardOperationsResponse> referenceClosingListener, IndexShard shard) {
-        ActionListener<BulkShardOperationsResponse> listener = super.getResponseActionListener(referenceClosingListener, shard);
-        return wrapListener(listener, shard);
+    protected void adaptResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+        adaptBulkShardOperationsResponse(response, indexShard);
     }
 
-    public static ActionListener<BulkShardOperationsResponse> wrapListener(ActionListener<BulkShardOperationsResponse> listener,
-                                                                           IndexShard shard) {
-
-        return ActionListener.wrap(response -> {
-            final SeqNoStats seqNoStats = shard.seqNoStats();
-            // return a fresh global checkpoint after the operations have been replicated for the shard follow task
-            response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
-            response.setMaxSeqNo(seqNoStats.getMaxSeqNo());
-            listener.onResponse(response);
-        }, listener::onFailure);
+    public static void adaptBulkShardOperationsResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
+        final SeqNoStats seqNoStats = indexShard.seqNoStats();
+        // return a fresh global checkpoint after the operations have been replicated for the shard follow task
+        response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
+        response.setMaxSeqNo(seqNoStats.getMaxSeqNo());
     }
 
 }

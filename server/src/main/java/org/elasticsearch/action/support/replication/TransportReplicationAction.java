@@ -344,14 +344,29 @@ public abstract class TransportReplicationAction<
                 } else {
                     setPhase(replicationTask, "primary");
 
-                    final ActionListener<Response> referenceClosingListener = ActionListener.wrap(response -> {
+                    final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
+                        adaptResponse(response, primaryShardReference.indexShard);
+
+                        if (syncGlobalCheckpointAfterOperation) {
+                            try {
+                                primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
+                            } catch (final Exception e) {
+                                // only log non-closed exceptions
+                                if (ExceptionsHelper.unwrap(
+                                    e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                                    // intentionally swallow, a missed global checkpoint sync should not fail this operation
+                                    logger.info(
+                                        new ParameterizedMessage(
+                                            "{} failed to execute post-operation global checkpoint sync",
+                                            primaryShardReference.indexShard.shardId()), e);
+                                }
+                            }
+                        }
+
                         primaryShardReference.close(); // release shard operation lock before responding to caller
                         setPhase(replicationTask, "finished");
                         onCompletionListener.onResponse(response);
                     }, e -> handleException(primaryShardReference, e));
-
-                    final ActionListener<Response> responseListener = getResponseActionListener(referenceClosingListener,
-                        primaryShardReference.indexShard);
 
                     new ReplicationOperation<>(primaryRequest.getRequest(), primaryShardReference,
                         ActionListener.map(responseListener, result -> result.finalResponseIfSuccessful),
@@ -375,25 +390,13 @@ public abstract class TransportReplicationAction<
 
     }
 
-    protected ActionListener<Response> getResponseActionListener(ActionListener<Response> referenceClosingListener, IndexShard shard) {
+    // allows subclasses to adapt the response
+    protected void adaptResponse(Response response, IndexShard indexShard) {
 
-        return ActionListener.wrap(response -> {
-            if (syncGlobalCheckpointAfterOperation) {
-                try {
-                    shard.maybeSyncGlobalCheckpoint("post-operation");
-                } catch (final Exception e) {
-                    // only log non-closed exceptions
-                    if (ExceptionsHelper.unwrap(
-                        e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                        // intentionally swallow, a missed global checkpoint sync should not fail this operation
-                        logger.info(
-                            new ParameterizedMessage(
-                                "{} failed to execute post-operation global checkpoint sync", shard.shardId()), e);
-                    }
-                }
-            }
-            referenceClosingListener.onResponse(response);
-        }, referenceClosingListener::onFailure);
+    }
+
+    protected ActionListener<Response> wrapResponseActionListener(ActionListener<Response> listener, IndexShard shard) {
+        return listener;
     }
 
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,

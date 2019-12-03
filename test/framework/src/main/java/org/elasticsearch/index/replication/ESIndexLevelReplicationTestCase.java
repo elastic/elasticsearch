@@ -601,7 +601,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    ActionListener.map(wrapListener(listener, getPrimaryShard()), result -> result.finalResponse),
+                    ActionListener.map(listener, result -> {
+                        adaptResponse(result.finalResponse, getPrimaryShard());
+                        return result.finalResponse;
+                    }),
                     new ReplicasRef(), logger, opType, primaryTerm)
                     .execute();
             } catch (Exception e) {
@@ -609,8 +612,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
         }
 
-        protected ActionListener<Response> wrapListener(ActionListener<Response> listener, IndexShard indexShard) {
-            return listener;
+        // to be overridden by subclasses
+        protected void adaptResponse(Response response, IndexShard indexShard) {
+
         }
 
         protected IndexShard getPrimaryShard() {

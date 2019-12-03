@@ -273,7 +273,10 @@ setup:
             }
           }
   - match: { acknowledged: true }
-
+  - do:
+      transform.delete_transform:
+        transform_id: "upgraded-simple-transform"
+  - match: { acknowledged: true }
   - do:
       indices.get_mapping:
         index: .transform-internal-003

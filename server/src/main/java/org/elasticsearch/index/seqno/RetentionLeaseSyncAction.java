@@ -34,7 +34,6 @@ import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -78,8 +77,7 @@ public class RetentionLeaseSyncAction extends
             final IndicesService indicesService,
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver) {
+            final ActionFilters actionFilters) {
         super(
                 settings,
                 ACTION_NAME,
@@ -89,7 +87,6 @@ public class RetentionLeaseSyncAction extends
                 threadPool,
                 shardStateAction,
                 actionFilters,
-                indexNameExpressionResolver,
                 RetentionLeaseSyncAction.Request::new,
                 RetentionLeaseSyncAction.Request::new,
                 ThreadPool.Names.MANAGEMENT, false);

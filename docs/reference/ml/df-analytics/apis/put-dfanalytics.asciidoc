@@ -60,21 +60,22 @@ may contain documents that don't have an {olscore}.
 
 ====== {regression-cap}
 
-{regression-cap} supports fields that are numeric, boolean, text, keyword and ip. It 
-is also tolerant of missing values. Fields that are supported are included in 
-the analysis, other fields are ignored. Documents where included fields contain 
-an array with two or more values are also ignored. Documents in the `dest` index 
-that don’t contain a results field are not included in the {reganalysis}.
+{regression-cap} supports fields that are numeric, `boolean`, `text`, `keyword`, 
+and `ip`. It is also tolerant of missing values. Fields that are supported are 
+included in the analysis, other fields are ignored. Documents where included
+fields contain  an array with two or more values are also ignored. Documents in
+the `dest` index  that don’t contain a results field are not included in the
+ {reganalysis}.
 
 
 ====== {classification-cap}
 
-{classification-cap} supports fields that are numeric, boolean, text, keyword 
-and ip. It is also tolerant of missing values. Fields that are supported are 
-included in the analysis, other fields are ignored. Documents where included 
-fields contain an array with two or more values are also ignored. Documents in 
-the `dest` index that don’t contain a results field are not included in the 
-{classanalysis}.
+{classification-cap} supports fields that are numeric, `boolean`, `text`,
+`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
+supported are included in the analysis, other fields are ignored. Documents
+where included fields contain an array with two or more values are also ignored. 
+Documents in the `dest` index that don’t contain a results field are not
+included in the {classanalysis}.
 
 {classanalysis-cap} can be improved by mapping ordinal variable values to a 
 single number. For example, in case of age ranges, you can model the values as 
@@ -100,13 +101,13 @@ single number. For example, in case of age ranges, you can model the values as
   <<dfanalytics-types>>.
   
 `analyzed_fields`::
-  (Optional, object) You can specify both `includes` and/or `excludes` patterns. 
-  If `analyzed_fields` is not set, only the relevant fields will be included. 
-  For example, all the numeric fields for {oldetection}. For the supported field 
-  types, see <<ml-put-dfanalytics-supported-fields>>. If you specify fields – 
-  either in `includes` or in `excludes` – that have a data type that is not 
-  supported, an error occurs.
-  
+  (Optional, object) Specify `includes` and/or `excludes` patterns to select
+  which fields will be included in the analysis. If `analyzed_fields` is not set,
+  only the relevant fields will be included. For example, all the numeric fields
+  for {oldetection}. For the supported field types, see <<ml-put-dfanalytics-supported-fields>>.
+  Also see the <<explain-dfanalytics>> which helps understand
+  field selection.
+
   `includes`:::
     (Optional, array) An array of strings that defines the fields that will be 
     included in the analysis.
@@ -141,20 +142,33 @@ single number. For example, in case of age ranges, you can model the values as
   that setting. For more information, see <<ml-settings>>.
   
 `source`::
-  (Required, object) The source configuration, consisting of `index` and 
-  optionally a `query`.
+  (object) The configuration of how to source the analysis data. It requires an `index`.
+  Optionally, `query` and `_source` may be specified.
   
-    `index`:::
-      (Required, string or array) Index or indices on which to perform the 
-      analysis. It can be a single index or index pattern as well as an array of 
-      indices or patterns.
-  
-    `query`:::
-      (Optional, object) The {es} query domain-specific language 
-      (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
-      search POST body. All the options that are supported by {es} can be used, 
-      as this object is passed verbatim to {es}. By default, this property has 
-      the following value: `{"match_all": {}}`.
+  `index`:::
+    (Required, string or array) Index or indices on which to perform the 
+    analysis. It can be a single index or index pattern as well as an array of 
+    indices or patterns.
+    
+  `query`:::
+    (Optional, object) The {es} query domain-specific language 
+    (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
+    search POST body. All the options that are supported by {es} can be used, 
+    as this object is passed verbatim to {es}. By default, this property has 
+    the following value: `{"match_all": {}}`.
+
+  `_source`:::
+    (Optional, object) Specify `includes` and/or `excludes` patterns to select
+    which fields will be present in the destination. Fields that are excluded
+    cannot be included in the analysis.
+        
+      `includes`::::
+        (array) An array of strings that defines the fields that will be included in 
+        the destination.
+          
+      `excludes`::::
+        (array) An array of strings that defines the fields that will be excluded 
+        from the destination.
 
 `allow_lazy_start`::
   (Optional, boolean) Whether this job should be allowed to start when there

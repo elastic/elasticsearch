@@ -773,10 +773,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(type);
-            builder.startObject();
-            filter.toXContent(builder, params);
-            builder.endObject();
+            if (filter != null) {
+                builder.startObject(type);
+                filter.toXContent(builder, params);
+                builder.endObject();
+            } else {
+                builder.field(Script.SCRIPT_PARSE_FIELD.getPreferredName(), script);
+            }
             builder.endObject();
             return builder;
         }

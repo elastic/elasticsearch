@@ -164,7 +164,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                                                              @Nullable String resultsField, DataFrameAnalysis analysis) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null))
             .setDest(new DataFrameAnalyticsDest(destIndex, resultsField))
             .setAnalysis(analysis)
             .build();

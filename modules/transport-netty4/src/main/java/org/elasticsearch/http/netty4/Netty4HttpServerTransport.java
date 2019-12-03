@@ -80,6 +80,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.NettyAllocator;
 import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
@@ -334,7 +335,13 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
             serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                 HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-            serverBootstrap.channel(NioServerSocketChannel.class);
+
+            // NettyAllocator will return the channel type designed to work with the configuredAllocator
+            serverBootstrap.channel(NettyAllocator.getServerChannelType());
+
+            // Set the allocators for both the server channel and the child channels created
+            serverBootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
+            serverBootstrap.childOption(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
             serverBootstrap.childHandler(configureServerChannelHandler());
 

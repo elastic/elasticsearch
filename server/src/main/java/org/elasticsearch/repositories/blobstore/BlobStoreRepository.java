@@ -1174,8 +1174,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(l, () -> {
-                            // delete all now outdated index files
-                            final List<String> oldIndexN = LongStream.range(Math.max(expectedGen, 0), newGen)
+                            // Delete all now outdated index files up to 1000 blobs back from the new generation.
+                            // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
+                            // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
+                            // two index-N blobs around.
+                            final List<String> oldIndexN = LongStream.range(
+                                Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
                                 .mapToObj(gen -> INDEX_FILE_PREFIX + gen)
                                 .collect(Collectors.toList());
                             try {

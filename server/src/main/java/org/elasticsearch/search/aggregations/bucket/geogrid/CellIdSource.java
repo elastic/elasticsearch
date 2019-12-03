@@ -57,7 +57,21 @@ public class CellIdSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        return new CellValues(valuesSource.geoValues(ctx), precision, encoder);
+        MultiGeoValues geoValues = valuesSource.geoValues(ctx);
+        if (precision == 0) {
+            // special case, precision 0 is the whole world
+            return new AllCellValues(geoValues, encoder);
+        }
+        ValuesSourceType vs = geoValues.valuesSourceType();
+        if (CoreValuesSourceType.GEOPOINT == vs) {
+            // docValues are geo points
+            return new GeoPointCellValues(geoValues, precision, encoder);
+        } else if (CoreValuesSourceType.GEOSHAPE == vs || CoreValuesSourceType.GEO == vs) {
+            // docValues are geo shapes
+            return new GeoShapeCellValues(geoValues, precision, encoder);
+        } else {
+            throw new IllegalArgumentException("unsupported geo type");
+        }
     }
 
     @Override
@@ -70,46 +84,99 @@ public class CellIdSource extends ValuesSource.Numeric {
         throw new UnsupportedOperationException();
     }
 
-    private static class CellValues extends AbstractSortingNumericDocValues {
+    /** Sorted numeric doc values for geo shapes */
+    protected static class GeoShapeCellValues extends AbstractSortingNumericDocValues {
         private MultiGeoValues geoValues;
         private int precision;
         private GeoGridTiler tiler;
 
-        protected CellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
+        protected GeoShapeCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
             this.geoValues = geoValues;
             this.precision = precision;
             this.tiler = tiler;
+        }
+
+        protected void resizeCell(int newSize) {
+            resize(newSize);
+        }
+
+        protected void add(int idx, long value) {
+           values[idx] = value;
+        }
+
+        // for testing
+        protected long[] getValues() {
+            return values;
         }
 
         @Override
         public boolean advanceExact(int docId) throws IOException {
             if (geoValues.advanceExact(docId)) {
                 ValuesSourceType vs = geoValues.valuesSourceType();
-                if (CoreValuesSourceType.GEOPOINT == vs) {
-                    resize(geoValues.docValueCount());
-                    for (int i = 0; i < docValueCount(); ++i) {
-                        MultiGeoValues.GeoValue target = geoValues.nextValue();
-                        values[i] = tiler.encode(target.lon(), target.lat(), precision);
-                    }
-                } else if (CoreValuesSourceType.GEOSHAPE == vs || CoreValuesSourceType.GEO == vs) {
+                MultiGeoValues.GeoValue target = geoValues.nextValue();
+                // TODO(talevy): determine reasonable circuit-breaker here
+                resize(0);
+                tiler.setValues(this, target, precision);
+                sort();
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    /** Sorted numeric doc values for geo points */
+    protected static class GeoPointCellValues extends AbstractSortingNumericDocValues {
+        private MultiGeoValues geoValues;
+        private int precision;
+        private GeoGridTiler tiler;
+
+        protected GeoPointCellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
+            this.geoValues = geoValues;
+            this.precision = precision;
+            this.tiler = tiler;
+        }
+
+        // for testing
+        protected long[] getValues() {
+            return values;
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            if (geoValues.advanceExact(docId)) {
+                resize(geoValues.docValueCount());
+                for (int i = 0; i < docValueCount(); ++i) {
                     MultiGeoValues.GeoValue target = geoValues.nextValue();
-                    // TODO(talevy): determine reasonable circuit-breaker here
-                    // must resize array to contain the upper-bound of matching cells, which
-                    // is the number of tiles that overlap the shape's bounding-box. No need
-                    // to be concerned with original docValueCount since shape doc-values are
-                    // single-valued.
-                    resize((int) tiler.getBoundingTileCount(target, precision));
-                    int matched = tiler.setValues(values, target, precision);
-                    // must truncate array to only contain cells that actually intersected shape
-                    resize(matched);
-                } else {
-                    throw new IllegalArgumentException("unsupported geo type");
+                    values[i] = tiler.encode(target.lon(), target.lat(), precision);
                 }
                 sort();
                 return true;
             } else {
                 return false;
             }
+        }
+    }
+
+    /** Sorted numeric doc values for precision 0 */
+    protected static class AllCellValues extends AbstractSortingNumericDocValues {
+        private MultiGeoValues geoValues;
+
+        protected AllCellValues(MultiGeoValues geoValues, GeoGridTiler tiler) {
+            this.geoValues = geoValues;
+            resize(1);
+            values[0] = tiler.encode(0, 0, 0);
+        }
+
+        // for testing
+        protected long[] getValues() {
+            return values;
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            resize(1);
+            return geoValues.advanceExact(docId);
         }
     }
 }

@@ -111,6 +111,16 @@ public class Geohash {
         }
     }
 
+    /** Array of geohashes 1 level below the baseGeohash. Sorted. */
+    public static String[] getSubGeohashes(String baseGeohash) {
+        String[] hashes = new String[BASE_32.length];
+        for (int i = 0; i < BASE_32.length; i++) {//note: already sorted
+            char c = BASE_32[i];
+            hashes[i] = baseGeohash+c;
+        }
+        return hashes;
+    }
+
     /**
      * Calculate all neighbors of a given geohash cell.
      *
@@ -216,6 +226,13 @@ public class Geohash {
     }
 
     /**
+     * Encode a string geohash to the geohash based long format (lon/lat interleaved, 4 least significant bits = level)
+     */
+    public static final long longEncode(String hash) {
+        return longEncode(hash, hash.length());
+    }
+
+    /**
      * Encode lon/lat to the geohash based long format (lon/lat interleaved, 4 least significant bits = level)
      */
     public static final long longEncode(final double lon, final double lat, final int level) {
@@ -310,7 +327,6 @@ public class Geohash {
         final int lonEnc = encodeLongitude(lon) ^ 0x80000000;
         return BitUtil.interleave(latEnc, lonEnc) >>> 2;
     }
-
 
     /** encode latitude to integer */
     public static int encodeLatitude(double latitude) {

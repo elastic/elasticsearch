@@ -25,9 +25,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -60,82 +58,96 @@ public class GeoGridTilerTests extends ESTestCase {
         reader.reset(output.bytes().toBytesRef());
         MultiGeoValues.GeoShapeValue value =  new MultiGeoValues.GeoShapeValue(reader);
 
-        long[] values = new long[16];
-
         // test shape within tile bounds
         {
+            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOTILE.setValues(values, value, 13);
-            assertThat(GEOTILE.getBoundingTileCount(value, 13), equalTo(1L));
             assertThat(count, equalTo(1));
         }
         {
+            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOTILE.setValues(values, value, 14);
-            assertThat(GEOTILE.getBoundingTileCount(value, 14), equalTo(4L));
             assertThat(count, equalTo(4));
         }
         {
+            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOTILE.setValues(values, value, 15);
-            assertThat(GEOTILE.getBoundingTileCount(value, 15), equalTo(16L));
             assertThat(count, equalTo(16));
         }
     }
 
     public void testGeoTileSetValuesBruteAndRecursiveMultiline() throws Exception {
-        int precision = randomIntBetween(0, 10);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         MultiLine geometry = GeometryTestUtils.randomMultiLine(false);
-        geometry = (MultiLine) indexer.prepareForIndexing(geometry);
-        GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
-        MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
-        int upperBound = (int) GEOTILE.getBoundingTileCount(value, precision);
-        long[] recursiveValues = new long[upperBound];
-        long[] bruteForceValues = new long[upperBound];
-        int recursiveCount = GEOTILE.setValues(recursiveValues, value, precision);
-        int bruteForceCount = GEOTILE.setValuesByBruteForceScan(bruteForceValues, value, precision);
-        Arrays.sort(recursiveValues);
-        Arrays.sort(bruteForceValues);
-        assertThat(recursiveCount, equalTo(bruteForceCount));
-        assertArrayEquals(recursiveValues, bruteForceValues);
+        checkGeoTileSetValuesBruteAndRecursive(geometry);
+        // checkGeoHashSetValuesBruteAndRecursive(geometry);
     }
 
     public void testGeoTileSetValuesBruteAndRecursivePolygon() throws Exception {
-        int precision = randomIntBetween(0, 10);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         Geometry geometry = GeometryTestUtils.randomPolygon(false);
-        geometry = indexer.prepareForIndexing(geometry);
-        // TODO: support multipolygons. for now just extract first polygon
-        if (geometry.type() == ShapeType.MULTIPOLYGON) {
-            geometry = ((MultiPolygon) geometry).get(0);
-        }
-        GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
-        MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
-        int upperBound = (int) GEOTILE.getBoundingTileCount(value, precision);
-        long[] recursiveValues = new long[upperBound];
-        long[] bruteForceValues = new long[upperBound];
-        int recursiveCount = GEOTILE.setValues(recursiveValues, value, precision);
-        int bruteForceCount = GEOTILE.setValuesByBruteForceScan(bruteForceValues, value, precision);
-        Arrays.sort(recursiveValues);
-        Arrays.sort(bruteForceValues);
-        assertThat(recursiveCount, equalTo(bruteForceCount));
-        assertArrayEquals(recursiveValues, bruteForceValues);
+        checkGeoTileSetValuesBruteAndRecursive(geometry);
+        // checkGeoHashSetValuesBruteAndRecursive(geometry);
     }
 
     public void testGeoTileSetValuesBruteAndRecursivePoints() throws Exception {
-        int precision = randomIntBetween(0, 10);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         Geometry geometry = randomBoolean() ? GeometryTestUtils.randomPoint(false) : GeometryTestUtils.randomMultiPoint(false);
+        checkGeoTileSetValuesBruteAndRecursive(geometry);
+        // checkGeoHashSetValuesBruteAndRecursive(geometry);
+    }
+
+    private void checkGeoTileSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
+        int precision = randomIntBetween(1, 10);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
         GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
-        int upperBound = (int) GEOTILE.getBoundingTileCount(value, precision);
-        long[] recursiveValues = new long[upperBound];
-        long[] bruteForceValues = new long[upperBound];
-        int recursiveCount = GEOTILE.setValues(recursiveValues, value, precision);
-        int bruteForceCount = GEOTILE.setValuesByBruteForceScan(bruteForceValues, value, precision);
-        Arrays.sort(recursiveValues);
-        Arrays.sort(bruteForceValues);
-        assertThat(recursiveCount, equalTo(bruteForceCount));
-        assertArrayEquals(recursiveValues, bruteForceValues);
+        CellIdSource.GeoShapeCellValues recursiveValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+        int recursiveCount;
+        {
+            recursiveCount = GEOTILE.setValuesByRasterization(0, 0, 0, recursiveValues, 0,
+                                                              precision, value, value.boundingBox());
+        }
+        CellIdSource.GeoShapeCellValues bruteForceValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
+        int bruteForceCount;
+        {
+            final double tiles = 1 << precision;
+            MultiGeoValues.BoundingBox bounds = value.boundingBox();
+            int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
+            int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
+            int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
+            int maxYTile = GeoTileUtils.getYTile(bounds.minY(), (long) tiles);
+            bruteForceCount = GEOTILE.setValuesByBruteForceScan(bruteForceValues, value, precision, minXTile, minYTile, maxXTile, maxYTile);
+        }
+        assertThat(geometry.toString(), recursiveCount, equalTo(bruteForceCount));
+        long[] recursive = Arrays.copyOf(recursiveValues.getValues(), recursiveCount);
+        long[] bruteForce = Arrays.copyOf(bruteForceValues.getValues(), bruteForceCount);
+        Arrays.sort(recursive);
+        Arrays.sort(bruteForce);
+        assertArrayEquals(geometry.toString(), recursive, bruteForce);
+    }
+
+    private void checkGeoHashSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
+        int precision = randomIntBetween(1, 4);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
+        geometry = indexer.prepareForIndexing(geometry);
+        GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+        MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
+        CellIdSource.GeoShapeCellValues recursiveValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOHASH);
+        int recursiveCount;
+        {
+            recursiveCount = GEOHASH.setValuesByRasterization("", recursiveValues, 0, precision, value, value.boundingBox());
+        }
+        CellIdSource.GeoShapeCellValues bruteForceValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOHASH);
+        int bruteForceCount;
+        {
+            MultiGeoValues.BoundingBox bounds = value.boundingBox();
+            bruteForceCount = GEOHASH.setValuesByBruteForceScan(bruteForceValues, value, precision, bounds);
+        }
+        assertThat(geometry.toString(), recursiveCount, equalTo(bruteForceCount));
+        long[] recursive = Arrays.copyOf(recursiveValues.getValues(), recursiveCount);
+        long[] bruteForce = Arrays.copyOf(bruteForceValues.getValues(), bruteForceCount);
+        Arrays.sort(recursive);
+        Arrays.sort(bruteForce);
+        assertArrayEquals(geometry.toString(), recursive, bruteForce);
     }
 
     public void testGeoHash() throws Exception {
@@ -156,22 +168,20 @@ public class GeoGridTilerTests extends ESTestCase {
         reader.reset(output.bytes().toBytesRef());
         MultiGeoValues.GeoShapeValue value =  new MultiGeoValues.GeoShapeValue(reader);
 
-        long[] values = new long[1024];
-
         // test shape within tile bounds
         {
+            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOHASH.setValues(values, value, 5);
-            assertThat(GEOHASH.getBoundingTileCount(value, 5), equalTo(1L));
             assertThat(count, equalTo(1));
         }
         {
+            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOHASH.setValues(values, value, 6);
-            assertThat(GEOHASH.getBoundingTileCount(value, 6), equalTo(32L));
             assertThat(count, equalTo(32));
         }
         {
+            CellIdSource.GeoShapeCellValues values = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
             int count = GEOHASH.setValues(values, value, 7);
-            assertThat(GEOHASH.getBoundingTileCount(value, 7), equalTo(1024L));
             assertThat(count, equalTo(1024));
         }
     }

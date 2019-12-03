@@ -62,7 +62,8 @@ setup:
           query:
             intervals:
               text:
-                match: "to be or not to be"
+                match:
+                  query: "to be or not to be"
   - match: { hits.total.value: 1 }
 
 ---
@@ -217,7 +218,8 @@ setup:
                     - match:
                         query: "to be"
                   ordered: false
-  - match: { hits.total.value: 2 }
+  - match: { hits.total.value: 1 }
+    
 ---
 "Test block combination":
   - do:

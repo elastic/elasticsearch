@@ -74,8 +74,9 @@ public class GeometryTreeReader implements ShapeTreeReader {
             return extent;
         }
         assert input.readVInt() == 1;
-        ShapeType shapeType = input.readEnum(ShapeType.class);
-        ShapeTreeReader reader = getReader(shapeType, coordinateEncoder, input);
+        // read ShapeType ordinal to avoid readEnum allocations
+        int shapeTypeOrdinal = input.readVInt();
+        ShapeTreeReader reader = getReader(shapeTypeOrdinal, coordinateEncoder, input);
         return reader.getExtent();
     }
 
@@ -101,8 +102,9 @@ public class GeometryTreeReader implements ShapeTreeReader {
                 int pos = input.readVInt();
                 nextPosition = input.position() + pos;
             }
-            ShapeType shapeType = input.readEnum(ShapeType.class);
-            ShapeTreeReader reader = getReader(shapeType, coordinateEncoder, input);
+            // read ShapeType ordinal to avoid readEnum allocations
+            int shapeTypeOrdinal = input.readVInt();
+            ShapeTreeReader reader = getReader(shapeTypeOrdinal, coordinateEncoder, input);
             GeoRelation shapeRelation = reader.relate(extent);
             if (GeoRelation.QUERY_CROSSES == shapeRelation ||
                 (GeoRelation.QUERY_DISJOINT == shapeRelation && GeoRelation.QUERY_INSIDE == relation)
@@ -116,21 +118,17 @@ public class GeometryTreeReader implements ShapeTreeReader {
         return relation;
     }
 
-    private static ShapeTreeReader getReader(ShapeType shapeType, CoordinateEncoder coordinateEncoder, ByteBufferStreamInput input)
+    private static ShapeTreeReader getReader(int shapeTypeOrdinal, CoordinateEncoder coordinateEncoder, ByteBufferStreamInput input)
             throws IOException {
-        switch (shapeType) {
-            case POLYGON:
-                return new PolygonTreeReader(input);
-            case POINT:
-            case MULTIPOINT:
-                return new Point2DReader(input);
-            case LINESTRING:
-            case MULTILINESTRING:
-                return new EdgeTreeReader(input, false);
-            case GEOMETRYCOLLECTION:
-                return new GeometryTreeReader(input, coordinateEncoder);
-            default:
-                throw new UnsupportedOperationException("unsupported shape type [" + shapeType + "]");
+        if (shapeTypeOrdinal == ShapeType.POLYGON.ordinal()) {
+            return new PolygonTreeReader(input);
+        } else if (shapeTypeOrdinal == ShapeType.POINT.ordinal() || shapeTypeOrdinal == ShapeType.MULTIPOINT.ordinal()) {
+            return new Point2DReader(input);
+        } else if (shapeTypeOrdinal == ShapeType.LINESTRING.ordinal() || shapeTypeOrdinal == ShapeType.MULTILINESTRING.ordinal()) {
+            return new EdgeTreeReader(input, false);
+        } else if (shapeTypeOrdinal == ShapeType.GEOMETRYCOLLECTION.ordinal()) {
+            return new GeometryTreeReader(input, coordinateEncoder);
         }
+        throw new UnsupportedOperationException("unsupported shape type ordinal [" + shapeTypeOrdinal + "]");
     }
 }

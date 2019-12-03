@@ -55,6 +55,9 @@ setup:
 
 ---
 "Test unordered matching with duplicates":
+  - skip:
+      version: "- 8.0.0"
+      reason:  Added in v7.6
   - do:
       search:
         index: test
@@ -204,6 +207,9 @@ setup:
 
 ---
 "Test unordered combination with duplicates":
+  - skip:
+      version: "- 8.0.0"
+      reason:  Added in v7.6
   - do:
       search:
         index: test
@@ -219,7 +225,7 @@ setup:
                         query: "to be"
                   ordered: false
   - match: { hits.total.value: 1 }
-    
+
 ---
 "Test block combination":
   - do:

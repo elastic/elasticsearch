@@ -1087,7 +1087,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // TODO: Remove all usages of this variable, instead initialize the generation when loading RepositoryData
                     final boolean uninitializedMeta = meta.generation() == RepositoryData.UNKNOWN_REPO_GEN;
                     if (uninitializedMeta == false && meta.pendingGeneration() != genInState) {
-                        logger.info("Trying to write new repository data over unfinished write, repo is in state [{}]", meta);
+                        logger.info("Trying to write new repository data over unfinished write, repo [{}] is at " +
+                            "safe generation [{}] and pending generation [{}]", meta.name(), genInState, meta.pendingGeneration());
                     }
                     assert expectedGen == RepositoryData.EMPTY_REPO_GEN || RepositoryData.UNKNOWN_REPO_GEN == meta.generation()
                         || expectedGen == meta.generation() :

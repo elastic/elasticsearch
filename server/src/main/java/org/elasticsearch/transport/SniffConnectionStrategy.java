@@ -202,7 +202,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
         String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         List<String> addresses = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return seedsChanged(configuredSeedNodes, addresses) || proxyChanged(proxyAddress, proxy);
+        int nodeConnections = REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        return nodeConnections != maxNumRemoteConnections  || seedsChanged(configuredSeedNodes, addresses) ||
+            proxyChanged(proxyAddress, proxy);
     }
 
     @Override

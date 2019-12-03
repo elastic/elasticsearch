@@ -4,7 +4,7 @@
 <titleabbrev>Length</titleabbrev>
 ++++
 
-Removes tokens below or above a specified character count.
+Removes tokens shorter or longer than specified character lengths.
 For example, you can use the `length` filter to exclude tokens shorter than 2
 characters and tokens longer than 5 characters.
 
@@ -21,7 +21,7 @@ a specific length, use the <<analysis-truncate-tokenfilter,`truncate`>> filter.
 ==== Example
 
 The following <<indices-analyze,analyze API>> request uses the `length`
-filter to remove tokens longer than `4` characters:
+filter to remove tokens longer than 4 characters:
 
 [source,console]
 --------------------------------------------------

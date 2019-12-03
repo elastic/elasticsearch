@@ -152,6 +152,7 @@ public class TypeParsers {
      * Parse text field attributes. In addition to {@link #parseField common attributes}
      * this will parse analysis and term-vectors related settings.
      */
+    @SuppressWarnings("unchecked")
     public static void parseTextField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
                                       Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, fieldNode, parserContext);
@@ -217,7 +218,7 @@ public class TypeParsers {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext,
                                           String propName, Object propNode) {
         if (propName.equals("fields")) {

@@ -92,7 +92,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoriesState;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
@@ -119,7 +118,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
@@ -145,7 +143,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
 
-    protected final RepositoryMetaData metadata;
+    protected volatile RepositoryMetaData metadata;
 
     protected final ThreadPool threadPool;
 
@@ -301,7 +299,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             bestGenerationFromCS = bestGeneration(cleanupInProgress.entries());
         }
 
-        final long finalBestGen = Math.max(bestGenerationFromCS, getRepoMetaData(state).generation());
+        metadata = getRepoMetaData(state);
+        final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
         latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
     }
 
@@ -1051,10 +1050,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * Writing a new index generation is a three step process.
-     * First, the {@link RepositoriesState.State} entry for this repository is set into a pending state by incrementing its
+     * First, the {@link RepositoryMetaData} entry for this repository is set into a pending state by incrementing its
      * pending generation {@code P} while its safe generation {@code N} remains unchanged.
      * Second, the updated {@link RepositoryData} is written to generation {@code P + 1}.
-     * Lastly, the {@link RepositoriesState.State} entry for this repository is updated to the new generation {@code P + 1} and thus
+     * Lastly, the {@link RepositoryMetaData} entry for this repository is updated to the new generation {@code P + 1} and thus
      * pending and safe generation are set to the same value marking the end of the update of the repository data.
      *
      * @param repositoryData RepositoryData to write
@@ -1083,27 +1082,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final RepositoryMetaData state = RepositoriesState.getOrEmpty(currentState);
+                    final RepositoryMetaData meta = getRepoMetaData(currentState);
                     final String repoName = metadata.name();
-                    final RepositoriesState.State repoState = Optional.ofNullable(state.state(repoName)).orElseGet(
-                        () -> RepositoriesState.builder().putState(repoName, expectedGen, expectedGen).build().state(repoName));
-                    if (repoState.pendingGeneration() != repoState.generation()) {
-                        logger.info("Trying to write new repository data over unfinished write, repo is in state [{}]", repoState);
+                    final long genInState = meta.generation();
+                    // TODO: Remove all usages of this variable, instead initialize the generation when loading RepositoryData
+                    final boolean uninitializedMeta = meta.generation() == RepositoryData.UNKNOWN_REPO_GEN;
+                    if (uninitializedMeta == false && meta.pendingGeneration() != genInState) {
+                        logger.info("Trying to write new repository data over unfinished write, repo is in state [{}]", meta);
                     }
-                    assert expectedGen == RepositoryData.EMPTY_REPO_GEN || expectedGen == repoState.generation()
-                        : "Expected non-empty generation [" + expectedGen + "] does not match generation tracked in [" + repoState + "]";
+                    assert expectedGen == RepositoryData.EMPTY_REPO_GEN || RepositoryData.UNKNOWN_REPO_GEN == meta.generation()
+                        || expectedGen == meta.generation() :
+                        "Expected non-empty generation [" + expectedGen + "] does not match generation tracked in [" + meta + "]";
                     // If we run into the empty repo generation for the expected gen, the repo has been is assumed to have been cleared of
                     // all contents by an external process so we reset the safe generation to the empty generation.
                     final long safeGeneration = expectedGen == RepositoryData.EMPTY_REPO_GEN ? RepositoryData.EMPTY_REPO_GEN
-                        : repoState.generation();
+                        : (uninitializedMeta ? expectedGen : genInState);
                     // Regardless of whether or not the safe generation has been reset, the pending generation always increments so that
                     // even if a repository has been manually cleared of all contents we will never reuse the same repository generation.
                     // This is motivated by the consistency behavior the S3 based blob repository implementation has to support which does
                     // not offer any consistency guarantees when it comes to overwriting the same blob name with different content.
-                    newGen = repoState.pendingGeneration() + 1;
-                    return ClusterState.builder(currentState).putCustom(
-                        RepositoriesState.TYPE,
-                        RepositoriesState.builder().putAll(state).putState(repoName, safeGeneration, newGen).build()).build();
+                    newGen = uninitializedMeta ? expectedGen + 1: metadata.pendingGeneration() + 1;
+                    assert newGen > latestKnownRepoGen.get() : "Attempted new generation [" + newGen +
+                        "] must be larger than latest known generation [" + latestKnownRepoGen.get() + "]";
+                    return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.getMetaData())
+                        .putCustom(RepositoriesMetaData.TYPE,
+                            currentState.metaData().<RepositoriesMetaData>custom(RepositoriesMetaData.TYPE).withUpdatedGeneration(
+                                repoName, safeGeneration, newGen)).build()).build();
                 }
 
                 @Override
@@ -1119,8 +1123,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 private boolean assertExpectedGeneration(ClusterState newState) {
-                    final RepositoriesState repositoriesState = newState.custom(RepositoriesState.TYPE);
-                    final RepositoriesState.State repoState = repositoriesState.state(metadata.name());
+                    final RepositoriesMetaData repositoriesMetaData = newState.metaData().custom(RepositoriesMetaData.TYPE);
+                    final RepositoryMetaData repoState = repositoriesMetaData.repository(metadata.name());
                     assert newGen == repoState.pendingGeneration()
                         : "State [" + repoState + "] did not contain assumed pending generation [" + newGen + "]";
                     return true;
@@ -1139,12 +1143,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
             writeAtomic(indexBlob,
                 BytesReference.bytes(repositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), writeShardGens)), true);
-            final long latestKnownGen = latestKnownRepoGen.updateAndGet(known -> Math.max(known, newGen));
-            if (newGen < latestKnownGen) {
-                // Don't mess up the index.latest blob
-                throw new IllegalStateException(
-                    "Wrote generation [" + newGen + "] but latest known repo gen concurrently changed to [" + latestKnownGen + "]");
-            }
             // write the current generation to the index-latest file
             final BytesReference genBytes;
             try (BytesStreamOutput bStream = new BytesStreamOutput()) {
@@ -1153,26 +1151,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
 
-            // Step 3: Update CS to reflect new repository generation.
             writeAtomic(INDEX_LATEST_BLOB, genBytes, false);
+
+            // Step 3: Update CS to reflect new repository generation.
             clusterService.submitStateUpdateTask("set safe repository generation [" + metadata.name() + "][" + newGen + "]",
                 new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        final RepositoriesState state = currentState.custom(RepositoriesState.TYPE);
-                        final RepositoriesState.State repoState = state.state(metadata.name());
-                        final long prevGeneration = repoState.generation();
+                        final RepositoryMetaData meta = getRepoMetaData(currentState);
+                        final long prevGeneration = meta.generation();
                         if (prevGeneration != expectedGen) {
                             throw new IllegalStateException("Tried to update repo generation to [" + newGen
-                                + "] but saw unexpected generation in state [" + repoState + "]");
+                                + "] but saw unexpected generation in state [" + meta + "]");
                         }
-                        if (repoState.pendingGeneration() == prevGeneration) {
+                        if (meta.pendingGeneration() == prevGeneration) {
                             throw new IllegalStateException(
-                                "Tried to update non-pending repo state [" + repoState + "] after write to generation [" + newGen + "]");
+                                "Tried to update non-pending repo state [" + meta + "] after write to generation [" + newGen + "]");
                         }
-                        final RepositoriesState updated =
-                            RepositoriesState.builder().putAll(state).putState(metadata.name(), newGen, newGen).build();
-                        return ClusterState.builder(currentState).putCustom(RepositoriesState.TYPE, updated).build();
+                        return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.getMetaData())
+                            .putCustom(RepositoriesMetaData.TYPE,
+                                currentState.metaData().<RepositoriesMetaData>custom(RepositoriesMetaData.TYPE).withUpdatedGeneration(
+                                    metadata.name(), newGen, newGen)).build()).build();
                     }
 
                     @Override

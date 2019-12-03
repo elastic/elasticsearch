@@ -135,10 +135,10 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
 
     public void testOverwriteSnapshotInfoBlob() {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
-        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService();
-        try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
-            xContentRegistry(), clusterService, blobStoreContext, random())) {
+        final RepositoryMetaData metaData = new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(metaData);
+        try (BlobStoreRepository repository =
+                 new MockEventuallyConsistentRepository(metaData, xContentRegistry(), clusterService, blobStoreContext, random())) {
             clusterService.addStateApplier(event -> repository.updateState(event.state()));
             repository.start();
 

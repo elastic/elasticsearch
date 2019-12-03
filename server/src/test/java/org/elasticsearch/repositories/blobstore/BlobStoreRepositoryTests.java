@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +33,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.RepositoriesState;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
@@ -51,7 +49,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
@@ -140,7 +137,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     public void testReadAndWriteSnapshotsThroughIndexFile() throws Exception {
         final BlobStoreRepository repository = setupRepo();
-        final long pendingGeneration = getPendingGeneration(repository);
+        final long pendingGeneration = repository.metadata.pendingGeneration();
         // write to and read from a index file with no entries
         assertThat(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getSnapshotIds().size(), equalTo(0));
         final RepositoryData emptyData = RepositoryData.EMPTY;
@@ -166,7 +163,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final BlobStoreRepository repository = setupRepo();
         assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), RepositoryData.EMPTY);
 
-        final long pendingGeneration = getPendingGeneration(repository);
+        final long pendingGeneration = repository.metadata.pendingGeneration();
 
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
@@ -225,12 +222,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repository.writeIndexGen(repositoryData, generation, true, future);
         future.actionGet();
-    }
-
-    private long getPendingGeneration(Repository repository) {
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        return Optional.ofNullable(RepositoriesState.getOrEmpty(state).state(repository.getMetadata().name()))
-            .map(RepositoriesState.State::pendingGeneration).orElse(RepositoryData.EMPTY_REPO_GEN);
     }
 
     private BlobStoreRepository setupRepo() {

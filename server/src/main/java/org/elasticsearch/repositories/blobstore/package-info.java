@@ -96,8 +96,8 @@
  * <ol>
  * <li>The blobstore repository stores the {@code RepositoryData} in blobs named with incrementing suffix {@code N} at {@code /index-N}
  * directly under the repository's root.</li>
- * <li>For each {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository} (that is not mounted in read-only mode) an entry
- * of type {@link org.elasticsearch.repositories.RepositoriesState.State} exists in the cluster state. It tracks the current valid
+ * <li>For each {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository} an entry of type
+ * {@link org.elasticsearch.cluster.metadata.RepositoryMetaData} exists in the cluster state. It tracks the current valid
  * generation {@code N} as well as the latest generation that a write was attempted for.</li>
  * <li>The blobstore also stores the most recent {@code N} as a 64bit long in the blob {@code /index.latest} directly under the
  * repository's root.</li>
@@ -128,9 +128,9 @@
  * to read operations on the repository are as follows and all run on the master node:</p>
  *
  * <ol>
- * <li>Write an updated value of {@link org.elasticsearch.repositories.RepositoriesState.State} for the repository that has the same
- * {@link org.elasticsearch.repositories.RepositoriesState.State#generation()} as the existing entry and has a value of
- * {@link org.elasticsearch.repositories.RepositoriesState.State#pendingGeneration()} one greater than the {@code pendingGeneration} of the
+ * <li>Write an updated value of {@link org.elasticsearch.cluster.metadata.RepositoryMetaData} for the repository that has the same
+ * {@link org.elasticsearch.cluster.metadata.RepositoryMetaData#generation()} as the existing entry and has a value of
+ * {@link org.elasticsearch.cluster.metadata.RepositoryMetaData#pendingGeneration()} one greater than the {@code pendingGeneration} of the
  * existing entry.</li>
  * <li>On the same master node, after the cluster state has been updated in the first step, write the new {@code index-N} blob and
  * also update the contents of the {@code index.latest} blob. Note that updating the index.latest blob is done on a best effort

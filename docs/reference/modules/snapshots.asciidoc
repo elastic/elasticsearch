@@ -122,7 +122,9 @@ which returns:
     "type": "fs",
     "settings": {
       "location": "my_backup_location"
-    }
+    },
+    "generation": -2,
+    "pending_generation": -1
   }
 }
 -----------------------------------
@@ -188,7 +190,9 @@ PUT /_snapshot/my_fs_backup
     "settings": {
         "location": "/mount/backups/my_fs_backup_location",
         "compress": true
-    }
+    },
+    "generation": -2,
+    "pending_generation": -1
 }
 -----------------------------------
 // TEST[skip:no access to absolute path]
@@ -204,7 +208,9 @@ PUT /_snapshot/my_fs_backup
     "settings": {
         "location": "my_fs_backup_location",
         "compress": true
-    }
+    },
+    "generation": -2,
+    "pending_generation": -1
 }
 -----------------------------------
 // TEST[continued]
@@ -281,7 +287,9 @@ PUT _snapshot/my_src_only_repository
   "settings": {
     "delegate_type": "fs",
     "location": "my_backup_location"
-  }
+  },
+  "generation": -2,
+  "pending_generation": -1
 }
 -----------------------------------
 // TEST[continued]
@@ -309,7 +317,9 @@ PUT /_snapshot/my_unverified_backup?verify=false
   "type": "fs",
   "settings": {
     "location": "my_unverified_backup_location"
-  }
+  },
+  "generation": -2,
+  "pending_generation": -1
 }
 -----------------------------------
 // TEST[continued]

@@ -23,11 +23,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Thrown when a user tries to multiple conflicting snapshot/restore operations at the same time.
  */
 public class ConcurrentSnapshotExecutionException extends SnapshotException {
+
+    public ConcurrentSnapshotExecutionException(String repositoryName, Collection<SnapshotId> snapshots, String msg) {
+        super(repositoryName, snapshots.size() == 1 ? snapshots.iterator().next().getName() : snapshots.toString(), msg);
+    }
 
     public ConcurrentSnapshotExecutionException(final String repositoryName, final String snapshotName, final String msg) {
         super(repositoryName, snapshotName, msg);

@@ -65,18 +65,19 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
     public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS_OLD = Setting.affixKeySetting(
-            "cluster.remote.",
-            "seeds",
-            key -> Setting.listSetting(
-                    key,
-                    Collections.emptyList(),
-                    s -> {
-                        // validate seed address
-                        parsePort(s);
-                        return s;
-                    },
-                    Setting.Property.Dynamic,
-                    Setting.Property.NodeScope));
+        "cluster.remote.",
+        "seeds",
+        (ns, key) -> Setting.listSetting(
+            key,
+            Collections.emptyList(),
+            s -> {
+                // validate seed address
+                parsePort(s);
+                return s;
+            },
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope));
 
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
@@ -84,14 +85,19 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
         "cluster.remote.",
         "sniff.seeds",
-        key -> Setting.listSetting(key,
-            "_na_".equals(key) ? REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(key)
-                : REMOTE_CLUSTER_SEEDS_OLD.getConcreteSetting(key.replaceAll("sniff\\.seeds$", "seeds")),
+        (ns, key) -> Setting.listSetting(key,
+            REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(ns),
             s -> {
                 // validate seed address
                 parsePort(s);
                 return s;
-            }, Setting.Property.Dynamic, Setting.Property.NodeScope));
+            },
+            s -> REMOTE_CLUSTER_SEEDS_OLD.getConcreteSettingForNamespace(ns).get(s),
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope));
+
+
     /**
      * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
      * the remote cluster using their publish addresses. If this setting is set to an IP address or hostname then Elasticsearch will connect
@@ -99,19 +105,29 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
      * undocumented as it does not work well with all proxies.
      */
     public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
-            "cluster.remote.",
-            "proxy",
-            key -> Setting.simpleString(
-                    key,
-                    s -> {
-                        if (Strings.hasLength(s)) {
-                            parsePort(s);
-                        }
-                    },
-                    Setting.Property.Dynamic,
-                    Setting.Property.NodeScope),
+        "cluster.remote.",
+        "proxy",
+        (ns, key) -> Setting.simpleString(
+            key,
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF, s -> {
+                if (Strings.hasLength(s)) {
+                    parsePort(s);
+                }
+            }),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope),
         REMOTE_CLUSTER_SEEDS);
 
+    /**
+     * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
+     * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
+     */
+    public static final Setting<Integer> REMOTE_CONNECTIONS_PER_CLUSTER =
+        intSetting(
+            "cluster.remote.connections_per_cluster",
+            3,
+            1,
+            Setting.Property.NodeScope);
     /**
      * The maximum number of node connections that will be established to a remote cluster. For instance if there is only a single
      * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
@@ -119,8 +135,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     public static final Setting.AffixSetting<Integer> REMOTE_NODE_CONNECTIONS = Setting.affixKeySetting(
         "cluster.remote.",
         "sniff.node_connections",
-        key -> intSetting(key, RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER, 1,
-            Setting.Property.Dynamic, Setting.Property.NodeScope));
+        (ns, key) -> intSetting(
+            key,
+            REMOTE_CONNECTIONS_PER_CLUSTER,
+            1,
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope));
 
     static final int CHANNELS_PER_CONNECTION = 6;
 
@@ -181,7 +202,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
         String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         List<String> addresses = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return seedsChanged(configuredSeedNodes, addresses) || proxyChanged(proxyAddress, proxy);
+        int nodeConnections = REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        return nodeConnections != maxNumRemoteConnections  || seedsChanged(configuredSeedNodes, addresses) ||
+            proxyChanged(proxyAddress, proxy);
     }
 
     @Override

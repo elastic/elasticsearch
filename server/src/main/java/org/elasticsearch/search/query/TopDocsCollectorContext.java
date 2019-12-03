@@ -414,8 +414,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
      * @param hasFilterCollector True if the collector chain contains at least one collector that can filters document.
      */
     static TopDocsCollectorContext createTopDocsCollectorContext(SearchContext searchContext,
-                                                                 IndexReader reader,
                                                                  boolean hasFilterCollector) throws IOException {
+        final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.query();
         // top collectors don't like a size of 0
         final int totalNumDocs = Math.max(1, reader.numDocs());

@@ -84,8 +84,6 @@ public final class TransportLogger {
 
                 // TODO: Change to 7.6 after backport
                 if (version.onOrAfter(Version.V_8_0_0)) {
-                    // Consume the variable header size
-                    streamInput.readInt();
                     sb.append(", header size: ").append(streamInput.readInt()).append('B');
                 } else {
                     streamInput = decompressingStream(status, version, streamInput);

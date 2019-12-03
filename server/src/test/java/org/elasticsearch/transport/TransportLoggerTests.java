@@ -24,9 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -92,34 +90,10 @@ public class TransportLoggerTests extends ESTestCase {
 
     private BytesReference buildRequest() throws IOException {
         boolean compress = randomBoolean();
-        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-        int variableHeaderSize;
-        try (StreamOutput messageOutput = new CompressibleBytesOutputStream(bytesStreamOutput, compress)) {
-            messageOutput.setVersion(Version.CURRENT);
-            long preHeaderPosition = messageOutput.position();
-            ThreadContext context = new ThreadContext(Settings.EMPTY);
-            context.writeTo(messageOutput);
-            messageOutput.writeString(ClusterStatsAction.NAME);
-            variableHeaderSize = Math.toIntExact(messageOutput.position() - preHeaderPosition);
-            new ClusterStatsRequest().writeTo(messageOutput);
-        }
-        BytesReference messageBody = bytesStreamOutput.bytes();
-        final BytesReference header = buildHeader(randomInt(30), compress, variableHeaderSize, messageBody.length());
-        return new CompositeBytesReference(header, messageBody);
-    }
-
-    private BytesReference buildHeader(long requestId, boolean compress, int variableHeaderSize, int length) throws IOException {
-        int headerSize = TcpHeader.headerSize(Version.CURRENT);
-        try (BytesStreamOutput headerOutput = new BytesStreamOutput(headerSize)) {
-            headerOutput.setVersion(Version.CURRENT);
-            byte status = TransportStatus.setRequest((byte) 0);
-            if (compress) {
-                status = TransportStatus.setCompress(status);
-            }
-            TcpHeader.writeHeader(headerOutput, requestId, status, Version.CURRENT, length, variableHeaderSize);
-            final BytesReference bytes = headerOutput.bytes();
-            assert bytes.length() == headerSize : "header size mismatch expected: " + headerSize + " but was: " + bytes.length();
-            return bytes;
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+            OutboundMessage.Request request = new OutboundMessage.Request(new ThreadContext(Settings.EMPTY), new ClusterStatsRequest(),
+                Version.CURRENT, ClusterStatsAction.NAME, randomInt(30), false, compress);
+            return request.serialize(bytesStreamOutput);
         }
     }
 }

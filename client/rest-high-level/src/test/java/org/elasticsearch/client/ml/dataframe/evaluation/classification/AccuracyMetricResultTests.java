@@ -31,15 +31,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class AccuracyMetricResultTests extends AbstractXContentTestCase<AccuracyMetric.Result> {
+public class AccuracyMetricResultTests extends AbstractXContentTestCase<Result> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    @Override
-    protected AccuracyMetric.Result createTestInstance() {
+    public static Result randomResult() {
         int numClasses = randomIntBetween(2, 100);
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
         List<ActualClass> actualClasses = new ArrayList<>(numClasses);
@@ -52,8 +51,13 @@ public class AccuracyMetricResultTests extends AbstractXContentTestCase<Accuracy
     }
 
     @Override
-    protected AccuracyMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return AccuracyMetric.Result.fromXContent(parser);
+    protected Result createTestInstance() {
+        return randomResult();
+    }
+
+    @Override
+    protected Result doParseInstance(XContentParser parser) throws IOException {
+        return Result.fromXContent(parser);
     }
 
     @Override

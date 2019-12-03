@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml;
+package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
 
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -27,26 +26,27 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.client.ml.ConfusionMatrixMetricConfusionMatrixTests.randomConfusionMatrix;
+import static org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetricAucRocPointTests.randomPoint;
 
-public class ConfusionMatrixMetricResultTests extends AbstractXContentTestCase<ConfusionMatrixMetric.Result> {
+public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetric.Result> {
 
-    static ConfusionMatrixMetric.Result randomResult() {
-        return new ConfusionMatrixMetric.Result(
+    public static AucRocMetric.Result randomResult() {
+        return new AucRocMetric.Result(
+            randomDouble(),
             Stream
-                .generate(() -> randomConfusionMatrix())
-                .limit(randomIntBetween(1, 5))
-                .collect(Collectors.toMap(v -> String.valueOf(randomDouble()), v -> v)));
+                .generate(() -> randomPoint())
+                .limit(randomIntBetween(1, 10))
+                .collect(Collectors.toList()));
     }
 
     @Override
-    protected ConfusionMatrixMetric.Result createTestInstance() {
+    protected AucRocMetric.Result createTestInstance() {
         return randomResult();
     }
 
     @Override
-    protected ConfusionMatrixMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return ConfusionMatrixMetric.Result.fromXContent(parser);
+    protected AucRocMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return AucRocMetric.Result.fromXContent(parser);
     }
 
     @Override
@@ -56,7 +56,7 @@ public class ConfusionMatrixMetricResultTests extends AbstractXContentTestCase<C
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // disallow unknown fields in the root of the object as field names must be parsable as numbers
-        return field -> field.isEmpty();
+        // allow unknown fields in the root of the object only
+        return field -> !field.isEmpty();
     }
 }

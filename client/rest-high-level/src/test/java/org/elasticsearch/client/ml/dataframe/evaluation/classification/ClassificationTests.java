@@ -38,7 +38,10 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
 
     static Classification createRandom() {
         List<EvaluationMetric> metrics =
-            randomSubsetOf(Arrays.asList(AccuracyMetricTests.createRandom(), MulticlassConfusionMatrixMetricTests.createRandom()));
+            randomSubsetOf(
+                Arrays.asList(
+                    AccuracyMetricTests.createRandom(),
+                    MulticlassConfusionMatrixMetricTests.createRandom()));
         return new Classification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
 

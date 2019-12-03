@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml;
+package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
 
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -27,27 +26,24 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.client.ml.AucRocMetricAucRocPointTests.randomPoint;
+public class RecallMetricResultTests extends AbstractXContentTestCase<RecallMetric.Result> {
 
-public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetric.Result> {
-
-    static AucRocMetric.Result randomResult() {
-        return new AucRocMetric.Result(
-            randomDouble(),
+    public static RecallMetric.Result randomResult() {
+        return new RecallMetric.Result(
             Stream
-                .generate(() -> randomPoint())
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList()));
+                .generate(() -> randomDouble())
+                .limit(randomIntBetween(1, 5))
+                .collect(Collectors.toMap(v -> String.valueOf(randomDouble()), v -> v)));
     }
 
     @Override
-    protected AucRocMetric.Result createTestInstance() {
+    protected RecallMetric.Result createTestInstance() {
         return randomResult();
     }
 
     @Override
-    protected AucRocMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return AucRocMetric.Result.fromXContent(parser);
+    protected RecallMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return RecallMetric.Result.fromXContent(parser);
     }
 
     @Override
@@ -57,7 +53,7 @@ public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetr
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
+        // disallow unknown fields in the root of the object as field names must be parsable as numbers
+        return field -> field.isEmpty();
     }
 }

@@ -113,6 +113,15 @@ public class FakeRestRequest extends RestRequest {
                 }
             };
         }
+
+        @Override
+        public void release() {
+        }
+
+        @Override
+        public HttpRequest releaseAndCopy() {
+            return this;
+        }
     }
 
     private static class FakeHttpChannel implements HttpChannel {

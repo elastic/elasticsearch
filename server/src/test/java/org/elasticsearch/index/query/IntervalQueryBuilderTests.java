@@ -143,6 +143,17 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         assertThat(query, instanceOf(IntervalQuery.class));
     }
 
+    @Override
+    public IntervalQueryBuilder mutateInstance(IntervalQueryBuilder instance) throws IOException {
+        if (randomBoolean()) {
+            return super.mutateInstance(instance); // just change name/boost
+        }
+        if (randomBoolean()) {
+            return new IntervalQueryBuilder(STRING_FIELD_NAME_2, instance.getSourceProvider());
+        }
+        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0));
+    }
+
     public void testMatchInterval() throws IOException {
 
         String json = "{ \"intervals\" : " +

@@ -79,16 +79,12 @@ public class TriangleTreeReader implements ShapeTreeReader {
         return coordinateEncoder.decodeY(input.readInt());
     }
 
-    @Override
-    public GeoRelation relate(Extent extent) throws IOException {
-        return relate(extent.minX(), extent.maxX(), extent.minY(), extent.maxY());
-    }
-
     /**
      * Compute the relation with the provided bounding box. If the result is CELL_INSIDE_QUERY
      * then the bounding box is within the shape.
      */
-    private GeoRelation relate(int minX, int maxX, int minY, int maxY) throws IOException {
+    @Override
+    public GeoRelation relate(int minX, int minY, int maxX, int maxY) throws IOException {
         input.position(extentOffset);
         int thisMaxX = input.readInt();
         int thisMinX = Math.toIntExact(thisMaxX - input.readVLong());

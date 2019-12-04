@@ -63,7 +63,7 @@ class Point2DReader implements ShapeTreeReader {
 
 
     @Override
-    public GeoRelation relate(Extent extent) throws IOException {
+    public GeoRelation relate(int minX, int minY, int maxX, int maxY) throws IOException {
         Deque<Integer> stack = new ArrayDeque<>();
         stack.push(0);
         stack.push(size - 1);
@@ -78,7 +78,7 @@ class Point2DReader implements ShapeTreeReader {
                     // TODO serialize to re-usable array instead of serializing in each step
                     int x = readX(i);
                     int y = readY(i);
-                    if (x >= extent.minX() && x <= extent.maxX() && y >= extent.minY() && y <= extent.maxY()) {
+                    if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
                         return GeoRelation.QUERY_CROSSES;
                     }
                 }
@@ -88,15 +88,15 @@ class Point2DReader implements ShapeTreeReader {
             int middle = (right + left) >> 1;
             int x = readX(middle);
             int y = readY(middle);
-            if (x >= extent.minX() && x <= extent.maxX() && y >= extent.minY() && y <= extent.maxY()) {
+            if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
                 return GeoRelation.QUERY_CROSSES;
             }
-            if ((axis == 0 && extent.minX() <= x) || (axis == 1 && extent.minY() <= y)) {
+            if ((axis == 0 && minX <= x) || (axis == 1 && minY <= y)) {
                 stack.push(left);
                 stack.push(middle - 1);
                 stack.push(1 - axis);
             }
-            if ((axis == 0 && extent.maxX() >= x) || (axis == 1 && extent.maxY() >= y)) {
+            if ((axis == 0 && maxX >= x) || (axis == 1 && maxY >= y)) {
                 stack.push(middle + 1);
                 stack.push(right);
                 stack.push(1 - axis);

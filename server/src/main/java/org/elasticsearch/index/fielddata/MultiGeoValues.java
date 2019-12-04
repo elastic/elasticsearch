@@ -151,9 +151,8 @@ public abstract class MultiGeoValues {
             int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
             int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
             int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
-            Extent extent = new Extent(maxY, minY, minX, maxX, minX, maxX);
             try {
-                return reader.relate(extent);
+                return reader.relate(minX, minY, maxX, maxY);
             } catch (IOException e) {
                 throw new IllegalStateException("unable to check intersection", e);
             }

@@ -407,15 +407,15 @@ public class HistogramFieldMapper extends FieldMapper {
         double value;
         int count;
         boolean isExhausted;
-        ByteArrayDataInput streamInput;
+        ByteArrayDataInput dataInput;
 
         InternalHistogramValue() {
-            streamInput = new ByteArrayDataInput();
+            dataInput = new ByteArrayDataInput();
         }
 
         /** reset the value for the histogram */
         void reset(BytesRef bytesRef) {
-            streamInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            dataInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
             isExhausted = false;
             value = 0;
             count = 0;
@@ -423,9 +423,9 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public boolean next() {
-            if (streamInput.eof() == false) {
-                count = streamInput.readVInt();
-                value = Double.longBitsToDouble(streamInput.readLong());
+            if (dataInput.eof() == false) {
+                count = dataInput.readVInt();
+                value = Double.longBitsToDouble(dataInput.readLong());
                 return true;
             }
             isExhausted = true;

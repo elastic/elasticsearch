@@ -124,7 +124,7 @@ public class ElasticsearchNodesSnifferParseTests extends RestClientTestCase {
         HttpEntity entity = new InputStreamEntity(in, ContentType.APPLICATION_JSON);
         List<Node> nodes = ElasticsearchNodesSniffer.readHosts(entity, Scheme.HTTP, new JsonFactory());
 
-        assertEquals("dummy.com", nodes.get(0).getHost().getHostName());
+        assertEquals("elastic.test", nodes.get(0).getHost().getHostName());
         assertEquals(9200, nodes.get(0).getHost().getPort());
         assertEquals("http", nodes.get(0).getHost().getSchemeName());
     }

@@ -20,9 +20,9 @@
       "attributes": { },
       "http": {
         "bound_address": [
-            "dummy.com:9200"
+            "elastic.test:9200"
         ],
-        "publish_address": "dummy.com/127.0.0.1:9200",
+        "publish_address": "elastic.test/127.0.0.1:9200",
         "max_content_length_in_bytes": 104857600
       }
     }

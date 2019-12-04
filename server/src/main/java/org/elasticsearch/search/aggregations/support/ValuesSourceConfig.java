@@ -116,6 +116,9 @@ public class ValuesSourceConfig {
                 // TODO: PLAN - get rid of unmapped; it's only used by valid(), and we're intending to get rid of that.
                 // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
                 ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
+                if (valuesSourceType == CoreValuesSourceType.ANY) {
+                    valuesSourceType = resolveScriptAny.apply(script);
+                }
                 config = new ValuesSourceConfig(valuesSourceType);
                 config.format(resolveFormat(format, valueType, timeZone));
                 config.unmapped(true);
@@ -272,9 +275,6 @@ public class ValuesSourceConfig {
             if (missing() == null) {
                 // otherwise we will have values because of the missing value
                 vs = null;
-            } else if (valueSourceType() == CoreValuesSourceType.ANY) {
-                // TODO: Clean up special cases around CoreValuesSourceType.ANY
-                vs = resolveMissingAny.apply(missing());
             } else {
                 vs = valueSourceType().getEmpty();
             }
@@ -296,7 +296,6 @@ public class ValuesSourceConfig {
         if (missing() == null) {
             return vs;
         }
-        // TODO: This braeks resolveMissingAny, since vs is not of type valueSourceType()
         return valueSourceType().replaceMissing(vs, missing, format, context::nowInMillis);
     }
 }

@@ -43,7 +43,7 @@ close the job, then reopen the job and restart the data feed for the changes to 
 
 --
 
-`analysis_config`::
+[[update-analysisconfig]]`analysis_config`::
 `detectors`:::
 //TBD Is the implication that you can add more detectors to the array? Or only update existing detectors (in particular the follow properties)?
 `custom_rules`::::
@@ -56,7 +56,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
 (integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
 
-`analysis_limits`::
+[[update-analysislimits]]`analysis_limits`::
 `model_memory_limit`:::
 (long or string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
@@ -82,7 +82,7 @@ close the job, then reopen the job and restart the data feed for the changes to 
 
 --
 
-`custom_settings`::
+[[update-customsettings]]`custom_settings`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
 

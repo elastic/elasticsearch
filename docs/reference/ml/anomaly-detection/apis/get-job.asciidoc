@@ -61,11 +61,11 @@ properties:
 (boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
 
-`analysis_config`::
+[[get-analysisconfig]]`analysis_config`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-config]
 
-`analysis_limits`::
+[[get-analysislimits]]`analysis_limits`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 
@@ -77,11 +77,11 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 (string) The time the job was created. For example, `1491007356077`. This
 property is informational; you cannot change its value.
 
-`custom_settings`::
+[[get-customsettings]]`custom_settings`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
-`data_description`:: 
+[[get-datadescription]]`data_description`:: 
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=data-description]
 
@@ -112,7 +112,7 @@ jobs.
 `job_version`::
 (string) The version of {es} that existed on the node when the job was created.
 
-`model_plot_config`::
+[[get-modelplotconfig]]`model_plot_config`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config]
 

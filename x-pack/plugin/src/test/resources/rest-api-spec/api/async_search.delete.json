@@ -1,0 +1,24 @@
+{
+  "async_search.delete":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_async_search/{id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The async search ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

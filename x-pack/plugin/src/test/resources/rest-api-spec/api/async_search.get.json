@@ -1,0 +1,34 @@
+{
+  "async_search.get":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_async_search/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The async search ID"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "wait_for_completion":{
+        "type":"time",
+        "description":"Specify the time that the request should block waiting for the final response (default: 1s)"
+      },
+      "last_version":{
+        "type":"number",
+        "description":"Specify the last version returned by a previous call. The request will return 304 (not modified) status if the new version is lower than or equals to the provided one and will remove all details in the response except id and version. (default: -1)"
+      }
+    }
+  }
+}

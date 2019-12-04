@@ -34,6 +34,9 @@ import org.elasticsearch.xpack.ccr.CCRInfoTransportAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
+import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
@@ -419,7 +422,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteTransformAction.INSTANCE,
                 GetTransformAction.INSTANCE,
                 GetTransformStatsAction.INSTANCE,
-                PreviewTransformAction.INSTANCE
+                PreviewTransformAction.INSTANCE,
+                // Async Search
+                SubmitAsyncSearchAction.INSTANCE,
+                GetAsyncSearchAction.INSTANCE,
+                DeleteAsyncSearchAction.INSTANCE
         );
     }
 

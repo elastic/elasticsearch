@@ -1,0 +1,24 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('async-search'), configuration: 'runtime')
+}
+
+task restTest(type: RestIntegTestTask) {
+  mustRunAfter(precommit)
+}
+
+testClusters.restTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'async-search-user', password: 'async-search-password'
+}
+
+check.dependsOn restTest
+test.enabled = false

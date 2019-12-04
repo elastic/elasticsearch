@@ -206,6 +206,9 @@ public class RBACEngine implements AuthorizationEngine {
             case MultiGetAction.NAME:
             case MultiTermVectorsAction.NAME:
             case MultiSearchAction.NAME:
+            case "indices:data/read/async_search/submit":
+            case "indices:data/read/async_search/get":
+            case "indices:data/read/async_search/delete":
             case "indices:data/read/mpercolate":
             case "indices:data/read/msearch/template":
             case "indices:data/read/search/template":

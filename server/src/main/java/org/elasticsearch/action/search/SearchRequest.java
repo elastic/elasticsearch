@@ -56,7 +56,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public final class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 

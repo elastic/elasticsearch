@@ -29,6 +29,8 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
@@ -37,6 +39,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -189,7 +192,14 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
                 throw new AssertionError();
             }
         };
-        client.executeSearchLocally(request, listener);
+        client.executeLocally(SearchAction.INSTANCE, new SearchRequest(request) {
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                SearchTask task = (SearchTask) super.createTask(id, type, action, parentTaskId, headers);
+                task.setProgressListener(listener);
+                return task;
+            }
+        }, listener);
         latch.await();
 
         assertThat(shardsListener.get(), equalTo(expectedShards));

@@ -162,7 +162,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", true));
+        searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
 
         checkRestTotalHits(request, searchRequest);
     }

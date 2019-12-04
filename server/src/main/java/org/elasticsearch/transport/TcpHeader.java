@@ -25,6 +25,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public class TcpHeader {
+
+    // TODO: Change to 7.6 after backport
+    public static final Version VERSION_WITH_HEADER_SIZE = Version.V_8_0_0;
+
     public static final int MARKER_BYTES_SIZE = 2;
 
     public static final int MESSAGE_LENGTH_SIZE = 4;
@@ -42,8 +46,7 @@ public class TcpHeader {
     private static final int HEADER_SIZE = PRE_76_HEADER_SIZE + VARIABLE_HEADER_SIZE;
 
     public static int headerSize(Version version) {
-        // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.V_8_0_0)) {
+        if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
             return HEADER_SIZE;
         } else {
             return PRE_76_HEADER_SIZE;
@@ -55,8 +58,7 @@ public class TcpHeader {
         output.writeByte((byte)'E');
         output.writeByte((byte)'S');
         // write the size, the size indicates the remaining message size, not including the size int
-        // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.V_8_0_0)) {
+        if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
             output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE + VARIABLE_HEADER_SIZE);
         } else {
             output.writeInt(contentSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE);
@@ -64,8 +66,7 @@ public class TcpHeader {
         output.writeLong(requestId);
         output.writeByte(status);
         output.writeInt(version.id);
-        // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.V_8_0_0)) {
+        if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
             assert variableHeaderSize != -1 : "Variable header size not set";
             output.writeInt(variableHeaderSize);
         }

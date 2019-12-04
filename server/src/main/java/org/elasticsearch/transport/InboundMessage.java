@@ -65,8 +65,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 final boolean isHandshake = TransportStatus.isHandshake(status);
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
 
-                // TODO: Change to 7.6 after backport
-                if (remoteVersion.onOrAfter(Version.V_8_0_0)) {
+                if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
                     // Consume the variable header size
                     streamInput.readInt();
                 } else {
@@ -83,15 +82,13 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                     }
                     final String action = streamInput.readString();
 
-                    // TODO: Change to 7.6 after backport
-                    if (remoteVersion.onOrAfter(Version.V_8_0_0)) {
+                    if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
                         streamInput = decompressingStream(status, remoteVersion, streamInput);
                     }
                     streamInput = namedWriteableStream(streamInput, remoteVersion);
                     message = new Request(threadContext, remoteVersion, status, requestId, action, streamInput);
                 } else {
-                    // TODO: Change to 7.6 after backport
-                    if (remoteVersion.onOrAfter(Version.V_8_0_0)) {
+                    if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
                         streamInput = decompressingStream(status, remoteVersion, streamInput);
                     }
                     streamInput = namedWriteableStream(streamInput, remoteVersion);
@@ -106,7 +103,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
             }
         }
 
-        private StreamInput decompressingStream(byte status, Version remoteVersion, StreamInput streamInput) throws IOException {
+        static StreamInput decompressingStream(byte status, Version remoteVersion, StreamInput streamInput) throws IOException {
             if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
                 try {
                     StreamInput decompressor = CompressorFactory.COMPRESSOR.streamInput(streamInput);

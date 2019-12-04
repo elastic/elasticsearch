@@ -49,8 +49,7 @@ abstract class OutboundMessage extends NetworkMessage {
         int variableHeaderLength = -1;
         final long preHeaderPosition = bytesStream.position();
 
-        // TODO: Change to 7.6 after backport
-        if (version.onOrAfter(Version.V_8_0_0)) {
+        if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
             writeVariableHeader(bytesStream);
             variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
         }

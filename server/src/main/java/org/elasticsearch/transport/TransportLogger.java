@@ -22,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -82,11 +81,10 @@ public final class TransportLogger {
                 sb.append(", type: ").append(type);
                 sb.append(", version: ").append(version);
 
-                // TODO: Change to 7.6 after backport
-                if (version.onOrAfter(Version.V_8_0_0)) {
+                if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
                     sb.append(", header size: ").append(streamInput.readInt()).append('B');
                 } else {
-                    streamInput = decompressingStream(status, version, streamInput);
+                    streamInput = InboundMessage.Reader.decompressingStream(status, version, streamInput);
                 }
 
                 // read and discard headers
@@ -111,19 +109,5 @@ public final class TransportLogger {
             }
         }
         return sb.toString();
-    }
-
-    private static StreamInput decompressingStream(byte status, Version remoteVersion, StreamInput streamInput) throws IOException {
-        if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
-            try {
-                StreamInput decompressor = CompressorFactory.COMPRESSOR.streamInput(streamInput);
-                decompressor.setVersion(remoteVersion);
-                return decompressor;
-            } catch (IllegalArgumentException e) {
-                throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
-            }
-        } else {
-            return streamInput;
-        }
     }
 }

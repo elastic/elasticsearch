@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -70,12 +69,8 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
                     + "] is not supported by JsonDataToProcessWriter");
         }
 
-        // this line can throw and will be propagated
-        dataCountsReporter.finishReporting(
-                ActionListener.wrap(
-                        response -> handler.accept(dataCountsReporter.incrementalStats(), null),
-                        e -> handler.accept(null, e)
-                ));
+        dataCountsReporter.finishReporting();
+        handler.accept(dataCountsReporter.incrementalStats(), null);
     }
 
     private void writeJsonXContent(CategorizationAnalyzer categorizationAnalyzer, InputStream inputStream) throws IOException {

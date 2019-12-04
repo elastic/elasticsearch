@@ -595,29 +595,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
     }
 
-    private void indexDataCounts(DataCounts counts, String jobId) throws Exception {
-        JobDataCountsPersister persister = new JobDataCountsPersister(client());
-
-        AtomicReference<Exception> errorHolder = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        persister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean aBoolean) {
-                assertTrue(aBoolean);
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                errorHolder.set(e);
-                latch.countDown();
-            }
-        });
-
-        latch.await();
-        if (errorHolder.get() != null) {
-            throw errorHolder.get();
-        }
+    private void indexDataCounts(DataCounts counts, String jobId) {
+        JobDataCountsPersister persister = new JobDataCountsPersister(client(), resultsPersisterService);
+        persister.persistDataCounts(jobId, counts);
     }
 
     private void indexFilters(List<MlFilter> filters) throws IOException {

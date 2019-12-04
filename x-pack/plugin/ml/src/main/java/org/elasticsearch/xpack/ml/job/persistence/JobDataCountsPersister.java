@@ -13,11 +13,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 
@@ -33,9 +35,11 @@ public class JobDataCountsPersister {
 
     private static final Logger logger = LogManager.getLogger(JobDataCountsPersister.class);
 
+    private final ResultsPersisterService resultsPersisterService;
     private final Client client;
 
-    public JobDataCountsPersister(Client client) {
+    public JobDataCountsPersister(Client client, ResultsPersisterService resultsPersisterService) {
+        this.resultsPersisterService = resultsPersisterService;
         this.client = client;
     }
 
@@ -46,16 +50,40 @@ public class JobDataCountsPersister {
 
     /**
      * Update the job's data counts stats and figures.
+     * NOTE: This call is synchronous and pauses the calling thread.
+     * @param jobId Job to update
+     * @param counts The counts
+     */
+    public void persistDataCounts(String jobId, DataCounts counts) {
+        try {
+            resultsPersisterService.indexWithRetry(jobId,
+                AnomalyDetectorsIndex.resultsWriteAlias(jobId),
+                counts,
+                ToXContent.EMPTY_PARAMS,
+                WriteRequest.RefreshPolicy.NONE,
+                DataCounts.documentId(jobId), () -> true);
+        } catch (IOException ioe) {
+            logger.warn((Supplier<?>)() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
+        } catch (Exception ex) {
+            logger.warn(() -> new ParameterizedMessage("[{}] Failed to persist DataCounts stats", jobId), ex);
+        }
+    }
+
+    /**
+     * The same as {@link JobDataCountsPersister#persistDataCounts(String, DataCounts)} but done Asynchronously.
      *
+     * Two differences are:
+     *  - The listener is notified on persistence failure
+     *  - If the persistence fails, it is not automatically retried
      * @param jobId Job to update
      * @param counts The counts
      * @param listener ActionType response listener
      */
-    public void persistDataCounts(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
+    public void persistDataCountsAsync(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
         try (XContentBuilder content = serialiseCounts(counts)) {
             final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
-                    .id(DataCounts.documentId(jobId))
-                    .source(content);
+                .id(DataCounts.documentId(jobId))
+                .source(content);
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {

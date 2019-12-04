@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -119,7 +118,7 @@ public class DataCountsReporterTests extends ESTestCase {
         assertEquals(602000, dataCountsReporter.runningTotalStats().getLatestRecordTimeStamp().getTime());
 
         // send 'flush' signal
-        dataCountsReporter.finishReporting(ActionListener.wrap(r -> {}, e -> {}));
+        dataCountsReporter.finishReporting();
         assertEquals(2, dataCountsReporter.runningTotalStats().getBucketCount());
         assertEquals(1, dataCountsReporter.runningTotalStats().getEmptyBucketCount());
         assertEquals(0, dataCountsReporter.runningTotalStats().getSparseBucketCount());
@@ -157,7 +156,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
         assertEquals(dataCountsReporter.incrementalStats(), dataCountsReporter.runningTotalStats());
 
-        verify(jobDataCountsPersister, never()).persistDataCounts(anyString(), any(DataCounts.class), any());
+        verify(jobDataCountsPersister, never()).persistDataCounts(anyString(), any(DataCounts.class));
     }
 
     public void testReportRecordsWritten_Given9999Records() {
@@ -256,7 +255,7 @@ public class DataCountsReporterTests extends ESTestCase {
         dataCountsReporter.reportRecordWritten(5, 2000);
         dataCountsReporter.reportRecordWritten(5, 3000);
         dataCountsReporter.reportMissingField();
-        dataCountsReporter.finishReporting(ActionListener.wrap(r -> {}, e -> {}));
+        dataCountsReporter.finishReporting();
 
         long lastReportedTimeMs = dataCountsReporter.incrementalStats().getLastDataTimeStamp().getTime();
         // check last data time is equal to now give or take a second
@@ -266,7 +265,7 @@ public class DataCountsReporterTests extends ESTestCase {
                 dataCountsReporter.runningTotalStats().getLastDataTimeStamp());
 
         dc.setLastDataTimeStamp(dataCountsReporter.incrementalStats().getLastDataTimeStamp());
-        Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("sr"), eq(dc), any());
+        Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("sr"), eq(dc));
         assertEquals(dc, dataCountsReporter.incrementalStats());
     }
 

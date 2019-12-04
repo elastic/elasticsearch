@@ -525,7 +525,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(client, clusterService, settings);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(client, resultsPersisterService);
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client, resultsPersisterService);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);

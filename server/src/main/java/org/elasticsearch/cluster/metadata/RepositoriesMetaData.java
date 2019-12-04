@@ -47,6 +47,12 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
 
     public static final String TYPE = "repositories";
 
+    /**
+     * Serialization parameter used to hide the {@link RepositoryMetaData#generation()} and {@link RepositoryMetaData#pendingGeneration()}
+     * in {@link org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
+     */
+    public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
+
     private final List<RepositoryMetaData> repositories;
 
     /**
@@ -265,8 +271,10 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
         repository.settings().toXContent(builder, params);
         builder.endObject();
 
-        builder.field("generation", repository.generation());
-        builder.field("pending_generation", repository.pendingGeneration());
+        if (params.paramAsBoolean(HIDE_GENERATIONS_PARAM, false) == false) {
+            builder.field("generation", repository.generation());
+            builder.field("pending_generation", repository.pendingGeneration());
+        }
         builder.endObject();
     }
 

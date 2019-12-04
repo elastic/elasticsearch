@@ -16,28 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml;
+package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
 
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class ConfusionMatrixMetricConfusionMatrixTests extends AbstractXContentTestCase<ConfusionMatrixMetric.ConfusionMatrix> {
+public class AucRocMetricAucRocPointTests extends AbstractXContentTestCase<AucRocMetric.AucRocPoint> {
 
-    public static ConfusionMatrixMetric.ConfusionMatrix randomConfusionMatrix() {
-        return new ConfusionMatrixMetric.ConfusionMatrix(randomInt(), randomInt(), randomInt(), randomInt());
+    static AucRocMetric.AucRocPoint randomPoint() {
+        return new AucRocMetric.AucRocPoint(randomDouble(), randomDouble(), randomDouble());
     }
 
     @Override
-    protected ConfusionMatrixMetric.ConfusionMatrix createTestInstance() {
-        return randomConfusionMatrix();
+    protected AucRocMetric.AucRocPoint createTestInstance() {
+        return randomPoint();
     }
 
     @Override
-    protected ConfusionMatrixMetric.ConfusionMatrix doParseInstance(XContentParser parser) throws IOException {
-        return ConfusionMatrixMetric.ConfusionMatrix.fromXContent(parser);
+    protected AucRocMetric.AucRocPoint doParseInstance(XContentParser parser) throws IOException {
+        return AucRocMetric.AucRocPoint.fromXContent(parser);
     }
 
     @Override

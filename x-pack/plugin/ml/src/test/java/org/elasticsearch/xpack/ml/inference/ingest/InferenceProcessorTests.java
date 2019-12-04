@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -54,7 +55,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(0),
             Collections.emptyMap(),
             "ml.my_processor",
-            true);
+            true,
+            null);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -81,7 +83,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(2),
             Collections.emptyMap(),
             "ml.my_processor",
-            true);
+            true,
+            null);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -112,7 +115,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new RegressionConfig(),
             Collections.emptyMap(),
             "ml.my_processor",
-            true);
+            true,
+            null);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -137,7 +141,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new RegressionConfig(),
             Collections.emptyMap(),
             "ml.my_processor",
-            false);
+            false,
+            null);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -161,7 +166,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new RegressionConfig(),
             Collections.emptyMap(),
             "ml.my_processor",
-            true);
+            true,
+            null);
 
         //cannot use singleton map as attempting to mutate later
         Map<String, Object> ml = new HashMap<>(){{
@@ -197,7 +203,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(topNClasses),
             Collections.emptyMap(),
             "ml.my_processor",
-            false);
+            false,
+            null);
 
         Map<String, Object> source = new HashMap<>(){{
             put("value1", 1);
@@ -228,7 +235,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(topNClasses),
             fieldMapping,
             "ml.my_processor",
-            false);
+            false,
+            null);
 
         Map<String, Object> source = new HashMap<>(3){{
             put("value1", 1);
@@ -256,7 +264,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new RegressionConfig(),
             Collections.emptyMap(),
             "ml.my_processor",
-            true);
+            true,
+            null);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();
@@ -291,4 +300,54 @@ public class InferenceProcessorTests extends ESTestCase {
         verify(auditor, times(1)).warning(eq("regression_model"), any(String.class));
     }
 
+    public void testMutateDocumentWithWarningResultAndNoWarningField() {
+        String targetField = "regression_value";
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            targetField,
+            "regression_model",
+            new RegressionConfig(),
+            Collections.emptyMap(),
+            "ml.my_processor",
+            false,
+            null);
+
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+            Collections.singletonList(new WarningInferenceResults("something broke")), true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.hasField(targetField), is(false));
+        assertThat(document.hasField("ml"), is(false));
+    }
+
+    public void testMutateDocumentWithWarningResultAndWarningField() {
+        String targetField = "regression_value";
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            targetField,
+            "regression_model",
+            new RegressionConfig(),
+            Collections.emptyMap(),
+            "ml.my_processor",
+            false,
+            "ml.warning");
+
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+            Collections.singletonList(new WarningInferenceResults("something broke")), true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.hasField(targetField), is(false));
+        assertThat(document.hasField("ml.warning"), is(true));
+        assertThat(document.hasField("ml.my_processor"), is(false));
+    }
 }

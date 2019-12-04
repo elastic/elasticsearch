@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -163,6 +166,13 @@ public class AnalyticsResultProcessor {
         Instant createTime = Instant.now();
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
         TrainedModelDefinition definition = inferenceModel.build();
+        List<String> fieldNamesWithoutDependentVariable = new ArrayList<>(fieldNames.size());
+        String dependentVariable = getDependentVariable();
+        for (String fieldName : fieldNames) {
+            if (fieldName.equals(dependentVariable) == false) {
+                fieldNamesWithoutDependentVariable.add(fieldName);
+            }
+        }
         return TrainedModelConfig.builder()
             .setModelId(modelId)
             .setCreatedBy("data-frame-analytics")
@@ -175,9 +185,19 @@ public class AnalyticsResultProcessor {
             .setEstimatedHeapMemory(definition.ramBytesUsed())
             .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
             .setParsedDefinition(inferenceModel)
-            .setInput(new TrainedModelInput(fieldNames))
+            .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .build();
+    }
+
+    private String getDependentVariable() {
+        if (analytics.getAnalysis() instanceof Classification) {
+            return ((Classification)analytics.getAnalysis()).getDependentVariable();
+        }
+        if (analytics.getAnalysis() instanceof Regression) {
+            return ((Regression)analytics.getAnalysis()).getDependentVariable();
+        }
+        return null;
     }
 
     private CountDownLatch storeTrainedModel(TrainedModelConfig trainedModelConfig) {

@@ -28,6 +28,8 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -38,7 +40,9 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -62,6 +66,7 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final String FIELD_MAPPINGS = "field_mappings";
     public static final String MODEL_INFO_FIELD = "model_info_field";
     public static final String INCLUDE_MODEL_METADATA = "include_model_metadata";
+    public static final String WARNING_FIELD = "warning_field";
 
     private final Client client;
     private final String modelId;
@@ -72,6 +77,7 @@ public class InferenceProcessor extends AbstractProcessor {
     private final Map<String, String> fieldMapping;
     private final boolean includeModelMetadata;
     private final InferenceAuditor auditor;
+    private final String warningsField;
     private volatile boolean previouslyLicensed;
     private final AtomicBoolean shouldAudit = new AtomicBoolean(true);
 
@@ -83,7 +89,8 @@ public class InferenceProcessor extends AbstractProcessor {
                               InferenceConfig inferenceConfig,
                               Map<String, String> fieldMapping,
                               String modelInfoField,
-                              boolean includeModelMetadata) {
+                              boolean includeModelMetadata,
+                              String warningsField) {
         super(tag);
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
@@ -93,6 +100,7 @@ public class InferenceProcessor extends AbstractProcessor {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
         this.fieldMapping = ExceptionsHelper.requireNonNull(fieldMapping, FIELD_MAPPINGS);
+        this.warningsField = warningsField;
     }
 
     public String getModelId() {
@@ -154,7 +162,14 @@ public class InferenceProcessor extends AbstractProcessor {
         if (response.getInferenceResults().isEmpty()) {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
-        response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
+        InferenceResults inferenceResults = response.getInferenceResults().get(0);
+        if (inferenceResults instanceof WarningInferenceResults) {
+            if (warningsField != null) {
+                inferenceResults.writeResult(ingestDocument, warningsField);
+            }
+        } else {
+            response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
+        }
         if (includeModelMetadata) {
             ingestDocument.setFieldValue(modelInfoField + "." + MODEL_ID, modelId);
         }
@@ -245,10 +260,23 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, String> fieldMapping = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
             InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));
             String modelInfoField = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_INFO_FIELD, "ml");
+            String warningsField = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, WARNING_FIELD);
             // If multiple inference processors are in the same pipeline, it is wise to tag them
             // The tag will keep metadata entries from stepping on each other
             if (tag != null) {
                 modelInfoField += "." + tag;
+            }
+
+            // Are any of the supplied fields duplicated? We don't want the processor overwriting previously written fields
+            // in the same processor
+            StringUniquenessVerifier stringUniquenessVerifier = new StringUniquenessVerifier();
+            stringUniquenessVerifier.addFields(true, TARGET_FIELD, targetField)
+                .addFields(includeModelMetadata, MODEL_INFO_FIELD, modelInfoField)
+                .addFields(warningsField != null, WARNING_FIELD, warningsField);
+            if (stringUniquenessVerifier.containsDuplicates()) {
+                throw ExceptionsHelper.badRequestException("Cannot create processor as configured." +
+                        " The following fields contain conflicting values {}",
+                    stringUniquenessVerifier.getFieldsWithDuplicateValues());
             }
             return new InferenceProcessor(client,
                 auditor,
@@ -258,7 +286,8 @@ public class InferenceProcessor extends AbstractProcessor {
                 inferenceConfig,
                 fieldMapping,
                 modelInfoField,
-                includeModelMetadata);
+                includeModelMetadata,
+                warningsField);
         }
 
         // Package private for testing
@@ -303,6 +332,33 @@ public class InferenceProcessor extends AbstractProcessor {
                     config.getMinimalSupportedVersion(),
                     minNodeVersion));
             }
+        }
+
+        private static class StringUniquenessVerifier {
+
+            private Set<String> fieldsWithDuplicateValues = new HashSet<>();
+            private Map<String, String> valuesToFields = new HashMap<>();
+
+            StringUniquenessVerifier addFields(boolean included, String field, String value) {
+                if (included) {
+                    if (valuesToFields.keySet().contains(value)) {
+                        fieldsWithDuplicateValues.add(field);
+                        fieldsWithDuplicateValues.add(valuesToFields.get(value));
+                        return this;
+                    }
+                    valuesToFields.put(value, field);
+                }
+                return this;
+            }
+
+            boolean containsDuplicates() {
+                return fieldsWithDuplicateValues.size() > 0;
+            }
+
+            Set<String> getFieldsWithDuplicateValues() {
+                return fieldsWithDuplicateValues;
+            }
+
         }
 
     }

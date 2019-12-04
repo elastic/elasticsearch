@@ -875,7 +875,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
 
                     for (int i = 0; i < fieldNames.length; i++) {
-                        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", valueTypes[i])
+                        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null)
+                            .userValueTypeHint(valueTypes[i])
                             .field(fieldNames[i]).missing(missingValues[i]);
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1);
                         aggregator.preCollection();

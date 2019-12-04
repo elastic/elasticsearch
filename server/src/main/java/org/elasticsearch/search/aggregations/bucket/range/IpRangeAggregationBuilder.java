@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -342,6 +343,11 @@ public final class IpRangeAggregationBuilder
             addRange(new Range(in));
         }
         keyed = in.readBoolean();
+    }
+
+    @Override
+    protected ValuesSourceType resolveScriptAny(Script script) {
+        return CoreValuesSourceType.BYTES;
     }
 
     @Override

@@ -52,9 +52,10 @@ public class BucketHelpers {
      *
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "skip": empty buckets will simply be ignored
+     * "none": no gap policy is in place, empty buckets are passed on to the aggregation
      */
     public enum GapPolicy implements Writeable {
-        INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
+        INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip"), NONE((byte) 2, "none");
 
         /**
          * Parse a string GapPolicy into the byte enum
@@ -175,11 +176,13 @@ public class BucketHelpers {
                 boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
                 if (Double.isInfinite(value) || Double.isNaN(value) || (bucket.getDocCount() == 0 && !isDocCountProperty)) {
                     switch (gapPolicy) {
-                    case INSERT_ZEROS:
-                        return 0.0;
-                    case SKIP:
-                    default:
-                        return Double.NaN;
+                        case INSERT_ZEROS:
+                            return 0.0;
+                        case NONE:
+                            return null;
+                        case SKIP:
+                        default:
+                            return Double.NaN;
                     }
                 } else {
                     return value;

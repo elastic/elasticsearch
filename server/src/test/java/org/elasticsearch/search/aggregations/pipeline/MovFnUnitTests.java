@@ -85,7 +85,7 @@ public class MovFnUnitTests extends AggregatorTestCase {
     @Override
     protected ScriptService getMockScriptService() {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
-            Collections.singletonMap("test", script -> MovingFunctions.max((double[]) script.get("_values"))),
+            Collections.singletonMap("test", script -> MovingFunctions.max((Double[]) script.get("_values"))),
             Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
@@ -123,12 +123,41 @@ public class MovFnUnitTests extends AggregatorTestCase {
                 .map(bucket -> ((InternalSimpleValue) (bucket.getAggregations().get("mov_fn"))).value())
                 .collect(Collectors.toList());
             assertThat(actual, equalTo(expected));
-        });
+        }, datasetValues);
+    }
+
+    public void testGapPolicyNoneNulls() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
+        aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(DATE_FIELD);
+        aggBuilder.subAggregation(new AvgAggregationBuilder("avg").field(VALUE_FIELD));
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "test", Collections.emptyMap());
+        aggBuilder.subAggregation(new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3)
+            .gapPolicy(BucketHelpers.GapPolicy.NONE));
+
+        List<Integer> values = Arrays.asList(1,2,3,null,5,6,7,8,9,10);
+
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertEquals(10, histogram.getBuckets().size());
+            List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+            for (int i = 0; i < buckets.size(); i++) {
+                if (i == 0) {
+                    assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("mov_fn"))).value(), equalTo(Double.NaN));
+                } else if (i == 4) {
+                    // the null at 4 means 3 is still largest
+                    assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("mov_fn"))).value(), equalTo((3.0)));
+                } else {
+                    assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("mov_fn"))).value(), equalTo(((double) i)));
+                }
+
+            }
+        }, values);
     }
 
     private void executeTestCase(Query query,
                                  DateHistogramAggregationBuilder aggBuilder,
-                                 Consumer<Histogram> verify) throws IOException {
+                                 Consumer<Histogram> verify, List<Integer> datasetValues) throws IOException {
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -142,7 +171,9 @@ public class MovFnUnitTests extends AggregatorTestCase {
                     long instant = asLong(date);
                     document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
                     document.add(new LongPoint(INSTANT_FIELD, instant));
-                    document.add(new NumericDocValuesField(VALUE_FIELD, datasetValues.get(counter)));
+                    if (datasetValues.get(counter) != null) {
+                        document.add(new NumericDocValuesField(VALUE_FIELD, datasetValues.get(counter)));
+                    }
                     indexWriter.addDocument(document);
                     document.clear();
                     counter += 1;

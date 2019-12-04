@@ -128,7 +128,8 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
 
         List<Double> values = buckets.stream()
             .map(b -> resolveBucketValue(histo, b, bucketsPaths()[0], gapPolicy))
-            .filter(v -> v != null && v.isNaN() == false)
+            // NONE allows null/NaN so go ahead and let the script deal with those values
+            .filter(v -> gapPolicy.equals(BucketHelpers.GapPolicy.NONE) || (v != null && v.isNaN() == false))
             .collect(Collectors.toList());
 
         int index = 0;
@@ -139,18 +140,15 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
             // since we only change newBucket if we can add to it
             MultiBucketsAggregation.Bucket newBucket = bucket;
 
-            if (thisBucketValue != null && thisBucketValue.isNaN() == false) {
+            // NONE allows null/NaN so go ahead and let the script deal with those values
+            if (gapPolicy.equals(BucketHelpers.GapPolicy.NONE)
+                || (thisBucketValue != null && thisBucketValue.equals(Double.NaN) == false)) {
 
                 // The custom context mandates that the script returns a double (not Double) so we
                 // don't need null checks, etc.
                 int fromIndex = clamp(index - window + shift, values);
                 int toIndex = clamp(index + shift, values);
-                double movavg = executableScript.execute(
-                    vars,
-                    values.subList(fromIndex, toIndex).stream()
-                        .mapToDouble(Double::doubleValue)
-                        .toArray()
-                );
+                double movavg = executableScript.execute(vars, values.subList(fromIndex, toIndex).toArray(new Double[]{}));
 
                 List<InternalAggregation> aggs = StreamSupport
                     .stream(bucket.getAggregations().spliterator(), false)

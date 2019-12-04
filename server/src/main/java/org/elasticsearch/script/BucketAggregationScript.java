@@ -26,7 +26,7 @@ import java.util.Map;
  */
 public abstract class BucketAggregationScript {
 
-    public static final String[] PARAMETERS = {};
+    public static final String[] PARAMETERS = {"doc_count"};
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bucket_aggregation", Factory.class);
 
@@ -46,7 +46,7 @@ public abstract class BucketAggregationScript {
         return params;
     }
 
-    public abstract Number execute();
+    public abstract Number execute(long docCount);
 
     public interface Factory {
         BucketAggregationScript newInstance(Map<String, Object> params);

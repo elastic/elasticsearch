@@ -61,6 +61,7 @@ public abstract class PipelineAggregator implements NamedWriteable {
     private String[] bucketsPaths;
     private Map<String, Object> metaData;
 
+
     protected PipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
         this.name = name;
         this.bucketsPaths = bucketsPaths;

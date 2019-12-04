@@ -560,7 +560,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .subAggregation(sum("fourSum").field("four"))
                                 .subAggregation(bucketScript("totalSum",
                                     new Script(ScriptType.INLINE,
-                                        ExpressionScriptEngine.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                                        ExpressionScriptEngine.NAME, "_value0 + _value1 + _value2", new HashMap<>()),
                                     "twoSum", "threeSum", "fourSum")))
                 .execute().actionGet();
 

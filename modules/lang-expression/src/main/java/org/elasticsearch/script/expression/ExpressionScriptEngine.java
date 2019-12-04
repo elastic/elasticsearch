@@ -109,7 +109,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
             BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> new BucketAggregationSelectorScript(parameters) {
                 @Override
                 public boolean execute() {
-                    return factory.newInstance(getParams()).execute().doubleValue() == 1.0;
+                    return factory.newInstance(getParams()).execute(0).doubleValue() == 1.0;
                 }
             };
             return context.factoryClazz.cast(wrappedFactory);
@@ -144,9 +144,11 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 functionValuesArray[i] = new ReplaceableConstDoubleValues();
                 functionValuesMap.put(expr.variables[i], functionValuesArray[i]);
             }
+            //functionValuesMap.put("doc_count", new ReplaceableConstDoubleValues());
+
             return new BucketAggregationScript(parameters) {
                 @Override
-                public Double execute() {
+                public Double execute(long docCount) {
                     getParams().forEach((name, value) -> {
                         ReplaceableConstDoubleValues placeholder = functionValuesMap.get(name);
                         if (placeholder == null) {

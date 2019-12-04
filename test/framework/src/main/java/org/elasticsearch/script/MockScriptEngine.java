@@ -220,8 +220,12 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(BucketAggregationScript.class)) {
             BucketAggregationScript.Factory factory = parameters -> new BucketAggregationScript(parameters) {
                 @Override
-                public Double execute() {
-                    Object ret = script.apply(getParams());
+                public Double execute(long docCount) {
+                    final Map<String, Object> vars = new HashMap<>();
+                    vars.put("doc_count", docCount);
+                    vars.put("params", parameters);
+                    vars.putAll(parameters);
+                    Object ret = script.apply(vars);
                     if (ret == null) {
                         return null;
                     } else {
@@ -272,7 +276,7 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(MovingFunctionScript.class)) {
             MovingFunctionScript.Factory factory = () -> new MovingFunctionScript() {
                 @Override
-                public double execute(Map<String, Object> params1, double[] values) {
+                public double execute(Map<String, Object> params1, Double[] values) {
                     params1.put("_values", values);
                     return (double) script.apply(params1);
                 }

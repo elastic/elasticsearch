@@ -267,6 +267,12 @@ _insert_zeros_::
                 This option will replace missing values with a zero (`0`) and pipeline aggregation computation will
                 proceed as normal.
 
+_none_::
+                This option does not apply a gap policy at all.  If a pipeline agg can tolerate missing/null data, the
+                empty bucket is provided to the aggregation for evaluation (such as a `bucket_script`).  If the bucket
+                cannot handle missing/null values (like a derivative, which requires a numerical quantity and cannot
+                process `null`), the pipeline agg may not evaluate and the metric for that bucket will be missing
+
 
 
 

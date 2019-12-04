@@ -108,7 +108,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                Number returned = factory.newInstance(vars).execute();
+                Number returned = factory.newInstance(vars).execute(bucket.getDocCount());
                 if (returned == null) {
                     newBuckets.add(bucket);
                 } else {

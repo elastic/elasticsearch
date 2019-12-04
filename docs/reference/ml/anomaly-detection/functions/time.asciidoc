@@ -54,7 +54,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 1: Analyzing events with the time_of_day function
 [source,js]
@@ -85,7 +85,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 2: Analyzing events with the time_of_week function
 [source,js]

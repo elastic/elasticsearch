@@ -36,7 +36,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 1: Analyzing total expenses with the sum function
 [source,js]
@@ -92,7 +92,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 NOTE: Population analysis (that is to say, use of the `over_field_name` property)
 is not applicable for this function.

@@ -61,8 +61,14 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-filters]
 include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-analyzer]
 
 `detectors`:::
-(array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detectors]
+(array) An array of detector configuration objects.
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector]
++
+--
+NOTE: If the `detectors` array does not contain at least one detector,
+no analysis can occur and an error is returned.
+
+--
 
 `influencers`:::
 (array of strings)
@@ -202,16 +208,52 @@ the detectors in the `analysis_config`, starting at zero. You can use this
 identifier when you want to update a specific detector.
 end::detector-index[]
 
-tag::detectors[]
-An array of detector configuration objects, which describe the anomaly detectors 
-that are used in the job. 
-+
---
-NOTE: If the `detectors` array does not contain at least one detector,
-no analysis can occur and an error is returned.
+tag::detector[]
+Detector configuration objects specify which data fields a job analyzes. They
+also specify which analytical functions are used. You can specify multiple
+detectors for a job. Each detector has the following properties:
 
---
-end::detectors[]
+`by_field_name`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
+
+`custom_rules`::::
+(array)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
+
+`detector_description`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
+
+`detector_index`::::
+(integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
+
+`exclude_frequent`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
+
+`field_name`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=detector-field-name]
+
+`function`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=function]
+
+`over_field_name`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
+
+`partition_field_name`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
+
+`use_null`::::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
+
+end::detector[]
 
 tag::eta[]
 `eta`::

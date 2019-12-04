@@ -30,7 +30,7 @@ before you create an {anomaly-job}.
 ==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
-see <<ml-detectorconfig,detector configuration objects>>.
+see <<ml-job-resource,detector configuration objects>>.
 
 [[ml-valid-detector-example]]
 ==== {api-examples-title}

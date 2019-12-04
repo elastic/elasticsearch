@@ -35,7 +35,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 1: Analyzing minimum transactions with the min function
 [source,js]
@@ -70,7 +70,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 2: Analyzing maximum response times with the max function
 [source,js]
@@ -132,7 +132,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 4: Analyzing response times with the median function
 [source,js]
@@ -170,7 +170,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 5: Analyzing response times with the mean function
 [source,js]
@@ -238,7 +238,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 8: Analyzing response times with the metric function
 [source,js]
@@ -275,7 +275,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 9: Analyzing response times with the varp function
 [source,js]

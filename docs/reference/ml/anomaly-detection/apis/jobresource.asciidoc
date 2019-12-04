@@ -82,59 +82,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
 
 [float]
-[[ml-detectorconfig]]
-==== Detector configuration objects
-
-Detector configuration objects specify which data fields a job analyzes.
-They also specify which analytical functions are used.
-You can specify multiple detectors for a job.
-Each detector has the following properties:
-
-`by_field_name`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
-
-`detector_description`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
-
-`detector_index`::
-(integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
-
-`exclude_frequent`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
-
-`field_name`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-field-name]
-
-`function`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=function]
-
-`over_field_name`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
-
-`partition_field_name`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
-
-`use_null`::
-(boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
-
-`custom_rules`::
-(array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
-
-After you create a job, the only properties you can change in the detector
-configuration object are the `detector_description` and the `custom_rules`;
-all other properties are informational.
-
-[float]
 [[ml-datadescription]]
 ==== Data description objects
 

@@ -40,7 +40,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties,
-see {ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+see {ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 1: Analyzing events with the count function
 [source,console]
@@ -165,7 +165,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties,
-see {ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+see {ref}/ml-job-resource.htmlDetector configuration objects].
 
 For example, if you have the following number of events per bucket:
 
@@ -234,7 +234,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties,
-see {ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+see {ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 6: Analyzing users with the distinct_count function
 [source,console]

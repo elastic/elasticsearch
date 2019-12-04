@@ -150,7 +150,7 @@ GET _ml/anomaly_detectors/high_sum_total_sales
 
 The API returns the following results:
 
-[source,console-result]
+[source,js]
 ----
 {
   "count": 1,
@@ -205,5 +205,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE[s/"7.0.0-alpha1"/$body.$_path/]
-// TESTRESPONSE[s/1517011406091/$body.$_path/]

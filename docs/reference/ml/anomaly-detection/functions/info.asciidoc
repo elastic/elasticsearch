@@ -29,7 +29,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 1: Analyzing subdomain strings with the info_content function
 [source,js]

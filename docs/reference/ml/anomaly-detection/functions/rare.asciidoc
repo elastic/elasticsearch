@@ -47,7 +47,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 1: Analyzing status codes with the rare function
 [source,js]
@@ -106,7 +106,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+{ref}/ml-job-resource.html[Detector configuration objects].
 
 .Example 3: Analyzing URI values in a population with the freq_rare function
 [source,js]

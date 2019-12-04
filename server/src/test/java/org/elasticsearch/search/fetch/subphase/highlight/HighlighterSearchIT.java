@@ -133,10 +133,10 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         mappings.endObject();
         assertAcked(prepareCreate("test")
             .addMapping("type", mappings));
-        client().prepareIndex("test").setId("1")
+        client().prepareIndex("test", "_doc").setId("1")
             .setSource(jsonBuilder().startObject().array("tags", "foo bar", "foo bar", "foo bar", "foo baz").endObject())
             .get();
-        client().prepareIndex("test").setId("2")
+        client().prepareIndex("test", "_doc").setId("2")
             .setSource(jsonBuilder().startObject().array("tags", "foo baz", "foo baz", "foo baz", "foo bar").endObject())
             .get();
         refresh();

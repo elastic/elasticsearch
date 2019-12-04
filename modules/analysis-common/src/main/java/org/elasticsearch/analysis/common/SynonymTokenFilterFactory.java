@@ -22,6 +22,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -100,7 +101,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return synonyms.fst == null ? tokenStream : new BoostableSynonymFilter(tokenStream, synonyms, false, boost);
+                // wrap synonym filter into type filter that applies boost attribute based on the configured boost
+                return synonyms.fst == null ? tokenStream : new TypeToBoostTokenFilter(new SynonymFilter(tokenStream, synonyms, false),
+                        SynonymFilter.TYPE_SYNONYM, boost);
             }
 
             @Override

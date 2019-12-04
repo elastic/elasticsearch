@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 
@@ -308,7 +310,7 @@ public class MockScriptEngine implements ScriptEngine {
     @Override
     public Set<ScriptContext<?>> getSupportedContexts() {
         // TODO(stu): make part of `compile()`
-        return Set.of(
+        return Stream.of(
             FieldScript.CONTEXT,
             TermsSetQueryScript.CONTEXT,
             NumberSortScript.CONTEXT,
@@ -331,7 +333,7 @@ public class MockScriptEngine implements ScriptEngine {
             ScriptedMetricAggContexts.CombineScript.CONTEXT,
             ScriptedMetricAggContexts.ReduceScript.CONTEXT,
             IntervalFilterScript.CONTEXT
-        );
+        ).collect(Collectors.toSet());
     }
 
     private Map<String, Object> createVars(Map<String, Object> params) {

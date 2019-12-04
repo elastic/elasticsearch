@@ -114,7 +114,7 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
 
     private static Set<String> mutateStringSet(Set<String> strings) {
         if (strings.isEmpty()) {
-            return Set.of(randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
+            return Collections.singleton(randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
         }
 
         if (randomBoolean()) {

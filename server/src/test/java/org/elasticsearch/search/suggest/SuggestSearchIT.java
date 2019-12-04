@@ -1159,7 +1159,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         @Override
         public Set<ScriptContext<?>> getSupportedContexts() {
-            return Set.of(TemplateScript.CONTEXT);
+            return Collections.singleton(TemplateScript.CONTEXT);
         }
     }
 

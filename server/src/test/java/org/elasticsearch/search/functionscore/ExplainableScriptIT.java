@@ -94,7 +94,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
                 @Override
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(ScoreScript.CONTEXT);
+                    return Collections.singleton(ScoreScript.CONTEXT);
                 }
             };
         }

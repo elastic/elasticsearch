@@ -105,9 +105,9 @@ public class SecureSM extends SecurityManager {
         "com\\.carrotsearch\\.ant\\.tasks\\.junit4\\.slave\\..*",
         // eclipse test runner
         "org\\.eclipse.jdt\\.internal\\.junit\\.runner\\..*",
-        // intellij test runner
+        // intellij test runner (before IDEA version 2019.3)
         "com\\.intellij\\.rt\\.execution\\.junit\\..*",
-        // intellij test runner (newer IDEA versions)
+        // intellij test runner (since IDEA version 2019.3)
         "com\\.intellij\\.rt\\.junit\\..*"
     };
 

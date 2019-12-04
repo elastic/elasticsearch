@@ -121,7 +121,8 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
         final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
         int writeableBytes = Math.min(byteBuf.writableBytes(), MAX_BYTES_PER_WRITE);
         allocHandle.attemptedBytesRead(writeableBytes);
-        ByteBuffer ioBuffer = ((ByteBuffer) getIoBuffer()).limit(writeableBytes);
+        ByteBuffer ioBuffer = getIoBuffer();
+        ioBuffer.limit(writeableBytes);
         int bytesRead = readFromSocketChannel(javaChannel(), ioBuffer);
         ioBuffer.flip();
         if (bytesRead > 0) {

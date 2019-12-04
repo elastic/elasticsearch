@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -89,6 +90,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                         }
                     };
                     return context.factoryClazz.cast(factory);
+                }
+
+                @Override
+                public Set<ScriptContext<?>> getSupportedContexts() {
+                    return Collections.singleton(ScoreScript.CONTEXT);
                 }
             };
         }

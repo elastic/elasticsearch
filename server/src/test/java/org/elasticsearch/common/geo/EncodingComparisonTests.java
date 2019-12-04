@@ -171,11 +171,10 @@ public class EncodingComparisonTests extends ESTestCase {
         String[] hashes = GeohashUtils.getSubGeohashes(hash);
         for (int i =0; i < hashes.length; i++) {
             Rectangle r = Geohash.toBoundingBox(hashes[i]);
-            Extent extent = Extent.fromPoints(encoder.encodeX(r.getMinLon()),
+            GeoRelation rel = reader.relate(encoder.encodeX(r.getMinLon()),
                 encoder.encodeY(r.getMinLat()),
                 encoder.encodeX(r.getMaxLon()),
                 encoder.encodeY(r.getMaxLat()));
-            GeoRelation rel = reader.relate(extent);
             if (rel == GeoRelation.QUERY_CROSSES) {
                 if (hashes[i].length() == maxPrecision) {
                     hits++;

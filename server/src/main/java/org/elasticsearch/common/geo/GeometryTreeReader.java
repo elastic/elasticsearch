@@ -24,7 +24,6 @@ import org.elasticsearch.geometry.ShapeType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Optional;
 
 /**
  * A reusable tree reader.
@@ -82,14 +81,26 @@ public class GeometryTreeReader implements ShapeTreeReader {
     }
 
     @Override
-    public GeoRelation relate(Extent extent) throws IOException {
+    public GeoRelation relate(int minX, int minY, int maxX, int maxY) throws IOException {
         GeoRelation relation = GeoRelation.QUERY_DISJOINT;
         input.position(startPosition + EXTENT_OFFSET);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
-            Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(new Extent(input), extent);
-            if (extentCheck.isPresent()) {
-                return extentCheck.get() ? GeoRelation.QUERY_INSIDE : GeoRelation.QUERY_DISJOINT;
+            int thisMaxY = input.readInt();
+            int thisMinY = input.readInt();
+            int negLeft = input.readInt();
+            int negRight = input.readInt();
+            int posLeft = input.readInt();
+            int posRight = input.readInt();
+            int thisMinX = Math.min(negLeft, posLeft);
+            int thisMaxX = Math.max(negRight, posRight);
+
+            // check extent
+            if (thisMinY > maxY || thisMaxX < minX || thisMaxY < minY || thisMinX > maxX) {
+                return GeoRelation.QUERY_DISJOINT; // tree and bbox-query are disjoint
+            }
+            if (minX <= thisMinX && minY <= thisMinY && maxX >= thisMaxX && maxY >= thisMaxY) {
+                return GeoRelation.QUERY_CROSSES; // bbox-query fully contains tree's
             }
         }
 
@@ -106,7 +117,7 @@ public class GeometryTreeReader implements ShapeTreeReader {
             // read ShapeType ordinal to avoid readEnum allocations
             int shapeTypeOrdinal = input.readVInt();
             ShapeTreeReader reader = getReader(shapeTypeOrdinal, coordinateEncoder, input);
-            GeoRelation shapeRelation = reader.relate(extent);
+            GeoRelation shapeRelation = reader.relate(minX, minY, maxX, maxY);
             if (GeoRelation.QUERY_CROSSES == shapeRelation ||
                 (GeoRelation.QUERY_DISJOINT == shapeRelation && GeoRelation.QUERY_INSIDE == relation)
             ) {

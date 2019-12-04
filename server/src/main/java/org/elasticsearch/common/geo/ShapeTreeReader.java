@@ -28,7 +28,7 @@ import java.io.IOException;
 public interface ShapeTreeReader {
 
     Extent getExtent() throws IOException;
-    GeoRelation relate(Extent extent) throws IOException;
+    GeoRelation relate(int minX, int minY, int maxX, int maxY) throws IOException;
     double getCentroidX() throws IOException;
     double getCentroidY() throws IOException;
 }

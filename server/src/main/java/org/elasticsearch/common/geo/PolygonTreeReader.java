@@ -61,9 +61,9 @@ public class PolygonTreeReader implements ShapeTreeReader {
      * Returns true if the rectangle query and the edge tree's shape overlap
      */
     @Override
-    public GeoRelation relate(Extent extent) throws IOException {
+    public GeoRelation relate(int minX, int minY, int maxX, int maxY) throws IOException {
         if (holes != null) {
-            GeoRelation relation = holes.relate(extent);
+            GeoRelation relation = holes.relate(minX, minY, maxX, maxY);
             if (GeoRelation.QUERY_CROSSES == relation) {
                 return GeoRelation.QUERY_CROSSES;
             }
@@ -71,6 +71,6 @@ public class PolygonTreeReader implements ShapeTreeReader {
                 return GeoRelation.QUERY_DISJOINT;
             }
         }
-        return outerShell.relate(extent);
+        return outerShell.relate(minX, minY, maxX, maxY);
     }
 }

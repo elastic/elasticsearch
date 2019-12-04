@@ -326,8 +326,10 @@ public abstract class AbstractTreeTestCase extends ESTestCase {
     }
 
     private boolean intersects(Geometry g, Point p, double extentSize) throws IOException {
+
+        Extent bufferBounds = bufferedExtentFromGeoPoint(p.getX(), p.getY(), extentSize);
         GeoRelation relation = geometryTreeReader(g, GeoShapeCoordinateEncoder.INSTANCE)
-            .relate(bufferedExtentFromGeoPoint(p.getX(), p.getY(), extentSize));
+            .relate(bufferBounds.minX(), bufferBounds.minY(), bufferBounds.maxX(), bufferBounds.maxY());
         return relation == GeoRelation.QUERY_CROSSES || relation == GeoRelation.QUERY_INSIDE;
     }
 

@@ -19,11 +19,11 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -359,7 +359,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     "[" + COUNTS_FIELD.getPreferredName() +"] but got [" + values.size() + " != " + counts.size() +"]");
             }
             if (fieldType().hasDocValues()) {
-                BytesStreamOutput streamOutput = new BytesStreamOutput();
+                ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
                 for (int i = 0; i < values.size(); i++) {
                     int count = counts.get(i);
                     if (count < 0) {
@@ -367,13 +367,12 @@ public class HistogramFieldMapper extends FieldMapper {
                             + name() + "], ["+ COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i));
                     } else if (count > 0) {
                         // we do not add elements with count == 0
-                        streamOutput.writeVInt(count);
-                        streamOutput.writeLong(NumericUtils.doubleToSortableLong(values.get(i)));
+                        dataOutput.writeVInt(count);
+                        dataOutput.writeLong(NumericUtils.doubleToSortableLong(values.get(i)));
                     }
                 }
-
-                Field field = new BinaryDocValuesField(simpleName(), streamOutput.bytes().toBytesRef());
-                streamOutput.close();
+                BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
+                Field field = new BinaryDocValuesField(simpleName(), docValue);
                 if (context.doc().getByKey(fieldType().name()) != null) {
                     throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                         "] doesn't not support indexing multiple values for the same field in the same document");

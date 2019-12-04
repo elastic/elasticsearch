@@ -21,7 +21,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
@@ -368,7 +367,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     } else if (count > 0) {
                         // we do not add elements with count == 0
                         dataOutput.writeVInt(count);
-                        dataOutput.writeLong(NumericUtils.doubleToSortableLong(values.get(i)));
+                        dataOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
                     }
                 }
                 BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
@@ -426,7 +425,7 @@ public class HistogramFieldMapper extends FieldMapper {
         public boolean next() {
             if (streamInput.eof() == false) {
                 count = streamInput.readVInt();
-                value = NumericUtils.sortableLongToDouble(streamInput.readLong());
+                value = Double.longBitsToDouble(streamInput.readLong());
                 return true;
             }
             isExhausted = true;

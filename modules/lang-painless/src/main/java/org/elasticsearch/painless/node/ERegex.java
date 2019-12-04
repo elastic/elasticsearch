@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -43,8 +42,6 @@ public final class ERegex extends AExpression {
     private final int flags;
     private Constant constant;
 
-    private CompilerSettings settings;
-
     public ERegex(Location location, String pattern, String flagsString) {
         super(location);
 
@@ -60,18 +57,13 @@ public final class ERegex extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        this.settings = settings;
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         // Do nothing.
     }
 
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (false == settings.areRegexesEnabled()) {
+        if (false == scriptRoot.getCompilerSettings().areRegexesEnabled()) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));

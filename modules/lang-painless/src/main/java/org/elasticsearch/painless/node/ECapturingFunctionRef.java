@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
@@ -53,11 +52,6 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
 
         this.variable = Objects.requireNonNull(variable);
         this.call = Objects.requireNonNull(call);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        // Do nothing.
     }
 
     @Override

@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -52,15 +51,6 @@ public final class PCallInvoke extends AExpression {
         this.name = Objects.requireNonNull(name);
         this.nullSafe = nullSafe;
         this.arguments = Objects.requireNonNull(arguments);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        prefix.storeSettings(settings);
-
-        for (AExpression argument : arguments) {
-            argument.storeSettings(settings);
-        }
     }
 
     @Override

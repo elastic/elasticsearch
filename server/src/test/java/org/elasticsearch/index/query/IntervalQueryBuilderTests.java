@@ -169,7 +169,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         if (randomBoolean()) {
             return new IntervalQueryBuilder(STRING_FIELD_NAME_2, instance.getSourceProvider());
         }
-        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0));
+        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0, true));
     }
 
     public void testMatchInterval() throws IOException {

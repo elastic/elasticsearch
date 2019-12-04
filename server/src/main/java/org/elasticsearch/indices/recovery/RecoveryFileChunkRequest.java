@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -35,7 +36,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
     private long recoveryId;
     private ShardId shardId;
     private long position;
-    private BytesReference content;
+    private ReleasableBytesReference content;
     private StoreFileMetaData metaData;
     private long sourceThrottleTimeInNanos;
 
@@ -49,7 +50,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         position = in.readVLong();
         long length = in.readVLong();
         String checksum = in.readString();
-        content = in.readBytesReference();
+        content = in.readReleasableBytesReference();
         Version writtenBy = Lucene.parseVersionLenient(in.readString(), null);
         assert writtenBy != null;
         metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
@@ -64,7 +65,8 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         this.shardId = shardId;
         this.metaData = metaData;
         this.position = position;
-        this.content = content;
+        // TODO: Ugly
+        this.content = new ReleasableBytesReference(content, () -> {});
         this.lastChunk = lastChunk;
         this.totalTranslogOps = totalTranslogOps;
         this.sourceThrottleTimeInNanos = sourceThrottleTimeInNanos;
@@ -90,7 +92,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         return metaData.length();
     }
 
-    public BytesReference content() {
+    public ReleasableBytesReference content() {
         return content;
     }
 

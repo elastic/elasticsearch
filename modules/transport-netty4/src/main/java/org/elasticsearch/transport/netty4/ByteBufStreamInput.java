@@ -22,6 +22,7 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;
@@ -52,6 +53,18 @@ class ByteBufStreamInput extends StreamInput {
         // a netty ByteBuf might be pooled which requires a manual release to prevent
         // memory leaks.
         return super.readBytesReference(length);
+    }
+
+    @Override
+    public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
+        try {
+            ByteBuf slice = buffer.retainedSlice(buffer.readerIndex(), length);
+            return new ReleasableBytesReference(Netty4Utils.toBytesReference(slice), slice::release);
+        } catch (IndexOutOfBoundsException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
     }
 
     @Override

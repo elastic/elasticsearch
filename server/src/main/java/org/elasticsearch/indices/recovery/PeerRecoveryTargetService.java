@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -517,8 +518,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
 
                 RateLimiter rateLimiter = recoverySettings.rateLimiter();
+                ReleasableBytesReference content = request.content();
                 if (rateLimiter != null) {
-                    long bytes = bytesSinceLastPause.addAndGet(request.content().length());
+                    long bytes = bytesSinceLastPause.addAndGet(content.length());
                     if (bytes > rateLimiter.getMinPauseCheckBytes()) {
                         // Time to pause
                         bytesSinceLastPause.addAndGet(-bytes);
@@ -527,8 +529,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         recoveryTarget.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
                     }
                 }
-                final ActionListener<TransportResponse> listener = new ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
-                recoveryTarget.writeFileChunk(request.metadata(), request.position(), request.content(), request.lastChunk(),
+                final ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel, Actions.FILE_CHUNK, request);
+                final ActionListener<TransportResponse> listener = ActionListener.runBefore(channelListener, content::close);
+                recoveryTarget.writeFileChunk(request.metadata(), request.position(), content, request.lastChunk(),
                     request.totalTranslogOps(), ActionListener.map(listener, nullVal -> TransportResponse.Empty.INSTANCE));
             }
         }

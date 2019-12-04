@@ -35,7 +35,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
@@ -150,6 +152,17 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a releasable bytes reference from this stream. Some implementations of this method might optimize
+     * this operation by returning a zero-copy, zero-allocation reference to the underlying bytes. Consumers
+     * of this method MUST release the reference when they are finished.
+     */
+    public ReleasableBytesReference readReleasableBytesReference() throws IOException {
+        int length = readArraySize();
+        return readReleasableBytesReference(length);
+    }
+
+
+    /**
      * Reads an optional bytes reference from this stream. It might hold an actual reference to the underlying bytes of the stream. Use this
      * only if you must differentiate null from empty. Use {@link StreamInput#readBytesReference()} and
      * {@link StreamOutput#writeBytesReference(BytesReference)} if you do not.
@@ -174,6 +187,14 @@ public abstract class StreamInput extends InputStream {
         byte[] bytes = new byte[length];
         readBytes(bytes, 0, length);
         return new BytesArray(bytes, 0, length);
+    }
+
+    /**
+     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
+     * bytes of the stream.
+     */
+    public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
+        return new ReleasableBytesReference(readBytesReference(length), () -> {});
     }
 
     public BytesRef readBytesRef() throws IOException {

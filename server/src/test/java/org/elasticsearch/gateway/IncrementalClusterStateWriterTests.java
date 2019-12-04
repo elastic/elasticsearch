@@ -172,40 +172,46 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
     public void testGetRelevantIndicesWithUnassignedShardsOnMasterEligibleNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithUnassignedIndex(indexMetaData, true));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndicesForMasterEligibleNode(
+            clusterStateWithUnassignedIndex(indexMetaData, true));
         assertThat(indices.size(), equalTo(1));
     }
 
     public void testGetRelevantIndicesWithUnassignedShardsOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithUnassignedIndex(indexMetaData, false));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndicesOnDataOnlyNode(
+            clusterStateWithUnassignedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesWithAssignedShards() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         boolean masterEligible = randomBoolean();
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithAssignedIndex(indexMetaData, masterEligible));
+        ClusterState clusterState = clusterStateWithAssignedIndex(indexMetaData, masterEligible);
+        Set<Index> indices =
+            masterEligible ?
+                IncrementalClusterStateWriter.getRelevantIndicesForMasterEligibleNode(clusterState)
+                : IncrementalClusterStateWriter.getRelevantIndicesOnDataOnlyNode(clusterState);
         assertThat(indices.size(), equalTo(1));
     }
 
     public void testGetRelevantIndicesForNonReplicatedClosedIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndicesOnDataOnlyNode(
             clusterStateWithNonReplicatedClosedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesForReplicatedClosedButUnassignedIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndicesOnDataOnlyNode(
             clusterStateWithReplicatedClosedIndex(indexMetaData, false, false));
         assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesForReplicatedClosedAndAssignedIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndicesOnDataOnlyNode(
             clusterStateWithReplicatedClosedIndex(indexMetaData, false, true));
         assertThat(indices.size(), equalTo(1));
     }
@@ -510,7 +516,7 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
         Loggers.addAppender(classLogger, mockAppender);
 
         try {
-            incrementalClusterStateWriter.updateClusterState(clusterState);
+            incrementalClusterStateWriter.updateClusterStateForMasterEligibleNode(clusterState);
         } finally {
             Loggers.removeAppender(classLogger, mockAppender);
             mockAppender.stop();

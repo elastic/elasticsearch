@@ -22,7 +22,6 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -54,7 +53,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
-    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
+    ClusterState prepareInitialClusterState(TransportService transportService, ClusterSettings clusterSettings, ClusterState clusterState) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
         return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
     }
@@ -62,10 +61,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
     public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
         final TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
-        final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings())
-            .thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        start(settings, transportService, clusterService, new MetaStateService(nodeEnvironment, xContentRegistry),
+        start(settings, transportService, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new MetaStateService(nodeEnvironment, xContentRegistry),
             null, null);
     }
 }

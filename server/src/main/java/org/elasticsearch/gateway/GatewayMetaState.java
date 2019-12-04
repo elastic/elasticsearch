@@ -26,10 +26,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -38,22 +36,32 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.MetaDataUpgrader;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
@@ -79,7 +87,7 @@ public class GatewayMetaState {
         return getPersistedState().getLastAcceptedState().metaData();
     }
 
-    public void start(Settings settings, TransportService transportService, ClusterService clusterService,
+    public void start(Settings settings, TransportService transportService, ClusterSettings clusterSettings,
                       MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
                       MetaDataUpgrader metaDataUpgrader) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
@@ -93,48 +101,32 @@ public class GatewayMetaState {
         }
 
         final IncrementalClusterStateWriter incrementalClusterStateWriter
-            = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,
+            = new IncrementalClusterStateWriter(settings, clusterSettings, metaStateService,
                 manifestClusterStateTuple.v1(),
-                prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()),
+                prepareInitialClusterState(transportService, clusterSettings, manifestClusterStateTuple.v2()),
                 transportService.getThreadPool()::relativeTimeInMillis);
         if (DiscoveryNode.isMasterNode(settings) == false) {
             if (DiscoveryNode.isDataNode(settings)) {
-                // Master-eligible nodes persist index metadata for all indices regardless of whether they hold any shards or not. It's
-                // vitally important to the safety of the cluster coordination system that master-eligible nodes persist this metadata when
-                // _accepting_ the cluster state (i.e. before it is committed). This persistence happens on the generic threadpool.
-                //
-                // In contrast, master-ineligible data nodes only persist the index metadata for shards that they hold. When all shards of
-                // an index are moved off such a node the IndicesStore is responsible for removing the corresponding index directory,
-                // including the metadata, and does so on the cluster applier thread.
-                //
-                // This presents a problem: if a shard is unassigned from a node and then reassigned back to it again then there is a race
-                // between the IndicesStore deleting the index folder and the CoordinationState concurrently trying to write the updated
-                // metadata into it. We could probably solve this with careful synchronization, but in fact there is no need.  The persisted
-                // state on master-ineligible data nodes is mostly ignored - it's only there to support dangling index imports, which is
-                // inherently unsafe anyway. Thus we can safely delay metadata writes on master-ineligible data nodes until applying the
-                // cluster state, which is what this does:
-                clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
+                persistedState.set(new DataOnlyNodePersistedState(settings, incrementalClusterStateWriter, transportService.getThreadPool()));
+            } else {
+                // Non-master non-data nodes do not need to persist the cluster state as they do not use a persistent store
+                persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));
             }
-
-            // Master-ineligible nodes do not need to persist the cluster state when accepting it because they are not in the voting
-            // configuration, so it's ok if they have a stale or incomplete cluster state when restarted. We track the latest cluster state
-            // in memory instead.
-            persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));
         } else {
             // Master-ineligible nodes must persist the cluster state when accepting it because they must reload the (complete, fresh)
             // last-accepted cluster state when restarted.
-            persistedState.set(new GatewayPersistedState(incrementalClusterStateWriter));
+            persistedState.set(new MasterEligibleNodePersistedState(incrementalClusterStateWriter));
         }
     }
 
     // exposed so it can be overridden by tests
-    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
+    ClusterState prepareInitialClusterState(TransportService transportService, ClusterSettings clusterSettings, ClusterState clusterState) {
         assert clusterState.nodes().getLocalNode() == null : "prepareInitialClusterState must only be called once";
         assert transportService.getLocalNode() != null : "transport service is not yet started";
         return Function.<ClusterState>identity()
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
             .andThen(state -> ClusterStateUpdaters.setLocalNode(state, transportService.getLocalNode()))
-            .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterService.getClusterSettings()))
+            .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterSettings))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(clusterState);
     }
@@ -252,44 +244,11 @@ public class GatewayMetaState {
         return false;
     }
 
-
-    private static class GatewayClusterApplier implements ClusterStateApplier {
-
-        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
-
-        private GatewayClusterApplier(IncrementalClusterStateWriter incrementalClusterStateWriter) {
-            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
-        }
-
-        @Override
-        public void applyClusterState(ClusterChangedEvent event) {
-            if (event.state().blocks().disableStatePersistence()) {
-                incrementalClusterStateWriter.setIncrementalWrite(false);
-                return;
-            }
-
-            try {
-                // Hack: This is to ensure that non-master-eligible Zen2 nodes always store a current term
-                // that's higher than the last accepted term.
-                // TODO: can we get rid of this hack?
-                if (event.state().term() > incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm()) {
-                    incrementalClusterStateWriter.setCurrentTerm(event.state().term());
-                }
-
-                incrementalClusterStateWriter.updateClusterState(event.state());
-                incrementalClusterStateWriter.setIncrementalWrite(true);
-            } catch (WriteStateException e) {
-                logger.warn("Exception occurred when storing new meta data", e);
-            }
-        }
-
-    }
-
-    private static class GatewayPersistedState implements PersistedState {
+    private static class MasterEligibleNodePersistedState implements PersistedState {
 
         private final IncrementalClusterStateWriter incrementalClusterStateWriter;
 
-        GatewayPersistedState(IncrementalClusterStateWriter incrementalClusterStateWriter) {
+        MasterEligibleNodePersistedState(IncrementalClusterStateWriter incrementalClusterStateWriter) {
             this.incrementalClusterStateWriter = incrementalClusterStateWriter;
         }
 
@@ -320,13 +279,110 @@ public class GatewayMetaState {
             try {
                 incrementalClusterStateWriter.setIncrementalWrite(
                     incrementalClusterStateWriter.getPreviousClusterState().term() == clusterState.term());
-                incrementalClusterStateWriter.updateClusterState(clusterState);
+                incrementalClusterStateWriter.updateClusterStateForMasterEligibleNode(clusterState);
             } catch (WriteStateException e) {
                 logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
                 e.rethrowAsErrorOrUncheckedException();
             }
         }
 
+    }
+
+    /**
+     * Master-eligible nodes persist index metadata for all indices regardless of whether they hold any shards or not. It's
+     * vitally important to the safety of the cluster coordination system that master-eligible nodes persist this metadata when
+     * _accepting_ the cluster state (i.e. before it is committed). This persistence happens on the generic threadpool.
+     *
+     * In contrast, master-ineligible data nodes only persist the index metadata for shards that they hold. When all shards of
+     * an index are moved off such a node the IndicesStore is responsible for removing the corresponding index directory,
+     * including the metadata, and does so on the cluster applier thread.
+     *
+     * This presents a problem: if a shard is unassigned from a node and then reassigned back to it again then there is a race
+     * between the IndicesStore deleting the index folder and the CoordinationState concurrently trying to write the updated
+     * metadata into it. We could probably solve this with careful synchronization, but in fact there is no need.  The persisted
+     * state on master-ineligible data nodes is mostly ignored - it's only there to support dangling index imports, which is
+     * inherently unsafe anyway. Thus we can safely delay metadata writes on master-ineligible data nodes until applying the
+     * cluster state, which is what DataOnlyNodePersistedState does:
+     */
+    static class DataOnlyNodePersistedState extends InMemoryPersistedState {
+
+        static final String APPLIER_UPDATE_THREAD_NAME = "DataOnlyNodePersistedState#updateTask";
+
+        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
+        private final PrioritizedEsThreadPoolExecutor threadPoolExecutor;
+
+        private volatile ClusterState lastCommittedStateWithPersistence;
+
+        public DataOnlyNodePersistedState(Settings settings, IncrementalClusterStateWriter incrementalClusterStateWriter,
+                                          ThreadPool threadPool) {
+            super(incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm(),
+                incrementalClusterStateWriter.getPreviousClusterState());
+            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
+            String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
+            this.threadPoolExecutor = EsExecutors.newSinglePrioritizing(
+                nodeName + "/" + APPLIER_UPDATE_THREAD_NAME,
+                daemonThreadFactory(nodeName, APPLIER_UPDATE_THREAD_NAME),
+                threadPool.getThreadContext(),
+                threadPool.scheduler());
+        }
+
+        @Override
+        public void markLastAcceptedStateAsCommitted() {
+            super.markLastAcceptedStateAsCommitted();
+            final ClusterState lastCommittedState = getLastAcceptedState();
+            if (lastCommittedState.blocks().disableStatePersistence()) {
+                return;
+            }
+
+            this.lastCommittedStateWithPersistence = lastCommittedState;
+
+            try {
+                // synchronously dereference any indices that are no longer referenced (to make sure that cleanup actions in
+                // IndicesClusterStateService / IndicesStore triggered by the exposed cluster state do not result in entries
+                // in the manifest to become orphaned).
+                incrementalClusterStateWriter.retainIndicesOnDataOnlyNode(lastCommittedState);
+            } catch (WriteStateException e) {
+                logger.error(new ParameterizedMessage("Failed to remove unreferenced indices for state with version {}",
+                    lastCommittedState.version()), e);
+                e.rethrowAsErrorOrUncheckedException();
+            }
+
+            final String stateUUID = lastCommittedState.stateUUID();
+
+            try {
+                // write out the actual global / indices metadata asynchronously
+                threadPoolExecutor.execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("Exception occurred when storing new meta data", e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        final ClusterState clusterState = DataOnlyNodePersistedState.this.lastCommittedStateWithPersistence;
+                        if (clusterState.stateUUID().equals(stateUUID) == false) {
+                            // this ensures that there are not too many tasks piling up in case of slow IO on this thread, where cluster
+                            // states are taking longer to be written out than they're being added to the executor's queue
+                            return;
+                        }
+
+                        incrementalClusterStateWriter.updateClusterStateForDataOnlyNode(clusterState);
+                        incrementalClusterStateWriter.setIncrementalWrite(true);
+                    }
+                });
+            } catch (EsRejectedExecutionException e) {
+                // ignore cases where we are shutting down..., there is really nothing interesting
+                // to be done here...
+                if (threadPoolExecutor.isShutdown() == false) {
+                    throw e;
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+        }
     }
 
 }

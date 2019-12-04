@@ -32,16 +32,31 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     private NodeEnvironment nodeEnvironment;
@@ -104,10 +119,16 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(long version, MetaData metaData) {
+        return createClusterState(version, metaData, localNode,
+            RoutingTable.EMPTY_ROUTING_TABLE);
+    }
+
+    private ClusterState createClusterState(long version, MetaData metaData, DiscoveryNode localNode, RoutingTable routingTable) {
         return ClusterState.builder(clusterName).
                 nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build()).
                 version(version).
                 metaData(metaData).
+                routingTable(routingTable).
                 build();
     }
 
@@ -141,6 +162,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     private void assertClusterStateEqual(ClusterState expected, ClusterState actual) {
         assertThat(actual.version(), equalTo(expected.version()));
         assertTrue(MetaData.isGlobalStateEquals(actual.metaData(), expected.metaData()));
+        assertEquals(expected.metaData().indices().size(), actual.metaData().indices().size());
         for (IndexMetaData indexMetaData : expected.metaData()) {
             assertThat(actual.metaData().index(indexMetaData.getIndex()), equalTo(indexMetaData));
         }
@@ -239,5 +261,94 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
 
         gateway = maybeNew(gateway);
         assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());
+    }
+
+    public void testMarkAcceptedConfigAsCommittedOnDataOnlyNode() throws Exception {
+        DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
+            Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
+        Settings settings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value()).put(
+            Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_NAME_SETTING.getKey(), "test").build();
+        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
+        final TransportService transportService = mock(TransportService.class);
+        TestThreadPool threadPool = new TestThreadPool("testMarkAcceptedConfigAsCommittedOnDataOnlyNode");
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        gateway.start(settings, transportService, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new MetaStateService(nodeEnvironment, xContentRegistry()), null, null);
+        final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
+        assertThat(persistedState, instanceOf(GatewayMetaState.DataOnlyNodePersistedState.class));
+
+        //generate random coordinationMetaData with different lastAcceptedConfiguration and lastCommittedConfiguration
+        CoordinationMetaData coordinationMetaData;
+        do {
+            coordinationMetaData = createCoordinationMetaData(randomNonNegativeLong());
+        } while (coordinationMetaData.getLastAcceptedConfiguration().equals(coordinationMetaData.getLastCommittedConfiguration()));
+
+        IndexMetaData testIndex1 = createIndexMetaData("test1", 1, 1L);
+        IndexMetaData testIndex2 = createIndexMetaData("test2", 1, 1L);
+        ShardRouting firstRouting = TestShardRouting.newShardRouting(
+            new ShardId(testIndex1.getIndex(), 0), localNode.getId(), null, true, ShardRoutingState.STARTED);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting(
+            new ShardId(testIndex2.getIndex(), 0), localNode.getId(), null, true, ShardRoutingState.STARTED);
+        IndexRoutingTable indexRoutingTable1 = IndexRoutingTable.builder(firstRouting.index())
+            .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting).build()).build();
+        IndexRoutingTable indexRoutingTable2 = IndexRoutingTable.builder(secondRouting.index())
+            .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting).build()).build();
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable1).add(indexRoutingTable2).build();
+        ClusterState state = createClusterState(randomNonNegativeLong(),
+            MetaData.builder().coordinationMetaData(coordinationMetaData)
+                .clusterUUID(randomAlphaOfLength(10))
+                .put(testIndex1, false).put(testIndex2, false).build(), localNode, routingTable);
+        persistedState.setLastAcceptedState(state);
+
+        assertThat(newGatewayPersistedState().getLastAcceptedState().getLastAcceptedConfiguration().getNodeIds().size(),
+            equalTo(0));
+        assertThat(newGatewayPersistedState().getLastAcceptedState().getLastCommittedConfiguration().getNodeIds().size(),
+            equalTo(0));
+
+        assertThat(persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
+            not(equalTo(persistedState.getLastAcceptedState().getLastCommittedConfiguration())));
+        assertTrue(persistedState.getLastAcceptedState().metaData().hasIndex("test1"));
+        assertTrue(persistedState.getLastAcceptedState().metaData().hasIndex("test2"));
+        persistedState.markLastAcceptedStateAsCommitted();
+        assertThat(persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
+            equalTo(persistedState.getLastAcceptedState().getLastCommittedConfiguration()));
+        assertTrue(persistedState.getLastAcceptedState().metaData().hasIndex("test1"));
+        assertTrue(persistedState.getLastAcceptedState().metaData().hasIndex("test2"));
+
+        CoordinationMetaData expectedCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
+            .lastCommittedConfiguration(coordinationMetaData.getLastAcceptedConfiguration()).build();
+        ClusterState expectedClusterState =
+            ClusterState.builder(state).metaData(MetaData.builder().coordinationMetaData(expectedCoordinationMetaData)
+                .clusterUUID(state.metaData().clusterUUID()).clusterUUIDCommitted(true)
+                .put(testIndex1, false).put(testIndex2, false).build())
+                .build();
+
+        assertClusterStateEqual(expectedClusterState, persistedState.getLastAcceptedState());
+        // load from disk again and check if persisted state matches current state
+        // use assertBusy as state is written out asynchronously
+        assertBusy(() -> assertClusterStateEqual(expectedClusterState, newGatewayPersistedState().getLastAcceptedState()));
+        assertClusterStateEqual(expectedClusterState, persistedState.getLastAcceptedState());
+
+        // trigger two concurrent updates and check if the latest one is correctly applied
+        state = ClusterState.builder(state).incrementVersion().routingTable(RoutingTable.builder().add(indexRoutingTable1).build()).build();
+        persistedState.setLastAcceptedState(state);
+        persistedState.markLastAcceptedStateAsCommitted();
+
+        state = ClusterState.builder(state).incrementVersion().routingTable(RoutingTable.builder().add(indexRoutingTable2).build()).build();
+        persistedState.setLastAcceptedState(state);
+        persistedState.markLastAcceptedStateAsCommitted();
+
+        ClusterState expectedClusterState2 =
+            ClusterState.builder(state)
+                .version(state.version())
+                .stateUUID(state.stateUUID())
+                .metaData(MetaData.builder().coordinationMetaData(expectedCoordinationMetaData)
+                .clusterUUID(state.metaData().clusterUUID()).clusterUUIDCommitted(true)
+                .put(testIndex2, false).build()).build();
+        assertBusy(() -> assertClusterStateEqual(expectedClusterState2, newGatewayPersistedState().getLastAcceptedState()));
+
+        persistedState.close();
+
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 }

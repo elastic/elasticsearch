@@ -36,10 +36,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 /**
  * Tracks the metadata written to disk, allowing updated metadata to be written incrementally (i.e. only writing out the changed metadata).
@@ -104,19 +106,129 @@ public class IncrementalClusterStateWriter {
      *
      * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.
      */
-    void updateClusterState(ClusterState newState) throws WriteStateException {
-        MetaData newMetaData = newState.metaData();
+    void updateClusterStateForMasterEligibleNode(ClusterState newState) throws WriteStateException {
+        assert newState.nodes().getLocalNode().isMasterNode();
 
         final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
-
         final AtomicClusterStateWriter writer = new AtomicClusterStateWriter(metaStateService, previousManifest);
-        long globalStateGeneration = writeGlobalState(writer, newMetaData);
-        Map<Index, Long> indexGenerations = writeIndicesMetadata(writer, newState);
+        final long globalStateGeneration = writeGlobalState(writer, newState.metaData());
+        final MetaData previousMetaData = incrementalWrite ? previousClusterState.metaData() : null;
+        final Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previousManifest.getIndexGenerations(),
+            getRelevantIndicesForMasterEligibleNode(newState), previousMetaData, newState.metaData());
+        final Map<Index, Long> indexGenerations = new HashMap<>();
+        for (IndexMetaDataAction action : actions) {
+            long generation = action.execute(writer);
+            indexGenerations.put(action.getIndex(), generation);
+        }
+
         Manifest manifest = new Manifest(previousManifest.getCurrentTerm(), newState.version(), globalStateGeneration, indexGenerations);
         writeManifest(writer, manifest);
         previousManifest = manifest;
         previousClusterState = newState;
 
+        logSlowWrites(startTimeMillis, writer);
+    }
+
+    private Set<Index> indicesToRetainOnDataNode = Collections.emptySet();
+
+    /**
+     * Updates the manifest to only retain a subset of the currently referenced indices, based on what indices in the given cluster state
+     * are relevant to the current node. Note that this method is synchronized as it allows concurrent access with
+     * {@link #updateClusterStateForDataOnlyNode}.
+     *
+     * @param clusterState new {@link ClusterState}
+     * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.
+     */
+    void retainIndicesOnDataOnlyNode(ClusterState clusterState) throws WriteStateException {
+        assert clusterState.nodes().getLocalNode().isMasterNode() == false && clusterState.nodes().getLocalNode().isDataNode();
+        final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
+
+        final AtomicClusterStateWriter writer;
+        synchronized (this) {
+            indicesToRetainOnDataNode = IncrementalClusterStateWriter.getRelevantIndicesOnDataOnlyNode(clusterState);
+            writer = new AtomicClusterStateWriter(metaStateService, previousManifest);
+            final Map<Index, Long> indexGenerations = new HashMap<>(previousManifest.getIndexGenerations());
+            boolean changed = false;
+            for (Iterator<Map.Entry<Index, Long>> iter = indexGenerations.entrySet().iterator(); iter.hasNext(); ) {
+                Map.Entry<Index, Long> entry = iter.next();
+                if (indicesToRetainOnDataNode.contains(entry.getKey()) == false) {
+                    changed = true;
+                    iter.remove();
+                }
+            }
+            if (changed) {
+                Manifest manifest = new Manifest(previousManifest.getCurrentTerm(), previousManifest.getClusterStateVersion(),
+                    previousManifest.getGlobalGeneration(), indexGenerations);
+                assert manifest.getIndexGenerations().keySet().stream().allMatch(indicesToRetainOnDataNode::contains);
+                writeManifest(writer, manifest);
+                previousManifest = manifest;
+            }
+        }
+
+        logSlowWrites(startTimeMillis, writer);
+    }
+
+    /**
+     * Updates the manifest and metadata on disk for data-only nodes. As this method will run concurrently to clean-up actions on the
+     * node, we have to make sure that we always check whether we should still work on a given index, which is updated
+     * by
+     *
+     * @param newState new {@link ClusterState}
+     * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.
+     */
+    void updateClusterStateForDataOnlyNode(ClusterState newState)
+        throws WriteStateException {
+        assert newState.nodes().getLocalNode().isMasterNode() == false && newState.nodes().getLocalNode().isDataNode();
+        final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
+        final AtomicClusterStateWriter writer;
+        final long globalStateGeneration;
+        final Iterable<IndexMetaDataAction> actions;
+        final Manifest startManifest;
+        synchronized (this) {
+            startManifest = previousManifest;
+            writer = new AtomicClusterStateWriter(metaStateService, startManifest);
+            globalStateGeneration = writeGlobalState(writer, newState.metaData());
+            MetaData previousMetaData = incrementalWrite ? previousClusterState.metaData() : null;
+            actions = resolveIndexMetaDataActions(previousManifest.getIndexGenerations(), getRelevantIndicesOnDataOnlyNode(newState),
+                previousMetaData, newState.metaData());
+        }
+
+        final Map<Index, Long> indexGenerations = new HashMap<>();
+        for (IndexMetaDataAction action : actions) {
+            synchronized (this) {
+                if (indicesToRetainOnDataNode.contains(action.getIndex())) {
+                    long generation = action.execute(writer);
+                    indexGenerations.put(action.getIndex(), generation);
+                }
+            }
+        }
+
+        synchronized (this) {
+            for (Iterator<Map.Entry<Index, Long>> iter = indexGenerations.entrySet().iterator(); iter.hasNext(); ) {
+                Map.Entry<Index, Long> entry = iter.next();
+                if (indicesToRetainOnDataNode.contains(entry.getKey()) == false) {
+                    iter.remove();
+                }
+            }
+
+            assert startManifest.getClusterStateVersion() == previousManifest.getClusterStateVersion();
+            assert startManifest.getCurrentTerm() == previousManifest.getCurrentTerm();
+            assert startManifest.getGlobalGeneration() == previousManifest.getGlobalGeneration();
+            assert previousManifest.getIndexGenerations().keySet().stream().allMatch(indicesToRetainOnDataNode::contains);
+
+            // Ensure that non-master-eligible Zen2 nodes always store a current term that's higher than the last accepted term.
+            final long newTerm = Math.max(previousManifest.getCurrentTerm(), newState.term());
+            final Manifest manifest = new Manifest(newTerm, newState.version(), globalStateGeneration, indexGenerations);
+            assert manifest.getIndexGenerations().keySet().stream().allMatch(indicesToRetainOnDataNode::contains);
+            writeManifest(writer, manifest);
+            previousManifest = manifest;
+            previousClusterState = newState;
+        }
+
+        logSlowWrites(startTimeMillis, writer);
+    }
+
+    private void logSlowWrites(long startTimeMillis, AtomicClusterStateWriter writer) {
         final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
         final TimeValue finalSlowWriteLoggingThreshold = this.slowWriteLoggingThreshold;
         if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
@@ -133,25 +245,6 @@ public class IncrementalClusterStateWriter {
         if (manifest.equals(previousManifest) == false) {
             writer.writeManifestAndCleanup("changed", manifest);
         }
-    }
-
-    private Map<Index, Long> writeIndicesMetadata(AtomicClusterStateWriter writer, ClusterState newState)
-        throws WriteStateException {
-        Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
-        Set<Index> relevantIndices = getRelevantIndices(newState);
-
-        Map<Index, Long> newIndices = new HashMap<>();
-
-        MetaData previousMetaData = incrementalWrite ? previousClusterState.metaData() : null;
-        Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previouslyWrittenIndices, relevantIndices, previousMetaData,
-            newState.metaData());
-
-        for (IndexMetaDataAction action : actions) {
-            long generation = action.execute(writer);
-            newIndices.put(action.getIndex(), generation);
-        }
-
-        return newIndices;
     }
 
     private long writeGlobalState(AtomicClusterStateWriter writer, MetaData newMetaData) throws WriteStateException {
@@ -206,7 +299,7 @@ public class IncrementalClusterStateWriter {
         return actions;
     }
 
-    private static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state) {
+    static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state) {
         RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
@@ -218,24 +311,13 @@ public class IncrementalClusterStateWriter {
         return indices;
     }
 
-    private static Set<Index> getRelevantIndicesForMasterEligibleNode(ClusterState state) {
+    static Set<Index> getRelevantIndicesForMasterEligibleNode(ClusterState state) {
         Set<Index> relevantIndices = new HashSet<>();
         // we have to iterate over the metadata to make sure we also capture closed indices
         for (IndexMetaData indexMetaData : state.metaData()) {
             relevantIndices.add(indexMetaData.getIndex());
         }
         return relevantIndices;
-    }
-
-    // exposed for tests
-    static Set<Index> getRelevantIndices(ClusterState state) {
-        if (state.nodes().getLocalNode().isMasterNode()) {
-            return getRelevantIndicesForMasterEligibleNode(state);
-        } else if (state.nodes().getLocalNode().isDataNode()) {
-            return getRelevantIndicesOnDataOnlyNode(state);
-        } else {
-            return Collections.emptySet();
-        }
     }
 
     /**

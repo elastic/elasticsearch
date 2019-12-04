@@ -88,8 +88,8 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     public final Map<String,Set<String>> languageContexts;
 
     public ScriptLanguagesInfo(Set<String> typesAllowed, Map<String,Set<String>> languageContexts) {
-        this.typesAllowed = typesAllowed != null ? Set.copyOf(typesAllowed): Collections.emptySet();
-        this.languageContexts = languageContexts != null ? Map.copyOf(languageContexts): Collections.emptyMap();
+        this.typesAllowed = typesAllowed != null ? Collections.unmodifiableSet(typesAllowed): Collections.emptySet();
+        this.languageContexts = languageContexts != null ? Collections.unmodifiableMap(languageContexts): Collections.emptyMap();
     }
 
     public ScriptLanguagesInfo(StreamInput in) throws IOException {
@@ -109,7 +109,7 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<Tuple<String,Set<String>>,Void> LANGUAGE_CONTEXT_PARSER =
         new ConstructingObjectParser<>("language_contexts", true,
-            (m, name) -> new Tuple<>((String)m[0], Set.copyOf((List<String>)m[1]))
+            (m, name) -> new Tuple<>((String)m[0], Collections.unmodifiableSet(new HashSet<>((List<String>)m[1])))
         );
 
     static {

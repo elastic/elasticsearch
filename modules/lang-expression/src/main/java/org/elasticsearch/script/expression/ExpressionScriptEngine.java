@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -145,8 +146,8 @@ public class ExpressionScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public List<ScriptContext<?>> getSupportedContexts() {
-        return new ArrayList<>(contexts.keySet());
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return contexts.keySet();
     }
 
     private static BucketAggregationScript.Factory newBucketAggregationScriptFactory(Expression expr) {

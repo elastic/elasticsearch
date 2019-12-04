@@ -21,8 +21,8 @@ package org.elasticsearch.script;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A script language implementation.
@@ -50,5 +50,5 @@ public interface ScriptEngine extends Closeable {
     /**
      * Script contexts supported by this engine.
      */
-    List<ScriptContext<?>> getSupportedContexts();
+    Set<ScriptContext<?>> getSupportedContexts();
 }

@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -305,9 +306,9 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public List<ScriptContext<?>> getSupportedContexts() {
+    public Set<ScriptContext<?>> getSupportedContexts() {
         // TODO(stu): make part of `compile()`
-        return List.of(
+        return Set.of(
             FieldScript.CONTEXT,
             TermsSetQueryScript.CONTEXT,
             NumberSortScript.CONTEXT,

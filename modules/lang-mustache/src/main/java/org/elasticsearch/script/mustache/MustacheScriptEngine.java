@@ -40,8 +40,8 @@ import java.io.StringWriter;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -81,8 +81,8 @@ public final class MustacheScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public List<ScriptContext<?>> getSupportedContexts() {
-        return List.of(TemplateScript.CONTEXT);
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return Set.of(TemplateScript.CONTEXT);
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {

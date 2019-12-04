@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +40,44 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * The allowable types, languages and their corresponding contexts.  When serialized there is a top level <code>types_allowed</code> list,
+ * meant to reflect the setting <code>script.allowed_types</code> with the allowed types (eg <code>inline</code>, <code>stored</code>).
+ *
+ * The top-level <code>language_contexts</code> list of objects have the <code>language</code> (eg. <code>painless</code>,
+ * <code>mustache</code>) and a list of <code>contexts</code> available for the language.  It is the responsibility of the caller to ensure
+ * these contexts are filtered by the <code>script.allowed_contexts</code> setting.
+ *
+ * The json serialization of the object has the form:
+ * <code>
+ *     {
+ *   "types_allowed": [
+ *     "inline",
+ *     "stored"
+ *   ],
+ *   "language_contexts": [
+ *     {
+ *       "language": "expression",
+ *       "contexts": [
+ *         "aggregation_selector",
+ *         "aggs"
+ *         ...
+ *       ]
+ *     },
+ *     {
+ *       "language": "painless",
+ *       "contexts": [
+ *         "aggregation_selector",
+ *         "aggs",
+ *         "aggs_combine",
+ *         ...
+ *       ]
+ *     }
+ * ...
+ *   ]
+ * }
+ * </code>
+ */
 public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     private static final ParseField TYPES_ALLOWED = new ParseField("types_allowed");
     private static final ParseField LANGUAGE_CONTEXTS = new ParseField("language_contexts");
@@ -56,8 +93,8 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     }
 
     public ScriptLanguagesInfo(StreamInput in) throws IOException {
-        typesAllowed = readStringSet(in);
-        languageContexts = readStringMapSet(in);
+        typesAllowed = in.readSet(StreamInput::readString);
+        languageContexts = in.readMap(StreamInput::readString, sin -> sin.readSet(StreamInput::readString));
     }
 
     @SuppressWarnings("unchecked")
@@ -88,8 +125,8 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeStringSet(out, typesAllowed);
-        writeStringMapSet(out, languageContexts);
+        out.writeStringCollection(typesAllowed);
+        out.writeMap(languageContexts, StreamOutput::writeString, StreamOutput::writeStringCollection);
     }
 
     @Override
@@ -129,36 +166,5 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
         }
 
         return builder.endArray().endObject();
-    }
-
-    private static Map<String,Set<String>> readStringMapSet(StreamInput in) throws IOException {
-        Map<String,Set<String>> values = new HashMap<>();
-        for (int i = in.readInt(); i > 0; i--) {
-            values.put(in.readString(), readStringSet(in));
-        }
-        return values;
-    }
-
-    private static void writeStringMapSet(StreamOutput out, Map<String,Set<String>> values) throws IOException {
-        out.writeInt(values.size());
-        for (Map.Entry<String,Set<String>> value: values.entrySet()) {
-            out.writeString(value.getKey());
-            writeStringSet(out, value.getValue());
-        }
-    }
-
-    private static Set<String> readStringSet(StreamInput in) throws IOException {
-        Set<String> values = new HashSet<>();
-        for (int i = in.readInt(); i > 0; i--) {
-            values.add(in.readString());
-        }
-        return values;
-    }
-
-    private static void writeStringSet(StreamOutput out, Set<String> values) throws IOException {
-        out.writeInt(values.size());
-        for (String value: values) {
-            out.writeString(value);
-        }
     }
 }

@@ -147,8 +147,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public List<ScriptContext<?>> getSupportedContexts() {
-        return new ArrayList<>(contextsToCompilers.keySet());
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return contextsToCompilers.keySet();
     }
 
     /**

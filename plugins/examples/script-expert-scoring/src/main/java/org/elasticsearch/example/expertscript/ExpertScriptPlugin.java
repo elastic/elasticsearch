@@ -34,8 +34,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * An example script plugin that adds a {@link ScriptEngine} implementing expert scoring.
@@ -78,8 +78,8 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         }
 
         @Override
-        public List<ScriptContext<?>> getSupportedContexts() {
-            return List.of(ScoreScript.CONTEXT);
+        public Set<ScriptContext<?>> getSupportedContexts() {
+            return Set.of(ScoreScript.CONTEXT);
         }
 
         private static class PureDfLeafFactory implements LeafFactory {

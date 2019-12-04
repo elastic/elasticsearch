@@ -55,6 +55,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -1157,8 +1158,8 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<ScriptContext<?>> getSupportedContexts() {
-            return List.of(TemplateScript.CONTEXT);
+        public Set<ScriptContext<?>> getSupportedContexts() {
+            return Set.of(TemplateScript.CONTEXT);
         }
     }
 

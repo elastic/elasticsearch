@@ -52,6 +52,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,11 +68,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
 
     public static final String NAME = "expression";
 
-    private static Map<ScriptContext<?>, Function<Expression,Object>> contexts = Map.of(
-        BucketAggregationScript.CONTEXT,
-            ExpressionScriptEngine::newBucketAggregationScriptFactory,
+    private static Map<ScriptContext<?>, Function<Expression,Object>> contexts;
 
-        BucketAggregationSelectorScript.CONTEXT,
+    static {
+        Map<ScriptContext<?>, Function<Expression,Object>> contexts = new HashMap<ScriptContext<?>, Function<Expression,Object>>();
+        contexts.put(BucketAggregationScript.CONTEXT,
+            ExpressionScriptEngine::newBucketAggregationScriptFactory);
+
+        contexts.put(BucketAggregationSelectorScript.CONTEXT,
             (Expression expr) -> {
                 BucketAggregationScript.Factory factory = newBucketAggregationScriptFactory(expr);
                 BucketAggregationSelectorScript.Factory wrappedFactory = parameters -> new BucketAggregationSelectorScript(parameters) {
@@ -80,27 +84,28 @@ public class ExpressionScriptEngine implements ScriptEngine {
                         return factory.newInstance(getParams()).execute().doubleValue() == 1.0;
                     }
                 };
-                return wrappedFactory;
-            },
+                return wrappedFactory; });
 
-        FilterScript.CONTEXT,
-            (Expression expr) -> (FilterScript.Factory) (p, lookup) -> newFilterScript(expr, lookup, p),
+        contexts.put(FilterScript.CONTEXT,
+            (Expression expr) -> (FilterScript.Factory) (p, lookup) -> newFilterScript(expr, lookup, p));
 
-        ScoreScript.CONTEXT,
-            (Expression expr) -> (ScoreScript.Factory) (p, lookup) -> newScoreScript(expr, lookup, p),
+        contexts.put(ScoreScript.CONTEXT,
+            (Expression expr) -> (ScoreScript.Factory) (p, lookup) -> newScoreScript(expr, lookup, p));
 
-        TermsSetQueryScript.CONTEXT,
-            (Expression expr) -> (TermsSetQueryScript.Factory) (p, lookup) -> newTermsSetQueryScript(expr, lookup, p),
+        contexts.put(TermsSetQueryScript.CONTEXT,
+            (Expression expr) -> (TermsSetQueryScript.Factory) (p, lookup) -> newTermsSetQueryScript(expr, lookup, p));
 
-        AggregationScript.CONTEXT,
-            (Expression expr) -> (AggregationScript.Factory) (p, lookup) -> newAggregationScript(expr, lookup, p),
+        contexts.put(AggregationScript.CONTEXT,
+            (Expression expr) -> (AggregationScript.Factory) (p, lookup) -> newAggregationScript(expr, lookup, p));
 
-        NumberSortScript.CONTEXT,
-            (Expression expr) -> (NumberSortScript.Factory) (p, lookup) -> newSortScript(expr, lookup, p),
+        contexts.put(NumberSortScript.CONTEXT,
+            (Expression expr) -> (NumberSortScript.Factory) (p, lookup) -> newSortScript(expr, lookup, p));
 
-        FieldScript.CONTEXT,
-            (Expression expr) -> (FieldScript.Factory) (p, lookup) -> newFieldScript(expr, lookup, p)
-    );
+        contexts.put(FieldScript.CONTEXT,
+            (Expression expr) -> (FieldScript.Factory) (p, lookup) -> newFieldScript(expr, lookup, p));
+
+        ExpressionScriptEngine.contexts = Collections.unmodifiableMap(contexts);
+    }
 
     @Override
     public String getType() {

@@ -47,6 +47,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 ClusterService.USER_DEFINED_META_DATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));

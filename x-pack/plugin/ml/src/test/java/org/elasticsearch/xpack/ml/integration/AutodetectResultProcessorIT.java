@@ -109,6 +109,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 ClusterService.USER_DEFINED_META_DATA,
+                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
 

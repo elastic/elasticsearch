@@ -69,9 +69,9 @@ public class ResultsPersisterService {
                                        WriteRequest.RefreshPolicy refreshPolicy,
                                        String id,
                                        Supplier<Boolean> shouldRetry) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest();
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
-            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRefreshPolicy(refreshPolicy));
+            bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
         }
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry);
     }

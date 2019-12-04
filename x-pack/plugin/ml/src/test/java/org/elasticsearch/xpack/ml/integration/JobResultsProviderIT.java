@@ -99,6 +99,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                 ClusterService.USER_DEFINED_META_DATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);

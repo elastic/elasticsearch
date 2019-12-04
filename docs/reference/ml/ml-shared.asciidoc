@@ -135,10 +135,15 @@ that is used to interpret the categorization field. This property cannot be used
 at the same time as `categorization_filters`. The categorization analyzer
 specifies how the `categorization_field` is interpreted by the categorization
 process. The syntax is very similar to that used to define the `analyzer` in the
-<<indices-analyze,Analyze endpoint>>. The `categorization_analyzer` field can be
-specified either as a string or as an object. If it is a string it must refer to
-a <<analysis-analyzers,built-in analyzer>> or one added by another plugin. If it
+<<indices-analyze,Analyze endpoint>>. For more information, see
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
++
+--
+The `categorization_analyzer` field can be specified either as a string or as an
+object. If it is a string it must refer to a
+<<analysis-analyzers,built-in analyzer>> or one added by another plugin. If it
 is an object it has the following properties:
+--
 
 `char_filter`::::
 (array of strings or objects)
@@ -151,9 +156,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=tokenizer]
 `filter`::::
 (array of strings or objects)
 include::{docdir}/ml/ml-shared.asciidoc[tag=filter]
-
-For more information, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
 end::categorization-analyzer[]
 
 tag::categorization-examples-limit[]
@@ -204,13 +206,65 @@ add them here as
 end::char-filter[]
 
 tag::custom-rules[]
-An array of custom rule objects, which enable customizing how the detector works.
-For example, a rule may dictate to the detector conditions under which results 
-should be skipped. For more information see <<ml-detector-custom-rule>>.
+An array of custom rule objects, which enable you to customize the way detectors
+operate. For example, a rule may dictate to the detector conditions under which
+results should be skipped. For more examples, see 
+{stack-ov}/ml-configuring-detector-custom-rules.html[Configuring detector custom rules].
+A custom rule has the following properties:
 +
 --
-IMPORTANT: Field names are case sensitive, for example a field named 'Bytes'
-is different from one named 'bytes'.
+`actions`::
+(array) The set of actions to be triggered when the rule applies. If
+more than one action is specified the effects of all actions are combined. The
+available actions include:
+
+* `skip_result`: The result will not be created. This is the default value.
+Unless you also specify `skip_model_update`, the model will be updated as usual
+with the corresponding series value.
+* `skip_model_update`: The value for that series will not be used to update the
+model. Unless you also specify `skip_result`, the results will be created as
+usual. This action is suitable when certain values are expected to be
+consistently anomalous and they affect the model in a way that negatively
+impacts the rest of the results.
+
+`scope`::
+(object) An optional scope of series where the rule applies. A rule must either
+have a non-empty scope or at least one condition. By default, the scope includes
+all series. Scoping is allowed for any of the fields that are also specified in
+`by_field_name`, `over_field_name`, or `partition_field_name`. To add a scope
+for a field, add the field name as a key in the scope object and set its value
+to an object with the following properties:
+
+`filter_id`:::
+(string) The id of the filter to be used.
+
+`filter_type`:::
+(string) Either `include` (the rule applies for values in the filter) or
+`exclude` (the rule applies for values not in the filter). Defaults to `include`.
+
+`conditions`::
+(array) An optional array of numeric conditions when the rule applies. A rule
+must either have a non-empty scope or at least one condition. Multiple
+conditions are combined together with a logical `AND`. A condition has the
+following properties: 
+
+`applies_to`:::
+(string) Specifies the result property to which the condition applies. The
+available options are `actual`, `typical`, `diff_from_typical`, `time`.
+
+`operator`:::
+(string) Specifies the condition operator. The available options are `gt`
+(greater than), `gte` (greater than or equals), `lt` (less than) and `lte` (less
+than or equals).
+
+`value`:::
+(double) The value that is compared against the `applies_to` field using the
+`operator`.
+--
++
+--
+NOTE: If your detector uses `lat_long`, `metric`, `rare`, or `freq_rare`
+functions, you can only specify `conditions` that apply to `time`.
 
 --
 end::custom-rules[]
@@ -484,9 +538,33 @@ see <<ml-settings>>.
 end::model-memory-limit[]
 
 tag::model-plot-config[]
-Advanced configuration option. Specifies to store model information along with
-the results. This adds overhead to the performance of the system and is not
-feasible for jobs with many entities, see <<ml-apimodelplotconfig>>.
+This advanced configuration option stores model information along with the
+results. It provides a more detailed view into anomaly detection.
++
+--
+WARNING: If you enable model plot it can add considerable overhead to the performance
+of the system; it is not feasible for jobs with many entities.
+
+Model plot provides a simplified and indicative view of the model and its bounds.
+It does not display complex features such as multivariate correlations or multimodal data.
+As such, anomalies may occasionally be reported which cannot be seen in the model plot.
+
+Model plot config can be configured when the job is created or updated later. It must be
+disabled if performance issues are experienced.
+
+The `model_plot_config` object has the following properties:
+
+`enabled`:::
+(boolean) If true, enables calculation and storage of the model bounds for
+each entity that is being analyzed. By default, this is not enabled.
+
+`terms`:::
+experimental[] (string) Limits data collection to this comma separated list of 
+partition or by field values. If terms are not specified or it is an empty 
+string, no filtering is applied. For example, "CPU,NetworkIn,DiskWrites". 
+Wildcards are not supported. Only the specified `terms` can be viewed when 
+using the Single Metric Viewer.
+--
 end::model-plot-config[]
 
 tag::model-snapshot-id[]

@@ -45,6 +45,7 @@ close the job, then reopen the job and restart the data feed for the changes to 
 
 `analysis_config`::
 `detectors`:::
+//TBD Is the implication that you can add more detectors to the array? Or only update existing detectors (in particular the follow properties)?
 `custom_rules`::::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]

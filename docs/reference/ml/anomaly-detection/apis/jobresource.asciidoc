@@ -13,7 +13,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-config]
 
-`analysis_limits`::
+[[ml-apilimits]]`analysis_limits`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 
@@ -46,10 +46,9 @@ value.
 include::{docdir}/ml/ml-shared.asciidoc[tag=groups]
 
 `job_id`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-define]
-This property is informational; you cannot change the identifier for existing
+(string) This property is informational; you cannot change the identifier for existing
 jobs.
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-define]
 
 `job_type`::
 (string) Reserved for future use, currently set to `anomaly_detector`.
@@ -57,7 +56,7 @@ jobs.
 `job_version`::
 (string) The version of {es} that existed on the node when the job was created.
 
-`model_plot_config`::
+[[ml-apimodelplotconfig]]`model_plot_config`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config]
 
@@ -80,142 +79,3 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=results-index-name]
 `results_retention_days`::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=results-retention-days]
-
-[float]
-[[ml-detector-custom-rule]]
-==== Detector Custom Rule
-
-{stack-ov}/ml-rules.html[Custom rules] enable you to customize the way detectors 
-operate. 
-
-A custom rule has the following properties:
-
-`actions`::
-  (array) The set of actions to be triggered when the rule applies.
-  If more than one action is specified the effects of all actions are combined.
-  The available actions include: +
-  `skip_result`::: The result will not be created. This is the default value.
-  Unless you also specify `skip_model_update`, the model will be updated as
-  usual with the corresponding series value.
-  `skip_model_update`::: The value for that series will not be used to update
-  the model. Unless you also specify `skip_result`, the results will be created
-  as usual. This action is suitable when certain values are expected to be
-  consistently anomalous and they affect the model in a way that negatively
-  impacts the rest of the results.
-  
-`scope`::
-  (object) An optional scope of series where the rule applies. By default, the 
-  scope includes all series. Scoping is allowed for any of the fields that are 
-  also specified in `by_field_name`, `over_field_name`, or `partition_field_name`.
-  To add a scope for a field, add the field name as a key in the scope object and
-  set its value to an object with the following properties:  
-`filter_id`:::
-  (string) The id of the filter to be used.
-
-`filter_type`:::
-  (string) Either `include` (the rule applies for values in the filter)
-  or `exclude` (the rule applies for values not in the filter). Defaults
-  to `include`.    
-
-`conditions`::
-  (array) An optional array of numeric conditions when the rule applies.
-  Multiple conditions are combined together with a logical `AND`.
-+
---
-NOTE: If your detector uses `lat_long`, `metric`, `rare`, or `freq_rare` 
-functions, you can only specify `conditions` that apply to `time`.
-
-  
-A condition has the following properties: 
-
-`applies_to`:::
-    (string) Specifies the result property to which the condition applies.
-    The available options are `actual`, `typical`, `diff_from_typical`, `time`.
-`operator`:::
-    (string) Specifies the condition operator. The available options are
-    `gt` (greater than), `gte` (greater than or equals), `lt` (less than) and `lte` (less than or equals).
-`value`:::
-    (double) The value that is compared against the `applies_to` field using the `operator`.
---
-
-A rule is required to either have a non-empty scope or at least one condition.
-For more examples see 
-{stack-ov}/ml-configuring-detector-custom-rules.html[Configuring Detector Custom Rules].
-
-[float]
-[[ml-apilimits]]
-==== Analysis limits
-
-Limits can be applied for the resources required to hold the mathematical models in memory.
-These limits are approximate and can be set per job. They do not control the
-memory used by other processes, for example the Elasticsearch Java processes.
-If necessary, you can increase the limits after the job is created.
-
-The `analysis_limits` object has the following properties:
-
-`categorization_examples_limit`::
-  (long) The maximum number of examples stored per category in memory and
-  in the results data store. The default value is 4.  If you increase this value,
-  more examples are available, however it requires that you have more storage available.
-  If you set this value to `0`, no examples are stored. +
-+
---
-NOTE: The `categorization_examples_limit` only applies to analysis that uses categorization.
-For more information, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
-
---
-
-`model_memory_limit`::
-  (long or string) The approximate maximum amount of memory resources that are
-  required for analytical processing. Once this limit is approached, data pruning
-  becomes more aggressive. Upon exceeding this limit, new entities are not
-  modeled. The default value for jobs created in version 6.1 and later is `1024mb`.
-  This value will need to be increased for jobs that are expected to analyze high
-  cardinality fields, but the default is set to a relatively small size to ensure
-  that high resource usage is a conscious decision. The default value for jobs
-  created in versions earlier than 6.1 is `4096mb`.
-+
---
-If you specify a number instead of a string, the units are assumed to be MiB.
-Specifying a string is recommended for clarity. If you specify a byte size unit
-of `b` or `kb` and the number does not equate to a discrete number of megabytes,
-it is rounded down to the closest MiB. The minimum valid value is 1 MiB. If you
-specify a value less than 1 MiB, an error occurs. For more information about
-supported byte size units, see <<byte-units,Common options>>.
-
-If your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit`
-setting, an error occurs when you try to create jobs that have
-`model_memory_limit` values greater than that setting. For more information,
-see <<ml-settings>>.
---
-
-[float]
-[[ml-apimodelplotconfig]]
-==== Model plot config
-
-This advanced configuration option stores model information along with the
-results. It provides a more detailed view into anomaly detection.
-
-WARNING: If you enable model plot it can add considerable overhead to the performance
-of the system; it is not feasible for jobs with many entities.
-
-Model plot provides a simplified and indicative view of the model and its bounds.
-It does not display complex features such as multivariate correlations or multimodal data.
-As such, anomalies may occasionally be reported which cannot be seen in the model plot.
-
-Model plot config can be configured when the job is created or updated later. It must be
-disabled if performance issues are experienced.
-
-The `model_plot_config` object has the following properties:
-
-`enabled`::
-  (boolean) If true, enables calculation and storage of the model bounds for
-  each entity that is being analyzed. By default, this is not enabled.
-
-`terms`::
-  experimental[] (string) Limits data collection to this comma separated list of 
-  partition or by field values. If terms are not specified or it is an empty 
-  string, no filtering is applied. For example, "CPU,NetworkIn,DiskWrites". 
-  Wildcards are not supported. Only the specified `terms` can be viewed when 
-  using the Single Metric Viewer.

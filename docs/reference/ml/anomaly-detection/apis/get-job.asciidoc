@@ -100,8 +100,11 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=groups]
 `job_id`::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-define]
++
+--
 This property is informational; you cannot change the identifier for existing
 jobs.
+--
 
 `job_type`::
 (string) Reserved for future use, currently set to `anomaly_detector`.
@@ -116,7 +119,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config]
 `model_snapshot_id`::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-snapshot-id]
++
+--
 This property is informational; you cannot change its value. 
+--
 
 `model_snapshot_retention_days`::
 (long)

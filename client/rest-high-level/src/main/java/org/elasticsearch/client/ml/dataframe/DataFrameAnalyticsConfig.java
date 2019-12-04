@@ -283,12 +283,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setCreateTime(Instant createTime) {
+        Builder setCreateTime(Instant createTime) {
             this.createTime = createTime;
             return this;
         }
 
-        public Builder setVersion(Version version) {
+        Builder setVersion(Version version) {
             this.version = version;
             return this;
         }

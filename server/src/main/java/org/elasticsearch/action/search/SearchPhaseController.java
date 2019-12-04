@@ -636,7 +636,11 @@ public final class SearchPhaseController {
                 numReducePhases++;
                 index = 1;
                 if (hasAggs) {
-                    progressListener.notifyPartialReduce(progressListener.searchShards(results.asList()),
+                    List<SearchPhaseResult> results = new ArrayList<>();
+                    for (int i = 0; i < this.results.length(); i++) {
+                        results.add(this.results.get(i));
+                    }
+                    progressListener.notifyPartialReduce(progressListener.searchShards(results),
                         topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
                 }
             }

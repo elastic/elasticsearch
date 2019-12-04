@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -55,8 +56,9 @@ public final class TransformInternalIndex {
      *                  progress::docs_processed, progress::docs_indexed,
      *                  stats::exponential_avg_checkpoint_duration_ms, stats::exponential_avg_documents_indexed,
      *                  stats::exponential_avg_documents_processed
-     *
+     * version 3 (7.5): rename to .transform-internal-xxx
      * version 4 (7.6): state::should_stop_at_checkpoint
+     *                  checkpoint::checkpoint
      */
 
     // constants for mappings
@@ -115,26 +117,27 @@ public final class TransformInternalIndex {
         builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         builder.field(DYNAMIC, "false");
-        builder.startObject(PROPERTIES)
-            .startObject(TRANSFORM_ID)
-            .field(TYPE, KEYWORD)
-            .endObject()
-            .startObject(AbstractAuditMessage.LEVEL.getPreferredName())
-            .field(TYPE, KEYWORD)
-            .endObject()
-            .startObject(AbstractAuditMessage.MESSAGE.getPreferredName())
-            .field(TYPE, TEXT)
-            .startObject(FIELDS)
-            .startObject(RAW)
-            .field(TYPE, KEYWORD)
-            .endObject()
-            .endObject()
+        builder
+            .startObject(PROPERTIES)
+                .startObject(TRANSFORM_ID)
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AbstractAuditMessage.LEVEL.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AbstractAuditMessage.MESSAGE.getPreferredName())
+                    .field(TYPE, TEXT)
+                .startObject(FIELDS)
+                    .startObject(RAW)
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                .endObject()
             .endObject()
             .startObject(AbstractAuditMessage.TIMESTAMP.getPreferredName())
-            .field(TYPE, DATE)
+                .field(TYPE, DATE)
             .endObject()
             .startObject(AbstractAuditMessage.NODE_NAME.getPreferredName())
-            .field(TYPE, KEYWORD)
+                .field(TYPE, KEYWORD)
             .endObject()
             .endObject()
             .endObject()
@@ -260,9 +263,6 @@ public final class TransformInternalIndex {
             .endObject()
             .endObject()
             .endObject();
-        // This is obsolete and can be removed for future versions of the index, but is left here as a warning/reminder that
-        // we cannot declare this field differently in version 1 of the internal index as it would cause a mapping clash
-        // .startObject("checkpointing").field(ENABLED, false).endObject();
     }
 
     public static XContentBuilder addTransformsConfigMappings(XContentBuilder builder) throws IOException {
@@ -303,6 +303,9 @@ public final class TransformInternalIndex {
             .endObject()
             .startObject(TransformField.TIME_UPPER_BOUND_MILLIS.getPreferredName())
             .field(TYPE, DATE)
+            .endObject()
+            .startObject(TransformCheckpoint.CHECKPOINT.getPreferredName())
+                .field(TYPE, LONG)
             .endObject();
     }
 

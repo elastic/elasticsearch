@@ -5,30 +5,33 @@
 --
 
 // tag::snapshot-intro[]
-A snapshot is a backup taken from a running Elasticsearch cluster. You can take
-a snapshot of individual indices or of the entire cluster and store it in a
-repository on a shared filesystem, and there are plugins that support remote
-repositories on S3, HDFS, Azure, Google Cloud Storage and more.
+A _snapshot_ is a backup taken from a running {es} cluster. 
+You can take snapshots of individual indices or of the entire cluster. 
+Snapshots can be stored in either local or remote repositories. 
+Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage, 
+and other platforms supported by a repository plugin.
 
-Snapshots are taken incrementally. This means that when it creates a snapshot of
-an index, Elasticsearch avoids copying any data that is already stored in the
-repository as part of an earlier snapshot of the same index. Therefore it can be
-efficient to take snapshots of your cluster quite frequently.
-// end::snapshot-intro[]
+Snapshots are incremental: each snapshot of an index only stores data that 
+is not part of an earlier snapshot.  
+This enables you to take frequent snapshots with minimal overhead.
+// end::snapshot-intro[] 
 
 // tag::restore-intro[]
-You can restore snapshots into a running cluster via the
-<<snapshots-restore-snapshot,restore API>>. When you restore an index, you can alter the
-name of the restored index as well as some of its settings. There is a great
-deal of flexibility in how the snapshot and restore functionality can be used.
+You can restore snapshots to a running cluster with the <<snapshots-restore-snapshot,restore API>>. 
+By default, all indices in the snapshot are restored. 
+Alternatively, you can restore specific indices or restore the cluster state from a snapshot. 
+When restoring indices, you can modify the index name and selected index settings. 
 // end::restore-intro[]
 
-You can automate your snapshot backup and restore process by using
-<<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>.
+You must <<snapshots-register-repository, register a snapshot repository>> 
+before you can <<snapshots-take-snapshot, take snapshots>>.
+
+You can use <<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>
+to automatically take and manage snapshots.
 
 // tag::backup-warning[]
-WARNING: You cannot back up an Elasticsearch cluster by simply taking a copy of
-the data directories of all of its nodes. Elasticsearch may be making changes to
+WARNING: You cannot back up an {es} cluster by simply copying
+the data directories of all of its nodes. {es} may be making changes to
 the contents of its data directories while it is running; copying its data
 directories cannot be expected to capture a consistent picture of their contents.
 If you try to restore a cluster from such a backup, it may fail and report
@@ -47,7 +50,7 @@ when migrating between versions.
 
 A snapshot contains a copy of the on-disk data structures that make up an
 index. This means that snapshots can only be restored to versions of
-Elasticsearch that can read the indices:
+{es} that can read the indices:
 
 * A snapshot of an index created in 6.x can be restored to 7.x.
 * A snapshot of an index created in 5.x can be restored to 6.x.
@@ -59,7 +62,7 @@ or 6.x, snapshots of indices created in 2.x **cannot** be restored to 6.x
 or 7.x, and snapshots of indices created in 5.x **cannot** be restored to 7.x
 or 8.x.
 
-Each snapshot can contain indices created in various versions of Elasticsearch,
+Each snapshot can contain indices created in various versions of {es},
 and when restoring a snapshot it must be possible to restore all of the indices
 into the target cluster. If any indices in a snapshot were created in an
 incompatible version, you will not be able restore the snapshot.

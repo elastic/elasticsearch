@@ -80,6 +80,7 @@ GET /_snapshot/_all
 -----------------------------------
 
 [float]
+[[snapshots-filesystem-repository]]
 === Shared file system repository
 
 The shared file system repository (`"type": "fs"`) uses the shared file system to store snapshots. In order to register
@@ -147,6 +148,7 @@ unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited c
 `readonly`:: Makes repository read-only.  Defaults to `false`.
 
 [float]
+[[snapshots-read-only-repository]]
 === Read-only URL repository
 
 The URL repository (`"type": "url"`) can be used as an alternative read-only way to access data created by the shared file
@@ -171,6 +173,7 @@ shared file system repository.
 [float]
 [role="xpack"]
 [testenv="basic"]
+[[snapshots-source-only-repository]]
 === Source only repository
 
 A source repository enables you to create minimal, source-only snapshots that take up to 50% less space on disk.
@@ -179,7 +182,6 @@ and are not searchable when restored. After restoring a source-only snapshot, yo
 the data into a new index.
 
 Source repositories delegate to another snapshot repository for storage.
-
 
 [IMPORTANT]
 ==================================================
@@ -213,6 +215,7 @@ PUT _snapshot/my_src_only_repository
 // TEST[continued]
 
 [float]
+[[snapshots-repository-plugins]]
 === Repository plugins
 
 Other repository backends are available in these official plugins:
@@ -223,6 +226,7 @@ Other repository backends are available in these official plugins:
 * {plugins}/repository-gcs.html[repository-gcs] for Google Cloud Storage repositories
 
 [float]
+[[snapshots-repository-verification]]
 === Repository verification
 When a repository is registered, it's immediately verified on all master and data nodes to make sure that it is functional
 on all nodes currently present in the cluster. The `verify` parameter can be used to explicitly disable the repository
@@ -251,6 +255,7 @@ POST /_snapshot/my_unverified_backup/_verify
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
 
 [float]
+[[snapshots-repository-cleanup]]
 === Repository cleanup
 Repositories can over time accumulate data that is not referenced by any existing snapshot. This is a result of the data safety guarantees
 the snapshot functionality provides in failure scenarios during snapshot creation and the decentralized nature of the snapshot creation

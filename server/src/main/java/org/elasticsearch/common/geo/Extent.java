@@ -26,8 +26,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Object representing the extent of a geometry object within a
- * {@link GeometryTreeWriter} and {@link EdgeTreeWriter}.
+ * Object representing the extent of a geometry object within a {@link ShapeTreeWriter}.
  */
 public class Extent implements Writeable {
     static final int WRITEABLE_SIZE_IN_BYTES = 24;

@@ -33,7 +33,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * This class supports checking bounding box
  * relations against the serialized triangle tree.
  */
-public class TriangleTreeReader implements ShapeTreeReader {
+public class TriangleTreeReader {
 
     private final int extentOffset = 8;
     private ByteBufferStreamInput input;
@@ -64,7 +64,6 @@ public class TriangleTreeReader implements ShapeTreeReader {
     /**
      * returns the X coordinate of the centroid.
      */
-    @Override
     public double getCentroidX() throws IOException {
         input.position(0);
         return coordinateEncoder.decodeX(input.readInt());
@@ -73,7 +72,6 @@ public class TriangleTreeReader implements ShapeTreeReader {
     /**
      * returns the Y coordinate of the centroid.
      */
-    @Override
     public double getCentroidY() throws IOException {
         input.position(4);
         return coordinateEncoder.decodeY(input.readInt());
@@ -83,7 +81,6 @@ public class TriangleTreeReader implements ShapeTreeReader {
      * Compute the relation with the provided bounding box. If the result is CELL_INSIDE_QUERY
      * then the bounding box is within the shape.
      */
-    @Override
     public GeoRelation relate(int minX, int minY, int maxX, int maxY) throws IOException {
         input.position(extentOffset);
         int thisMaxX = input.readInt();

@@ -24,7 +24,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
-import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;

@@ -24,9 +24,6 @@ import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoRelation;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
-import org.elasticsearch.common.geo.GeometryTreeReader;
-import org.elasticsearch.common.geo.GeometryTreeWriter;
-import org.elasticsearch.common.geo.ShapeTreeReader;
 import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.common.geo.TriangleTreeWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -129,9 +126,9 @@ public abstract class MultiGeoValues {
     public static class GeoShapeValue implements GeoValue {
         private static final WellKnownText MISSING_GEOMETRY_PARSER = new WellKnownText(true, new GeographyValidator(true));
 
-        private final ShapeTreeReader reader;
+        private final TriangleTreeReader reader;
 
-        public GeoShapeValue(ShapeTreeReader reader)  {
+        public GeoShapeValue(TriangleTreeReader reader)  {
             this.reader = reader;
         }
 

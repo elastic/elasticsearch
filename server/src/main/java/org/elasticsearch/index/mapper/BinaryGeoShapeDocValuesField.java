@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
-import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.geo.TriangleTreeWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;

@@ -21,7 +21,7 @@ package org.elasticsearch.common.geo;
 
 /**
  * This class keeps a running Kahan-sum of coordinates
- * that are to be averaged in {@link GeometryTreeWriter} for use
+ * that are to be averaged in {@link TriangleTreeWriter} for use
  * as the centroid of a shape.
  */
 public class CentroidCalculator {

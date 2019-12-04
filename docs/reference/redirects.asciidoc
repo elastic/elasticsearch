@@ -1001,3 +1001,48 @@ See <<tls-ldap>>.
 
 See <<kerberos-realm-configuration>>.
 
+[role="exclude",id="beats"]
+=== Beats and Security
+
+See:
+* {auditbeat-ref}/securing-beats.html[{auditbeat}]
+* {filebeat-ref}/securing-beats.html[{filebeat}]
+* {heartbeat-ref}/securing-beats.html[{heartbeat}]
+* {metricbeat-ref}/securing-beats.html[{metricbeat}]
+* {packetbeat-ref}/securing-beats.html[{packetbeat}]
+* {winlogbeat-ref}/securing-beats.html[{winlogbeat}]
+
+[role="exclude",id="configuring-pki-realm"]
+=== Configuring a PKI realm
+
+See <<pki-realm>>.
+
+[role="exclude",id="pki-settings"]
+==== PKI realm settings
+
+See <<ref-pki-settings>>.
+
+[role="exclude",id="configuring-ad-realm"]
+=== Configuring an Active Directory realm
+
+See <<ad-realm-configuration>>.
+
+[role="exclude",id="ad-settings"]
+=== Active Directory realm settings
+
+See <<ref-ad-settings>>.
+
+[role="exclude",id="mapping-roles-ad"]
+=== Mapping Active Directory users and groups to roles
+
+See <<ad-realm-configuration>>. 
+
+[role="exclude",id="how-security-works"]
+=== How security works
+
+See <<elasticsearch-security>>.
+
+[role="exclude",id="rollup-job-config"]
+=== Rollup job configuration
+
+See <<rollup-put-job-api-request-body>>.

@@ -58,9 +58,9 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
         return fieldValues;
     }
 
-    Map<String, Object> randomFieldValues(String categoricalField, String catigoricalValue) {
+    Map<String, Object> randomFieldValues(String categoricalField, Object categoricalValue) {
         Map<String, Object> fieldValues = randomFieldValues();
-        fieldValues.put(categoricalField, catigoricalValue);
+        fieldValues.put(categoricalField, categoricalValue);
         return fieldValues;
     }
 

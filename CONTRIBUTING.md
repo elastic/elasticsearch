@@ -107,11 +107,17 @@ and `JAVA11_HOME` available so that the tests can pass.
 `jrunscript` for jdk distributions.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
-using the wrapper via the `gradlew` script in the root of the repository.
+using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat` 
+script on Windows in the root of the repository. The examples below show the
+usage on Unix.
 
 We support development in the Eclipse and IntelliJ IDEs.
 For Eclipse, the minimum version that we support is [4.13][eclipse].
 For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+
+[Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
+
+    ./gradlew :run
 
 ### Configuring IDEs And Running Tests
 
@@ -151,6 +157,10 @@ For IntelliJ, go to
 For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 `VM Arguments`.
 
+Some tests related to locale testing also require the flag 
+`-Djava.locale.providers` to be set. Set the VM options/VM arguments for
+IntelliJ or Eclipse like describe above to use 
+`-Djava.locale.providers=SPI,COMPAT`.
 
 ### Java Language Formatting Guidelines
 

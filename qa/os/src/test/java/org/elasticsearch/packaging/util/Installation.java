@@ -27,6 +27,12 @@ import java.nio.file.Paths;
  */
 public class Installation {
 
+    // in the future we'll run as a role user on Windows
+    public static final String ARCHIVE_OWNER = Platforms.WINDOWS
+        ? System.getenv("username")
+        : "elasticsearch";
+
+    public final Distribution distribution;
     public final Path home;
     public final Path bin; // this isn't a first-class installation feature but we include it for convenience
     public final Path lib; // same
@@ -39,7 +45,9 @@ public class Installation {
     public final Path pidDir;
     public final Path envFile;
 
-    public Installation(Path home, Path config, Path data, Path logs, Path plugins, Path modules, Path pidDir, Path envFile) {
+    private Installation(Distribution distribution, Path home, Path config, Path data, Path logs,
+                         Path plugins, Path modules, Path pidDir, Path envFile) {
+        this.distribution = distribution;
         this.home = home;
         this.bin = home.resolve("bin");
         this.lib = home.resolve("lib");
@@ -53,8 +61,9 @@ public class Installation {
         this.envFile = envFile;
     }
 
-    public static Installation ofArchive(Path home) {
+    public static Installation ofArchive(Distribution distribution, Path home) {
         return new Installation(
+            distribution,
             home,
             home.resolve("config"),
             home.resolve("data"),
@@ -66,13 +75,14 @@ public class Installation {
         );
     }
 
-    public static Installation ofPackage(Distribution.Packaging packaging) {
+    public static Installation ofPackage(Distribution distribution) {
 
-        final Path envFile = (packaging == Distribution.Packaging.RPM)
+        final Path envFile = (distribution.packaging == Distribution.Packaging.RPM)
             ? Paths.get("/etc/sysconfig/elasticsearch")
             : Paths.get("/etc/default/elasticsearch");
 
         return new Installation(
+            distribution,
             Paths.get("/usr/share/elasticsearch"),
             Paths.get("/etc/elasticsearch"),
             Paths.get("/var/lib/elasticsearch"),
@@ -84,9 +94,10 @@ public class Installation {
         );
     }
 
-    public static Installation ofContainer() {
+    public static Installation ofContainer(Distribution distribution) {
         String root = "/usr/share/elasticsearch";
         return new Installation(
+            distribution,
             Paths.get(root),
             Paths.get(root + "/config"),
             Paths.get(root + "/data"),
@@ -110,23 +121,48 @@ public class Installation {
         return new Executables();
     }
 
-    public class Executables {
+    public class Executable {
+        public final Path path;
 
-        public final Path elasticsearch = platformExecutable("elasticsearch");
-        public final Path elasticsearchPlugin = platformExecutable("elasticsearch-plugin");
-        public final Path elasticsearchKeystore = platformExecutable("elasticsearch-keystore");
-        public final Path elasticsearchCertutil = platformExecutable("elasticsearch-certutil");
-        public final Path elasticsearchShard = platformExecutable("elasticsearch-shard");
-        public final Path elasticsearchNode = platformExecutable("elasticsearch-node");
-        public final Path elasticsearchSetupPasswords = platformExecutable("elasticsearch-setup-passwords");
-        public final Path elasticsearchSyskeygen = platformExecutable("elasticsearch-syskeygen");
-        public final Path elasticsearchUsers = platformExecutable("elasticsearch-users");
-
-        private Path platformExecutable(String name) {
+        private Executable(String name) {
             final String platformExecutableName = Platforms.WINDOWS
                 ? name + ".bat"
                 : name;
-            return bin(platformExecutableName);
+            this.path = bin(platformExecutableName);
         }
+
+        @Override
+        public String toString() {
+            return path.toString();
+        }
+
+        public Shell.Result run(Shell sh, String args) {
+            return run(sh, args, null);
+        }
+
+        public Shell.Result run(Shell sh, String args, String input) {
+            String command = path + " " + args;
+            if (distribution.isArchive() && distribution.platform != Distribution.Platform.WINDOWS) {
+                command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+            }
+            if (input != null) {
+                command = "echo \"" + input + "\" | " + command;
+            }
+            return sh.run(command);
+        }
+    }
+
+    public class Executables {
+
+        public final Executable elasticsearch = new Executable("elasticsearch");
+        public final Executable elasticsearchPlugin = new Executable("elasticsearch-plugin");
+        public final Executable elasticsearchKeystore = new Executable("elasticsearch-keystore");
+        public final Executable elasticsearchCertutil = new Executable("elasticsearch-certutil");
+        public final Executable elasticsearchShard = new Executable("elasticsearch-shard");
+        public final Executable elasticsearchNode = new Executable("elasticsearch-node");
+        public final Executable elasticsearchSetupPasswords = new Executable("elasticsearch-setup-passwords");
+        public final Executable elasticsearchSqlCli= new Executable("elasticsearch-sql-cli");
+        public final Executable elasticsearchSyskeygen = new Executable("elasticsearch-syskeygen");
+        public final Executable elasticsearchUsers = new Executable("elasticsearch-users");
     }
 }

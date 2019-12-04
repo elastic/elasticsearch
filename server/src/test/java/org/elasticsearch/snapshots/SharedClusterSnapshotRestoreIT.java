@@ -358,7 +358,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
     }
 
-    public void testFreshIndexUUID() throws InterruptedException {
+    public void testFreshIndexUUID() {
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -781,7 +781,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
     }
 
-    public void testSnapshotFileFailureDuringSnapshot() throws InterruptedException {
+    public void testSnapshotFileFailureDuringSnapshot() {
         disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
         Client client = client();
 
@@ -1321,9 +1321,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> delete the last snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", lastSnapshot).get();
-        logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
-                    "plus one because one backup index-N file should remain");
-        assertFileCount(repo, numberOfFiles[0] + 1);
+        logger.info("--> make sure that number of files is back to what it was when the first snapshot was made");
+        assertFileCount(repo, numberOfFiles[0]);
     }
 
     public void testGetSnapshotsNoRepos() {

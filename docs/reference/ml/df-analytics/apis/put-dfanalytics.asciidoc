@@ -225,7 +225,7 @@ PUT _ml/data_frame/analytics/model-flight-delays-pre
   ...
     }
   },
-  "analyzed_fields": {
+  "analyzed_fields": { <5>
     "includes": [],
     "excludes": [   
       "Cancelled"

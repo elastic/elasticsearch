@@ -257,10 +257,12 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         ArgumentCaptor<BulkRequest> indexRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         verify(client, times(1)).bulk(indexRequestCaptor.capture());
+
+        // Refresh policy is set on the bulk request, not the individual index requests
+        assertThat(indexRequestCaptor.getValue().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
         IndexRequest indexRequest = (IndexRequest)indexRequestCaptor.getValue().requests().get(0);
         assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
         assertThat(indexRequest.id(), equalTo("foo_datafeed_timing_stats"));
-        assertThat(indexRequest.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
         assertThat(
             indexRequest.sourceAsMap(),
             equalTo(

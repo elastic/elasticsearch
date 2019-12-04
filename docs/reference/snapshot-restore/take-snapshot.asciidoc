@@ -9,11 +9,24 @@ A repository can contain multiple snapshots of the same cluster. Snapshots are i
 cluster. A snapshot with the name `snapshot_1` in the repository `my_backup` can be created by executing the following
 command:
 
+////
+[source,console]
+-----------------------------------
+PUT /_snapshot/my_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// TESTSETUP
+////
+
 [source,console]
 -----------------------------------
 PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
 -----------------------------------
-// TEST[continued]
 
 The `wait_for_completion` parameter specifies whether or not the request should return immediately after snapshot
 initialization (default) or wait for snapshot completion. During snapshot initialization, information about all
@@ -36,7 +49,6 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
   }
 }
 -----------------------------------
-// TEST[continued]
 
 The list of indices that should be included into the snapshot can be specified using the `indices` parameter that
 supports <<multi-index,multi index syntax>>. The snapshot request also supports the

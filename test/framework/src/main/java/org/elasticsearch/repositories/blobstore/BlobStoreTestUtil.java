@@ -26,6 +26,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -292,11 +295,29 @@ public final class BlobStoreTestUtil {
 
     /**
      * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
-     * functionality to make {@link BlobStoreRepository} work.
+     * functionality to make {@link BlobStoreRepository} work. Initializes the cluster state as {@link ClusterState#EMPTY_STATE}.
      *
      * @return Mock ClusterService
      */
     public static ClusterService mockClusterService() {
+        return mockClusterService(ClusterState.EMPTY_STATE);
+    }
+
+    /**
+     * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
+     * functionality to make {@link BlobStoreRepository} work. Initializes the cluster state with a {@link RepositoriesMetaData} instance
+     * that contains the given {@code metadata}.
+     *
+     * @param metaData RepositoryMetaData to initialize the cluster state with
+     * @return Mock ClusterService
+     */
+    public static ClusterService mockClusterService(RepositoryMetaData metaData) {
+        return mockClusterService(ClusterState.builder(ClusterState.EMPTY_STATE).metaData(
+            MetaData.builder().putCustom(RepositoriesMetaData.TYPE,
+                new RepositoriesMetaData(Collections.singletonList(metaData))).build()).build());
+    }
+
+    private static ClusterService mockClusterService(ClusterState initialState) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
         when(threadPool.generic()).thenReturn(new SameThreadExecutorService());
@@ -305,7 +326,7 @@ public final class BlobStoreTestUtil {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-        final AtomicReference<ClusterState> currentState = new AtomicReference<>(ClusterState.EMPTY_STATE);
+        final AtomicReference<ClusterState> currentState = new AtomicReference<>(initialState);
         when(clusterService.state()).then(invocationOnMock -> currentState.get());
         final List<ClusterStateApplier> appliers = new CopyOnWriteArrayList<>();
         doAnswer(invocation -> {

@@ -100,6 +100,8 @@ public class MockRepository extends FsRepository {
 
     private final String randomPrefix;
 
+    private final Environment env;
+
     private volatile boolean blockOnControlFiles;
 
     private volatile boolean blockOnDataFiles;
@@ -125,7 +127,13 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = metadata.settings().getAsBoolean("block_on_snap", false);
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
+        env = environment;
         logger.info("starting mock repository with random prefix {}", randomPrefix);
+    }
+
+    @Override
+    public RepositoryMetaData getMetadata() {
+        return overrideSettings(super.getMetadata(), env);
     }
 
     private static RepositoryMetaData overrideSettings(RepositoryMetaData metadata, Environment environment) {

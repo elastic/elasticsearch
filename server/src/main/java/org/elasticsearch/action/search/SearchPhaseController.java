@@ -39,6 +39,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -564,6 +565,7 @@ public final class SearchPhaseController {
      * iff the buffer is exhausted.
      */
     static final class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
+        private final SearchShardTarget[] processedShards;
         private final InternalAggregations[] aggsBuffer;
         private final TopDocs[] topDocsBuffer;
         private final boolean hasAggs;
@@ -600,6 +602,7 @@ public final class SearchPhaseController {
             }
             this.controller = controller;
             this.progressListener = progressListener;
+            this.processedShards = new SearchShardTarget[expectedResultSize];
             // no need to buffer anything if we have less expected results. in this case we don't consume any results ahead of time.
             this.aggsBuffer = new InternalAggregations[hasAggs ? bufferSize : 0];
             this.topDocsBuffer = new TopDocs[hasTopDocs ? bufferSize : 0];
@@ -636,7 +639,7 @@ public final class SearchPhaseController {
                 numReducePhases++;
                 index = 1;
                 if (hasAggs) {
-                    progressListener.notifyPartialReduce(progressListener.searchShards(results.asList()),
+                    progressListener.notifyPartialReduce(progressListener.searchShards(processedShards),
                         topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
                 }
             }
@@ -650,6 +653,7 @@ public final class SearchPhaseController {
                 setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
                 topDocsBuffer[i] = topDocs.topDocs;
             }
+            processedShards[querySearchResult.getShardIndex()] = querySearchResult.getSearchShardTarget();
         }
 
         private synchronized List<InternalAggregations> getRemainingAggs() {

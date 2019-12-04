@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
+import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -33,7 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.geo.GeoTestUtils.geometryTreeReader;
+import static org.elasticsearch.common.geo.GeoTestUtils.triangleTreeReader;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoGridTilerTests extends ESTestCase {
@@ -48,14 +49,9 @@ public class GeoGridTilerTests extends ESTestCase {
 
         // create rectangle within tile and check bound counts
         Rectangle tile = GeoTileUtils.toBoundingBox(1309, 3166, 13);
-        GeometryTreeWriter writer = new GeometryTreeWriter(
-            new Rectangle(tile.getMinX() + 0.00001, tile.getMaxX() - 0.00001,
-                tile.getMaxY() - 0.00001,  tile.getMinY() + 0.00001), GeoShapeCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
-        reader.reset(output.bytes().toBytesRef());
+        Rectangle shapeRectangle = new Rectangle(tile.getMinX() + 0.00001, tile.getMaxX() - 0.00001,
+            tile.getMaxY() - 0.00001,  tile.getMinY() + 0.00001);
+        TriangleTreeReader reader = triangleTreeReader(shapeRectangle, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value =  new MultiGeoValues.GeoShapeValue(reader);
 
         // test shape within tile bounds
@@ -98,7 +94,7 @@ public class GeoGridTilerTests extends ESTestCase {
         int precision = randomIntBetween(1, 10);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
-        GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+        TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
         CellIdSource.GeoShapeCellValues recursiveValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOTILE);
         int recursiveCount;
@@ -129,7 +125,7 @@ public class GeoGridTilerTests extends ESTestCase {
         int precision = randomIntBetween(1, 4);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
-        GeometryTreeReader reader = geometryTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+        TriangleTreeReader reader = triangleTreeReader(geometry, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value = new MultiGeoValues.GeoShapeValue(reader);
         CellIdSource.GeoShapeCellValues recursiveValues = new CellIdSource.GeoShapeCellValues(null, precision, GEOHASH);
         int recursiveCount;
@@ -158,14 +154,9 @@ public class GeoGridTilerTests extends ESTestCase {
 
         Rectangle tile = Geohash.toBoundingBox(Geohash.stringEncode(x, y, 5));
 
-        GeometryTreeWriter writer = new GeometryTreeWriter(
-            new Rectangle(tile.getMinX() + 0.00001, tile.getMaxX() - 0.00001,
-                tile.getMaxY() - 0.00001,  tile.getMinY() + 0.00001), GeoShapeCoordinateEncoder.INSTANCE);
-        BytesStreamOutput output = new BytesStreamOutput();
-        writer.writeTo(output);
-        output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
-        reader.reset(output.bytes().toBytesRef());
+        Rectangle shapeRectangle = new Rectangle(tile.getMinX() + 0.00001, tile.getMaxX() - 0.00001,
+            tile.getMaxY() - 0.00001,  tile.getMinY() + 0.00001);
+        TriangleTreeReader reader = triangleTreeReader(shapeRectangle, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoValues.GeoShapeValue value =  new MultiGeoValues.GeoShapeValue(reader);
 
         // test shape within tile bounds

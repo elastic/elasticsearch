@@ -25,6 +25,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
+import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -62,7 +63,7 @@ final class LatLonShapeDVAtomicFieldData extends AbstractAtomicGeoShapeFieldData
     public MultiGeoValues getGeoValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
-            final GeometryTreeReader reader = new GeometryTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+            final TriangleTreeReader reader = new TriangleTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
             final MultiGeoValues.GeoShapeValue geoShapeValue = new MultiGeoValues.GeoShapeValue(reader);
             return new MultiGeoValues() {
 

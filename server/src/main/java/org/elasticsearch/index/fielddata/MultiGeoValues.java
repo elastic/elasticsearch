@@ -27,6 +27,8 @@ import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.geo.ShapeTreeReader;
+import org.elasticsearch.common.geo.TriangleTreeReader;
+import org.elasticsearch.common.geo.TriangleTreeWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
@@ -182,10 +184,10 @@ public abstract class MultiGeoValues {
         public static GeoShapeValue missing(String missing) {
             try {
                 Geometry geometry = MISSING_GEOMETRY_PARSER.fromWKT(missing);
-                GeometryTreeWriter writer = new GeometryTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
+                TriangleTreeWriter writer = new TriangleTreeWriter(geometry, GeoShapeCoordinateEncoder.INSTANCE);
                 BytesStreamOutput output = new BytesStreamOutput();
                 writer.writeTo(output);
-                GeometryTreeReader reader  = new GeometryTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
+                TriangleTreeReader reader  = new TriangleTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
                 reader.reset(output.bytes().toBytesRef());
                 return new GeoShapeValue(reader);
             } catch (IOException | ParseException e) {

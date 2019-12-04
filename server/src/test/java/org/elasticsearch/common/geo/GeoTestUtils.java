@@ -39,12 +39,12 @@ public class GeoTestUtils {
         assertThat(actualRelation, equalTo(expectedRelation));
     }
 
-    public static GeometryTreeReader geometryTreeReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
-        GeometryTreeWriter writer = new GeometryTreeWriter(geometry, encoder);
+    public static TriangleTreeReader triangleTreeReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
+        TriangleTreeWriter writer = new TriangleTreeWriter(geometry, encoder);
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(encoder);
+        TriangleTreeReader reader = new TriangleTreeReader(encoder);
         reader.reset(output.bytes().toBytesRef());
         return reader;
     }

@@ -89,8 +89,19 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=summary-count-field-name]
 end::analysis-config[]
 
 tag::analysis-limits[]
-Defines approximate limits on the memory resource requirements for the job.
-See <<ml-apilimits,analysis limits>>.
+Limits can be applied for the resources required to hold the mathematical models
+in memory. These limits are approximate and can be set per job. They do not
+control the memory used by other processes, for example the Elasticsearch Java
+processes. If necessary, you can increase the limits after the job is created.
+The `analysis_limits` object has the following properties:
+
+`categorization_examples_limit`:::
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-examples-limit]
+
+`model_memory_limit`:::
+(long or string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
 end::analysis-limits[]
 
 tag::background-persist-interval[]
@@ -121,8 +132,43 @@ end::by-field-name[]
 tag::categorization-analyzer[]
 If `categorization_field_name` is specified, you can also define the analyzer
 that is used to interpret the categorization field. This property cannot be used
-at the same time as `categorization_filters`. See <<ml-categorizationanalyzer>>.
+at the same time as `categorization_filters`. The categorization analyzer
+specifies how the `categorization_field` is interpreted by the categorization
+process. The syntax is very similar to that used to define the `analyzer` in the
+<<indices-analyze,Analyze endpoint>>. The `categorization_analyzer` field can be
+specified either as a string or as an object. If it is a string it must refer to
+a <<analysis-analyzers,built-in analyzer>> or one added by another plugin. If it
+is an object it has the following properties:
+
+`char_filter`::::
+(array of strings or objects)
+include::{docdir}/ml/ml-shared.asciidoc[tag=char-filter]
+
+`tokenizer`::::
+(string or object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=tokenizer]
+
+`filter`::::
+(array of strings or objects)
+include::{docdir}/ml/ml-shared.asciidoc[tag=filter]
+
+For more information, see
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
 end::categorization-analyzer[]
+
+tag::categorization-examples-limit[]
+The maximum number of examples stored per category in memory and in the results
+data store. The default value is 4.  If you increase this value, more examples
+are available, however it requires that you have more storage available. If you
+set this value to `0`, no examples are stored.
++
+--
+NOTE: The `categorization_examples_limit` only applies to analysis that uses
+categorization. For more information, see
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+
+--
+end::categorization-examples-limit[]
 
 tag::categorization-field-name[]
 If this property is specified, the values of the specified field will be 
@@ -176,8 +222,27 @@ example, it can contain custom URL information as shown in
 end::custom-settings[]
 
 tag::data-description[]
-Describes the format of the input data and how APIs parse timestamp fields. See
-<<ml-datadescription,data description objects>>.  
+The data description defines the format of the input data when you send data to
+the job by using the <<ml-post-data,post data>> API. Note that when configure
+a {dfeed}, these properties are automatically set.
++
+--
+When data is received via the <<ml-post-data,post data>> API, it is not stored
+in {es}. Only the results for anomaly detection are retained.
+
+A data description object has the following properties:
+
+`format`:::
+  (string) Only `JSON` format is supported at this time.
+
+`time_field`:::
+  (string) The name of the field that contains the timestamp.
+  The default value is `time`.
+
+`time_format`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
+--
 end::data-description[]
 
 tag::dependent_variable[]

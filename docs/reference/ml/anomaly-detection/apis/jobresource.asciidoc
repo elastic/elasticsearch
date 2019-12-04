@@ -5,6 +5,10 @@
 
 A job resource has the following properties:
 
+`allow_lazy_open`::
+(boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
+
 [[ml-analysisconfig]]`analysis_config`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-config]
@@ -18,24 +22,24 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 include::{docdir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 
 `create_time`::
-  (string) The time the job was created. For example, `1491007356077`. This
-  property is informational; you cannot change its value.
+(string) The time the job was created. For example, `1491007356077`. This
+property is informational; you cannot change its value.
 
 `custom_settings`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
-`data_description`::
+[[ml-datadescription]]`data_description`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=data-description]
 
 `description`::
-  (string) An optional description of the job.
+(string) An optional description of the job.
 
 `finished_time`::
-  (string) If the job closed or failed, this is the time the job finished,
-  otherwise it is `null`. This property is informational; you cannot change its
-  value.
+(string) If the job closed or failed, this is the time the job finished,
+otherwise it is `null`. This property is informational; you cannot change its
+value.
 
 `groups`::
 (array of strings)
@@ -48,10 +52,10 @@ This property is informational; you cannot change the identifier for existing
 jobs.
 
 `job_type`::
-  (string) Reserved for future use, currently set to `anomaly_detector`.
+(string) Reserved for future use, currently set to `anomaly_detector`.
 
 `job_version`::
- (string) The version of {es} that existed on the node when the job was created.
+(string) The version of {es} that existed on the node when the job was created.
 
 `model_plot_config`::
 (object)
@@ -76,115 +80,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=results-index-name]
 `results_retention_days`::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=results-retention-days]
-
-`allow_lazy_open`::
-(boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
-
-[float]
-[[ml-datadescription]]
-==== Data description objects
-
-The data description defines the format of the input data when you send data to
-the job by using the <<ml-post-data,post data>> API. Note that when configure
-a {dfeed}, these properties are automatically set.
-
-When data is received via the <<ml-post-data,post data>> API, it is not stored
-in {es}. Only the results for anomaly detection are retained.
-
-A data description object has the following properties:
-
-`format`::
-  (string) Only `JSON` format is supported at this time.
-
-`time_field`::
-  (string) The name of the field that contains the timestamp.
-  The default value is `time`.
-
-`time_format`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=time-format]
-
-[float]
-[[ml-categorizationanalyzer]]
-==== Categorization analyzer
-
-The categorization analyzer specifies how the `categorization_field` is
-interpreted by the categorization process. The syntax is very similar to that
-used to define the `analyzer` in the <<indices-analyze,Analyze endpoint>>.
-
-The `categorization_analyzer` field can be specified either as a string or as
-an object.
-
-If it is a string it must refer to a <<analysis-analyzers,built-in analyzer>> or
-one added by another plugin.
-
-If it is an object it has the following properties:
-
-`char_filter`::
-(array of strings or objects)
-include::{docdir}/ml/ml-shared.asciidoc[tag=char-filter]
-
-`tokenizer`::
-(string or object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=tokenizer]
-
-`filter`::
-(array of strings or objects)
-include::{docdir}/ml/ml-shared.asciidoc[tag=filter]
-
-If you omit the `categorization_analyzer`, the following default values are used:
-
-[source,console]
---------------------------------------------------
-POST _ml/anomaly_detectors/_validate
-{
-  "analysis_config" : {
-    "categorization_analyzer" : {
-      "tokenizer" : "ml_classic",
-      "filter" : [
-        { "type" : "stop", "stopwords": [
-          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-          "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
-          "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
-          "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-          "GMT", "UTC"
-        ] }
-      ]
-    },
-    "categorization_field_name": "message",
-    "detectors" :[{
-      "function":"count",
-      "by_field_name": "mlcategory"
-    }]
-  },
-  "data_description" : {
-  }
-}
---------------------------------------------------
-
-If you specify any part of the `categorization_analyzer`, however, any omitted
-sub-properties are _not_ set to default values.
-
-If you are categorizing non-English messages in a language where words are
-separated by spaces, you might get better results if you change the day or month
-words in the stop token filter to the appropriate words in your language. If you
-are categorizing messages in a language where words are not separated by spaces,
-you must use a different tokenizer as well in order to get sensible
-categorization results.
-
-It is important to be aware that analyzing for categorization of machine
-generated log messages is a little different from tokenizing for search.
-Features that work well for search, such as stemming, synonym substitution, and
-lowercasing are likely to make the results of categorization worse. However, in
-order for drill down from {ml} results to work correctly, the tokens that the
-categorization analyzer produces must be similar to those produced by the search
-analyzer. If they are sufficiently similar, when you search for the tokens that
-the categorization analyzer produces then you find the original document that
-the categorization field value came from.
-
-For more information, see
-{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
 
 [float]
 [[ml-detector-custom-rule]]

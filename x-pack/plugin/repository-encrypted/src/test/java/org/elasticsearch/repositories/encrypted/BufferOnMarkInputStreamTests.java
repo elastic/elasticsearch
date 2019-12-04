@@ -1,3 +1,9 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
 package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.common.Randomness;
@@ -6,22 +12,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.mockito.Mockito;
-import org.mockito.stubbing.Answer;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -207,7 +205,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             test.mark(wrongReadLimit);
         });
-        assertThat(e.getMessage(), Matchers.is("Readlimit value [" + wrongReadLimit + "] exceeds the maximum value of [" + bufferSize + "]"));
+        assertThat(e.getMessage(), Matchers.is("Readlimit value [" + wrongReadLimit + "] exceeds the maximum value of ["
+                + bufferSize + "]"));
         e = expectThrows(IllegalArgumentException.class, () -> {
             test.mark(-1 - Randomness.get().nextInt(2));
         });
@@ -567,7 +566,8 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         for (int length = 1; length <= 10; length++) {
             for (int offset = 0; offset < length; offset++) {
                 for (int mark = 1; mark <= length - offset; mark++) {
-                    try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), mark)) {
+                    try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new
+                            NoMarkByteArrayInputStream(testArray, 0, length), mark)) {
                         // skip first offset bytes
                         in.readNBytes(offset);
                         in.mark(mark);
@@ -826,11 +826,11 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
 
     static class NoMarkByteArrayInputStream extends ByteArrayInputStream {
 
-        public NoMarkByteArrayInputStream(byte[] buf) {
+        NoMarkByteArrayInputStream(byte[] buf) {
             super(buf);
         }
 
-        public NoMarkByteArrayInputStream(byte[] buf, int offset, int length) {
+        NoMarkByteArrayInputStream(byte[] buf, int offset, int length) {
             super(buf, offset, length);
         }
 

@@ -8,7 +8,6 @@ package org.elasticsearch.repositories.encrypted;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.Objects;
 
 

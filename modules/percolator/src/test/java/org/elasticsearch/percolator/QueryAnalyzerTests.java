@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 public class QueryAnalyzerTests extends ESTestCase {
 
@@ -1219,6 +1220,9 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         Result r = analyze(disj, Version.CURRENT);
         assertThat(r.minimumShouldMatch, equalTo(1));
+        assertThat(r.extractions, hasSize(2));
+        assertFalse(r.matchAllDocs);
+        assertFalse(r.verified);
 
         Query q = new BooleanQuery.Builder()
             .add(IntPoint.newRangeQuery("i", 0, 10), Occur.SHOULD)
@@ -1232,6 +1236,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertThat(result.extractions.size(), equalTo(2));
         assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
 
         q = new BooleanQuery.Builder()
             .add(q, Occur.MUST)
@@ -1242,6 +1247,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertThat(result.extractions.size(), equalTo(2));
         assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
 
         Query q2 = new BooleanQuery.Builder()
             .add(new TermQuery(new Term("f", "v1")), Occur.FILTER)
@@ -1253,6 +1259,68 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         result = analyze(q2, Version.CURRENT);
         assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions, hasSize(3));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        // multiple range queries on different fields
+        Query q3 = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 15, 20), Occur.SHOULD)
+            .add(IntPoint.newRangeQuery("i2", 15, 20), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .setMinimumNumberShouldMatch(1)
+            .build();
+        result = analyze(q3, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions, hasSize(4));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        // multiple disjoint range queries on the same field
+        Query q4 = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 15, 20), Occur.SHOULD)
+            .add(IntPoint.newRangeQuery("i", 25, 30), Occur.SHOULD)
+            .add(IntPoint.newRangeQuery("i", 35, 40), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .setMinimumNumberShouldMatch(1)
+            .build();
+        result = analyze(q4, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions, hasSize(5));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        // multiple conjunction range queries on the same field
+        Query q5 = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder()
+                .add(IntPoint.newRangeQuery("i", 15, 20), Occur.MUST)
+                .add(IntPoint.newRangeQuery("i", 25, 30), Occur.MUST)
+                .build(), Occur.MUST)
+            .add(IntPoint.newRangeQuery("i", 35, 40), Occur.MUST)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .build();
+        result = analyze(q5, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions, hasSize(4));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        // multiple conjunction range queries on different fields
+        Query q6 = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder()
+                .add(IntPoint.newRangeQuery("i", 15, 20), Occur.MUST)
+                .add(IntPoint.newRangeQuery("i2", 25, 30), Occur.MUST)
+                .build(), Occur.MUST)
+            .add(IntPoint.newRangeQuery("i", 35, 40), Occur.MUST)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .build();
+        result = analyze(q6, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertThat(result.extractions, hasSize(4));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
     }
 
 }

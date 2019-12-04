@@ -269,7 +269,11 @@ final class QueryAnalyzer {
                     // more range queries on the same field, then the minimum should match can be higher than clauses
                     // in the CoveringQuery. Therefore right now the minimum should match is only incremented once per
                     // number field when processing the percolator query at index time.
-                    if (seenRangeFields.add(queryExtraction.range.fieldName) == false) {
+                    // For multiple ranges within a single extraction (ie from an existing conjunction or disjunction)
+                    // then this will already have been taken care of, so we only check against fieldnames from
+                    // previously processed extractions, and don't add to the seenRangeFields list until all
+                    // extractions from this result are processed
+                    if (seenRangeFields.contains(queryExtraction.range.fieldName)) {
                         resultMsm = Math.max(0, resultMsm - 1);
                         verified = false;
                     }
@@ -280,6 +284,9 @@ final class QueryAnalyzer {
                     verified = false;
                 }
             }
+            // add range fields from this Result to the seenRangeFields set so that minimumShouldMatch is correctly
+            // calculated for subsequent Results
+            result.extractions.stream().filter(e -> e.range != null).forEach(e -> seenRangeFields.add(e.range.fieldName));
             msm += resultMsm;
 
             if (result.verified == false

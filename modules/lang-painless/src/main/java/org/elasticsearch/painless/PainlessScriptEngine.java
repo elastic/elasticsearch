@@ -146,6 +146,11 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return contextsToCompilers.keySet();
+    }
+
     /**
      * Generates a stateful factory class that will return script instances.  Acts as a middle man between
      * the {@link ScriptContext#factoryClazz} and the {@link ScriptContext#instanceClazz} when used so that

@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * An example script plugin that adds a {@link ScriptEngine} implementing expert scoring.
@@ -74,6 +75,11 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
         public void close() {
             // optionally close resources
+        }
+
+        @Override
+        public Set<ScriptContext<?>> getSupportedContexts() {
+            return Set.of(ScoreScript.CONTEXT);
         }
 
         private static class PureDfLeafFactory implements LeafFactory {

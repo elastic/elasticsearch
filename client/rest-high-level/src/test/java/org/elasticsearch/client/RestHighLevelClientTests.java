@@ -765,6 +765,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.remote_info",
             "create",
             "get_script_context",
+            "get_script_languages",
             "get_source",
             "indices.exists_type",
             "indices.get_upgrade",

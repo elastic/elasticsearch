@@ -66,8 +66,9 @@ POST _search
 You can use the `minimum_should_match` parameter to specify the number or
 percentage of `should` clauses returned documents _must_ match.
 
-If the `bool` query includes only `should` clauses, the default value is `1`.
-If the `bool` query includes any other type of clause, the default value is `0`.
+If the `bool` query includes at least one `should` clause and no `must` or
+`filter` clauses, the default value is `1`.
+Otherwise, the default value is `0`.
 
 For other valid values, see the
 <<query-dsl-minimum-should-match, `minimum_should_match` parameter>>.

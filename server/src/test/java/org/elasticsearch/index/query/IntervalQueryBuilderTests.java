@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -114,7 +115,11 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     private IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth) {
         if (depth < 3 && randomInt(20) > 18) {
-            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1), randomFrom(filters));
+            if (randomBoolean()) {
+                return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1), randomFrom(filters));
+            }
+            return new IntervalsSourceProvider.IntervalFilter(
+                new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap()));
         }
         return null;
     }

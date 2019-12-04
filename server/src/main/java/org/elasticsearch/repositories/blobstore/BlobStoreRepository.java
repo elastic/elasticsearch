@@ -1068,7 +1068,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // repository data
             listener.onFailure(new RepositoryException(metadata.name(),
                 "concurrent modification of the index-N file, expected current generation [" + expectedGen +
-                    "], actual current generation [" + currentGen + "] - possibly due to simultaneous snapshot deletion requests"));
+                    "], actual current generation [" + currentGen + "]"));
             return;
         }
 

@@ -222,7 +222,7 @@ PUT _ml/data_frame/analytics/model-flight-delays-pre
     "results_field": "ml.results"
   },
   "analysis": {
-  ...
+  "..."
     }
   },
   "analyzed_fields": { <5>
@@ -250,7 +250,7 @@ the name of the `results_field`.
 In this example, we can see that all the fields of the source index are included 
 in the destination index except `FlightDelay` and `FlightDelayType` because 
 these are defined as excluded fields by the `excludes` parameter of the 
-`_source` object. The "Cancelled" field is included in the destination index, 
+`_source` object. The `Cancelled` field is included in the destination index, 
 however it does not included in the analysis because it is explicitly specified 
 as excluded field by the `excludes` parameter of the `analyzed_fields` object.
 

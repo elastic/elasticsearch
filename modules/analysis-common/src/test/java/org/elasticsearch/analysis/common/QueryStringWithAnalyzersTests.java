@@ -144,7 +144,6 @@ public class QueryStringWithAnalyzersTests extends ESSingleNodeTestCase {
         assertFirstHit(response, hasId("2"));
     }
 
-    //@Repeat(iterations = 100)
     public void testMatchQueryWithSynonyms() throws IOException {
         float randomBoost = (randomFloat() * 0.1f) + 0.80f;
         Settings settings = Settings.builder()

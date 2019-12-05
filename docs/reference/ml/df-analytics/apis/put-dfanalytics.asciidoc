@@ -102,11 +102,11 @@ single number. For example, in case of age ranges, you can model the values as
   
 `analyzed_fields`::
   (Optional, object) Specify `includes` and/or `excludes` patterns to select
-  which fields will be included in the analysis. If `analyzed_fields` is not set,
-  only the relevant fields will be included. For example, all the numeric fields
-  for {oldetection}. For the supported field types, see <<ml-put-dfanalytics-supported-fields>>.
-  Also see the <<explain-dfanalytics>> which helps understand
-  field selection.
+  which fields will be included in the analysis. If `analyzed_fields` is not 
+  set, only the relevant fields will be included. For example, all the numeric 
+  fields for {oldetection}. For the supported field types, see 
+  <<ml-put-dfanalytics-supported-fields>>. Also see the <<explain-dfanalytics>> 
+  which helps understand field selection.
 
   `includes`:::
     (Optional, array) An array of strings that defines the fields that will be 
@@ -142,8 +142,8 @@ single number. For example, in case of age ranges, you can model the values as
   that setting. For more information, see <<ml-settings>>.
   
 `source`::
-  (object) The configuration of how to source the analysis data. It requires an `index`.
-  Optionally, `query` and `_source` may be specified.
+  (object) The configuration of how to source the analysis data. It requires an 
+  `index`. Optionally, `query` and `_source` may be specified.
   
   `index`:::
     (Required, string or array) Index or indices on which to perform the 
@@ -163,12 +163,12 @@ single number. For example, in case of age ranges, you can model the values as
     cannot be included in the analysis.
         
       `includes`::::
-        (array) An array of strings that defines the fields that will be included in 
-        the destination.
+        (array) An array of strings that defines the fields that will be 
+        included in the destination.
           
       `excludes`::::
-        (array) An array of strings that defines the fields that will be excluded 
-        from the destination.
+        (array) An array of strings that defines the fields that will be 
+        excluded from the destination.
 
 `allow_lazy_start`::
   (Optional, boolean) Whether this job should be allowed to start when there
@@ -185,6 +185,79 @@ single number. For example, in case of age ranges, you can model the values as
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
+
+
+[[ml-put-dfanalytics-example-preprocess]]
+===== Preprocessing actions example
+
+The following example shows how to limit the scope of the analysis to certain 
+fields, specify excluded fields in the destination index, and use a query to 
+filter your data before analysis.
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/model-flight-delays-pre
+{
+  "source": {
+    "index": [
+      "kibana_sample_data_flights" <1>
+    ],
+    "query": { <2>
+      "range": {
+        "DistanceKilometers": { 
+          "gt": 0
+        }
+      }
+    },
+    "_source": { <3>
+      "includes": [],
+      "excludes": [
+        "FlightDelay",
+        "FlightDelayType"
+      ]
+    }
+  },
+  "dest": { <4>
+    "index": "df-flight-delays",
+    "results_field": "ml-results"
+  },
+  "analysis": {
+  "regression": {
+    "dependent_variable": "FlightDelayMin",
+    "training_percent": 90
+    }
+  },
+  "analyzed_fields": { <5>
+    "includes": [],
+    "excludes": [   
+      "FlightNum"
+    ]
+  },
+  "model_memory_limit": "100mb"
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> The source index to analyze.
+<2> This query filters out entire documents that will not be present in the 
+destination index.
+<3> The `_source` object defines fields in the dataset that will be included or 
+excluded in the destination index. In this case, `includes` does not specify any 
+fields, so the default behavior takes place: all the fields of the source index 
+will included except the ones that are explicitly specified in `excludes`.
+<4> Defines the destination index that contains the results of the analysis and 
+the fields of the source index specified in the `_source` object. Also defines 
+the name of the `results_field`.
+<5> Specifies fields to be included in or excluded from the analysis. This does 
+not affect whether the fields will be present in the destination index, only 
+affects whether they are used in the analysis.
+
+In this example, we can see that all the fields of the source index are included 
+in the destination index except `FlightDelay` and `FlightDelayType` because 
+these are defined as excluded fields by the `excludes` parameter of the 
+`_source` object. The `FlightNum` field is included in the destination index, 
+however it is not included in the analysis because it is explicitly specified as 
+excluded field by the `excludes` parameter of the `analyzed_fields` object.
 
 
 [[ml-put-dfanalytics-example-od]]

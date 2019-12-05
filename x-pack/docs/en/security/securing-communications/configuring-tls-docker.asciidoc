@@ -206,9 +206,6 @@ WARNING: Windows users not running PowerShell will need to remove `\` and join l
 ----
 docker exec es01 /bin/bash -c "bin/elasticsearch-setup-passwords \
 auto --batch \
--Expack.security.http.ssl.certificate=certificates/es01/es01.crt \
--Expack.security.http.ssl.certificate_authorities=certificates/ca/ca.crt \
--Expack.security.http.ssl.key=certificates/es01/es01.key \
 --url https://localhost:9200"
 ----
 --

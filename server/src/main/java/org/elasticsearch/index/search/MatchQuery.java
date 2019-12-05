@@ -23,17 +23,16 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.apache.lucene.analysis.miscellaneous.TokenBoostAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
-import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermAndBoost;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -581,15 +580,18 @@ public class MatchQuery {
         @Override
         protected Query analyzeBoolean(String field, TokenStream stream) throws IOException {
             TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
-            TypeAttribute typeAtt = stream.getAttribute(TypeAttribute.class);
-            BoostAttribute boostAtt = stream.getAttribute(BoostAttribute.class);
+            TokenBoostAttribute boostAtt = stream.getAttribute(TokenBoostAttribute.class);
 
             stream.reset();
             List<TermAndBoost> terms = new ArrayList<>();
             while (stream.incrementToken()) {
-                terms.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getTokenTypeBoost(typeAtt, boostAtt)));
+                terms.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getOptionalTokenBoost(boostAtt)));
             }
             return newSynonymQuery(field, terms);
+        }
+
+        private float getOptionalTokenBoost(TokenBoostAttribute boostAtt) {
+            return boostAtt != null ? boostAtt.getBoost() : 1.0f;
         }
 
         protected Query newSynonymQuery(String field, List<TermAndBoost> terms) {
@@ -623,8 +625,7 @@ public class MatchQuery {
             TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
             PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
             OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
-            TypeAttribute typeAtt = stream.addAttribute(TypeAttribute.class);
-            BoostAttribute boostAtt = stream.addAttribute(BoostAttribute.class);
+            TokenBoostAttribute boostAtt = stream.addAttribute(TokenBoostAttribute.class);
 
             stream.reset();
             int lastOffset = 0;
@@ -633,7 +634,7 @@ public class MatchQuery {
                     add(q, field, currentQuery, operator, false);
                     currentQuery.clear();
                 }
-                currentQuery.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getTokenTypeBoost(typeAtt, boostAtt)));
+                currentQuery.add(new TermAndBoost(new Term(field, termAtt.getBytesRef()), getOptionalTokenBoost(boostAtt)));
                 lastOffset = offsetAtt.endOffset();
             }
             stream.end();
@@ -659,17 +660,6 @@ public class MatchQuery {
                 }
                 q.add(builder.build(), operator);
             }
-        }
-
-        private float getTokenTypeBoost(TypeAttribute typeAtt, BoostAttribute boostAtt) {
-            if (typeAtt == null) {
-                return 1.0f; // default when no type attribute is available
-            } else {
-                if (boostAtt == null) {
-                    return 0.95f; // default when no type attribute is available
-                }
-            }
-            return boostAtt.getBoost();
         }
 
         @Override

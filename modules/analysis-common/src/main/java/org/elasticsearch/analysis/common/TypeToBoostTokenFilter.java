@@ -21,15 +21,15 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.TokenBoostAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
-import org.apache.lucene.search.BoostAttribute;
 
 import java.io.IOException;
 
 public final class TypeToBoostTokenFilter extends TokenFilter {
 
     private final TypeAttribute typeAtt = addAttribute(TypeAttribute.class);
-    private final BoostAttribute boostAtt = addAttribute(BoostAttribute.class);
+    private final TokenBoostAttribute boostAtt = addAttribute(TokenBoostAttribute.class);
     private final float boostValue;
     private final String tokenType;
 
@@ -50,5 +50,4 @@ public final class TypeToBoostTokenFilter extends TokenFilter {
             return false;
         }
     }
-
 }

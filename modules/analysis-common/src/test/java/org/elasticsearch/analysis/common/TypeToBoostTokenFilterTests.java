@@ -24,9 +24,9 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.miscellaneous.TokenBoostAttribute;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
-import org.apache.lucene.search.BoostAttribute;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -67,7 +67,7 @@ public class TypeToBoostTokenFilterTests extends ESTestCase {
         TokenStream test = analyzer.tokenStream("test", "one TWO three FOUR five");
         test.reset();
         CharTermAttribute termAttribute = test.addAttribute(CharTermAttribute.class);
-        BoostAttribute boostAttribut = test.addAttribute(BoostAttribute.class);
+        TokenBoostAttribute boostAttribut = test.addAttribute(TokenBoostAttribute.class);
         while (test.incrementToken()) {
             String term = termAttribute.toString();
             if (term.toUpperCase(Locale.ROOT).equals(term)) {

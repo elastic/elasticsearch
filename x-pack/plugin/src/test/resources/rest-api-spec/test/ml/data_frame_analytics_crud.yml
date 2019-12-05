@@ -41,7 +41,8 @@ setup:
           {
             "source": {
               "index": "index-source",
-              "query": {"term" : { "user" : "Kimchy" }}
+              "query": {"term" : { "user" : "Kimchy" }},
+              "_source": [ "obj1.*", "obj2.*" ]
             },
             "dest": {
               "index": "index-dest"
@@ -1852,3 +1853,28 @@ setup:
   }}
   - is_true: create_time
   - is_true: version
+
+---
+"Test put config given analyzed_fields include field excluded by source":
+
+  - do:
+      catch: /field \[excluded\] is included in \[analyzed_fields\] but not in \[source._source\]/
+      ml.put_data_frame_analytics:
+        id: "analyzed_fields-include-field-excluded-by-source"
+        body: >
+          {
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }},
+              "_source": {
+                "excludes": ["excluded"]
+              }
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "analyzed_fields": {
+              "includes": ["excluded"]
+            }
+          }

@@ -486,6 +486,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         requests.toArray(new BulkItemRequest[requests.size()]));
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
+                bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }

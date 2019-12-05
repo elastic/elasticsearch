@@ -314,6 +314,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
             latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
         } else {
+            if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN) {
+                // We break out here, assuming this was the result of moving from a mixed cluster that didn't track the generation in the
+                // cluster state to a cluster that does track the generation in the cluster state
+                return;
+            }
             final long previousBest = latestKnownRepoGen.getAndSet(metadata.generation());
             if (previousBest != metadata.generation()) {
                 assert metadata.generation() == RepositoryData.CORRUPTED_REPO_GEN || previousBest < metadata.generation() :

@@ -44,6 +44,8 @@ public final class XPackField {
     /** Name constant for flattened fields. */
     /** Name constant for the vectors feature. */
     public static final String VECTORS = "vectors";
+    /** Name constant for the wildcard feature. */
+    public static final String WILDCARD = "wildcard";
     /** Name constant for the voting-only-node feature. */
     public static final String VOTING_ONLY = "voting_only";
     /** Name constant for the frozen index feature. */

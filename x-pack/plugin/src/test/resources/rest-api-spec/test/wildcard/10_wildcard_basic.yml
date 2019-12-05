@@ -1,0 +1,177 @@
+setup:
+  - skip:
+      features: headers
+      version: " - 7.9.99"
+      reason: "wildcard fields were added from 8.0"
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              my_wildcard:
+                 type: wildcard_keyword
+  - do:
+      index:
+        index: test-index
+        id: 1
+        body:
+          my_wildcard: hello world
+
+  - do:
+      indices.refresh: {}
+
+---
+"Short prefix query":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            wildcard:
+              my_wildcard: {value: "hel*" }
+
+
+  - match: {hits.total: 1}
+  
+---
+"Long prefix query":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            wildcard:
+              my_wildcard: {value: "hello wor*" }
+
+
+  - match: {hits.total: 1}
+
+---
+"Short unrooted query":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            wildcard:
+              my_wildcard: {value: "*ello*" }
+
+
+  - match: {hits.total: 1}
+  
+---
+"Long unrooted query":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            wildcard:
+              my_wildcard: {value: "*ello worl*" }
+
+
+  - match: {hits.total: 1}
+
+---
+"Short suffix query":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            wildcard:
+              my_wildcard: {value: "*ld" }
+
+
+  - match: {hits.total: 1}
+  
+---
+"Long suffix query":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            wildcard:
+              my_wildcard: {value: "*ello world" }
+
+
+  - match: {hits.total: 1}
+  
+---
+"No wildcard wildcard query":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            wildcard:
+              my_wildcard: {value: "hello world" }
+
+
+  - match: {hits.total: 1}
+  
+---
+"Term query on wildcard field":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            term:
+              my_wildcard: "hello world"
+
+
+  - match: {hits.total: 1}
+  
+---
+"Terms query on wildcard field":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            terms:
+              my_wildcard: ["hello world", "does not exist"]
+
+
+  - match: {hits.total: 1}
+  
+---
+"Sequence fail":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            wildcard:
+              my_wildcard: {value: "*world*hello*" }
+
+
+  - match: {hits.total: 0}
+
+

@@ -1050,4 +1050,8 @@ See <<rollup-put-job-api-request-body>>.
 [role="exclude",id="ml-job-resource"]
 === Job resources
 
-See the details in <<ml-put-job>>, <<ml-update-job>>, and <<ml-get-job>>.
+This page was deleted.
+[[ml-analysisconfig]]
+See the details in
+[[ml-apimodelplotconfig]]
+<<ml-put-job>>, <<ml-update-job>>, and <<ml-get-job>>.

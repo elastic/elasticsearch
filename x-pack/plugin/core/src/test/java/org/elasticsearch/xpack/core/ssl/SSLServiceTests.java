@@ -822,6 +822,15 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration), sameInstance(baseTrustManager));
     }
 
+    public void testDontWrapTrustManagerWhenInFips(){
+        final Settings.Builder builder = Settings.builder();
+        builder.put("xpack.security.fips_mode.enabled", true);
+        final SSLService sslService = new SSLService(builder.build(), env);
+        final X509ExtendedTrustManager baseTrustManager = TrustAllConfig.INSTANCE.createTrustManager(env);
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        assertThat(sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration), sameInstance(baseTrustManager));
+    }
+
     class AssertionCallback implements FutureCallback<HttpResponse> {
 
         @Override

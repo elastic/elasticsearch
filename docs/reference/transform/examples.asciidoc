@@ -275,16 +275,16 @@ PUT _transform/suspicious_client_ips
 // TEST[skip:setup kibana sample data]
 
 <1> This is the destination index for the {transform}.
-<2> This configures the {transform} in continuous mode using the field `timestamp`
-as syncronization field. The `delay` is set to 60s and represents the worst case
-ingest delay we expect.
+<2> Configures the {transform} to run continuously. It uses the `timestamp` field
+to synchronize the source and destination indices. The worst case
+ingestion delay is 60 seconds.
 <3> The data is grouped by the `clientip` field.
 <4> This `scripted_metric` performs a distributed operation on the web log data
 to count specific types of HTTP responses (error, success, and other).
 <5> This `bucket_script` calculates the duration of the `clientip` access based
 on the results of the aggregation.
 
-After creation the transform can be started with:
+After you create the {transform}, you must start it:
 
 [source,console]
 ----------------------------------
@@ -292,7 +292,7 @@ POST _transform/suspicious_client_ips/_start
 ----------------------------------
 // TEST[skip:setup kibana sample data]
 
-Shortly after the first results should be available using search on the destination
+Shortly thereafter, the first results should be available in the destination
 index:
 
 [source,console]
@@ -338,9 +338,9 @@ The search result shows you data like this for each client IP:
 ----------------------------------
 // NOTCONSOLE
 
-NOTE: Like other kibana sample data sets, the web log sample dataset contains
-timestamps relative to when they are installed, including timestamps in the future.
-The continuous {transform} will pickup the data points once they are in the past
+NOTE: Like other Kibana sample data sets, the web log sample dataset contains
+timestamps relative to when you installed it, including timestamps in the future.
+The {ctransform} will pick up the data points once they are in the past
 (see delay). This enables you the see continuous mode in action, although we are
 not ingesting new data. If you installed the web log sample dataset some time ago,
 you can uninstall and reinstall it and the timestamps will change.

@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DissectProcessorTests extends ESTestCase {
 
     public void testMatch() {
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null,
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null,
             Collections.singletonMap("message", "foo,bar,baz"));
         DissectProcessor dissectProcessor = new DissectProcessor("", "message", "%{a},%{b},%{c}", "", true);
         dissectProcessor.execute(ingestDocument);
@@ -50,7 +50,7 @@ public class DissectProcessorTests extends ESTestCase {
     }
 
     public void testMatchOverwrite() {
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null,
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null,
             MapBuilder.<String, Object>newMapBuilder()
                 .put("message", "foo,bar,baz")
                 .put("a", "willgetstompped")
@@ -64,7 +64,7 @@ public class DissectProcessorTests extends ESTestCase {
     }
 
     public void testAdvancedMatch() {
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null,
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null,
             Collections.singletonMap("message", "foo       bar,,,,,,,baz nope:notagain 😊 🐇 🙃"));
         DissectProcessor dissectProcessor =
             new DissectProcessor("", "message", "%{a->} %{*b->},%{&b} %{}:%{?skipme} %{+smile/2} 🐇 %{+smile/1}", "::::", true);
@@ -77,7 +77,7 @@ public class DissectProcessorTests extends ESTestCase {
     }
 
     public void testMiss() {
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, null,
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", null, null, null,
             Collections.singletonMap("message", "foo:bar,baz"));
         DissectProcessor dissectProcessor = new DissectProcessor("", "message", "%{a},%{b},%{c}", "", true);
         DissectException e = expectThrows(DissectException.class, () -> dissectProcessor.execute(ingestDocument));

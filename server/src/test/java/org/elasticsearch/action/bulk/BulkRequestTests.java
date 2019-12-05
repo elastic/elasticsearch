@@ -124,9 +124,9 @@ public class BulkRequestTests extends ESTestCase {
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
         List<DocWriteRequest<?>> requests = new ArrayList<>();
-        requests.add(new IndexRequest("test", "test", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
-        requests.add(new UpdateRequest("test", "test", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"));
-        requests.add(new DeleteRequest("test", "test", "id"));
+        requests.add(new IndexRequest("test").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+        requests.add(new UpdateRequest("test", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+        requests.add(new DeleteRequest("test", "id"));
         bulkRequest.add(requests);
         assertThat(bulkRequest.requests().size(), equalTo(3));
         assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
@@ -215,19 +215,16 @@ public class BulkRequestTests extends ESTestCase {
     public void testBulkRequestWithRefresh() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
         // We force here a "id is missing" validation error
-        bulkRequest.add(new DeleteRequest("index", "type", null).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
-        // We force here a "type is missing" validation error
-        bulkRequest.add(new DeleteRequest("index", "", "id"));
-        bulkRequest.add(new DeleteRequest("index", "type", "id").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
-        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
-        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new DeleteRequest("index", null).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new DeleteRequest("index", "id").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new UpdateRequest("index", "id").doc("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new IndexRequest("index").id("id").source("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.validationErrors(), not(empty()));
         assertThat(validate.validationErrors(), contains(
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                 "id is missing",
-                "type is missing",
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead."));
@@ -236,8 +233,8 @@ public class BulkRequestTests extends ESTestCase {
     // issue 15120
     public void testBulkNoSource() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new UpdateRequest("index", "type", "id"));
-        bulkRequest.add(new IndexRequest("index", "type", "id"));
+        bulkRequest.add(new UpdateRequest("index", "id"));
+        bulkRequest.add(new IndexRequest("index").id("id"));
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.validationErrors(), not(empty()));

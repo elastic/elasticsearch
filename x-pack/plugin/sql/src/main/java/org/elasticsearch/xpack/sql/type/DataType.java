@@ -247,6 +247,18 @@ public enum DataType {
         return isNumeric();
     }
 
+    public boolean isNull() {
+        return this == NULL;
+    }
+
+    public boolean isNullOrNumeric() {
+        return isNull() || isNumeric();
+    }
+
+    public boolean isNullOrInterval() {
+        return isNull() || isInterval();
+    }
+
     public boolean isString() {
         return this == KEYWORD || this == TEXT;
     }
@@ -271,6 +283,21 @@ public enum DataType {
         return isDateBased() || isTimeBased();
     }
 
+    public boolean isInterval() {
+        int ordinal = this.ordinal();
+        return ordinal >= INTERVAL_YEAR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal();
+    }
+
+    public boolean isYearMonthInterval() {
+        return this == INTERVAL_YEAR || this == INTERVAL_MONTH || this == INTERVAL_YEAR_TO_MONTH;
+    }
+
+    public boolean isDayTimeInterval() {
+        int ordinal = this.ordinal();
+        return (ordinal >= INTERVAL_DAY.ordinal() && ordinal <= INTERVAL_SECOND.ordinal())
+                || (ordinal >= INTERVAL_DAY_TO_HOUR.ordinal() && ordinal <= INTERVAL_MINUTE_TO_SECOND.ordinal());
+    }
+    
     // data type extract-able from _source or from docvalue_fields
     public boolean isFromDocValuesOnly() {
         return this == KEYWORD  // because of ignore_above. Extracting this from _source wouldn't make sense if it wasn't indexed at all.

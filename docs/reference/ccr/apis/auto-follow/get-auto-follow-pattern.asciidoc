@@ -90,6 +90,7 @@ The API returns the following result:
     {
       "name": "my_auto_follow_pattern",
       "pattern": {
+        "active": true,
         "remote_cluster" : "remote_cluster",
         "leader_index_patterns" :
         [

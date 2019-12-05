@@ -16,6 +16,7 @@ testClusters.integTest {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.ssl.diagnose.trust', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.transport.ssl.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'

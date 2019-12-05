@@ -237,7 +237,6 @@ request is ignored and the `result` element in the response returns `noop`:
         "failed": 0
    },
    "_index": "test",
-   "_type": "_doc",
    "_id": "1",
    "_version": 7,
    "_primary_term": 1,

@@ -31,9 +31,11 @@ import org.elasticsearch.client.ccr.FollowInfoRequest;
 import org.elasticsearch.client.ccr.FollowStatsRequest;
 import org.elasticsearch.client.ccr.ForgetFollowerRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.PauseAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
 import org.elasticsearch.client.ccr.PutAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.PutFollowRequest;
+import org.elasticsearch.client.ccr.ResumeAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -139,6 +141,26 @@ public class CcrRequestConvertersTests extends ESTestCase {
         Request result = CcrRequestConverters.getAutoFollowPattern(deleteAutoFollowPatternRequest);
         assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
         assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + deleteAutoFollowPatternRequest.getName()));
+        assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
+    }
+
+    public void testPauseAutofollowPattern() throws Exception {
+        PauseAutoFollowPatternRequest pauseAutoFollowPatternRequest = new PauseAutoFollowPatternRequest(randomAlphaOfLength(4));
+
+        Request result = CcrRequestConverters.pauseAutoFollowPattern(pauseAutoFollowPatternRequest);
+        assertThat(result.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + pauseAutoFollowPatternRequest.getName() + "/pause"));
+        assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
+    }
+
+    public void testResumeAutofollowPattern() throws Exception {
+        ResumeAutoFollowPatternRequest resumeAutoFollowPatternRequest = new ResumeAutoFollowPatternRequest(randomAlphaOfLength(4));
+
+        Request result = CcrRequestConverters.resumeAutoFollowPattern(resumeAutoFollowPatternRequest);
+        assertThat(result.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_ccr/auto_follow/" + resumeAutoFollowPatternRequest.getName() + "/resume"));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }

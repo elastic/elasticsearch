@@ -15,6 +15,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDetection> {
 
@@ -80,6 +82,10 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
         assertThat((Double) params.get(OutlierDetection.OUTLIER_FRACTION.getPreferredName()),
             is(closeTo(0.9, 1E-9)));
         assertThat(params.get(OutlierDetection.STANDARDIZATION_ENABLED.getPreferredName()), is(false));
+    }
+
+    public void testFieldCardinalityLimitsIsNonNull() {
+        assertThat(createTestInstance().getFieldCardinalityLimits(), is(not(nullValue())));
     }
 
     public void testGetStateDocId() {

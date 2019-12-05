@@ -1,0 +1,33 @@
+--
+:api: enrich-stats
+:request: StatsRequest
+:response: StatsResponse
+--
+
+[id="{upid}-{api}"]
+=== Stats API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The stats API returns enrich related stats.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ includes enrich related stats.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> List of policies that are currently executing with
+    additional details.
+<2> List of coordinator stats per ingest node.
+
+include::../execution.asciidoc[]

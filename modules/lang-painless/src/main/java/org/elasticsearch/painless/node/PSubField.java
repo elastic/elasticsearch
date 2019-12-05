@@ -20,14 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Modifier;
@@ -45,11 +44,6 @@ final class PSubField extends AStoreable {
         super(location);
 
         this.field = Objects.requireNonNull(field);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

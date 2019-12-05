@@ -21,18 +21,17 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -64,11 +63,6 @@ final class SSubEachIterable extends AStatement {
         this.variable = Objects.requireNonNull(variable);
         this.expression = Objects.requireNonNull(expression);
         this.block = block;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

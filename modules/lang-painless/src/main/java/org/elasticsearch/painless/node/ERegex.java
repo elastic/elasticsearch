@@ -20,15 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.WriterConstants;
 
+import java.lang.reflect.Modifier;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -41,8 +41,6 @@ public final class ERegex extends AExpression {
     private final String pattern;
     private final int flags;
     private Constant constant;
-
-    private CompilerSettings settings;
 
     public ERegex(Location location, String pattern, String flagsString) {
         super(location);
@@ -59,18 +57,13 @@ public final class ERegex extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        this.settings = settings;
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         // Do nothing.
     }
 
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (false == settings.areRegexesEnabled()) {
+        if (false == scriptRoot.getCompilerSettings().areRegexesEnabled()) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));
@@ -87,8 +80,10 @@ public final class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        constant = new Constant(
-            location, MethodWriter.getType(Pattern.class), "regexAt$" + location.getOffset(), this::initializeConstant);
+        String name = scriptRoot.getNextSyntheticName("regex");
+        scriptRoot.getClassNode().addField(
+                new SField(location, Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE, name, Pattern.class, null));
+        constant = new Constant(location, MethodWriter.getType(Pattern.class), name, this::initializeConstant);
         actual = Pattern.class;
     }
 

@@ -58,7 +58,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
     private static final DataFrameAnalyticsConfig ANALYTICS_CONFIG =
         new DataFrameAnalyticsConfig.Builder()
             .setId(ANALYTICS_ID)
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
             .setAnalysis(new OutlierDetection.Builder().build())
             .build();
@@ -119,14 +119,9 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         Map<String, Object> index2Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings", "field_2", "field_2_mappings"));
         MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", index2Mappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("_doc", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("_doc", index2MappingMetaData);
-
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingsMap.build());
-        mappings.put("index_2", index2MappingsMap.build());
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        mappings.put("index_1", index1MappingMetaData);
+        mappings.put("index_2", index2MappingMetaData);
 
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
@@ -163,7 +158,7 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
         assertThat(createIndexRequest.settings().get("index.sort.field"), equalTo("ml__id_copy"));
         assertThat(createIndexRequest.settings().get("index.sort.order"), equalTo("asc"));
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings().get("_doc"))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings())) {
             Map<String, Object> map = parser.map();
             assertThat(extractValue("_doc.properties.ml__id_copy.type", map), equalTo("keyword"));
             assertThat(extractValue("_doc.properties.field_1", map), equalTo("field_1_mappings"));

@@ -81,8 +81,8 @@ been created or updated.
 [[security-api-put-privileges-example]]
 ==== {api-examples-title}
 
-To add a single privilege, submit a PUT or POST request to the
-`/_security/privilege/<application>/<privilege>` endpoint. For example:
+To add a single privilege, submit a PUT or POST request to the 
+`/_security/privilege/` endpoint. For example:
 
 [source,console]
 --------------------------------------------------

@@ -104,7 +104,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
-    private ElasticsearchNode getFirstNode() {
+    @Internal
+    ElasticsearchNode getFirstNode() {
         return nodes.getAt(clusterName + "-0");
     }
 
@@ -331,6 +332,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void extraConfigFile(String destination, File from, PropertyNormalization normalization) {
         nodes.all(node -> node.extraConfigFile(destination, from, normalization));
+    }
+
+    @Override
+    public void extraJarFile(File from) {
+        nodes.all(node -> node.extraJarFile(from));
     }
 
     @Override

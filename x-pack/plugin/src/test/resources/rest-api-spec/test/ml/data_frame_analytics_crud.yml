@@ -41,7 +41,8 @@ setup:
           {
             "source": {
               "index": "index-source",
-              "query": {"term" : { "user" : "Kimchy" }}
+              "query": {"term" : { "user" : "Kimchy" }},
+              "_source": [ "obj1.*", "obj2.*" ]
             },
             "dest": {
               "index": "index-dest"
@@ -901,6 +902,85 @@ setup:
         id: "missing_config"
 
 ---
+"Test delete given config and state documents":
+  - skip:
+      features: headers
+  - do:
+      ml.put_data_frame_analytics:
+        id: "delete_foo"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"regression":{
+                "dependent_variable": "to_predict"
+            }}
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: "delete_foo_regression_state#1"
+        body: >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-state
+        id: "data_frame_analytics-delete_foo-progress"
+        body: >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: .ml-state
+
+  - do:
+      search:
+        index: .ml-state
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "data_frame_analytics-delete_foo-progress"
+                    - "delete_foo_regression_state#1"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      ml.delete_data_frame_analytics:
+        id: "delete_foo"
+  - match: { acknowledged: true }
+
+  - do:
+      search:
+        index: .ml-state*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "data_frame_analytics-delete_foo-progress"
+                    - "delete_foo_regression_state#1"
+  - match: { hits.total.value: 0 }
+
+---
 "Test max model memory limit":
   - skip:
       features: headers
@@ -1391,6 +1471,7 @@ setup:
       "eta": 0.5,
       "maximum_number_trees": 400,
       "feature_bag_fraction": 0.3,
+      "prediction_field_name": "foo_prediction",
       "training_percent": 60.3
     }
   }}
@@ -1730,8 +1811,9 @@ setup:
       "eta": 0.5,
       "maximum_number_trees": 400,
       "feature_bag_fraction": 0.3,
+      "prediction_field_name": "foo_prediction",
       "training_percent": 60.3,
-      "num_top_classes": 0
+      "num_top_classes": 2
     }
   }}
   - is_true: create_time
@@ -1765,8 +1847,34 @@ setup:
   - match: { analysis: {
     "regression":{
       "dependent_variable": "foo",
+      "prediction_field_name": "foo_prediction",
       "training_percent": 100.0
     }
   }}
   - is_true: create_time
   - is_true: version
+
+---
+"Test put config given analyzed_fields include field excluded by source":
+
+  - do:
+      catch: /field \[excluded\] is included in \[analyzed_fields\] but not in \[source._source\]/
+      ml.put_data_frame_analytics:
+        id: "analyzed_fields-include-field-excluded-by-source"
+        body: >
+          {
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }},
+              "_source": {
+                "excludes": ["excluded"]
+              }
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "analyzed_fields": {
+              "includes": ["excluded"]
+            }
+          }

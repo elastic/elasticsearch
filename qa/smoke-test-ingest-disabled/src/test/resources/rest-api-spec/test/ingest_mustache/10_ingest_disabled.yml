@@ -73,7 +73,6 @@
       catch: /There are no ingest nodes in this cluster, unable to forward request to an ingest node./
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline_1"
         body: {

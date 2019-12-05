@@ -39,7 +39,7 @@ public class TargetMeanEncoding implements PreProcessor {
     public static final String NAME = "target_mean_encoding";
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");
-    public static final ParseField TARGET_MEANS = new ParseField("target_means");
+    public static final ParseField TARGET_MAP = new ParseField("target_map");
     public static final ParseField DEFAULT_VALUE = new ParseField("default_value");
 
     @SuppressWarnings("unchecked")
@@ -52,7 +52,7 @@ public class TargetMeanEncoding implements PreProcessor {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
-            TARGET_MEANS);
+            TARGET_MAP);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), DEFAULT_VALUE);
     }
 
@@ -110,7 +110,7 @@ public class TargetMeanEncoding implements PreProcessor {
         builder.startObject();
         builder.field(FIELD.getPreferredName(), field);
         builder.field(FEATURE_NAME.getPreferredName(), featureName);
-        builder.field(TARGET_MEANS.getPreferredName(), meanMap);
+        builder.field(TARGET_MAP.getPreferredName(), meanMap);
         builder.field(DEFAULT_VALUE.getPreferredName(), defaultValue);
         builder.endObject();
         return builder;

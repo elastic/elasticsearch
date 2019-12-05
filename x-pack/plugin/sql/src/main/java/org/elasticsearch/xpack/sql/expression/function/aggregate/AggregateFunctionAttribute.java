@@ -75,14 +75,14 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), innerId, propertyPath);
+        return Objects.hash(super.hashCode(), propertyPath);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             AggregateFunctionAttribute other = (AggregateFunctionAttribute) obj;
-            return Objects.equals(innerId, other.innerId) && Objects.equals(propertyPath, other.propertyPath);
+            return Objects.equals(propertyPath, other.propertyPath);
         }
         return false;
     }

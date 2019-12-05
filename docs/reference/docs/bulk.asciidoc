@@ -120,7 +120,7 @@ $ cat requests
 { "index" : { "_index" : "test", "_id" : "1" } }
 { "field1" : "value1" }
 $ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
-{"took":7, "errors": false, "items":[{"index":{"_index":"test","_type":"_doc","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
+{"took":7, "errors": false, "items":[{"index":{"_index":"test","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
 --------------------------------------------------
 // NOTCONSOLE
 // Not converting to console because this shows how curl works
@@ -214,6 +214,79 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
+[[bulk-api-request-body]]
+==== {api-request-body-title}
+The request body contains a newline-delimited list of `create`, `delete`, `index`, 
+and `update` actions and their associated source data.
+
+`create`::
+(Optional, string) 
+Indexes the specified document if it does not already exist.
+The following line must contain the source data to be indexed. 
++
+--
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+--
+
+`delete`::
+(Optional, string) 
+Removes the specified document from the index.
++
+--
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+
+`_id`::
+(Required, string) 
+The document ID.
+--
+
+`index`::
+(Optional, string) 
+Indexes the specified document. 
+If the document exists, replaces the document and increments the version.
+The following line must contain the source data to be indexed. 
++
+--
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+--
+
+`update`::
+(Optional, string) 
+Performs a partial document update. 
+The following line must contain the partial document and update options.
++
+--
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+--
+
+`doc`::
+(Optional, object) 
+The partial document to index.
+Required for `update` operations. 
+
+`<fields>`::
+(Optional, object) 
+The document source to index.
+Required for `create` and `index` operations. 
+
+[[bulk-api-response-body]]
+==== {api-response-body-title}
+
+`took`::
+(milliseconds) How long it took to process the bulk request.
+
+`errors`::
+(boolean) If `true`, one or more of the operations in the bulk request did not complete successfully.
+
+`items`::
+(array) The result of each operation in the bulk request in the order they were requested. 
+
 [[docs-bulk-api-example]]
 ==== {api-examples-title}
 
@@ -240,7 +313,6 @@ The API returns the following result:
       {
          "index": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "1",
             "_version": 1,
             "result": "created",
@@ -257,7 +329,6 @@ The API returns the following result:
       {
          "delete": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "2",
             "_version": 1,
             "result": "not_found",
@@ -274,7 +345,6 @@ The API returns the following result:
       {
          "create": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "3",
             "_version": 1,
             "result": "created",
@@ -291,7 +361,6 @@ The API returns the following result:
       {
          "update": {
             "_index": "test",
-            "_type": "_doc",
             "_id": "1",
             "_version": 2,
             "result": "updated",

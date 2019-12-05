@@ -1,5 +1,3 @@
-
-
 tag::actions[]
 `actions`::
 +
@@ -69,7 +67,7 @@ tag::committed[]
 If `true`,
 the segments is synced to disk. Segments that are synced can survive a hard reboot.
 +
-If `false`, 
+If `false`,
 the data from uncommitted segments is also stored in
 the transaction log so that Elasticsearch is able to replay
 changes on the next start.
@@ -113,6 +111,11 @@ Number of deleted documents in the segment, such as `0`. This number
 is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
 documents when a segment is merged.
 end::docs-deleted[]
+
+tag::enrich-policy[]
+Enrich policy name
+used to limit the request.
+end::enrich-policy[]
 
 tag::expand-wildcards[]
 `expand_wildcards`::
@@ -233,6 +236,13 @@ tag::help[]
 to `false`.
 end::help[]
 
+tag::bulk-id[]
+`_id`::
+(Optional, string) 
+The document ID.
+If no ID is specified, a document ID is automatically generated. 
+end::bulk-id[]
+
 tag::if_primary_term[]
 `if_primary_term`::
 (Optional, integer) Only perform the operation if the document has
@@ -266,17 +276,10 @@ end::include-defaults[]
 tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
 (Optional, boolean)
-If `true`, the call reports the aggregated disk usage of 
-each one  of the Lucene index files (only applies if segment stats are 
+If `true`, the call reports the aggregated disk usage of
+each one  of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
-
-tag::include-type-name[]
-`include_type_name`::
-deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.]
-(Optional, boolean) If `true`, a mapping type is expected in the body of
-mappings. Defaults to `false`.
-end::include-type-name[]
 
 tag::include-unloaded-segments[]
 `include_unloaded_segments`::
@@ -296,6 +299,13 @@ tag::index[]
 (Optional, string) Comma-separated list or wildcard expression of index names
 used to limit the request.
 end::index[]
+
+tag::bulk-index[]
+`_index`::
+(Optional, string)
+The name of the target index. 
+Required if not specified as a path parameter.
+end::bulk-index[]
 
 tag::index-metric[]
 `<index-metric>`::
@@ -433,11 +443,6 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
-tag::name[]
-`<name>`::
-(Optional, string) Comma-separated list of alias names to return.
-end::name[]
-
 tag::node-id[]
 `<node_id>`::
 (Optional, string) Comma-separated list of node IDs or names used to limit
@@ -496,7 +501,7 @@ end::positions[]
 
 tag::preference[]
 `preference`::
-(Optional, string) Specifies the node or shard the operation should be 
+(Optional, string) Specifies the node or shard the operation should be
 performed on. Random by default.
 end::preference[]
 
@@ -569,8 +574,9 @@ end::scroll_size[]
 
 tag::search_timeout[]
 `search_timeout`::
-(Optional, <<time-units, time units>> Explicit timeout for each search 
-request. Defaults to no timeout.
+(Optional, <<time-units, time units>>)
+Explicit timeout for each search request.
+Defaults to no timeout.
 end::search_timeout[]
 
 tag::search_type[]
@@ -643,7 +649,7 @@ end::source_includes[]
 
 tag::stats[]
 `stats`::
-(Optional, string) Specific `tag` of the request for logging and statistical 
+(Optional, string) Specific `tag` of the request for logging and statistical
 purposes.
 end::stats[]
 
@@ -681,6 +687,12 @@ tag::terminate_after[]
 (Optional, integer) The maximum number of documents to collect for each shard, 
 upon reaching which the query execution will terminate early.
 end::terminate_after[]
+
+tag::time[]
+`time`::
+(Optional, <<time-units,time units>>)
+Unit used to display time values.
+end::time[]
 
 tag::timeoutparms[]
 

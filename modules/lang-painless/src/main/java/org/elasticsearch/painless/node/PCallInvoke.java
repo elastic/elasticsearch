@@ -20,14 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.List;
 import java.util.Objects;
@@ -52,15 +51,6 @@ public final class PCallInvoke extends AExpression {
         this.name = Objects.requireNonNull(name);
         this.nullSafe = nullSafe;
         this.arguments = Objects.requireNonNull(arguments);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        prefix.storeSettings(settings);
-
-        for (AExpression argument : arguments) {
-            argument.storeSettings(settings);
-        }
     }
 
     @Override

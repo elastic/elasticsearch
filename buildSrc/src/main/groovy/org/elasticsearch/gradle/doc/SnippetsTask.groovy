@@ -66,6 +66,8 @@ class SnippetsTask extends DefaultTask {
         exclude 'build.gradle'
         // That is where the snippets go, not where they come from!
         exclude 'build'
+        exclude 'build-idea'
+        exclude 'build-eclipse'
     }
 
     /**
@@ -82,6 +84,7 @@ class SnippetsTask extends DefaultTask {
          */
         for (File file: docs) {
             String lastLanguage
+            String name
             int lastLanguageLine
             Snippet snippet = null
             StringBuilder contents = null
@@ -155,19 +158,21 @@ class SnippetsTask extends DefaultTask {
                 if (line ==~ /-{4,}\s*/) { // Four dashes looks like a snippet
                     if (snippet == null) {
                         Path path = docs.dir.toPath().relativize(file.toPath())
-                        snippet = new Snippet(path: path, start: lineNumber, testEnv: testEnv)
+                        snippet = new Snippet(path: path, start: lineNumber, testEnv: testEnv, name: name)
                         if (lastLanguageLine == lineNumber - 1) {
                             snippet.language = lastLanguage
                         }
+                        name = null
                     } else {
                         snippet.end = lineNumber
                     }
                     return
                 }
-                matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,.*)?].*/
-                if (matcher.matches()) {
-                    lastLanguage = matcher.group(1)
+                def source = matchSource(line)
+                if (source.matches) {
+                    lastLanguage = source.language
                     lastLanguageLine = lineNumber
+                    name = source.name
                     return
                 }
                 if (line ==~ /\/\/\s*AUTOSENSE\s*/) {
@@ -310,6 +315,20 @@ class SnippetsTask extends DefaultTask {
         }
     }
 
+    static Source matchSource(String line) {
+        def matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,((?!id=).)*(id="?([-\w]+)"?)?(.*))?].*/
+        if(matcher.matches()){
+            return new Source(matches: true, language: matcher.group(1),  name: matcher.group(5))
+        }
+        return new Source(matches: false)
+    }
+
+    static class Source {
+        boolean matches
+        String language
+        String name
+    }
+
     static class Snippet {
         static final int NOT_FINISHED = -1
 
@@ -336,6 +355,7 @@ class SnippetsTask extends DefaultTask {
         boolean curl
         List warnings = new ArrayList()
         boolean skipShardsFailures = false
+        String name
 
         @Override
         public String toString() {

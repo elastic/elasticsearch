@@ -50,7 +50,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
     // checkpoint of the indexes (sequence id's)
     public static final ParseField INDICES = new ParseField("indices");
 
-    private static final String NAME = "data_frame_transform_checkpoint";
+    public static final String NAME = "data_frame_transform_checkpoint";
 
     private static final ConstructingObjectParser<TransformCheckpoint, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<TransformCheckpoint, Void> LENIENT_PARSER = createParser(true);
@@ -256,6 +256,10 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         }
 
         return NAME + "-" + transformId + "-" + checkpoint;
+    }
+
+    public static boolean isNullOrEmpty (TransformCheckpoint checkpoint) {
+        return checkpoint == null || checkpoint.isEmpty();
     }
 
     /**

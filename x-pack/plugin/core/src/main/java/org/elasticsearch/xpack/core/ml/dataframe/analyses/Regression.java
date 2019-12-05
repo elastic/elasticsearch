@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -69,7 +70,7 @@ public class Regression implements DataFrameAnalysis {
         }
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
-        this.predictionFieldName = predictionFieldName;
+        this.predictionFieldName = predictionFieldName == null ? dependentVariable + "_prediction" : predictionFieldName;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
     }
 
@@ -86,6 +87,10 @@ public class Regression implements DataFrameAnalysis {
 
     public String getDependentVariable() {
         return dependentVariable;
+    }
+
+    public String getPredictionFieldName() {
+        return predictionFieldName;
     }
 
     public double getTrainingPercent() {
@@ -135,8 +140,18 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
+    public Set<String> getAllowedCategoricalTypes(String fieldName) {
+        return Types.categorical();
+    }
+
+    @Override
     public List<RequiredField> getRequiredFields() {
         return Collections.singletonList(new RequiredField(dependentVariable, Types.numerical()));
+    }
+
+    @Override
+    public Map<String, Long> getFieldCardinalityLimits() {
+        return Collections.emptyMap();
     }
 
     @Override

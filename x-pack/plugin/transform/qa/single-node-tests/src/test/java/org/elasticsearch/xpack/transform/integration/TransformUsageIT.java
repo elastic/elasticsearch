@@ -64,7 +64,7 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         startAndWaitForContinuousTransform("test_usage_continuous", "pivot_reviews_continuous", null);
 
-        Request getRequest = new Request("GET", TRANSFORM_ENDPOINT + "test_usage/_stats");
+        Request getRequest = new Request("GET", getTransformEndpoint() + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         Map<String, Integer> expectedStats = new HashMap<>();
         for(String statName : PROVIDED_STATS) {

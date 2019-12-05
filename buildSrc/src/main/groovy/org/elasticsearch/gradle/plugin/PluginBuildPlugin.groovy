@@ -23,10 +23,10 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.RunTask
+import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -65,35 +65,28 @@ class PluginBuildPlugin implements Plugin<Project> {
             project.archivesBaseName = name
             project.description = extension1.description
             configurePublishing(project, extension1)
-            if (project.plugins.hasPlugin(TestClustersPlugin.class) == false) {
-                project.integTestCluster.dependsOn(project.tasks.bundlePlugin)
-                if (isModule) {
-                    project.integTestCluster.module(project)
-                } else {
-                    project.integTestCluster.plugin(project.path)
-                }
-            } else {
-                project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
-                if (isModule) {
-                    project.testClusters.integTest.module(
-                            project.file(project.tasks.bundlePlugin.archiveFile)
-                    )
-                } else {
-                    project.testClusters.integTest.plugin(
-                            project.file(project.tasks.bundlePlugin.archiveFile)
-                    )
-                }
 
-                project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
-                    // Auto add dependent modules to the test cluster
-                    if (project.findProject(":modules:${pluginName}") != null) {
-                        project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
-                        project.testClusters.integTest.module(
-                                project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
-                        )
-                    }
+            project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
+            if (isModule) {
+                project.testClusters.integTest.module(
+                        project.file(project.tasks.bundlePlugin.archiveFile)
+                )
+            } else {
+                project.testClusters.integTest.plugin(
+                        project.file(project.tasks.bundlePlugin.archiveFile)
+                )
+            }
+
+            project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
+                // Auto add dependent modules to the test cluster
+                if (project.findProject(":modules:${pluginName}") != null) {
+                    project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
+                    project.testClusters.integTest.module(
+                            project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
+                    )
                 }
             }
+
             if (extension1.name == null) {
                 throw new InvalidUserDataException('name is a required setting for esplugin')
             }
@@ -117,14 +110,6 @@ class PluginBuildPlugin implements Plugin<Project> {
             ]
             buildProperties.expand(properties)
             buildProperties.inputs.properties(properties)
-            project.tasks.run.dependsOn(project.tasks.bundlePlugin)
-            if (isModule) {
-                project.tasks.run.clusterConfig.distribution = System.getProperty(
-                        'run.distribution', isXPackModule ? 'default' : 'oss'
-                )
-            } else {
-                project.tasks.run.clusterConfig.plugin(project.path)
-            }
             if (isModule == false || isXPackModule) {
                 addNoticeGeneration(project, extension1)
             }
@@ -145,7 +130,11 @@ class PluginBuildPlugin implements Plugin<Project> {
         createIntegTestTask(project)
         createBundleTasks(project, extension)
         project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
-        project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
+        // allow running ES with this plugin in the foreground of a build
+        project.tasks.register('run', RunTask) {
+            dependsOn(project.tasks.bundlePlugin)
+            useCluster project.testClusters.integTest
+        }
     }
 
 
@@ -157,7 +146,7 @@ class PluginBuildPlugin implements Plugin<Project> {
 
     private static void configureDependencies(Project project) {
         project.dependencies {
-            if (ClasspathUtils.isElasticsearchProject()) {
+            if (BuildParams.internal) {
                 compileOnly project.project(':server')
                 testCompile project.project(':test:framework')
             } else {
@@ -178,10 +167,6 @@ class PluginBuildPlugin implements Plugin<Project> {
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter('precommit', 'test')
-        if (project.plugins.hasPlugin(TestClustersPlugin.class) == false) {
-            // only if not using test clusters
-            project.integTestCluster.distribution = System.getProperty('tests.distribution', 'integ-test-zip')
-        }
         project.check.dependsOn(integTest)
     }
 

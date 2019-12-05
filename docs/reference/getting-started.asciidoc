@@ -230,7 +230,6 @@ operation was that version 1 of the document was created:
 {
   "_index" : "customer",
   "_id" : "1",
-  "_type" : "_doc",
   "_version" : 1,
   "result" : "created",
   "_shards" : {

@@ -191,7 +191,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // particular token filters based on the attributes of the current token.
         entry("protectedterm", Void.class),
         // LUCENE-8332
-        entry("concatenategraph", Void.class));
+        entry("concatenategraph", Void.class),
+        // LUCENE-8936
+        entry("spanishminimalstem", Void.class));
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(
             "htmlstrip", MovedToAnalysisCommon.class,

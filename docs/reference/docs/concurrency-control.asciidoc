@@ -42,7 +42,6 @@ You can see the assigned sequence number and primary term in the
     },
     "_index" : "products",
     "_id" : "1567",
-    "_type" : "_doc",
     "_version" : 1,
     "_seq_no" : 362,
     "_primary_term" : 2,

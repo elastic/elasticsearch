@@ -95,7 +95,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest, Task task) {
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE,
-                true, true, true, false, true, false, false, false, false, false, false, false);
+                true, true, true, false, true, false, false, false, false, false, true, false);
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {

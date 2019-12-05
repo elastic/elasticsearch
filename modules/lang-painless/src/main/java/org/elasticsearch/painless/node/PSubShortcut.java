@@ -20,13 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.util.Set;
 
@@ -47,11 +46,6 @@ final class PSubShortcut extends AStoreable {
         this.type = type;
         this.getter = getter;
         this.setter = setter;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

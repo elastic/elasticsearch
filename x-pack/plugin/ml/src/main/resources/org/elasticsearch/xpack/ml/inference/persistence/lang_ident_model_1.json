@@ -1,5 +1,5 @@
 {
-  "model_id":"lang_ident_1",
+  "model_id":"lang_ident_model_1",
   "created_by":"ml_admin",
   "version":"7.6.0",
   "description":"Model used for identifying language from arbitrary input text.",
@@ -9,5 +9,5 @@
   "input":{"field_names":["text"]},
   "estimated_heap_memory_usage_bytes":1053992,
   "estimated_operations":39629,
-  "license_level":"basic",
+  "license_level":"basic"
 }

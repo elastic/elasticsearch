@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.inference.trainedmodels;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -20,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInference
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LanguageExamples;
 
-import java.nio.file.Files;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,13 +29,18 @@ import java.util.Map;
 public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
 
     public void testLangInference() throws Exception {
-        byte[] fileBytes = Files.readAllBytes(PathUtils.get(getClass()
-            .getResource("/org/elasticsearch/xpack/ml/inference/lang_ident_model_1.json").toURI()));
+        String path = "/org/elasticsearch/xpack/ml/inference/persistence/lang_ident_model_1.json";
+        URL resource = getClass().getResource(path);
+        if (resource == null) {
+            throw new ElasticsearchException(
+                "Unable to find resource in path [/org/elasticsearch/xpack/ml/inference/persistence/lang_ident_model_1.json]");
+        }
+        BytesReference bytes = Streams.readFully(getClass().getResourceAsStream(path));
         TrainedModelConfig config;
         try (XContentParser parser =
                  XContentHelper.createParser(xContentRegistry(),
                      DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                     new BytesArray(fileBytes),
+                     bytes,
                      XContentType.JSON)) {
             config = TrainedModelConfig.fromXContent(parser, true).build();
             config.ensureParsedDefinition(xContentRegistry());

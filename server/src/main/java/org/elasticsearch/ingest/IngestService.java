@@ -460,7 +460,7 @@ public class IngestService implements ClusterStateApplier {
     }
 
     //package private for testing
-    static String getProcessorName(Processor processor){
+    static String getProcessorName(Processor processor) {
         // conditionals are implemented as wrappers around the real processor, so get the real processor for the correct type for the name
         if(processor instanceof ConditionalProcessor){
             processor = ((ConditionalProcessor) processor).getInnerProcessor();
@@ -469,7 +469,7 @@ public class IngestService implements ClusterStateApplier {
         sb.append(processor.getType());
 
         if(processor instanceof PipelineProcessor){
-            String pipelineName = ((PipelineProcessor) processor).getPipelineName();
+            String pipelineName = ((PipelineProcessor) processor).getPipelineTemplate().newInstance(Map.of()).execute();
             sb.append(":");
             sb.append(pipelineName);
         }

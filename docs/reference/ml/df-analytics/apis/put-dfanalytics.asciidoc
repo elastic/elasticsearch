@@ -219,7 +219,7 @@ PUT _ml/data_frame/analytics/model-flight-delays-pre
   },
   "dest": { <4>
     "index": "df-flight-delays",
-    "results_field": "ml.results"
+    "results_field": "ml-results"
   },
   "analysis": {
   "regression": {
@@ -239,7 +239,8 @@ PUT _ml/data_frame/analytics/model-flight-delays-pre
 // TEST[skip:setup kibana sample data]
 
 <1> The source index to analyze.
-<2> This query filters out data so that the analysis won't include it.
+<2> This query filters out entire documents that will not be present in the 
+destination index.
 <3> The `_source` object defines fields in the dataset that will be included or 
 excluded in the destination index. In this case, `includes` does not specify any 
 fields, so the default behavior takes place: all the fields of the source index 
@@ -247,14 +248,16 @@ will included except the ones that are explicitly specified in `excludes`.
 <4> Defines the destination index that contains the results of the analysis and 
 the fields of the source index specified in the `_source` object. Also defines 
 the name of the `results_field`.
-<5> Specifies fields to be included in or excluded from the analysis.
+<5> Specifies fields to be included in or excluded from the analysis. This does 
+not affect whether the fields will be present in the destination index, only 
+affects whether they are used in the analysis.
 
 In this example, we can see that all the fields of the source index are included 
 in the destination index except `FlightDelay` and `FlightDelayType` because 
 these are defined as excluded fields by the `excludes` parameter of the 
 `_source` object. The `FlightNum` field is included in the destination index, 
-however it does not included in the analysis because it is explicitly specified 
-as excluded field by the `excludes` parameter of the `analyzed_fields` object.
+however it is not included in the analysis because it is explicitly specified as 
+excluded field by the `excludes` parameter of the `analyzed_fields` object.
 
 
 [[ml-put-dfanalytics-example-od]]

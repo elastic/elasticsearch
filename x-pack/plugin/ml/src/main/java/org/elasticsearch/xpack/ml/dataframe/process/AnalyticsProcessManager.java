@@ -93,7 +93,7 @@ public class AnalyticsProcessManager {
                        Consumer<Exception> finishHandler) {
         executorServiceForJob.execute(() -> {
             ProcessContext processContext = new ProcessContext(config.getId());
-            synchronized (this) {
+            synchronized (processContextByAllocation) {
                 if (task.isStopping()) {
                     // The task was requested to stop before we created the process context
                     finishHandler.accept(null);
@@ -295,14 +295,17 @@ public class AnalyticsProcessManager {
             processContext.process.close();
             LOGGER.info("[{}] Closed process", configId);
         } catch (Exception e) {
-            String errorMsg = new ParameterizedMessage("[{}] Error closing data frame analyzer process [{}]"
-                , configId, e.getMessage()).getFormattedMessage();
+            String errorMsg = new ParameterizedMessage(
+                "[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage()).getFormattedMessage();
             processContext.setFailureReason(errorMsg);
         }
     }
 
-    public synchronized void stop(DataFrameAnalyticsTask task) {
-        ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
+    public void stop(DataFrameAnalyticsTask task) {
+        ProcessContext processContext;
+        synchronized (processContextByAllocation) {
+            processContext = processContextByAllocation.get(task.getAllocationId());
+        }
         if (processContext != null) {
             LOGGER.debug("[{}] Stopping process", task.getParams().getId());
             processContext.stop();

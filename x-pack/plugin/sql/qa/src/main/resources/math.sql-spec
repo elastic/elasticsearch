@@ -17,6 +17,8 @@ SELECT ATAN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY 
 mathCeil
 // H2 returns CEIL as a double despite the value being an integer; we return a long as the other DBs
 SELECT CAST(CEIL(emp_no) AS INT) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathCeilWithNulls
+SELECT CAST(CEIL(languages) AS INT) m FROM "test_emp" ORDER BY emp_no;
 mathCos
 SELECT COS(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathCosh
@@ -31,6 +33,8 @@ mathExpm1
 SELECT EXP(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathFloor
 SELECT CAST(FLOOR(emp_no) AS INT) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathFloorWithNulls
+SELECT CAST(FLOOR(languages) AS INT) m FROM "test_emp" ORDER BY emp_no;
 mathLog
 SELECT LOG(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathLog10
@@ -49,6 +53,8 @@ mathSqrt
 SELECT SQRT(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathTan
 SELECT TAN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathFloorAndCeilWithNullLiteral
+SELECT CAST(FLOOR(CAST(NULL AS DOUBLE)) AS INT) fnull, CAST(CEIL(CAST(NULL AS LONG)) AS INT) cnull, gender FROM "test_emp" ORDER BY emp_no;
 
 //
 // Combined methods

@@ -283,10 +283,20 @@ final class QueryTranslator {
                     // dates are handled differently because of date histograms
                     if (exp instanceof DateTimeHistogramFunction) {
                         DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
-                        if (dthf.calendarInterval() != null) {
-                            key = new GroupByDateHistogram(aggId, nameOf(exp), dthf.calendarInterval(), dthf.zoneId());
-                        } else {
-                            key = new GroupByDateHistogram(aggId, nameOf(exp), dthf.fixedInterval(), dthf.zoneId());
+                        Expression field = dthf.field();
+                        if (field instanceof FieldAttribute) {
+                            if (dthf.calendarInterval() != null) {
+                                key = new GroupByDateHistogram(aggId, nameOf(field), dthf.calendarInterval(), dthf.zoneId());
+                            } else {
+                                key = new GroupByDateHistogram(aggId, nameOf(field), dthf.fixedInterval(), dthf.zoneId());
+                            }
+                        } else if (field instanceof Function) {
+                            ScriptTemplate script = ((Function) field).asScript();
+                            if (dthf.calendarInterval() != null) {
+                                key = new GroupByDateHistogram(aggId, script, dthf.calendarInterval(), dthf.zoneId());
+                            } else {
+                                key = new GroupByDateHistogram(aggId, script, dthf.fixedInterval(), dthf.zoneId());
+                            }
                         }
                     }
                     // all other scalar functions become a script

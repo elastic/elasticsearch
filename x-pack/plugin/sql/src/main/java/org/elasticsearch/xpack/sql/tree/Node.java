@@ -413,7 +413,7 @@ public abstract class Node<T extends Node<T>> {
                 Object o = it.next();
                 toString(sb, o);
                 if (it.hasNext() == true) {
-                    sb.append(',').append(' ');
+                    sb.append(", ");
                 }
             }
             sb.append("]");

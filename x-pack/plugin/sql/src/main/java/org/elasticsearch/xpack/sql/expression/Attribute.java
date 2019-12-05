@@ -21,8 +21,9 @@ import static java.util.Collections.emptyList;
  * expressions {@code ABS(foo), A, B+C} get converted to attributes and the user can
  * only see Attributes.
  *
- * In the statement {@code SELECT foo FROM TABLE WHERE foo > 10 + 1} only {@code foo} is a named expression.
- * The rest are not as they are part of the projection and thus are not part of the derived table.
+ * In the statement {@code SELECT foo FROM TABLE WHERE foo > 10 + 1} only {@code foo} inside the SELECT
+ * is a named expression (an {@code Alias} will be created automatically for it).
+ * The rest are not as they are not part of the projection and thus are not part of the derived table.
  */
 public abstract class Attribute extends NamedExpression {
 

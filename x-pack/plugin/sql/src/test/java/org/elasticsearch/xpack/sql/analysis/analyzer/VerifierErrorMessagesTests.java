@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -36,7 +35,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 
-@TestLogging(value = "org.elasticsearch.xpack.sql:TRACE", reason = "debug")
 public class VerifierErrorMessagesTests extends ESTestCase {
 
     private SqlParser parser = new SqlParser();

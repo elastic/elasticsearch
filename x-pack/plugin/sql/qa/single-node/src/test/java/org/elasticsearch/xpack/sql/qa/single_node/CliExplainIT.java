@@ -126,13 +126,13 @@ public class CliExplainIT extends CliIntegrationTestCase {
         assertThat(command("EXPLAIN " + (randomBoolean() ? "" : "(PLAN ANALYZED) ") + "SELECT COUNT(*) FROM test"),
                 containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*) AS COUNT(*)"));
+        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*)"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 
         assertThat(command("EXPLAIN (PLAN OPTIMIZED) SELECT COUNT(*) FROM test"), containsString("plan"));
         assertThat(readLine(), startsWith("----------"));
-        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*) AS COUNT(*)"));
+        assertThat(readLine(), startsWith("Aggregate[[],[COUNT(*)"));
         assertThat(readLine(), startsWith("\\_EsRelation[test][i{f}#"));
         assertEquals("", readLine());
 

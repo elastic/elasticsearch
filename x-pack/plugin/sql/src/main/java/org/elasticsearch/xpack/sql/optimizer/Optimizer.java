@@ -234,6 +234,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     static class PruneLiteralsInGroupBy extends OptimizerRule<Aggregate> {
+
         @Override
         protected LogicalPlan rule(Aggregate agg) {
             List<Expression> groupings = agg.groupings();
@@ -434,7 +435,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // put the items in reverse order so the iteration happens back to front
             List<Order> nonConstant = new LinkedList<>();
-            for (int i = order.size(); i-- > 0;) {
+            for (int i = order.size() - 1; i >= 0; i--) {
                 nonConstant.add(order.get(i));
             }
 
@@ -688,8 +689,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             } else if (e instanceof Alias == false
                     && e.nullable() == Nullability.TRUE
                     && Expressions.anyMatch(e.children(), Expressions::isNull)) {
-                        return Literal.of(e, null);
-                    }
+                    return Literal.of(e, null);
+                }
 
             return e;
         }
@@ -1034,9 +1035,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (range.lower().foldable()) {
                             Integer compare = BinaryComparison.compare(range.lower().fold(), eqValue);
                             if (compare != null && (
-                            // eq outside the lower boundary
-                            compare > 0 ||
-                            // eq matches the boundary but should not be included
+                                 // eq outside the lower boundary
+                                 compare > 0 ||
+                                 // eq matches the boundary but should not be included
                                  (compare == 0 && !range.includeLower()))
                                 ) {
                                 return FALSE;
@@ -1045,9 +1046,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (range.upper().foldable()) {
                             Integer compare = BinaryComparison.compare(range.upper().fold(), eqValue);
                             if (compare != null && (
-                            // eq outside the upper boundary
-                            compare < 0 ||
-                            // eq matches the boundary but should not be included
+                                 // eq outside the upper boundary
+                                 compare < 0 ||
+                                 // eq matches the boundary but should not be included
                                  (compare == 0 && !range.includeUpper()))
                                 ) {
                                 return FALSE;
@@ -1143,7 +1144,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                     main.right(), main instanceof LessThanOrEqual));
 
                                     changed = true;
-                                }
+                        }
                     }
                 }
             }

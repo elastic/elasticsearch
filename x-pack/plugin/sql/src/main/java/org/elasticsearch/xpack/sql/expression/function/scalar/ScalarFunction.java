@@ -30,15 +30,6 @@ public abstract class ScalarFunction extends Function implements ScriptWeaver {
         super(source, fields);
     }
 
-    //    @Override
-    //    public final ScalarFunctionAttribute toAttribute() {
-    //        if (lazyAttribute == null) {
-    //            lazyAttribute = new ScalarFunctionAttribute(source(), name(), dataType(), id(), functionId(), asScript(), orderBy(),
-    //                asPipe());
-    //        }
-    //        return lazyAttribute;
-    //    }
-
     // used if the function is monotonic and thus does not have to be computed for ordering purposes
     // null means the script needs to be used; expression means the field/expression to be used instead
     public Expression orderBy() {

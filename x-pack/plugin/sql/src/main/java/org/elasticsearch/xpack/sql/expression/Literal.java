@@ -66,11 +66,6 @@ public class Literal extends LeafExpression {
         return value;
     }
 
-    //    @Override
-    //    public ScriptTemplate asScript() {
-    //        return new ScriptTemplate(String.valueOf(value), Params.EMPTY, dataType);
-    //    }
-
     @Override
     public int hashCode() {
         return Objects.hash(value, dataType);
@@ -86,9 +81,7 @@ public class Literal extends LeafExpression {
         }
 
         Literal other = (Literal) obj;
-        // add shortcut for null since the dataType become irrelevant
-        return (value == null && other.value == null) ||
-                (Objects.equals(value, other.value) && Objects.equals(dataType, other.dataType));
+        return Objects.equals(value, other.value) && Objects.equals(dataType, other.dataType);
     }
 
     @Override

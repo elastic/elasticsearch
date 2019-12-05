@@ -1,5 +1,5 @@
 /*
-* Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
@@ -77,7 +77,7 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
  */
 public final class Verifier {
     private final Metrics metrics;
-    
+
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
     }
@@ -265,7 +265,7 @@ public final class Verifier {
                 failures.addAll(localFailures);
             });
         }
-        
+
         // gather metrics
         if (failures.isEmpty()) {
             BitSet b = new BitSet(FeatureMetric.values().length);
@@ -482,7 +482,7 @@ public final class Verifier {
         return true;
     }
 
-            // The grouping can not be an aggregate function or an inexact field (e.g. text without a keyword)
+    // The grouping can not be an aggregate function or an inexact field (e.g. text without a keyword)
     private static boolean onlyExactFields(List<Expression> expressions, Set<Failure> localFailures) {
         Holder<Boolean> onlyExact = new Holder<>(Boolean.TRUE);
 
@@ -496,9 +496,9 @@ public final class Verifier {
             }, FieldAttribute.class));
 
         return onlyExact.get();
-        }
+    }
 
-    private static boolean onlyRawFields(Iterable<? extends Expression> expressions, Set<Failure> localFailures, 
+    private static boolean onlyRawFields(Iterable<? extends Expression> expressions, Set<Failure> localFailures,
             AttributeMap<Expression> attributeRefs) {
         Holder<Boolean> onlyExact = new Holder<>(Boolean.TRUE);
 
@@ -509,7 +509,7 @@ public final class Verifier {
             if (c instanceof Function) {
                 localFailures.add(fail(c, "No functions allowed (yet); encountered [{}]", c.sourceText()));
                 onlyExact.set(Boolean.FALSE);
-    }
+            }
         }));
         return onlyExact.get();
     }
@@ -634,7 +634,7 @@ public final class Verifier {
         if (Functions.isAggregate(e)) {
             return true;
         }
-        
+
         // left without leaves which have to match; if not there's a failure
         // make sure to match directly on the expression and not on the tree
         // (since otherwise exp might match the function argument which would be incorrect)
@@ -647,7 +647,7 @@ public final class Verifier {
         }
         return false;
     }
-    
+
     private static void checkGroupingFunctionInGroupBy(LogicalPlan p, Set<Failure> localFailures) {
         // check if the query has a grouping function (Histogram) but no GROUP BY
         if (p instanceof Project) {
@@ -655,7 +655,7 @@ public final class Verifier {
             proj.projections().forEach(e -> e.forEachDown(f ->
                 localFailures.add(fail(f, "[{}] needs to be part of the grouping", Expressions.name(f))), GroupingFunction.class));
         }
-            // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms)
+        // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms)
         else if (p instanceof Aggregate) {
             Aggregate a = (Aggregate) p;
             a.aggregates().forEach(agg -> agg.forEachDown(e -> {
@@ -737,14 +737,14 @@ public final class Verifier {
                     fail(nested.get(0), "Grouping isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
         }
-        
+
         // check in having
         p.forEachDown(f -> {
             if (f.child() instanceof Aggregate) {
                 f.condition().forEachUp(match, FieldAttribute.class);
             }
         }, Filter.class);
-        
+
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));

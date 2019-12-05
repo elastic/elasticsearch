@@ -387,6 +387,7 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertEquals(1, ee.output().size());
         assertEquals(ReferenceAttribute.class, ee.output().get(0).getClass());
+        assertTrue(ee.toString().contains("3.0"));
     }
 
     public void testFoldingOfPercentileRankSecondArgument() {
@@ -395,6 +396,7 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertEquals(1, ee.output().size());
         assertEquals(ReferenceAttribute.class, ee.output().get(0).getClass());
+        assertTrue(ee.toString().contains("3.0"));
     }
 
     public void testFoldingOfPivot() {

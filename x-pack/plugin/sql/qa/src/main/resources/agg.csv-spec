@@ -598,6 +598,15 @@ SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp 
 null                    |10             
 ;
 
+countAll
+schema::all_names:l|c:l
+SELECT COUNT(ALL first_name) all_names, COUNT(*) c FROM test_emp;
+
+   all_names   |       c
+---------------+---------------
+90             |100 
+;
+
 countDistinctAndLiteral
 schema::ln:l|ccc:l
 SELECT COUNT(last_name) ln, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING ln>5 AND ccc>5;

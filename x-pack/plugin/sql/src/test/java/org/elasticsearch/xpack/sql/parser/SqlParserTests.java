@@ -9,7 +9,6 @@ import com.google.common.base.Joiner;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Alias;
-import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -89,7 +88,7 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testSelectCastWithSQLOperator() {
-        Expression f = singleProjection(project(parseStatement("SELECT CONVERT(POWER(languages, 2), SQL_DOUBLE) FROM foo")),
+        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT CONVERT(POWER(languages, 2), SQL_DOUBLE) FROM foo")),
                 UnresolvedAlias.class);
         assertEquals("CONVERT(POWER(languages, 2), SQL_DOUBLE)", f.sourceText());
     }

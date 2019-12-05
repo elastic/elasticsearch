@@ -1184,7 +1184,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
-                // aliases inside GROUP BY are irelevant so remove all of them
+                // aliases inside GROUP BY are irrelevant so remove all of them
                 // however aggregations are important (ultimately a projection)
                 return new Aggregate(a.source(), a.child(), cleanAllAliases(a.groupings()), cleanChildrenAliases(a.aggregates()));
             }

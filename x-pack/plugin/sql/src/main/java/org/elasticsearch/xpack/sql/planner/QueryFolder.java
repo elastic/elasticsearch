@@ -679,9 +679,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     String lookup = Expressions.id(orderExpression);
                     GroupByKey group = qContainer.findGroupForAgg(lookup);
 
-                    // TODO: handle score
-                    // qContainer = qContainer.addSort(new ScoreSort(direction, missing));
-                    
                     // TODO: might need to validate whether the target field or group actually exist
                     if (group != null && group != Aggs.IMPLICIT_GROUP_KEY) {
                         // check whether the lookup matches a group

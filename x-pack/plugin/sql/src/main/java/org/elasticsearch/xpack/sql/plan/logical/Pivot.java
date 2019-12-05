@@ -159,7 +159,6 @@ public class Pivot extends UnaryPlan {
             output = new ArrayList<>(groupingSet()
                     .subtract(Expressions.references(singletonList(column)))
                     .combine(valuesOutput()));
-
         }
 
         return output;

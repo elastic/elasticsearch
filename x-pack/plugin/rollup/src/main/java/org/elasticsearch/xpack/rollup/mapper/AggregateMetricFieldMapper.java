@@ -18,6 +18,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -123,7 +125,6 @@ public class AggregateMetricFieldMapper extends FieldMapper {
                                                                          Map<String, Object> node,
                                                                          ParserContext parserContext) throws MapperParsingException {
             AggregateMetricFieldMapper.Builder builder = new AggregateMetricFieldMapper.Builder(name);
-            TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext(); ) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
@@ -218,6 +219,21 @@ public class AggregateMetricFieldMapper extends FieldMapper {
     protected AggregateMetricFieldMapper clone() {
         return (AggregateMetricFieldMapper) super.clone();
     }
+
+
+    @Override
+    public void parse(ParseContext context) throws IOException {
+        if (context.externalValueSet()) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
+        }
+        context.path().add(simpleName());
+        XContentParser.Token token = null;
+        XContentSubParser subParser = null;
+
+
+    }
+
+
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {

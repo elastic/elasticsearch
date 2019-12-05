@@ -41,10 +41,11 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
     public static final XPackInfoFeatureAction SPATIAL = new XPackInfoFeatureAction(XPackField.SPATIAL);
     public static final XPackInfoFeatureAction ANALYTICS = new XPackInfoFeatureAction(XPackField.ANALYTICS);
     public static final XPackInfoFeatureAction ENRICH = new XPackInfoFeatureAction(XPackField.ENRICH);
+    public static final XPackInfoFeatureAction AGGREGATE_METRIC = new XPackInfoFeatureAction(XPackField.AGGREGATE_METRIC);
 
     public static final List<XPackInfoFeatureAction> ALL = Arrays.asList(
         SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-        TRANSFORM, FLATTENED, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, ENRICH
+        TRANSFORM, FLATTENED, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, ENRICH, AGGREGATE_METRIC
     );
 
     private XPackInfoFeatureAction(String name) {

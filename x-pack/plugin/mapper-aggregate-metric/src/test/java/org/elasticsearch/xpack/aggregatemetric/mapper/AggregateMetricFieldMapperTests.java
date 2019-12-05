@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.rollup.mapper;
+package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -17,15 +17,15 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.rollup.mapper.AggregateMetricFieldMapper.Names.IGNORE_MALFORMED;
-import static org.elasticsearch.xpack.rollup.mapper.AggregateMetricFieldMapper.Names.METRICS;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricFieldMapper.Names.IGNORE_MALFORMED;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -289,7 +289,7 @@ public class AggregateMetricFieldMapperTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-        plugins.add(Rollup.class);
+        plugins.add(AggregateMetricMapperPlugin.class);
         plugins.add(LocalStateCompositeXPackPlugin.class);
         return plugins;
     }

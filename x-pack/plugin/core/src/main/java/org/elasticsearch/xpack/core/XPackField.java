@@ -53,6 +53,8 @@ public final class XPackField {
     public static final String ANALYTICS = "analytics";
     /** Name constant for the enrich plugin. */
     public static final String ENRICH = "enrich";
+    /** Name constant for the aggregate_metric plugin. */
+    public static final String AGGREGATE_METRIC = "aggregate_metric";
 
     private XPackField() {}
 

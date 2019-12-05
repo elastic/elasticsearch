@@ -21,10 +21,8 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -56,7 +54,6 @@ import org.elasticsearch.xpack.rollup.action.TransportRollupSearchAction;
 import org.elasticsearch.xpack.rollup.action.TransportStartRollupAction;
 import org.elasticsearch.xpack.rollup.action.TransportStopRollupAction;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
-import org.elasticsearch.xpack.rollup.mapper.AggregateMetricFieldMapper;
 import org.elasticsearch.xpack.rollup.rest.RestDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestGetRollupCapsAction;
 import org.elasticsearch.xpack.rollup.rest.RestGetRollupIndexCapsAction;
@@ -72,13 +69,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
-public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin, MapperPlugin {
+public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     // Introduced in ES version 6.3
     public static final int ROLLUP_VERSION_V1 = 1;
@@ -192,8 +188,4 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         }
     }
 
-    @Override
-    public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(AggregateMetricFieldMapper.CONTENT_TYPE, new AggregateMetricFieldMapper.TypeParser());
-    }
 }

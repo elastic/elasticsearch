@@ -134,6 +134,10 @@ public class XPackSettings {
     /** Setting for enabling or disabling vectors. Defaults to true. */
     public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling aggregate_metric fields. Defaults to true. */
+    public static final Setting<Boolean> AGGREGATE_METRIC_ENABLED = Setting.boolSetting("xpack.aggregate_metric.enabled",
+        true, Setting.Property.NodeScope);
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)
@@ -240,6 +244,7 @@ public class XPackSettings {
         settings.add(TRANSFORM_ENABLED);
         settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);
+        settings.add(AGGREGATE_METRIC_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

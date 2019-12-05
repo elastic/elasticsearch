@@ -734,6 +734,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if support for aggregate metric object fields should be enabled.
+     * <p>
+     * Aggregate metric fields are available for all license types except {@link OperationMode#MISSING}.
+     */
+    public synchronized boolean isAggregateMetricAllowed() {
+        return status.active;
+    }
+
+    /**
      * Determine if Vectors support should be enabled.
      * <p>
      *  Vectors is available for all license types except {@link OperationMode#MISSING}

@@ -68,6 +68,28 @@ public class ExtentTests extends AbstractWireSerializingTestCase {
         }
     }
 
+    public void testAddRectangle() {
+        Extent extent = new Extent();
+        int bottomLeftX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(-175);
+        int bottomLeftY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(-10);
+        int topRightX =  GeoShapeCoordinateEncoder.INSTANCE.encodeX(-170);
+        int topRightY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(10);
+        extent.addRectangle(bottomLeftX, bottomLeftY, topRightX, topRightY);
+        assertThat(extent.minX(), equalTo(bottomLeftX));
+        assertThat(extent.maxX(), equalTo(topRightX));
+        assertThat(extent.minY(), equalTo(bottomLeftY));
+        assertThat(extent.maxY(), equalTo(topRightY));
+        int bottomLeftX2 = GeoShapeCoordinateEncoder.INSTANCE.encodeX(170);
+        int bottomLeftY2 = GeoShapeCoordinateEncoder.INSTANCE.encodeY(-20);
+        int topRightX2 =  GeoShapeCoordinateEncoder.INSTANCE.encodeX(175);
+        int topRightY2 = GeoShapeCoordinateEncoder.INSTANCE.encodeY(20);
+        extent.addRectangle(bottomLeftX2, bottomLeftY2, topRightX2, topRightY2);
+        assertThat(extent.minX(), equalTo(bottomLeftX));
+        assertThat(extent.maxX(), equalTo(topRightX2));
+        assertThat(extent.minY(), equalTo(bottomLeftY2));
+        assertThat(extent.maxY(), equalTo(topRightY2));
+    }
+
     @Override
     protected Extent createTestInstance() {
         return new Extent(randomIntBetween(-10, 10), randomIntBetween(-10, 10), randomIntBetween(-10, 10),

@@ -1084,6 +1084,10 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getY(), polygon.getPolygon().getX(), holes);
     }
 
+    public static org.apache.lucene.geo.Line toLuceneLine(Line line) {
+        return new org.apache.lucene.geo.Line(line.getLats(), line.getLons());
+    }
+
     /**
      * Normalizes longitude while accepting -180 degrees as a valid value
      */

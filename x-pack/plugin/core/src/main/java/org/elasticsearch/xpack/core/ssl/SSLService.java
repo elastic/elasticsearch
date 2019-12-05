@@ -135,7 +135,7 @@ public class SSLService {
     public SSLService(Settings settings, Environment environment) {
         this.settings = settings;
         this.env = environment;
-        this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
+        this.diagnoseTrustExceptions = canEnableDiagnoseTrust();
         this.sslConfigurations = new HashMap<>();
         this.sslContexts = loadSSLConfigurations();
     }
@@ -144,7 +144,7 @@ public class SSLService {
                        Map<SSLConfiguration, SSLContextHolder> sslContexts) {
         this.settings = settings;
         this.env = environment;
-        this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
+        this.diagnoseTrustExceptions = canEnableDiagnoseTrust();
         this.sslConfigurations = sslConfigurations;
         this.sslContexts = sslContexts;
     }
@@ -843,5 +843,14 @@ public class SSLService {
         }
         throw new IllegalArgumentException("no supported SSL/TLS protocol was found in the configured supported protocols: "
             + supportedProtocols);
+    }
+
+    private boolean canEnableDiagnoseTrust() {
+        if (XPackSettings.FIPS_MODE_ENABLED.get(settings)) {
+            logger.info("diagnostic messages for SSL/TLS trust failures cannot be enabled in FIPS 140 mode.");
+            return false;
+        } else {
+            return DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings);
+        }
     }
 }

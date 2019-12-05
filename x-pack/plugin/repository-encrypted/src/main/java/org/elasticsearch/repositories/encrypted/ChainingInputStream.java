@@ -17,12 +17,12 @@ import org.elasticsearch.common.Nullable;
  * exhausted.
  * <p>
  * The implementing subclass must provide the component input streams and describe the
- * chaining order, by implementing the {@link #nextElement(InputStream)} and
- * {@link #hasNextElement(InputStream)} abstract methods. The {@code ChainingInputStream}
+ * chaining order, by implementing the {@link #nextElement(InputStream)} method. This
  * assumes ownership of the component input streams as they are generated. They should
  * not be accessed by any other callers and they will be closed when they are exhausted
  * and before requesting the next one. The previous element instance is passed to the
- * {@code nextElement} method to obtain the next component.
+ * {@code nextElement} method to obtain the next component. This is similar in scope to
+ * {@link java.io.SequenceInputStream}.
  * <p>
  * This stream does support {@code mark} and {@code reset} but it expects that the component
  * streams also support it. Otherwise the implementing subclass must override
@@ -36,6 +36,8 @@ import org.elasticsearch.common.Nullable;
  */
 public abstract class ChainingInputStream extends InputStream {
 
+    private static final InputStream EXHAUSTED_MARKER = InputStream.nullInputStream();
+
     /**
      * The instance of the currently in use component input stream,
      * i.e. the instance servicing the read and skip calls on the {@code ChainingInputStream}
@@ -48,13 +50,11 @@ public abstract class ChainingInputStream extends InputStream {
     private boolean closed;
 
     /**
-     * This method is passed the current element input stream and must return {@code true}
-     * if there exists a successive one, or {@code false} otherwise. It passes {@code null}
-     * at the start, when no element input stream has yet been obtained.
+     * This method is passed the current element input stream and must return the successive one,
+     * or {@code null} if the current element is the last one. It is passed the {@code null} value
+     * at the very start, when no element input stream has yet been obtained.
      */
-    abstract boolean hasNextElement(@Nullable InputStream currentElementIn);
-
-    abstract InputStream nextElement(@Nullable InputStream currentElementIn) throws IOException;
+    abstract @Nullable InputStream nextElement(@Nullable InputStream currentElementIn) throws IOException;
 
     @Override
     public int read() throws IOException {
@@ -64,11 +64,8 @@ public abstract class ChainingInputStream extends InputStream {
             if (byteVal != -1) {
                 return byteVal;
             }
-            if (false == hasNextElement(currentIn)) {
-                return -1;
-            }
-            nextIn();
-        } while (true);
+        } while (nextIn());
+        return -1;
     }
 
     @Override
@@ -83,11 +80,8 @@ public abstract class ChainingInputStream extends InputStream {
             if (bytesRead != -1) {
                 return bytesRead;
             }
-            if (false == hasNextElement(currentIn)) {
-                return -1;
-            }
-            nextIn();
-        } while (true);
+        } while (nextIn());
+        return -1;
     }
 
     @Override
@@ -127,14 +121,17 @@ public abstract class ChainingInputStream extends InputStream {
     @Override
     public void mark(int readlimit) {
         if (markSupported()) {
-            if (markIn != null && currentIn != markIn) {
+            // closes any previously stored mark input stream
+            if (markIn != null && markIn != EXHAUSTED_MARKER && currentIn != markIn) {
                 try {
                     markIn.close();
                 } catch (IOException e) {
+                    // an IOException on an input stream element is not important
                 }
             }
+            // stores the current input stream to be reused in case of a reset
             markIn = currentIn;
-            if (markIn != null) {
+            if (markIn != null && markIn != EXHAUSTED_MARKER) {
                 markIn.mark(readlimit);
             }
         }
@@ -147,7 +144,7 @@ public abstract class ChainingInputStream extends InputStream {
         }
         ensureOpen();
         currentIn = markIn;
-        if (currentIn != null) {
+        if (currentIn != null && currentIn != EXHAUSTED_MARKER) {
             currentIn.reset();
         }
     }
@@ -156,15 +153,14 @@ public abstract class ChainingInputStream extends InputStream {
     public void close() throws IOException {
         if (false == closed) {
             closed = true;
-            if (currentIn != null) {
+            if (currentIn != null && currentIn != EXHAUSTED_MARKER) {
                 currentIn.close();
             }
-            if (markIn != null) {
+            if (markIn != null && markIn != currentIn && markIn != EXHAUSTED_MARKER) {
                 markIn.close();
             }
-            while (hasNextElement(currentIn)) {
-                nextIn();
-            }
+            // iterate over the input stream elements and close them
+            while (nextIn()) {}
         }
     }
 
@@ -174,17 +170,23 @@ public abstract class ChainingInputStream extends InputStream {
         }
     }
 
-    private void nextIn() throws IOException {
+    private boolean nextIn() throws IOException {
+        if (currentIn == EXHAUSTED_MARKER) {
+            return false;
+        }
+        // close the current element, but only if it is not saved because of mark
         if (currentIn != null && currentIn != markIn) {
             currentIn.close();
         }
         currentIn = nextElement(currentIn);
-        if (currentIn == null) {
-            throw new NullPointerException();
-        }
-        if (markSupported() && false == currentIn.markSupported()) {
+        if (markSupported() && currentIn != null && false == currentIn.markSupported()) {
             throw new IllegalStateException("Component input stream must support mark");
         }
+        if (currentIn == null) {
+            currentIn = EXHAUSTED_MARKER;
+            return false;
+        }
+        return true;
     }
 
 }

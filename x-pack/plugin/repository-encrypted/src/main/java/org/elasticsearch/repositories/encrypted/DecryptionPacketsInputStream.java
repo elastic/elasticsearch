@@ -20,7 +20,6 @@ import java.nio.ByteOrder;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public final class DecryptionPacketsInputStream extends ChainingInputStream {
@@ -58,22 +57,18 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
     }
 
     @Override
-    boolean hasNextElement(InputStream currentElementIn) {
-        return hasNext;
-    }
-
-    @Override
     InputStream nextElement(InputStream currentElementIn) throws IOException {
         if (currentElementIn != null && currentElementIn.read() != -1) {
             throw new IllegalStateException("Stream for previous packet has not been fully processed");
         }
-        if (false == hasNextElement(currentElementIn)) {
-            throw new NoSuchElementException();
+        if (false == hasNext) {
+            return null;
         }
         PrefixInputStream packetInputStream = new PrefixInputStream(source,
                 packetLength + EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES,
                 false);
         int currentPacketLength = decrypt(packetInputStream);
+        // only the last packet is shorter, so this must be the last packet
         if (currentPacketLength != packetLength) {
             hasNext = false;
         }

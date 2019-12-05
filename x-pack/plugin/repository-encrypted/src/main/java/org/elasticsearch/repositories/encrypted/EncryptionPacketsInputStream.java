@@ -20,7 +20,6 @@ import java.nio.ByteOrder;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public final class EncryptionPacketsInputStream extends ChainingInputStream {
@@ -57,28 +56,18 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
     }
 
     @Override
-    boolean hasNextElement(InputStream currentElementIn) {
-        if (currentElementIn != null && currentElementIn instanceof CountingInputStream == false) {
-            throw new IllegalStateException();
-        }
-        if (currentElementIn != null && ((CountingInputStream) currentElementIn).getCount() > encryptedPacketLength) {
-            throw new IllegalStateException();
-        }
-        return currentElementIn == null || ((CountingInputStream) currentElementIn).getCount() == encryptedPacketLength;
-    }
-
-    @Override
     InputStream nextElement(InputStream currentElementIn) throws IOException {
-        if (currentElementIn != null && currentElementIn.read() != -1) {
-            throw new IllegalStateException("Stream for previous packet has not been fully processed");
+        // the last packet input stream is the only one shorter than encryptedPacketLength
+        if (currentElementIn != null && ((CountingInputStream) currentElementIn).getCount() < encryptedPacketLength) {
+            // there are no more packets
+            return null;
         }
-        if (false == hasNextElement(currentElementIn)) {
-            throw new NoSuchElementException();
-        }
+        // mark source input stream at packet boundary
         if (markSourceOnNextPacket != -1) {
             source.mark(markSourceOnNextPacket);
             markSourceOnNextPacket = -1;
         }
+        // create the new packet
         InputStream encryptionInputStream = new PrefixInputStream(source, packetLength, false);
         packetIv.putLong(4, counter++);
         if (counter == EncryptedRepository.PACKET_START_COUNTER) {
@@ -103,8 +92,11 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
             if (readlimit <= 0) {
                 throw new IllegalArgumentException("Mark readlimit must be a positive integer");
             }
+            // handles the packet-wise part of the marking operation
             super.mark(encryptedPacketLength);
+            // saves the counter used to generate packet IVs
             markCounter = counter;
+            // stores the flag used to mark the source input stream at packet boundary
             markSourceOnNextPacket = readlimit;
         }
     }

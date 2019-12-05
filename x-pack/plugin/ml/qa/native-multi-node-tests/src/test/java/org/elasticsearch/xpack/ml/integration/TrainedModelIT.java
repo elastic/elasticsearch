@@ -123,7 +123,7 @@ public class TrainedModelIT extends ESRestTestCase {
             client().performRequest(new Request("GET",
                 MachineLearning.BASE_PATH + "inference/test_regression*?human=true&include_model_definition=true")));
         assertThat(EntityUtils.toString(responseException.getResponse().getEntity()),
-            containsString(Messages.INFERENCE_TO_MANY_DEFINITIONS_REQUESTED));
+            containsString(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED));
 
         getModel = client().performRequest(new Request("GET",
             MachineLearning.BASE_PATH + "inference/test_regression_model,test_regression_model-2"));

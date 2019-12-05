@@ -213,10 +213,6 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
                 nodes[i] = new TriangleTreeNode(triangles.get(i));
             }
             TriangleTreeNode root =  createTree(nodes, 0, triangles.size() - 1, true);
-//            for (TriangleTreeNode node : nodes) {
-//                root.minX = Math.min(root.minX, node.minX);
-//                root.minY = Math.min(root.minY, node.minY);
-//            }
             return root;
         }
 

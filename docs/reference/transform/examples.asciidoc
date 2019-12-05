@@ -340,10 +340,9 @@ The search result shows you data like this for each client IP:
 
 NOTE: Like other Kibana sample data sets, the web log sample dataset contains
 timestamps relative to when you installed it, including timestamps in the future.
-The {ctransform} will pick up the data points once they are in the past
-(see delay). This enables you the see continuous mode in action, although we are
-not ingesting new data. If you installed the web log sample dataset some time ago,
-you can uninstall and reinstall it and the timestamps will change.
+The {ctransform} will pick up the data points once they are in the past. If you 
+installed the web log sample dataset some time ago, you can uninstall and 
+reinstall it and the timestamps will change.
 
 This {transform} makes it easier to answer questions such as:
 

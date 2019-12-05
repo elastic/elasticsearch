@@ -55,10 +55,12 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
     private final CoordinateEncoder coordinateEncoder;
     private final CentroidCalculator centroidCalculator;
     private final ShapeType type;
+    private Extent extent;
 
     public TriangleTreeWriter(Geometry geometry, CoordinateEncoder coordinateEncoder) {
         this.coordinateEncoder = coordinateEncoder;
         this.centroidCalculator = new CentroidCalculator();
+        this.extent = new Extent();
         this.type = geometry.type();
         TriangleTreeBuilder builder = new TriangleTreeBuilder(coordinateEncoder);
         geometry.visit(builder);
@@ -69,13 +71,18 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
         out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
+        out.writeInt(extent.top);
+        out.writeVLong((long) extent.top - extent.bottom);
+        out.writeInt(extent.posRight);
+        out.writeInt(extent.posLeft);
+        out.writeInt(extent.negRight);
+        out.writeInt(extent.negLeft);
         node.writeTo(out);
     }
 
     @Override
     public Extent getExtent() {
-        // do it right
-        return Extent.fromPoints(node.minX, node.minY, node.maxX, node.maxY);
+        return extent;
     }
 
     @Override
@@ -93,8 +100,9 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
      */
     class TriangleTreeBuilder implements GeometryVisitor<Void, RuntimeException> {
 
-        private List<TriangleTreeLeaf> triangles;
+        private final List<TriangleTreeLeaf> triangles;
         private final CoordinateEncoder coordinateEncoder;
+
 
         TriangleTreeBuilder(CoordinateEncoder coordinateEncoder) {
             this.coordinateEncoder = coordinateEncoder;
@@ -115,10 +123,12 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
 
         @Override
         public Void visit(Line line) {
-            for (int i =0; i < line.length(); i++) {
+            for (int i = 0; i < line.length(); i++) {
                 centroidCalculator.addCoordinate(line.getX(i), line.getY(i));
             }
-            addTriangles(TriangleTreeLeaf.fromLine(coordinateEncoder, line));
+            org.apache.lucene.geo.Line luceneLine = GeoShapeIndexer.toLuceneLine(line);
+            addToExtent(luceneLine.minLon, luceneLine.maxLon, luceneLine.minLat, luceneLine.maxLat);
+            addTriangles(TriangleTreeLeaf.fromLine(coordinateEncoder, luceneLine));
             return null;
         }
 
@@ -136,7 +146,9 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
             for (int i =0; i < polygon.getPolygon().length() - 1; i++) {
                 centroidCalculator.addCoordinate(polygon.getPolygon().getX(i), polygon.getPolygon().getY(i));
             }
-            addTriangles(TriangleTreeLeaf.fromPolygon(coordinateEncoder, polygon));
+            org.apache.lucene.geo.Polygon lucenePolygon = GeoShapeIndexer.toLucenePolygon(polygon);
+            addToExtent(lucenePolygon.minLon, lucenePolygon.maxLon, lucenePolygon.minLat, lucenePolygon.maxLat);
+            addTriangles(TriangleTreeLeaf.fromPolygon(coordinateEncoder, lucenePolygon));
             return null;
         }
 
@@ -152,6 +164,7 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
         public Void visit(Rectangle r) {
             centroidCalculator.addCoordinate(r.getMinX(), r.getMinY());
             centroidCalculator.addCoordinate(r.getMaxX(), r.getMaxY());
+            addToExtent(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
             addTriangles(TriangleTreeLeaf.fromRectangle(coordinateEncoder, r));
             return null;
         }
@@ -159,6 +172,7 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
         @Override
         public Void visit(Point point) {
             centroidCalculator.addCoordinate(point.getX(), point.getY());
+            addToExtent(point.getLon(), point.getLon(), point.getLat(), point.getLat());
             addTriangles(TriangleTreeLeaf.fromPoints(coordinateEncoder, point));
             return null;
         }
@@ -181,6 +195,14 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
             throw new IllegalArgumentException("invalid shape type found [Circle]");
         }
 
+        private void addToExtent(double minLon, double maxLon, double minLat, double maxLat) {
+            int minX = coordinateEncoder.encodeX(minLon);
+            int maxX = coordinateEncoder.encodeX(maxLon);
+            int minY = coordinateEncoder.encodeY(minLat);
+            int maxY = coordinateEncoder.encodeY(maxLat);
+            extent.addRectangle(minX, minY, maxX, maxY);
+        }
+
 
         public TriangleTreeNode build() {
             if (triangles.size() == 1) {
@@ -191,10 +213,6 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
                 nodes[i] = new TriangleTreeNode(triangles.get(i));
             }
             TriangleTreeNode root =  createTree(nodes, 0, triangles.size() - 1, true);
-            for (TriangleTreeNode node : nodes) {
-                root.minX = Math.min(root.minX, node.minX);
-                root.minY = Math.min(root.minY, node.minY);
-            }
             return root;
         }
 
@@ -274,10 +292,6 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             BytesStreamOutput scratchBuffer = new BytesStreamOutput();
-            out.writeInt(maxX);
-            out.writeVLong((long) maxX - minX);
-            out.writeInt(maxY);
-            out.writeVLong((long) maxY - minY);
             writeMetadata(out);
             writeComponent(out);
             if (left != null) {
@@ -593,19 +607,19 @@ public class TriangleTreeWriter extends ShapeTreeWriter {
             return triangles;
         }
 
-        private static List<TriangleTreeLeaf> fromLine(CoordinateEncoder encoder, Line line) {
-            List<TriangleTreeLeaf> triangles = new ArrayList<>(line.length() - 1);
-            for (int i = 0, j = 1; i < line.length() - 1; i++, j++) {
-                triangles.add(new TriangleTreeLeaf(encoder.encodeX(line.getX(i)), encoder.encodeY(line.getY(i)),
-                    encoder.encodeX(line.getX(j)), encoder.encodeY(line.getY(j))));
+        private static List<TriangleTreeLeaf> fromLine(CoordinateEncoder encoder, org.apache.lucene.geo.Line line) {
+            List<TriangleTreeLeaf> triangles = new ArrayList<>(line.numPoints() - 1);
+            for (int i = 0, j = 1; i < line.numPoints() - 1; i++, j++) {
+                triangles.add(new TriangleTreeLeaf(encoder.encodeX(line.getLon(i)), encoder.encodeY(line.getLat(i)),
+                    encoder.encodeX(line.getLon(j)), encoder.encodeY(line.getLat(j))));
             }
             return triangles;
         }
 
-        private static List<TriangleTreeLeaf> fromPolygon(CoordinateEncoder encoder, Polygon polygon) {
+        private static List<TriangleTreeLeaf> fromPolygon(CoordinateEncoder encoder, org.apache.lucene.geo.Polygon polygon) {
             // TODO: We are going to be tessellating the polygon twice, can we do something?
             // TODO: Tessellator seems to have some reference to the encoding but does not need to have.
-            List<Tessellator.Triangle> tessellation = Tessellator.tessellate(GeoShapeIndexer.toLucenePolygon(polygon));
+            List<Tessellator.Triangle> tessellation = Tessellator.tessellate(polygon);
             List<TriangleTreeLeaf> triangles = new ArrayList<>(tessellation.size());
             for (Tessellator.Triangle t : tessellation) {
                 triangles.add(new TriangleTreeLeaf(encoder.encodeX(t.getX(0)), encoder.encodeY(t.getY(0)), t.isEdgefromPolygon(0),

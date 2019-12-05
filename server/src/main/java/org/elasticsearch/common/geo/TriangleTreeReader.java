@@ -39,26 +39,38 @@ public class TriangleTreeReader {
     private ByteBufferStreamInput input;
     private final CoordinateEncoder coordinateEncoder;
     private final Rectangle2D rectangle2D;
+    private final Extent extent;
+    private int treeOffset;
 
     public TriangleTreeReader(CoordinateEncoder coordinateEncoder) {
         this.coordinateEncoder = coordinateEncoder;
         this.rectangle2D = new Rectangle2D();
+        this.extent = new Extent();
     }
 
-    public void reset(BytesRef bytesRef) {
+    public void reset(BytesRef bytesRef) throws IOException {
         this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        treeOffset = 0;
     }
 
     /**
      * returns the bounding box of the geometry in the format [minX, maxX, minY, maxY].
      */
     public Extent getExtent() throws IOException {
-        input.position(extentOffset);
-        int thisMaxX = input.readInt();
-        int thisMinX = Math.toIntExact(thisMaxX - input.readVLong());
-        int thisMaxY = input.readInt();
-        int thisMinY = Math.toIntExact(thisMaxY - input.readVLong());
-        return Extent.fromPoints(thisMinX, thisMinY, thisMaxX, thisMaxY);
+        if (treeOffset == 0) {
+            input.position(extentOffset);
+            int top = input.readInt();
+            int bottom = Math.toIntExact(top - input.readVLong());
+            int posRight = input.readInt();
+            int posLeft = input.readInt();
+            int negRight = input.readInt();
+            int negLeft = input.readInt();
+            extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
+            treeOffset = input.position();
+        } else {
+            input.position(treeOffset);
+        }
+        return extent;
     }
 
     /**
@@ -82,11 +94,11 @@ public class TriangleTreeReader {
      * then the bounding box is within the shape.
      */
     public GeoRelation relate(int minX, int minY, int maxX, int maxY) throws IOException {
-        input.position(extentOffset);
-        int thisMaxX = input.readInt();
-        int thisMinX = Math.toIntExact(thisMaxX - input.readVLong());
-        int thisMaxY = input.readInt();
-        int thisMinY = Math.toIntExact(thisMaxY - input.readVLong());
+        Extent extent = getExtent();
+        int thisMaxX = extent.maxX();
+        int thisMinX = extent.minX();
+        int thisMaxY = extent.maxY();
+        int thisMinY = extent.minY();
         if (minX <= thisMinX && maxX >= thisMaxX && minY <= thisMinY && maxY >= thisMaxY) {
             // the rectangle fully contains the shape
             return GeoRelation.QUERY_CROSSES;

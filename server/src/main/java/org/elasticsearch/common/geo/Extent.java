@@ -31,12 +31,21 @@ import java.util.Objects;
 public class Extent implements Writeable {
     static final int WRITEABLE_SIZE_IN_BYTES = 24;
 
-    public final int top;
-    public final int bottom;
-    public final int negLeft;
-    public final int negRight;
-    public final int posLeft;
-    public final int posRight;
+    public int top;
+    public int bottom;
+    public int negLeft;
+    public int negRight;
+    public int posLeft;
+    public int posRight;
+
+    public Extent() {
+        this.top = Integer.MIN_VALUE;
+        this.bottom = Integer.MAX_VALUE;
+        this.negLeft = Integer.MAX_VALUE;
+        this.negRight = Integer.MIN_VALUE;
+        this.posLeft = Integer.MAX_VALUE;
+        this.posRight = Integer.MIN_VALUE;
+    }
 
     public Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         this.top = top;
@@ -49,6 +58,43 @@ public class Extent implements Writeable {
 
     Extent(StreamInput input) throws IOException {
         this(input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt());
+    }
+
+    public void reset(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
+        this.top = top;
+        this.bottom = bottom;
+        this.negLeft = negLeft;
+        this.negRight = negRight;
+        this.posLeft = posLeft;
+        this.posRight = posRight;
+    }
+
+    /**
+     * Adds the extent of two points representing a bounding box's bottom-left
+     * and top-right points. The bounding box must not cross the dateline.
+     *
+     * @param bottomLeftX the bottom-left x-coordinate
+     * @param bottomLeftY the bottom-left y-coordinate
+     * @param topRightX   the top-right x-coordinate
+     * @param topRightY   the top-right y-coordinate
+     */
+    public void addRectangle(int bottomLeftX, int bottomLeftY, int topRightX, int topRightY) {
+        assert bottomLeftX <= topRightX;
+        assert bottomLeftY <= topRightY;
+        this.bottom = Math.min(this.bottom, bottomLeftY);
+        this.top = Math.max(this.top, topRightY);
+        if (bottomLeftX < 0 && topRightX < 0) {
+            this.negLeft = Math.min(this.negLeft, bottomLeftX);
+            this.negRight = Math.max(this.negRight, topRightX);
+        } else if (bottomLeftX < 0) {
+            this.negLeft = Math.min(this.negLeft, bottomLeftX);
+            this.negRight = Math.max(this.negRight, bottomLeftX);
+            this.posLeft = Math.min(this.posLeft, topRightX);
+            this.posRight = Math.max(this.posRight, topRightX);
+        } else {
+            this.posLeft = Math.min(this.posLeft, bottomLeftX);
+            this.posRight = Math.max(this.posRight, topRightX);
+        }
     }
 
     /**

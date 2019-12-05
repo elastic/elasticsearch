@@ -802,6 +802,21 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                         return bytesCount;
                     }
                 });
+        when(mockSource.read()).thenAnswer(invocationOnMock -> {
+            bytesRead.incrementAndGet();
+            return Randomness.get().nextInt(256);
+        });
+        when(mockSource.skip(org.mockito.Matchers.anyLong())).thenAnswer(invocationOnMock -> {
+            final long n = (long) invocationOnMock.getArguments()[0];
+            if (n <= 0) {
+                return 0;
+            }
+            int bytesSkipped = 1 + Randomness.get().nextInt(Math.toIntExact(n));
+            bytesRead.addAndGet(bytesSkipped);
+            return bytesSkipped;
+        });
+        when(mockSource.available()).thenReturn(1 + Randomness.get().nextInt(32));
+        when(mockSource.markSupported()).thenReturn(false);
         return new Tuple<>(bytesRead, mockSource);
     }
 

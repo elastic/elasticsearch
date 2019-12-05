@@ -18,8 +18,9 @@ import java.util.Objects;
  * is exhausted when {@code length} bytes have been read or the underlying
  * stream is exhausted.
  * <p>
- * Closing this stream may or may not close the underlying stream, see
- * {@code closeSource}.
+ * Iff {@code closeSource} constructor argument is {@code true}, closing this
+ * stream will close the underlying input stream. Any subsequent {@code read},
+ * {@code skip} and {@code available} calls will throw {@code IOException}s.
  */
 public final class PrefixInputStream extends FilterInputStream {
 
@@ -30,6 +31,9 @@ public final class PrefixInputStream extends FilterInputStream {
 
     public PrefixInputStream(InputStream in, int length, boolean closeSource) {
         super(Objects.requireNonNull(in));
+        if (length < 0) {
+            throw new IllegalArgumentException("The length constructor argument must be a positive value");
+        }
         this.length = length;
         this.position = 0;
         this.closeSource = closeSource;
@@ -85,7 +89,7 @@ public final class PrefixInputStream extends FilterInputStream {
     @Override
     public int available() throws IOException {
         ensureOpen();
-        return Math.min(length - position, super.available());
+        return Math.min(length - position, in.available());
     }
 
     @Override
@@ -102,12 +106,6 @@ public final class PrefixInputStream extends FilterInputStream {
         return false;
     }
 
-    private void ensureOpen() throws IOException {
-        if (closed) {
-            throw new IOException("Stream has been closed");
-        }
-    }
-
     @Override
     public void close() throws IOException {
         if (closed) {
@@ -116,6 +114,12 @@ public final class PrefixInputStream extends FilterInputStream {
         closed = true;
         if (closeSource) {
             in.close();
+        }
+    }
+
+    private void ensureOpen() throws IOException {
+        if (closed) {
+            throw new IOException("Stream has been closed");
         }
     }
 

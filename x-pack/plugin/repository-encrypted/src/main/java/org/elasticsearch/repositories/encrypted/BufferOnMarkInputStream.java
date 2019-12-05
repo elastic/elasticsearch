@@ -67,7 +67,8 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
     protected boolean closed;
 
     /**
-     * Creates a {@code BufferOnMarkInputStream} that buffers a maximum of {@code bufferSize} elements.
+     * Creates a {@code BufferOnMarkInputStream} that buffers a maximum of {@code bufferSize} elements
+     * from the wrapped input stream {@code in} in order to support {@code mark} and {@code reset}.
      * The {@code bufferSize} is the maximum value for the mark readlimit.
      *
      * @param in the underlying input buffer
@@ -88,7 +89,7 @@ public final class BufferOnMarkInputStream extends FilterInputStream {
 
     /**
      * Reads up to {@code len} bytes of data into an array of bytes from this
-     * input stream. If {@code len} is zero, then no bytes are read and {@cpde 0}
+     * input stream. If {@code len} is zero, then no bytes are read and {@code 0}
      * is returned; otherwise, there is an attempt to read at least one byte.
      * The read will return buffered bytes, which have been returned in a previous
      * call as well, if the contents of the stream must be replayed following a

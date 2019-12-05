@@ -1046,3 +1046,8 @@ See <<elasticsearch-security>>.
 === Rollup job configuration
 
 See <<rollup-put-job-api-request-body>>.
+
+[role="exclude",id="ml-job-resource"]
+=== Job resources
+
+See the details in <<ml-put-job>>, <<ml-update-job>>, and <<ml-get-job>>.

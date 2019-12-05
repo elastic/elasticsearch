@@ -61,7 +61,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-filters]
 include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-analyzer]
 
 `detectors`:::
-(array) An array of detector configuration objects.
+(array) An array of detector configuration objects. Detector configuration
+objects specify which data fields a job analyzes. They also specify which
+analytical functions are used. You can specify multiple detectors for a job. 
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector]
 +
 --
@@ -328,9 +330,7 @@ identifier when you want to update a specific detector.
 end::detector-index[]
 
 tag::detector[]
-Detector configuration objects specify which data fields a job analyzes. They
-also specify which analytical functions are used. You can specify multiple
-detectors for a job. Each detector has the following properties:
+A detector has the following properties:
 
 `by_field_name`::::
 (string)
@@ -473,11 +473,6 @@ Identifier for the {dfanalytics-job}. This identifier can contain lowercase
 alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
 and end with alphanumeric characters.
 end::job-id-data-frame-analytics-define[]
-
-tag::jobs-anomaly-detection[]
-An array of {anomaly-job} resources. For more information, see
-<<ml-job-resource>>.
-end::jobs-anomaly-detection[]
 
 tag::jobs-stats-anomaly-detection[]
 An array of {anomaly-job} statistics objects.

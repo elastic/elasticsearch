@@ -72,11 +72,11 @@ public class InboundDecoderTests extends ESTestCase {
         InboundDecoder decoder = new InboundDecoder(aggregator);
         int bytesConsumed = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes, releasable));
         verify(aggregator).headerReceived(any(Header.class));
-        assertEquals(TcpHeader.HEADER_SIZE, bytesConsumed);
+        assertEquals(TcpHeader.BYTES_REQUIRED_FOR_VERSION, bytesConsumed);
 
         final BytesReference bytes2 = bytes.slice(bytesConsumed, bytes.length() - bytesConsumed);
         int bytesConsumed2 = decoder.handle(mock(TcpChannel.class), new ReleasableBytesReference(bytes2, releasable));
-        assertEquals(bytes.length() - TcpHeader.HEADER_SIZE, bytesConsumed2);
+        assertEquals(bytes.length() - TcpHeader.BYTES_REQUIRED_FOR_VERSION, bytesConsumed2);
         verify(aggregator, times(2)).contentReceived(any(TcpChannel.class), any(ReleasableBytesReference.class));
     }
 

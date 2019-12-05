@@ -59,17 +59,17 @@ public class InboundDecoder implements Releasable {
                     aggregator.pingReceived(channel);
                     return 6;
                 } else {
-                    if (reference.length() < TcpHeader.HEADER_SIZE) {
+                    if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
                         return 0;
                     } else {
                         networkMessageSize = expectedLength;
                         Header header = parseHeader(networkMessageSize, reference);
-                        bytesConsumed += TcpHeader.HEADER_SIZE - 6;
+                        bytesConsumed += TcpHeader.BYTES_REQUIRED_FOR_VERSION - 6;
                         if (header.isCompressed()) {
                             decompressor = new TransportDecompressor(recycler);
                         }
                         aggregator.headerReceived(header);
-                        return TcpHeader.HEADER_SIZE;
+                        return TcpHeader.BYTES_REQUIRED_FOR_VERSION;
                     }
                 }
             } else {

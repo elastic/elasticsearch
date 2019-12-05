@@ -63,7 +63,7 @@ public final class ERegex extends AExpression {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (false == scriptRoot.getCompilerSettings().areRegexesEnabled()) {
+        if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));

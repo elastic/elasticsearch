@@ -209,8 +209,6 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
     }
 
     public void testSingleValuedFieldNearDateLineWrapLongitude() throws Exception {
-        GeoPoint geoValuesTopLeft = new GeoPoint(38, 170);
-        GeoPoint geoValuesBottomRight = new GeoPoint(-24, -175);
         SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
                 .addAggregation(geoBounds(geoPointAggName).field(SINGLE_VALUED_GEOPOINT_FIELD_NAME).wrapLongitude(true))
                 .addAggregation(geoBounds(geoShapeAggName).field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME).wrapLongitude(true))
@@ -218,10 +216,28 @@ public class GeoBoundsIT extends AbstractGeoTestCase {
 
         assertSearchResponse(response);
 
-        for (String aggName : List.of(geoPointAggName, geoShapeAggName)) {
-            GeoBounds geoBounds = response.getAggregations().get(aggName);
+        // test geo_point
+        {
+            GeoPoint geoValuesTopLeft = new GeoPoint(38, 170);
+            GeoPoint geoValuesBottomRight = new GeoPoint(-24, -175);
+            GeoBounds geoBounds = response.getAggregations().get(geoPointAggName);
             assertThat(geoBounds, notNullValue());
-            assertThat(geoBounds.getName(), equalTo(aggName));
+            assertThat(geoBounds.getName(), equalTo(geoPointAggName));
+            GeoPoint topLeft = geoBounds.topLeft();
+            GeoPoint bottomRight = geoBounds.bottomRight();
+            assertThat(topLeft.lat(), closeTo(geoValuesTopLeft.lat(), GEOHASH_TOLERANCE));
+            assertThat(topLeft.lon(), closeTo(geoValuesTopLeft.lon(), GEOHASH_TOLERANCE));
+            assertThat(bottomRight.lat(), closeTo(geoValuesBottomRight.lat(), GEOHASH_TOLERANCE));
+            assertThat(bottomRight.lon(), closeTo(geoValuesBottomRight.lon(), GEOHASH_TOLERANCE));
+        }
+
+        // test geo_shape
+        {
+            GeoPoint geoValuesTopLeft = new GeoPoint(38, 178);
+            GeoPoint geoValuesBottomRight = new GeoPoint(-24, -179);
+            GeoBounds geoBounds = response.getAggregations().get(geoShapeAggName);
+            assertThat(geoBounds, notNullValue());
+            assertThat(geoBounds.getName(), equalTo(geoShapeAggName));
             GeoPoint topLeft = geoBounds.topLeft();
             GeoPoint bottomRight = geoBounds.bottomRight();
             assertThat(topLeft.lat(), closeTo(geoValuesTopLeft.lat(), GEOHASH_TOLERANCE));

@@ -289,8 +289,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // #latestKnownRepoGen if a newer than currently known generation is found
     @Override
     public void updateState(ClusterState state) {
-        bestEffortConsistency = readOnly || state.nodes().getMinNodeVersion().before(RepositoryMetaData.REPO_GEN_IN_CS_VERSION);
-        if (readOnly) {
+        bestEffortConsistency = isReadOnly() || state.nodes().getMinNodeVersion().before(RepositoryMetaData.REPO_GEN_IN_CS_VERSION);
+        if (isReadOnly()) {
             // No need to waste cycles, no operations can run against a read-only repository
             return;
         }
@@ -1144,6 +1144,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param listener listener to invoke once repo generation has been initialized in the cluster state
      */
     private void initializeRepoInClusterState(ActionListener<Void> listener) {
+        assert isReadOnly() == false;
         final boolean initInProgress;
         synchronized (repoGenInitMutex) {
             initInProgress = initListeners != null;

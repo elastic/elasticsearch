@@ -25,7 +25,7 @@ affected by the bucket span, but a shorter bucket span enables quicker alerting 
 events.
 * Unusual events are flagged based on the previous pattern of the data, not on what we
 might think of as unusual based on human experience. So, if events typically occur
-between 3 a.m. and 5 a.m., and event occurring at 3 p.m. is be flagged as unusual.
+between 3 a.m. and 5 a.m., an event occurring at 3 p.m. is flagged as unusual.
 * When Daylight Saving Time starts or stops, regular events can be flagged as anomalous.
 This situation occurs because the actual time of the event (as measured against a UTC
 baseline) has changed. This situation is treated as a step change in behavior and the new

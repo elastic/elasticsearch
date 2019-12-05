@@ -79,13 +79,6 @@ public final class SFunction extends AStatement {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        block.storeSettings(settings);
-
-        this.settings = settings;
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         // we reset the list for function scope
         // note this is not stored for this node
@@ -128,6 +121,8 @@ public final class SFunction extends AStatement {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
+        this.settings = scriptRoot.getCompilerSettings();
+
         if (block.statements.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
         }

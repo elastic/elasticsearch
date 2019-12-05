@@ -11,6 +11,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
+/**
+ * A {@code PrefixInputStream} wraps another input stream and exposes
+ * only the first bytes of it. Reading from the wrapping
+ * {@code PrefixInputStream} consumes the underlying stream. The stream
+ * is exhausted when {@code length} bytes have been read or the underlying
+ * stream is exhausted.
+ * <p>
+ * Closing this stream may or may not close the underlying stream, see
+ * {@code closeSource}.
+ */
 public final class PrefixInputStream extends FilterInputStream {
 
     private final int length;

@@ -25,12 +25,6 @@ public final class EncryptedRepositoryPlugin extends Plugin implements Repositor
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ThreadPool threadPool) {
-        return Map.of();
-    }
-
-    @Override
     public List<Setting<?>> getSettings() {
         return List.of();
     }

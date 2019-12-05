@@ -172,11 +172,11 @@ public abstract class PackagingTestCase extends Assert {
             switch (distribution.packaging) {
                 case TAR:
                 case ZIP:
-                    Archives.startElasticsearch(installation, sh);
+                    awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
                     break;
                 case DEB:
                 case RPM:
-                    Packages.startElasticsearch(sh);
+                    awaitElasticsearchStartup(Packages.startElasticsearch(sh));
                     break;
                 case DOCKER:
                     // nothing, "installing" docker image is running it

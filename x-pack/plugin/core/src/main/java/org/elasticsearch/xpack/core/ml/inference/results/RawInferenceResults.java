@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,7 +50,7 @@ public class RawInferenceResults extends SingleValueInferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String resultField) {
+    public void writeResult(IngestDocument document, String resultField, InferenceConfig config) {
         throw new UnsupportedOperationException("[raw] does not support writing inference results");
     }
 

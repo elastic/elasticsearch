@@ -24,6 +24,16 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 
 import java.util.Objects;
 
+/**
+ * Represents an abstract Painless type. {@link DType} nodes must be
+ * resolved using {@link #resolveType(PainlessLookup)} to retrieve the
+ * actual Painless type. {@link DType} exists as a base class so consumers
+ * may have either a {@link DUnresolvedType} representing a Painless
+ * canonical type name or a {@link DResolvedType} representing a Painless
+ * type as the Painless AST is constructed. This allows Painless types already
+ * resolved at the time of Painless AST construction to not be forced to
+ * convert back to a Painless canonical type name and then re-resolved.
+ */
 public abstract class DType {
 
     protected final Location location;
@@ -33,5 +43,4 @@ public abstract class DType {
     }
 
     public abstract DResolvedType resolveType(PainlessLookup painlessLookup);
-    public abstract Class<?> getType();
 }

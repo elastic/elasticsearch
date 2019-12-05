@@ -36,7 +36,7 @@ import java.util.Set;
  */
 public final class SDeclaration extends AStatement {
 
-    private DType type;
+    private final DType type;
     private final String name;
     private AExpression expression;
 
@@ -61,15 +61,15 @@ public final class SDeclaration extends AStatement {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
-        type = type.resolveType(scriptRoot.getPainlessLookup());
+        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
 
         if (expression != null) {
-            expression.expected = type.getType();
+            expression.expected = resolvedType.getType();
             expression.analyze(scriptRoot, locals);
             expression = expression.cast(scriptRoot, locals);
         }
 
-        variable = locals.addVariable(location, type.getType(), name, false);
+        variable = locals.addVariable(location, resolvedType.getType(), name, false);
     }
 
     @Override

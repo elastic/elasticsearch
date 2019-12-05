@@ -24,6 +24,10 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 
 import java.util.Objects;
 
+/**
+ * Represents a canonical Painless type name as a {@link String}
+ * that requires resolution.
+ */
 public class DUnresolvedType extends DType {
 
     protected final String typeName;
@@ -33,6 +37,11 @@ public class DUnresolvedType extends DType {
         this.typeName = Objects.requireNonNull(typeName);
     }
 
+    /**
+     * Resolves the canonical Painless type name to a Painless type.
+     * @throws IllegalArgumentException if the type cannot be resolved from the {@link PainlessLookup}
+     * @return a {@link DResolvedType} where the resolved Painless type is retrievable
+     */
     @Override
     public DResolvedType resolveType(PainlessLookup painlessLookup) {
         Class<?> type = painlessLookup.canonicalTypeNameToType(typeName);
@@ -42,11 +51,6 @@ public class DUnresolvedType extends DType {
         }
 
         return new DResolvedType(location, type);
-    }
-
-    @Override
-    public Class<?> getType() {
-        throw location.createError(new IllegalStateException("must resolve type [" + typeName + "]"));
     }
 
     @Override

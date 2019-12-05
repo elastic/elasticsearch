@@ -23,7 +23,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
-public final class DecryptionPacketsInputStream extends ChainPacketsInputStream {
+public final class DecryptionPacketsInputStream extends ChainingInputStream {
 
     private final InputStream source;
     private final SecretKey secretKey;
@@ -58,16 +58,16 @@ public final class DecryptionPacketsInputStream extends ChainPacketsInputStream 
     }
 
     @Override
-    boolean hasNextPacket(InputStream currentPacketIn) {
+    boolean hasNextElement(InputStream currentElementIn) {
         return hasNext;
     }
 
     @Override
-    InputStream nextPacket(InputStream currentPacketIn) throws IOException {
-        if (currentPacketIn != null && currentPacketIn.read() != -1) {
+    InputStream nextElement(InputStream currentElementIn) throws IOException {
+        if (currentElementIn != null && currentElementIn.read() != -1) {
             throw new IllegalStateException("Stream for previous packet has not been fully processed");
         }
-        if (false == hasNextPacket(currentPacketIn)) {
+        if (false == hasNextElement(currentElementIn)) {
             throw new NoSuchElementException();
         }
         PrefixInputStream packetInputStream = new PrefixInputStream(source,

@@ -23,7 +23,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
-public final class EncryptionPacketsInputStream extends ChainPacketsInputStream {
+public final class EncryptionPacketsInputStream extends ChainingInputStream {
 
     private static final int MAX_PACKET_LENGTH_IN_BYTES = 1 << 30;
 
@@ -57,22 +57,22 @@ public final class EncryptionPacketsInputStream extends ChainPacketsInputStream 
     }
 
     @Override
-    boolean hasNextPacket(InputStream currentPacketIn) {
-        if (currentPacketIn != null && currentPacketIn instanceof CountingInputStream == false) {
+    boolean hasNextElement(InputStream currentElementIn) {
+        if (currentElementIn != null && currentElementIn instanceof CountingInputStream == false) {
             throw new IllegalStateException();
         }
-        if (currentPacketIn != null && ((CountingInputStream) currentPacketIn).getCount() > encryptedPacketLength) {
+        if (currentElementIn != null && ((CountingInputStream) currentElementIn).getCount() > encryptedPacketLength) {
             throw new IllegalStateException();
         }
-        return currentPacketIn == null || ((CountingInputStream) currentPacketIn).getCount() == encryptedPacketLength;
+        return currentElementIn == null || ((CountingInputStream) currentElementIn).getCount() == encryptedPacketLength;
     }
 
     @Override
-    InputStream nextPacket(InputStream currentPacketIn) throws IOException {
-        if (currentPacketIn != null && currentPacketIn.read() != -1) {
+    InputStream nextElement(InputStream currentElementIn) throws IOException {
+        if (currentElementIn != null && currentElementIn.read() != -1) {
             throw new IllegalStateException("Stream for previous packet has not been fully processed");
         }
-        if (false == hasNextPacket(currentPacketIn)) {
+        if (false == hasNextElement(currentElementIn)) {
             throw new NoSuchElementException();
         }
         if (markSourceOnNextPacket != -1) {

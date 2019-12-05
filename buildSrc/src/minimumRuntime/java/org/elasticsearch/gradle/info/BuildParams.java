@@ -84,7 +84,6 @@ public class BuildParams {
         return value(runtimeJavaVersion);
     }
 
-    @ExecutionTime
     public static Boolean isInFipsJvm() {
         return value(inFipsJvm);
     }
@@ -155,6 +154,7 @@ public class BuildParams {
                 .filter(f -> Modifier.isStatic(f.getModifiers()))
                 .forEach(f -> {
                     try {
+                        f.setAccessible(true);
                         f.set(null, null);
                     } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);

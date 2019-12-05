@@ -31,6 +31,8 @@ public class TransformMessages {
     public static final String TRANSFORM_FAILED_TO_PERSIST_STATS = "Failed to persist transform statistics for transform [{0}]";
     public static final String UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
 
+    public static final String REST_DEPRECATED_ENDPOINT = "[_data_frame/transforms/] is deprecated, use [_transform/] in the future.";
+
     public static final String CANNOT_STOP_FAILED_TRANSFORM =
         "Unable to stop transform [{0}] as it is in a failed state with reason [{1}]." +
             " Use force stop to stop the transform.";
@@ -75,6 +77,8 @@ public class TransformMessages {
     public static final String LOG_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE =
             "Insufficient memory for search after repeated page size reductions to [{0}], unable to continue pivot, "
             + "please simplify job or increase heap size on data nodes.";
+    public static final String LOG_TRANSFORM_PIVOT_SCRIPT_ERROR =
+            "Failed to execute script with error: [{0}], stack trace: {1}";
 
     public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
             "Failed to parse transform checkpoints for [{0}]";

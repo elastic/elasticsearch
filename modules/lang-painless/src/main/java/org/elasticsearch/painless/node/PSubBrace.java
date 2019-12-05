@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -44,28 +45,23 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         index.expected = int.class;
-        index.analyze(locals);
-        index = index.cast(locals);
+        index.analyze(scriptRoot, locals);
+        index = index.cast(scriptRoot, locals);
 
         actual = clazz.getComponentType();
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        setup(writer, globals);
-        load(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        setup(classWriter, methodWriter, globals);
+        load(classWriter, methodWriter, globals);
     }
 
     @Override
@@ -84,21 +80,21 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
-        writeIndexFlip(writer, MethodWriter::arrayLength);
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        index.write(classWriter, methodWriter, globals);
+        writeIndexFlip(methodWriter, MethodWriter::arrayLength);
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayLoad(MethodWriter.getType(actual));
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.arrayLoad(MethodWriter.getType(actual));
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayStore(MethodWriter.getType(actual));
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.arrayStore(MethodWriter.getType(actual));
     }
 
     @Override

@@ -117,20 +117,6 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         assertTrue(parsedSystemProperties.isEmpty());
     }
 
-    public void testPooledMemoryChoiceOnSmallHeap() throws InterruptedException, IOException {
-        final String smallHeap = randomFrom(Arrays.asList("64M", "512M", "1024M", "1G"));
-        assertThat(
-                JvmErgonomics.choose(Arrays.asList("-Xms" + smallHeap, "-Xmx" + smallHeap)),
-                hasItem("-Dio.netty.allocator.type=unpooled"));
-    }
-
-    public void testPooledMemoryChoiceOnNotSmallHeap() throws InterruptedException, IOException {
-        final String largeHeap = randomFrom(Arrays.asList("1025M", "2048M", "2G", "8G"));
-        assertThat(
-                JvmErgonomics.choose(Arrays.asList("-Xms" + largeHeap, "-Xmx" + largeHeap)),
-                hasItem("-Dio.netty.allocator.type=pooled"));
-    }
-
     public void testMaxDirectMemorySizeChoice() throws InterruptedException, IOException {
         final Map<String, String> heapMaxDirectMemorySize = Map.of(
                         "64M", Long.toString((64L << 20) / 2),

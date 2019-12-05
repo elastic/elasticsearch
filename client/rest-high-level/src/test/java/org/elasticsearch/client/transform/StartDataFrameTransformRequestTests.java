@@ -28,14 +28,14 @@ import static org.hamcrest.Matchers.containsString;
 
 public class StartDataFrameTransformRequestTests extends ESTestCase {
     public void testValidate_givenNullId() {
-        StartDataFrameTransformRequest request = new StartDataFrameTransformRequest(null, null);
+        StartTransformRequest request = new StartTransformRequest(null, null);
         Optional<ValidationException> validate = request.validate();
         assertTrue(validate.isPresent());
-        assertThat(validate.get().getMessage(), containsString("data frame transform id must not be null"));
+        assertThat(validate.get().getMessage(), containsString("transform id must not be null"));
     }
 
     public void testValidate_givenValid() {
-        StartDataFrameTransformRequest request = new StartDataFrameTransformRequest("foo", null);
+        StartTransformRequest request = new StartTransformRequest("foo", null);
         Optional<ValidationException> validate = request.validate();
         assertFalse(validate.isPresent());
     }

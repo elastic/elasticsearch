@@ -6,6 +6,12 @@
 
 Retrieves the specified JSON document from an index.
 
+[source,console]
+--------------------------------------------------
+GET twitter/_doc/0
+--------------------------------------------------
+// TEST[setup:twitter]
+
 [[docs-get-api-request]]
 ==== {api-request-title}
 
@@ -29,11 +35,11 @@ that it exists.
 ===== Realtime
 
 By default, the get API is realtime, and is not affected by the refresh
-rate of the index (when data will become visible for search). If a document
-has been updated but is not yet refreshed, the get API will issue a refresh
-call in-place to make the document visible. This will also make other documents
-changed since the last refresh visible. In order to disable realtime GET,
-one can set the `realtime` parameter to `false`.
+rate of the index (when data will become visible for search). In case where
+stored fields are requested (see `stored_fields` parameter) and the document
+has been updated but is not yet refreshed, the get API will have to parse
+and analyze the source to extract the stored fields. In order to disable
+realtime GET, the `realtime` parameter can be set to `false`.
 
 [float]
 [[get-source-filtering]]
@@ -131,9 +137,7 @@ better GET scaling we will have.
 ===== Versioning support
 
 You can use the `version` parameter to retrieve the document only if
-its current version is equal to the specified one. This behavior is the same
-for all version types with the exception of version type `FORCE` which always
-retrieves the document. Note that `FORCE` version type is deprecated.
+its current version is equal to the specified one.
 
 Internally, Elasticsearch has marked the old document as deleted and added an
 entirely new document. The old version of the document doesn’t disappear
@@ -152,32 +156,21 @@ deleted documents in the background as you continue to index more data.
 [[docs-get-api-query-params]]
 ==== {api-query-parms-title}
 
-`preference`::
-(Optional, string) Specify the node or shard the operation should
-be performed on (default: random).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
 
-`realtime`::
-(Optional, boolean) Set to `false` to disable real time GET
-(default: `true`). See <<realtime>>.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
 
-`stored_fields`::
-(Optional, boolean) Set to `true` to retrieve the document fields stored in the
-index rather than the document `_source` (default: `false`).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=stored_fields]
 
-`_source`::
-(Optional, list) Set to `false` to disable source retrieval (default: `true`).
- You can also specify a comma-separated list of the fields
-you want to retrieve.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
 
-`_source_excludes`::
-(Optional, list) Specify the source fields you want to exclude.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-`_source_includes`::
-(Optional, list) Specify the source fields you want to retrieve.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
 

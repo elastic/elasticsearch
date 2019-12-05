@@ -1,50 +1,61 @@
 [[tasks]]
-=== Task Management API
+=== Task management API
+++++
+<titleabbrev>Task management</titleabbrev>
+++++
 
-beta[The Task Management API is new and should still be considered a beta feature.  The API may change in ways that are not backwards compatible]
+beta[The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.]
 
 Returns information about the tasks currently executing in the cluster.
 
 [[tasks-api-request]]
 ==== {api-request-title}
 
-`GET /_tasks` +
-
 `GET /_tasks/<task_id>`
+
+`GET /_tasks`
 
 
 [[tasks-api-desc]]
 ==== {api-description-title}
 
-The task management API allows to retrieve information about the tasks currently
-executing on one or more nodes in the cluster.
+The task management API returns information
+about tasks currently executing
+on one or more nodes in the cluster.
 
 
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-`<task_id>`::
-    (Optional, string) The ID of the task to return (`node_id:task_number`).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 
 [[tasks-api-query-params]]
 ==== {api-query-parms-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=actions]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=group-by]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-`wait_for_completion`::
-    (Optional, boolean) If `true`, it waits for the matching tasks to complete. 
-    Defaults to `false`.
-
+include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 
     
 [[tasks-api-response-codes]]
 ==== {api-response-codes-title}
 
+// tag::tasks-api-404[]
 `404` (Missing resources)::
-    If `{task_id}` is specified but not found, this code indicates that there 
-    are no resources that match the request.
-
+If `<task_id>` is specified but not found, this code indicates that there 
+are no resources that match the request.
+// end::tasks-api-404[]
 
 [[tasks-api-examples]]
 ==== {api-examples-title}
@@ -203,18 +214,6 @@ will wait for all `reindex` tasks to finish:
 [source,console]
 --------------------------------------------------
 GET _tasks?actions=*reindex&wait_for_completion=true&timeout=10s
---------------------------------------------------
-
-
-===== Listing tasks by using _cat
-
-Tasks can be also listed using _cat version of the list tasks command, which
-accepts the same arguments as the standard list tasks command.
-
-[source,console]
---------------------------------------------------
-GET _cat/tasks
-GET _cat/tasks?detailed
 --------------------------------------------------
 
 [[task-cancellation]]

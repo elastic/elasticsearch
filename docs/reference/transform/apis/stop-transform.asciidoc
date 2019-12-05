@@ -16,21 +16,20 @@ beta[]
 [[stop-transform-request]]
 ==== {api-request-title}
 
-`POST _data_frame/transforms/<transform_id>/_stop` +
+`POST _transform/<transform_id>/_stop` +
 
-`POST _data_frame/transforms/<transform_id1>,<transform_id2>/_stop` +
+`POST _transform/<transform_id1>,<transform_id2>/_stop` +
 
-`POST _data_frame/transforms/_all/_stop`
+`POST _transform/_all/_stop`
 
 
 [[stop-transform-prereq]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have
-`manage_data_frame_transforms` cluster privileges to use this API. The built-in
-`data_frame_transforms_admin` role has these privileges. For more information,
-see {stack-ov}/security-privileges.html[Security privileges] and
-{stack-ov}/built-in-roles.html[Built-in roles].
+* If the {es} {security-features} are enabled, you must have `manage_transform` 
+cluster privileges to use this API. The built-in `transform_admin` role has 
+these privileges. For more information, see <<security-privileges>> and 
+<<built-in-roles>>.
 
 
 [[stop-transform-desc]]
@@ -91,6 +90,10 @@ are no matches or only partial matches.
   state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
+`wait_for_checkpoint`::
+  (Optional, boolean) If set to `true`, the transform will not completely stop
+  until the current checkpoint is completed. If set to `false`, the transform
+  stops as soon as possible. Defaults to `false`.
 
 [[stop-transform-response-codes]]
 ==== {api-response-codes-title}
@@ -105,7 +108,7 @@ are no matches or only partial matches.
 
 [source,console]
 --------------------------------------------------
-POST _data_frame/transforms/ecommerce_transform/_stop
+POST _transform/ecommerce_transform/_stop
 --------------------------------------------------
 // TEST[skip:set up kibana samples]
 

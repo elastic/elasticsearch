@@ -65,7 +65,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
         try {
             shape = parse(value);
         } catch (ParseException ex) {
-            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape value", ex);
+            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
         }
     }
 
@@ -74,7 +74,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
         try {
             shape = parse(value);
         } catch (ParseException ex) {
-            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape value", ex);
+            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
         }
     }
 

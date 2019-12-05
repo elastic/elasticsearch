@@ -92,7 +92,7 @@ public class CancelTests extends ReindexTestCase {
 
         logger.debug("setting up [{}] docs", numDocs);
         indexRandom(true, false, true, IntStream.range(0, numDocs)
-                .mapToObj(i -> client().prepareIndex(INDEX, "_doc", String.valueOf(i)).setSource("n", i))
+                .mapToObj(i -> client().prepareIndex().setIndex(INDEX).setId(String.valueOf(i)).setSource("n", i))
                 .collect(Collectors.toList()));
 
         // Checks that the all documents have been indexed and correctly counted
@@ -117,10 +117,9 @@ public class CancelTests extends ReindexTestCase {
          * exhausted their slice while others might have quite a bit left
          * to work on. We can't control that. */
         logger.debug("waiting for updates to be blocked");
-        boolean blocked = awaitBusy(
-            () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
+        assertBusy(
+            () -> assertTrue("updates blocked", ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0),
             1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavily loaded machines this can take a while
-        assertTrue("updates blocked", blocked);
 
         // Status should show the task running
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());
@@ -209,12 +208,12 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testReindexCancel() throws Exception {
-        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest", "_doc"), (response, total, modified) -> {
+        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest"), (response, total, modified) -> {
             assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
 
             refresh("dest");
             assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
-        }, equalTo("reindex from [" + INDEX + "] to [dest][_doc]"));
+        }, equalTo("reindex from [" + INDEX + "] to [dest]"));
     }
 
     public void testUpdateByQueryCancel() throws Exception {
@@ -244,13 +243,13 @@ public class CancelTests extends ReindexTestCase {
 
     public void testReindexCancelWithWorkers() throws Exception {
         testCancel(ReindexAction.NAME,
-                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", "_doc").setSlices(5),
+                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest").setSlices(5),
                 (response, total, modified) -> {
                     assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     refresh("dest");
                     assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
                 },
-                equalTo("reindex from [" + INDEX + "] to [dest][" + "_doc" + "]"));
+                equalTo("reindex from [" + INDEX + "] to [dest]"));
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
@@ -299,15 +298,15 @@ public class CancelTests extends ReindexTestCase {
 
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
-            return preCheck(index, index.type());
+            return preCheck(index);
         }
 
         @Override
         public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-            return preCheck(delete, delete.type());
+            return preCheck(delete);
         }
 
-        private <T extends Engine.Operation> T preCheck(T operation, String type) {
+        private <T extends Engine.Operation> T preCheck(T operation) {
             if ((operation.origin() != Origin.PRIMARY)) {
                 return operation;
             }

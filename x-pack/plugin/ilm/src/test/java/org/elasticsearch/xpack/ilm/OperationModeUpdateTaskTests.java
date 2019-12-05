@@ -71,7 +71,7 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
                 .build());
         }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        OperationModeUpdateTask task = new OperationModeUpdateTask(requestMode);
+        OperationModeUpdateTask task = OperationModeUpdateTask.ilmMode(requestMode);
         ClusterState newState = task.execute(state);
         if (assertSameClusterState) {
             assertSame(state, newState);

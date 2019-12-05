@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
-[[dataframe-troubleshooting]]
-== Troubleshooting {transforms}
+[[transform-troubleshooting]]
+=== Troubleshooting {transforms}
 [subs="attributes"]
 ++++
 <titleabbrev>Troubleshooting</titleabbrev>
@@ -9,12 +9,16 @@
 
 Use the information in this section to troubleshoot common problems.
 
-include::{stack-repo-dir}/help.asciidoc[tag=get-help]
+For issues that you cannot fix yourself … we’re here to help.
+If you are an existing Elastic customer with a support contract, please create
+a ticket in the
+https://support.elastic.co/customers/s/login/[Elastic Support portal].
+Or post in the https://discuss.elastic.co/[Elastic forum].
 
 If you encounter problems with your {transforms}, you can gather more
 information from the following files and APIs:
 
-* Lightweight audit messages are stored in `.data-frame-notifications-*`. Search
+* Lightweight audit messages are stored in `.transform-notifications-read`. Search
 by your `transform_id`.
 * The
 {ref}/get-transform-stats.html[get {transform} statistics API] 

@@ -16,6 +16,7 @@
     - contains:  { nodes.$master.modules: { name: x-pack-ccr } }
     - contains:  { nodes.$master.modules: { name: x-pack-core } }
     - contains:  { nodes.$master.modules: { name: x-pack-deprecation } }
+    - contains:  { nodes.$master.modules: { name: x-pack-enrich } }
     - contains:  { nodes.$master.modules: { name: x-pack-graph } }
     - contains:  { nodes.$master.modules: { name: x-pack-ilm } }
     - contains:  { nodes.$master.modules: { name: x-pack-logstash } }

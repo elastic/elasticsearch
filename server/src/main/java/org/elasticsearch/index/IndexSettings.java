@@ -35,10 +35,8 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -265,6 +263,14 @@ public final class IndexSettings {
             Property.Dynamic, Property.IndexScope);
 
     /**
+     * Controls the number of translog files that are no longer needed for persistence reasons will be kept around before being deleted.
+     * This is a safeguard making sure that the translog deletion policy won't keep too many translog files especially when they're small.
+     * This setting is intentionally not registered, it is only used in tests
+     **/
+    public static final Setting<Integer> INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING =
+        Setting.intSetting("index.translog.retention.total_files", 100, 0, Setting.Property.IndexScope);
+
+    /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
      */
     public static final Setting<TimeValue> INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING =
@@ -297,64 +303,15 @@ public final class IndexSettings {
         new Setting<>("index.default_pipeline",
         IngestService.NOOP_PIPELINE_NAME,
         Function.identity(),
-        new DefaultPipelineValidator(),
         Property.Dynamic,
         Property.IndexScope);
 
-    public static final Setting<String> REQUIRED_PIPELINE =
-        new Setting<>("index.required_pipeline",
+    public static final Setting<String> FINAL_PIPELINE =
+        new Setting<>("index.final_pipeline",
             IngestService.NOOP_PIPELINE_NAME,
             Function.identity(),
-            new RequiredPipelineValidator(),
             Property.Dynamic,
             Property.IndexScope);
-
-    static class DefaultPipelineValidator implements Setting.Validator<String> {
-
-        @Override
-        public void validate(final String value) {
-
-        }
-
-        @Override
-        public void validate(final String value, final Map<Setting<String>, String> settings) {
-            final String requiredPipeline = settings.get(IndexSettings.REQUIRED_PIPELINE);
-            if (value.equals(IngestService.NOOP_PIPELINE_NAME) == false
-                && requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
-                throw new IllegalArgumentException(
-                    "index has a default pipeline [" + value + "] and a required pipeline [" + requiredPipeline + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<String>> settings() {
-            return List.of(REQUIRED_PIPELINE).iterator();
-        }
-
-    }
-
-    static class RequiredPipelineValidator implements Setting.Validator<String> {
-
-        @Override
-        public void validate(final String value) {
-
-        }
-
-        @Override
-        public void validate(final String value, final Map<Setting<String>, String> settings) {
-            final String defaultPipeline = settings.get(IndexSettings.DEFAULT_PIPELINE);
-            if (value.equals(IngestService.NOOP_PIPELINE_NAME) && defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
-                throw new IllegalArgumentException(
-                    "index has a required pipeline [" + value + "] and a default pipeline [" + defaultPipeline + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<String>> settings() {
-            return List.of(DEFAULT_PIPELINE).iterator();
-        }
-
-    }
 
     /**
      * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
@@ -603,7 +560,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
-        scopedSettings.addSettingsUpdateConsumer(REQUIRED_PIPELINE, this::setRequiredPipeline);
+        scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
@@ -828,6 +785,14 @@ public final class IndexSettings {
     public TimeValue getTranslogRetentionAge() {
         assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
         return translogRetentionAge;
+    }
+
+    /**
+     * Returns the maximum number of translog files that that no longer required for persistence should be kept for peer recovery
+     * when soft-deletes is disabled.
+     */
+    public int getTranslogRetentionTotalFiles() {
+        return INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.get(getSettings());
     }
 
     /**

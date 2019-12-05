@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Bina
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -41,7 +40,7 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
             return TypeResolution.TYPE_RESOLVED;
         }
         // 2. 3. 4. intervals
-        if ((DataTypes.isInterval(l) || DataTypes.isInterval(r))) {
+        if (l.isInterval() || r.isInterval()) {
             if (DataTypeConversion.commonType(l, r) == null) {
                 return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
             } else {
@@ -57,7 +56,7 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
         DataType l = left().dataType();
         DataType r = right().dataType();
 
-        if (!(r.isDateOrTimeBased() || DataTypes.isInterval(r))|| !(l.isDateOrTimeBased() || DataTypes.isInterval(l))) {
+        if (!(r.isDateOrTimeBased() || r.isInterval() || r.isNull())|| !(l.isDateOrTimeBased() || l.isInterval() || l.isNull())) {
             return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
         }
         return TypeResolution.TYPE_RESOLVED;

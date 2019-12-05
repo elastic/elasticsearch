@@ -16,16 +16,18 @@
   <<dfanalytics-types>>.
   
 `analyzed_fields`::
-  (object) You can specify both `includes` and/or `excludes` patterns. If 
-  `analyzed_fields` is not set, only the relevant fields will be included. For 
-  example all the numeric fields for {oldetection}.
-  
-  `analyzed_fields.includes`:::
-    (array) An array of strings that defines the fields that will be included in 
-    the analysis.
+  (Optional, object) Specify `includes` and/or `excludes` patterns to select
+  which fields will be included in the analysis. If `analyzed_fields` is not set,
+  only the relevant fields will be included. For example, all the numeric fields
+  for {oldetection}. For the supported field types, see <<ml-put-dfanalytics-supported-fields>>.
+  Also see the <<explain-dfanalytics>> which helps understand field selection.
     
-  `analyzed_fields.excludes`:::
-    (array) An array of strings that defines the fields that will be excluded 
+  `includes`:::
+    (Optional, array) An array of strings that defines the fields that will be included in 
+    the analysis.
+      
+  `excludes`:::
+    (Optional, array) An array of strings that defines the fields that will be excluded 
     from the analysis.
   
 
@@ -80,8 +82,8 @@ PUT _ml/data_frame/analytics/loganalytics
   that setting. For more information, see <<ml-settings>>.
 
 `source`::
-  (object) The source configuration consisting an `index` and optionally a 
-  `query` object.
+  (object) The configuration of how to source the analysis data. It requires an `index`.
+  Optionally, `query` and `_source` may be specified.
   
   `index`:::
     (Required, string or array) Index or indices on which to perform the 
@@ -94,6 +96,19 @@ PUT _ml/data_frame/analytics/loganalytics
     search POST body. All the options that are supported by {es} can be used, 
     as this object is passed verbatim to {es}. By default, this property has 
     the following value: `{"match_all": {}}`.
+
+  `_source`:::
+    (Optional, object) Specify `includes` and/or `excludes` patterns to select
+    which fields will be present in the destination. Fields that are excluded
+    cannot be included in the analysis.
+        
+      `includes`::::
+        (array) An array of strings that defines the fields that will be included in 
+        the destination.
+          
+      `excludes`::::
+        (array) An array of strings that defines the fields that will be excluded 
+        from the destination.
 
 [[dfanalytics-types]]
 ==== Analysis objects
@@ -134,7 +149,7 @@ An `outlier_detection` configuration object has the following properties:
   {oldetection}. For example, 0.05 means it is assumed that 5% of values are real outliers 
   and 95% are inliers.
   
-`standardize_columns`::
+`standardization_enabled`::
   (boolean) If `true`, then the following operation is performed on the columns 
   before computing outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to 
   `true`. For more information, see 
@@ -179,23 +194,15 @@ hyperparameter optimization to give minimum validation errors.
 [[regression-resources-standard]]
 ===== Standard parameters
 
-`dependent_variable`::
-  (Required, string) Defines which field of the {dataframe} is to be predicted. 
-  This parameter is supplied by field name and must match one of the fields in 
-  the index being used to train. If this field is missing from a document, then 
-  that document will not be used for training, but a prediction with the trained 
-  model will be generated for it. The data type of the field must be numeric. It 
-  is also known as continuous target variable.
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent_variable]
++
+--
+The data type of the field must be numeric.
+--
 
-`prediction_field_name`::
- (Optional, string) Defines the name of the prediction field in the results. 
- Defaults to `<dependent_variable>_prediction`.
- 
-`training_percent`::
- (Optional, integer) Defines what percentage of the eligible documents that will 
- be used for training. Documents that are ignored by the analysis (for example 
- those that contain arrays) won’t be included in the calculation for used 
- percentage. Defaults to `100`.
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction_field_name]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=training_percent]
 
 
 [float]
@@ -209,50 +216,77 @@ values unless you fully understand the function of these parameters. If these
 parameters are not supplied, their values are automatically tuned to give 
 minimum validation error.
 
-`eta`::
- (Optional, double) The shrinkage applied to the weights. Smaller values result 
- in larger forests which have better generalization error. However, the smaller 
- the value the longer the training will take. For more information, see 
- https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article] 
- about shrinkage.
- 
-`feature_bag_fraction`::
- (Optional, double) Defines the fraction of features that will be used when 
- selecting a random bag for each candidate split. 
- 
-`maximum_number_trees`::
- (Optional, integer) Defines the maximum number of trees the forest is allowed 
- to contain. The maximum value is 2000.
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
 
-`gamma`::
- (Optional, double) Regularization parameter to prevent overfitting on the 
- training dataset. Multiplies a linear penalty associated with the size of 
- individual trees in the forest. The higher the value the more training will 
- prefer smaller trees. The smaller this parameter the larger individual trees 
- will be and the longer train will take.
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature_bag_fraction]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=maximum_number_trees]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+
+
+[discrete]
+[[classification-resources]]
+==== {classification-cap} configuration objects 
  
-`lambda`::
- (Optional, double) Regularization parameter to prevent overfitting on the 
- training dataset. Multiplies an L2 regularisation term which applies to leaf 
- weights of the individual trees in the forest. The higher the value the more 
- training will attempt to keep leaf weights small. This makes the prediction 
- function smoother at the expense of potentially not being able to capture 
- relevant relationships between the features and the {depvar}. The smaller this 
- parameter the larger individual trees will be and the longer train will take.
+ 
+[float]
+[[classification-resources-standard]]
+===== Standard parameters
+ 
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent_variable]
++
+--
+The data type of the field must be numeric or boolean.
+--
+  
+`num_top_classes`::
+  (Optional, integer) Defines the number of categories for which the predicted 
+  probabilities are reported. It must be non-negative. If it is greater than the 
+  total number of categories (in the {version} version of the {stack}, it's two) 
+  to predict then we will report all category probabilities. Defaults to 2.
+ 
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction_field_name]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=training_percent]
+
+
+[float]
+[[classification-resources-advanced]]
+===== Advanced parameters
+
+Advanced parameters are for fine-tuning {classanalysis}. They are set 
+automatically by <<ml-hyperparameter-optimization,hyperparameter optimization>> 
+to give minimum validation error. It is highly recommended to use the default 
+values unless you fully understand the function of these parameters. If these 
+parameters are not supplied, their values are automatically tuned to give 
+minimum validation error.
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature_bag_fraction]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=maximum_number_trees]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
 
 [[ml-hyperparameter-optimization]]
 ===== Hyperparameter optimization
 
-If you don't supply {regression} parameters, hyperparameter optimization will be 
-performed by default to set a value for the undefined parameters. The starting 
-point is calculated for data dependent parameters by examining the loss on the 
-training data. Subject to the size constraint, this operation provides an upper 
-bound on the improvement in validation loss.
+If you don't supply {regression} or {classification} parameters, hyperparameter 
+optimization will be performed by default to set a value for the undefined 
+parameters. The starting point is calculated for data dependent parameters by 
+examining the loss on the training data. Subject to the size constraint, this 
+operation provides an upper bound on the improvement in validation loss.
 
 A fixed number of rounds is used for optimization which depends on the number of 
-parameters being optimized. The optimitazion starts with random search, then 
-Bayesian Optimisation is performed that is targeting maximum expected 
+parameters being optimized. The optimization starts with random search, then 
+Bayesian optimization is performed that is targeting maximum expected 
 improvement. If you override any parameters, then the optimization will 
 calculate the value of the remaining parameters accordingly and use the value 
 you provided for the overridden parameter. The number of rounds are reduced 

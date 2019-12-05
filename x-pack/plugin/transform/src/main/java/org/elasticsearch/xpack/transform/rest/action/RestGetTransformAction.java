@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
@@ -26,7 +26,7 @@ public class RestGetTransformAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        GetTransformsAction.Request request = new GetTransformsAction.Request();
+        GetTransformAction.Request request = new GetTransformAction.Request();
 
         String id = restRequest.param(TransformField.ID.getPreferredName());
         request.setResourceId(id);
@@ -36,11 +36,11 @@ public class RestGetTransformAction extends BaseRestHandler {
                 new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        return channel -> client.execute(GetTransformsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override
     public String getName() {
-        return "data_frame_get_transforms_action";
+        return "transform_get_transform_action";
     }
 }

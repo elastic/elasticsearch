@@ -69,6 +69,7 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LOCAL;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.sql.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.sql.type.DataType.SHAPE;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 /**
@@ -77,22 +78,22 @@ import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
  */
 public final class Verifier {
     private final Metrics metrics;
-    
+
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
     }
 
     static class Failure {
-        private final Node<?> source;
+        private final Node<?> node;
         private final String message;
 
-        Failure(Node<?> source, String message) {
-            this.source = source;
+        Failure(Node<?> node, String message) {
+            this.node = node;
             this.message = message;
         }
 
-        Node<?> source() {
-            return source;
+        Node<?> node() {
+            return node;
         }
 
         String message() {
@@ -101,7 +102,7 @@ public final class Verifier {
 
         @Override
         public int hashCode() {
-            return source.hashCode();
+            return Objects.hash(node);
         }
 
         @Override
@@ -115,7 +116,7 @@ public final class Verifier {
             }
 
             Verifier.Failure other = (Verifier.Failure) obj;
-            return Objects.equals(source, other.source);
+            return Objects.equals(node, other.node);
         }
 
         @Override
@@ -130,7 +131,7 @@ public final class Verifier {
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
         Collection<Failure> failures = verify(plan);
-        return failures.stream().collect(toMap(Failure::source, Failure::message));
+        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
     Collection<Failure> verify(LogicalPlan plan) {
@@ -254,7 +255,7 @@ public final class Verifier {
                 failures.addAll(localFailures);
             });
         }
-        
+
         // gather metrics
         if (failures.isEmpty()) {
             BitSet b = new BitSet(FeatureMetric.values().length);
@@ -631,7 +632,7 @@ public final class Verifier {
         if (Functions.isAggregate(e)) {
             return true;
         }
-        
+
         // left without leaves which have to match; if not there's a failure
         // make sure to match directly on the expression and not on the tree
         // (since otherwise exp might match the function argument which would be incorrect)
@@ -644,7 +645,7 @@ public final class Verifier {
         }
         return false;
     }
-    
+
     private static void checkGroupingFunctionInGroupBy(LogicalPlan p, Set<Failure> localFailures) {
         // check if the query has a grouping function (Histogram) but no GROUP BY
         if (p instanceof Project) {
@@ -734,14 +735,14 @@ public final class Verifier {
                     fail(nested.get(0), "Grouping isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
         }
-        
+
         // check in having
         p.forEachDown(f -> {
             if (f.child() instanceof Aggregate) {
                 f.condition().forEachUp(match, FieldAttribute.class);
             }
         }, Filter.class);
-        
+
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
@@ -758,6 +759,9 @@ public final class Verifier {
                 if (fa.field().getDataType() == GEO_SHAPE) {
                     localFailures.add(fail(fa, "geo shapes cannot be used for filtering"));
                 }
+                if (fa.field().getDataType() == SHAPE) {
+                    localFailures.add(fail(fa, "shapes cannot be used for filtering"));
+                }
             }, FieldAttribute.class);
         }, Filter.class);
 
@@ -766,6 +770,9 @@ public final class Verifier {
             if (fa.field().getDataType() == GEO_SHAPE) {
                 localFailures.add(fail(fa, "geo shapes cannot be used in grouping"));
             }
+            if (fa.field().getDataType() == SHAPE) {
+                localFailures.add(fail(fa, "shapes cannot be used in grouping"));
+            }
         }, FieldAttribute.class)), Aggregate.class);
 
 
@@ -773,6 +780,9 @@ public final class Verifier {
         p.forEachDown(o -> o.order().forEach(agg -> agg.forEachUp(fa -> {
             if (fa.field().getDataType() == GEO_SHAPE) {
                 localFailures.add(fail(fa, "geo shapes cannot be used for sorting"));
+            }
+            if (fa.field().getDataType() == SHAPE) {
+                localFailures.add(fail(fa, "shapes cannot be used for sorting"));
             }
         }, FieldAttribute.class)), OrderBy.class);
     }
@@ -831,7 +841,7 @@ public final class Verifier {
                     }
                 }
             });
-        
+
         }, Pivot.class);
     }
 }

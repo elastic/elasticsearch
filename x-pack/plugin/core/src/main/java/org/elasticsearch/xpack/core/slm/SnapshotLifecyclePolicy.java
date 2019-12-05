@@ -260,7 +260,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         Map<String, Object> mergedConfiguration = new HashMap<>(configuration);
         mergedConfiguration.put("metadata", metadataWithAddedPolicyName);
         req.source(mergedConfiguration);
-        req.waitForCompletion(false);
+        req.waitForCompletion(true);
         return req;
     }
 

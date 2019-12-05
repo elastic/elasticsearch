@@ -44,7 +44,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
         numDocs = randomIntBetween(1, 20);
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
-            docs.add(client().prepareIndex("index", "type").setSource("f", Integer.toString(i / 3)));
+            docs.add(client().prepareIndex("index").setSource("f", Integer.toString(i / 3)));
         }
         indexRandom(true, docs);
     }

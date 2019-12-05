@@ -1,5 +1,32 @@
 [[indices-flush]]
-=== Flush
+=== Flush API
+++++
+<titleabbrev>Flush</titleabbrev>
+++++
+
+Flushes one or more indices.
+
+[source,console]
+--------------------------------------------------
+POST /twitter/_flush
+--------------------------------------------------
+// TEST[setup:twitter]
+
+
+[[flush-api-request]]
+==== {api-request-title}
+
+`POST /<index>/_flush`
+
+`GET /<index>/_flush`
+
+`POST /_flush`
+
+`GET /_flush`
+
+
+[[flush-api-desc]]
+==== {api-description-title}
 
 Flushing an index is the process of making sure that any data that is currently
 only stored in the <<index-modules-translog,transaction log>> is also
@@ -22,47 +49,90 @@ call the flush API after indexing some documents then a successful response
 indicates that {es} has flushed all the documents that were indexed before the
 flush API was called.
 
+
+[[flush-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
++
+To flush all indices,
+omit this parameter
+or use a value of `_all` or `*`.
+
+
+[[flush-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+`force`::
++
+--
+(Optional, boolean)
+If `true`,
+the request forces a flush
+even if there are no changes to commit to the index.
+Defaults to `true`.
+
+You can use this parameter
+to increment the generation number of the transaction log.
+
+This parameter is considered internal.
+--
+
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`wait_if_ongoing`::
++
+--
+(Optional, boolean)
+If `true`,
+the flush operation blocks until execution
+when another flush operation is running.
+
+
+If `false`,
+{es} returns an error
+if you request a flush
+when another flush operation is running.
+
+Defaults to `true`.
+--
+
+
+[[flush-api-example]]
+==== {api-examples-title}
+
+
+[[flush-api-specific-ex]]
+===== Flush a specific index
+
 [source,console]
---------------------------------------------------
-POST twitter/_flush
---------------------------------------------------
-// TEST[setup:twitter]
+----
+POST /kimchy/_flush
+----
+// TEST[s/^/PUT kimchy\n/]
 
-[float]
-[[flush-parameters]]
-==== Request Parameters
 
-The flush API accepts the following request parameters:
-
-[horizontal]
-`wait_if_ongoing`:: If set to `true` the flush operation will block until the
-flush can be executed if another flush operation is already executing. If set to
-`false` then an exception will be thrown on the shard level if another flush
-operation is already running. Defaults to `true`.
-
-`force`:: Whether a flush should be forced even if it is not necessarily needed
-i.e. if no changes will be committed to the index. This can be used to force
-the generation number of the transaction log to be incremented even if no
-uncommitted changes are present. This parameter should be considered internal.
-
-[float]
 [[flush-multi-index]]
-==== Multi Index
-
-The flush API can be applied to more than one index with a single call, or even
-on `_all` the indices.
+===== Flush several indices
 
 [source,console]
---------------------------------------------------
-POST kimchy,elasticsearch/_flush
-
-POST _flush
---------------------------------------------------
+----
+POST /kimchy,elasticsearch/_flush
+----
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 
-[float]
-[[synced-flush-api]]
-==== Synced Flush
+[[flush-api-all-ex]]
+===== Flush all indices
 
-See <<indices-synced-flush-api>>.
+[source,console]
+----
+POST /_flush
+----

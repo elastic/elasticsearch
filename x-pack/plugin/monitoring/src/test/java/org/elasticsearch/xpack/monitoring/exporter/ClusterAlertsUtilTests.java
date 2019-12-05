@@ -68,6 +68,7 @@ public class ClusterAlertsUtilTests extends ESTestCase {
             assertThat(watch, notNullValue());
             assertThat(watch, containsString(clusterUuid));
             assertThat(watch, containsString(watchId));
+            assertThat(watch, containsString(String.valueOf(ClusterAlertsUtil.LAST_UPDATED_VERSION)));
 
             if ("elasticsearch_nodes".equals(watchId) == false) {
                 assertThat(watch, containsString(clusterUuid + "_" + watchId));

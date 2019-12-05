@@ -29,7 +29,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
     public static DateTruncProcessor randomDateTruncProcessor() {
         return new DateTruncProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             randomZone());
     }
 
@@ -52,29 +52,29 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
     protected DateTruncProcessor mutateInstance(DateTruncProcessor instance) {
         return new DateTruncProcessor(
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
-            new ConstantProcessor(ZonedDateTime.now()),
+            new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
     }
 
     public void testInvalidInputs() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new DateTrunc(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
+            () -> new DateTrunc(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("A string is required; received [5]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("days"), l("foo"), randomZone()).makePipe().asProcessor().process(null));
-        assertEquals("A datetime/date is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime is required; received [foo]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("A value of [MILLENNIUM, CENTURY, DECADE, YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, " +
-            "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [invalid]",
+                "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [invalid]",
             siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("dacede"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
         assertEquals("Received value [dacede] is not valid date part for truncation; did you mean [decade, decades]?",
-             siae.getMessage());
+            siae.getMessage());
     }
 
     public void testWithNulls() {

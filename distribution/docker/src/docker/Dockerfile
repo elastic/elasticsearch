@@ -11,7 +11,12 @@
 # Set gid=0 and make group perms==owner perms
 ################################################################################
 
-FROM centos:7 AS builder
+FROM ${base_image} AS builder
+
+RUN for iter in {1..10}; do ${package_manager} update --setopt=tsflags=nodocs -y && \
+    ${package_manager} install --setopt=tsflags=nodocs -y gzip shadow-utils tar && \
+    ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10; done; \
+    (exit \$exit_code)
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
@@ -28,6 +33,7 @@ RUN grep ES_DISTRIBUTION_TYPE=tar /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config data logs
 RUN chmod 0775 config data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
+RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):
@@ -35,13 +41,13 @@ COPY config/elasticsearch.yml config/log4j2.properties config/
 # Add entrypoint
 ################################################################################
 
-FROM centos:7
+FROM ${base_image}
 
 ENV ELASTIC_CONTAINER true
 
-RUN for iter in {1..10}; do yum update -y && \
-    yum install -y nc && \
-    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
+RUN for iter in {1..10}; do ${package_manager} update --setopt=tsflags=nodocs -y && \
+    ${package_manager} install --setopt=tsflags=nodocs -y nc shadow-utils && \
+    ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && sleep 10; done; \
     (exit \$exit_code)
 
 RUN groupadd -g 1000 elasticsearch && \

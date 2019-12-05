@@ -79,23 +79,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     }
 
     /**
-     * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public IndicesStatsRequest types(String... types) {
-        flags.types(types);
-        return this;
-    }
-
-    /**
-     * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public String[] types() {
-        return this.flags.types();
-    }
-
-    /**
      * Sets specific search group stats to retrieve the stats for. Mainly affects search
      * when enabled.
      */

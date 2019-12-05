@@ -10,9 +10,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
@@ -37,6 +40,8 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private final ThreadPool threadPool;
     private final Client client;
+    private final ClusterService clusterService;
+    private final MlAssignmentNotifier mlAssignmentNotifier;
 
     /**
      * An interface to abstract the calculation of the delay to the next execution.
@@ -46,14 +51,18 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private volatile Scheduler.Cancellable cancellable;
 
-    MlDailyMaintenanceService(ThreadPool threadPool, Client client, Supplier<TimeValue> scheduleProvider) {
+    MlDailyMaintenanceService(ThreadPool threadPool, Client client, ClusterService clusterService,
+                              MlAssignmentNotifier mlAssignmentNotifier, Supplier<TimeValue> scheduleProvider) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.mlAssignmentNotifier = Objects.requireNonNull(mlAssignmentNotifier);
         this.schedulerProvider = Objects.requireNonNull(scheduleProvider);
     }
 
-    public MlDailyMaintenanceService(ClusterName clusterName, ThreadPool threadPool, Client client) {
-        this(threadPool, client, () -> delayToNextTime(clusterName));
+    public MlDailyMaintenanceService(ClusterName clusterName, ThreadPool threadPool, Client client, ClusterService clusterService,
+                                     MlAssignmentNotifier mlAssignmentNotifier) {
+        this(threadPool, client, clusterService, mlAssignmentNotifier, () -> delayToNextTime(clusterName));
     }
 
     /**
@@ -79,12 +88,12 @@ public class MlDailyMaintenanceService implements Releasable {
         return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
     }
 
-    public void start() {
+    public synchronized void start() {
         LOGGER.debug("Starting ML daily maintenance service");
         scheduleNext();
     }
 
-    public void stop() {
+    public synchronized void stop() {
         LOGGER.debug("Stopping ML daily maintenance service");
         if (cancellable != null && cancellable.isCancelled() == false) {
             cancellable.cancel();
@@ -100,7 +109,7 @@ public class MlDailyMaintenanceService implements Releasable {
         stop();
     }
 
-    private void scheduleNext() {
+    private synchronized void scheduleNext() {
         try {
             cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), ThreadPool.Names.GENERIC);
         } catch (EsRejectedExecutionException e) {
@@ -113,11 +122,34 @@ public class MlDailyMaintenanceService implements Releasable {
     }
 
     private void triggerTasks() {
-        LOGGER.info("triggering scheduled [ML] maintenance tasks");
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request(),
+        try {
+            LOGGER.info("triggering scheduled [ML] maintenance tasks");
+            executeAsyncWithOrigin(client, ML_ORIGIN, DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request(),
                 ActionListener.wrap(
-                        response -> LOGGER.info("Successfully completed [ML] maintenance tasks"),
-                        e -> LOGGER.error("An error occurred during maintenance tasks execution", e)));
-        scheduleNext();
+                    response -> {
+                        if (response.isDeleted()) {
+                            LOGGER.info("Successfully completed [ML] maintenance tasks");
+                        } else {
+                            LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
+                        }
+                    },
+                    e -> LOGGER.error("An error occurred during maintenance tasks execution", e)));
+            auditUnassignedMlTasks(clusterService.state());
+        } finally {
+            scheduleNext();
+        }
+    }
+
+    /**
+     * The idea of this is that if tasks are unassigned for days on end then they'll get a duplicate
+     * audit warning every day, and that will mean they'll permanently have a yellow triangle next
+     * to their entries in the UI jobs list.  (This functionality may need revisiting if the condition
+     * for displaying a yellow triangle in the UI jobs list changes.)
+     */
+    private void auditUnassignedMlTasks(ClusterState state) {
+        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (tasks != null) {
+            mlAssignmentNotifier.auditUnassignedMlTasks(state.nodes(), tasks);
+        }
     }
 }

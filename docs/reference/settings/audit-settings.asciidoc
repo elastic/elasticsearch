@@ -5,9 +5,8 @@
 <titleabbrev>Auditing settings</titleabbrev>
 ++++
 
-All of these settings can be added to the `elasticsearch.yml` configuration
-file. For more information, see
-{stack-ov}/auditing.html[Auditing Security Events].
+You configure security auditing settings in the `elasticsearch.yml` configuration file
+on each node in the cluster. For more information, see <<enable-audit-logging>>.
 
 [[general-audit-settings]]
 ==== General Auditing Settings
@@ -15,7 +14,7 @@ file. For more information, see
 `xpack.security.audit.enabled`::
 Set to `true` to enable auditing on the node. The default value is `false`.
 This puts the auditing events in a dedicated file named `<clustername>_audit.json`
-on each node. For more information, see <<configuring-logging-levels>>.
+on each node. 
 
 [[event-audit-settings]]
 ==== Audited Event Settings
@@ -69,7 +68,7 @@ The default value is `true`.
 [[audit-event-ignore-policies]]
 ==== Audit Logfile Event Ignore Policies
 
-These settings affect the {stack-ov}/audit-log-output.html#audit-log-ignore-policy[ignore policies]
+These settings affect the <<audit-log-ignore-policy,ignore policies>>
 that enable fine-grained control over which audit events are printed to the log file.
 All of the settings with the same policy name combine to form a single policy.
 If an event matches all of the conditions for a specific policy, it is ignored 

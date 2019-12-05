@@ -163,8 +163,10 @@ task startWildfly {
         }
       }
 
-      assert httpPort > 0
-      assert managementPort > 0
+      if (httpPort == 0 || managementPort == 0) {
+        String portType = httpPort == 0 ? "http" : "management"
+        throw new GradleException("Failed to find ${portType} port in wildfly log")
+      }
     }
   }
 }
@@ -204,10 +206,16 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
     }
   }
+  startWildfly.doFirst {
+    project.gradle.addListener(logDumpListener)
+  }
   integTestRunner.doFirst {
     project.gradle.addListener(logDumpListener)
   }
   integTestRunner.doLast {
+    project.gradle.removeListener(logDumpListener)
+  }
+  startWildfly.doLast {
     project.gradle.removeListener(logDumpListener)
   }
   integTestRunner.finalizedBy(stopWildfly)

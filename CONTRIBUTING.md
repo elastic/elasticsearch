@@ -231,7 +231,7 @@ from the command line.
 
 Sometimes Spotless will report a "misbehaving rule which can't make up its
 mind" and will recommend enabling the `paddedCell()` setting. If you
-enabled this settings and run the format check again,
+enabled this setting and run the format check again,
 Spotless will write files to
 `$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
 different copies of the formatted files, so that you can see how they
@@ -244,7 +244,9 @@ option from the command line by running Gradle with `-Dspotless.paddedcell`.
 ### JavaDoc
 
 Good JavaDoc can help with navigating and understanding code. Elasticsearch
-has some guidelines around when to write JavaDoc, and when not to.
+has some guidelines around when to write JavaDoc and when not to, but note
+that we don't want to be overly prescriptive. The intent of these guidelines
+is to be helpful, not to turn writing code into a chore.
 
 #### The short version
 
@@ -252,7 +254,7 @@ has some guidelines around when to write JavaDoc, and when not to.
    2. Add JavaDoc to existing code if you can.
    3. Document the "why", not the "how", unless that's important to the
       "why.
-   3. Don't document anything trivial or obvious (e.g. getters and
+   4. Don't document anything trivial or obvious (e.g. getters and
       setters). In other words, the JavaDoc should add some value.
 
 #### The long version
@@ -274,7 +276,10 @@ has some guidelines around when to write JavaDoc, and when not to.
       methods must have JavaDoc because they are part of the contract
       between a class and its subclasses. It's important that contributors
       know why they need to implement a method, and the JavaDoc should make
-      this clear.
+      this clear. You don't need to document a method if it's overriding an
+      abstract method (either from an abstract superclass or an interface),
+      unless your implementation is doing something "unexpected" e.g. deviating
+      from the intent of the original method.
    4. Following on from the above point, please add docs to existing public
       methods if you are editing them, or to abstract methods if you can.
    5. Non-public, non-abstract methods don't require JavaDoc, but if you feel
@@ -309,7 +314,15 @@ has some guidelines around when to write JavaDoc, and when not to.
           simple container for some data. However, please consider whether a
           reader might still benefit from some additional background, for
           example about why the class exists at all.
-   11. If you need help writing JavaDoc, just ask!
+   11. Not all comments need to be JavaDoc. Sometimes it will make more
+       sense to add comments in a method's body, for example due to important
+       implementation decisions or "gotchas". As a general guide, if some
+       information forms part of the contract between a method and its callers,
+       then it should go in the JavaDoc, otherwise you might consider using
+       regular comments in the code. Remember as well that Elasticsearch
+       has extensive [user documentation](./docs), and it is not the role
+       of JavaDoc to replace that.
+   12. If you need help writing JavaDoc, just ask!
 
 Finally, use your judgement! Base your decisions on what will help other
 developers - including yourself, when you come back to some code

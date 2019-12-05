@@ -592,7 +592,7 @@ public class ObjectParserTests extends ESTestCase {
 
             List<Integer> ints = new ArrayList<>();
 
-            List<List<Integer> > multis = new ArrayList<>();
+            List<List<Object> > multis = new ArrayList<>();
 
             public void setInts(List<Integer> ints) {
                 this.ints = ints;
@@ -602,7 +602,7 @@ public class ObjectParserTests extends ESTestCase {
                 this.testArray = testArray;
             }
 
-            public void setMultis(List<List<Integer>> multis) {
+            public void setMultis(List<List<Object>> multis) {
                 this.multis = multis;
             }
         }
@@ -612,7 +612,7 @@ public class ObjectParserTests extends ESTestCase {
         objectParser.declareFieldArray(TestStruct::setArray, (p, c) -> XContentParserUtils.parseFieldsValue(p),
             new ParseField("test_array"), ValueType.VALUE_ARRAY);
         objectParser.declareIntArray(TestStruct::setInts, new ParseField("int_array"));
-        objectParser.declareFieldArray(TestStruct::setMultis, (p, c) -> (List<Integer>) XContentParserUtils.parseFieldsValue(p),
+        objectParser.declareFieldArray(TestStruct::setMultis, (p, c) -> p.list(),
             new ParseField("multi_array"), ValueType.OBJECT_ARRAY);
         objectParser.parse(parser, s, null);
         assertEquals(s.testArray, Arrays.asList(1, null, "3", 4.2));

@@ -50,7 +50,7 @@ public class RpmPreservationTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         assertRemoved(distribution());
-        installation = installPackage(distribution());
+        installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), newShell());
     }
@@ -71,7 +71,7 @@ public class RpmPreservationTests extends PackagingTestCase {
     public void test30PreserveConfig() throws Exception {
         final Shell sh = new Shell();
 
-        installation = installPackage(distribution());
+        installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), newShell());
 

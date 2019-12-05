@@ -63,7 +63,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test10Install() throws Exception {
-        installation = installArchive(distribution());
+        installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
     }
 

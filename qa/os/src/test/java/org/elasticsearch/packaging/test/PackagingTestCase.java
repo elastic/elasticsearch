@@ -128,12 +128,12 @@ public abstract class PackagingTestCase extends Assert {
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                installation = Archives.installArchive(distribution);
+                installation = Archives.installArchive(newShell(), distribution);
                 Archives.verifyArchiveInstallation(installation, distribution);
                 break;
             case DEB:
             case RPM:
-                installation = Packages.installPackage(distribution);
+                installation = Packages.installPackage(newShell(), distribution);
                 Packages.verifyPackageInstallation(installation, distribution, newShell());
                 break;
             case DOCKER:

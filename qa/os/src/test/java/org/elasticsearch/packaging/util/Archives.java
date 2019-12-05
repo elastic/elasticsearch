@@ -63,13 +63,11 @@ public class Archives {
         ? System.getenv("username")
         : "elasticsearch";
 
-    public static Installation installArchive(Distribution distribution) throws Exception {
-        return installArchive(distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
+    public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
+        return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
     }
 
-    public static Installation installArchive(Distribution distribution, Path fullInstallPath, String version) throws Exception {
-        final Shell sh = new Shell();
-
+    public static Installation installArchive(Shell sh, Distribution distribution, Path fullInstallPath, String version) throws Exception {
         final Path distributionFile = getDistributionFile(distribution);
         final Path baseInstallPath = fullInstallPath.getParent();
         final Path extractedPath = baseInstallPath.resolve("elasticsearch-" + version);

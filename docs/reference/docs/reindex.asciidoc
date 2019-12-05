@@ -549,7 +549,7 @@ the reindex returned a `noop` value for `ctx.op`.
 
 `version_conflicts`::
 
-(integer)The number of version conflicts that reindex hit.
+(integer) The number of version conflicts that reindex hits.
 
 `retries`::
 

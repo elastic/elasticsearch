@@ -190,6 +190,10 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
   final TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
     @Override
     void afterExecute(final Task task, final TaskState state) {
+      if (task != startWildfly && task != integTestRunner) {
+        // we might have been called from a parallel, unrelated task
+        return
+      }
       if (state.failure != null) {
         final File logFile = new File(wildflyInstall, "standalone/log/server.log")
         println("\nWildfly server log (from ${logFile}):")

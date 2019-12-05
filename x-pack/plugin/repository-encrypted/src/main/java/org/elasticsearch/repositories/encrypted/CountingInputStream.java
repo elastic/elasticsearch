@@ -10,6 +10,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
+/**
+ * A {@code CountingInputStream} wraps another input stream and counts the number of bytes
+ * that have been read or skipped. This input stream must be used in place of the wrapped one.
+ * Bytes replayed following a {@code reset} call are not counted multiple times, i.e. only
+ * the bytes that are produced in a single pass, without resets, by the wrapped stream are counted.
+ * This input stream does no buffering on its own and only supports {@code mark} and
+ * {@code reset} if the wrapped stream supports it.
+ * <p>
+ * If the {@code closeSource} constructor argument is {@code true}, closing this
+ * stream will also close the wrapped input stream. Apart from closing the wrapped
+ * stream in this case, the {@code close} method does nothing else.
+ */
 public final class CountingInputStream extends FilterInputStream {
 
     private long count;
@@ -21,7 +33,7 @@ public final class CountingInputStream extends FilterInputStream {
      * Wraps another input stream, counting the number of bytes read.
      *
      * @param in the input stream to be wrapped
-     * @param closeSource if closing this stream will propagate to the wrapped stream
+     * @param closeSource {@code true} if closing this stream will also close the wrapped stream
      */
     public CountingInputStream(InputStream in, boolean closeSource) {
         super(Objects.requireNonNull(in));

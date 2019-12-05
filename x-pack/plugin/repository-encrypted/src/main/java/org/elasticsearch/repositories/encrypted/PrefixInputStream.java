@@ -18,8 +18,8 @@ import java.util.Objects;
  * is exhausted when {@code length} bytes have been read or the underlying
  * stream is exhausted.
  * <p>
- * Iff {@code closeSource} constructor argument is {@code true}, closing this
- * stream will close the underlying input stream. Any subsequent {@code read},
+ * If the {@code closeSource} constructor argument is {@code true}, closing this
+ * stream will also close the underlying input stream. Any subsequent {@code read},
  * {@code skip} and {@code available} calls will throw {@code IOException}s.
  */
 public final class PrefixInputStream extends FilterInputStream {

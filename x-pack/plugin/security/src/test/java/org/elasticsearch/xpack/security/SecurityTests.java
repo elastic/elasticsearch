@@ -473,6 +473,16 @@ public class SecurityTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
     }
 
+    public void testValidateForFipsWithDiagnosticTrustManager() {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), true)
+            .build();
+        final IllegalArgumentException iae =
+            expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
+        assertThat(iae.getMessage(), containsString("SSL/TLS diagnostic messages cannot be enabled in a FIPS 140 JVM."));
+    }
+
     public void testValidateForFipsNoErrors() {
         final Settings settings = Settings.builder()
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)

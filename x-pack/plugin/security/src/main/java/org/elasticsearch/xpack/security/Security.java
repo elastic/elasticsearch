@@ -635,7 +635,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // The following just apply in node mode
         settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
 
-        SSLService.registerSettings(settingsList);
+        settingsList.add(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING);
         // IP Filter settings
         IPFilter.addSettings(settingsList);
 
@@ -903,7 +903,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             validationErrors.add("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the " +
                 "appropriate value for [ " + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey() + " ] setting.");
         }
-
+        if (XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.exists(settings)
+            && XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(settings)) {
+            validationErrors.add("SSL/TLS diagnostic messages cannot be enabled in a FIPS 140 JVM. Please set [ " +
+                XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey() + " ] to false or remove this setting from your configuration. ");
+        }
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();
             sb.append("Validation for FIPS 140 mode failed: \n");

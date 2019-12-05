@@ -35,6 +35,40 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         }
     }
 
+    public void testResetWithoutMarkFails() throws Exception {
+        Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
+        BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), 1 + Randomness.get().nextInt(1024));
+        // maybe read some bytes
+        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
+        IOException e = expectThrows(IOException.class, () -> {
+            test.reset();
+        });
+        assertThat(e.getMessage(), Matchers.is("Mark not called or has been invalidated"));
+    }
+
+    public void testMarkAndBufferReadLimitsCheck() throws Exception {
+        Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
+        int bufferSize = 1 + Randomness.get().nextInt(1024);
+        BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
+        assertThat(test.getMaxMarkReadlimit(), Matchers.is(bufferSize));
+        // maybe read some bytes
+        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
+        int wrongReadLimit = bufferSize + 1 + Randomness.get().nextInt(8);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            test.mark(wrongReadLimit);
+        });
+        assertThat(e.getMessage(), Matchers.is("Readlimit value [" + wrongReadLimit + "] exceeds the maximum value of ["
+                + bufferSize + "]"));
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            test.mark(-1 - Randomness.get().nextInt(2));
+        });
+        assertThat(e.getMessage(), Matchers.containsString("cannot be negative"));
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            new BufferOnMarkInputStream(mock(InputStream.class), 0 - Randomness.get().nextInt(2));
+        });
+        assertThat(e.getMessage(), Matchers.is("The buffersize constructor argument must be a strictly positive value"));
+    }
+
     public void testCloseRejectsSuccessiveCalls() throws Exception {
         int bufferSize = 3 + Randomness.get().nextInt(32);
         Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
@@ -182,39 +216,6 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
             test.reset();
         });
         assertThat(e.getMessage(), Matchers.is("Mark not called or has been invalidated"));
-    }
-
-    public void testResetWithoutMarkFails() throws Exception {
-        Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
-        BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), 1 + Randomness.get().nextInt(1024));
-        // maybe read some bytes
-        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
-        IOException e = expectThrows(IOException.class, () -> {
-            test.reset();
-        });
-        assertThat(e.getMessage(), Matchers.is("Mark not called or has been invalidated"));
-    }
-
-    public void testMarkAndBufferReadLimitsCheck() throws Exception {
-        Tuple<AtomicInteger, InputStream> mockSourceTuple = getMockInfiniteInputStream();
-        int bufferSize = 1 + Randomness.get().nextInt(1024);
-        BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), bufferSize);
-        // maybe read some bytes
-        test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
-        int wrongReadLimit = bufferSize + 1 + Randomness.get().nextInt(8);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            test.mark(wrongReadLimit);
-        });
-        assertThat(e.getMessage(), Matchers.is("Readlimit value [" + wrongReadLimit + "] exceeds the maximum value of ["
-                + bufferSize + "]"));
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            test.mark(-1 - Randomness.get().nextInt(2));
-        });
-        assertThat(e.getMessage(), Matchers.containsString("cannot be negative"));
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            new BufferOnMarkInputStream(mock(InputStream.class), 0 - Randomness.get().nextInt(2));
-        });
-        assertThat(e.getMessage(), Matchers.is("The buffersize constructor argument must be a strictly positive value"));
     }
 
     public void testConsumeBufferUponReset() throws Exception {

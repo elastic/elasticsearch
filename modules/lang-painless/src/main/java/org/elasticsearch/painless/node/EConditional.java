@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -48,13 +47,6 @@ public final class EConditional extends AExpression {
         this.condition = Objects.requireNonNull(condition);
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        condition.storeSettings(settings);
-        left.storeSettings(settings);
-        right.storeSettings(settings);
     }
 
     @Override

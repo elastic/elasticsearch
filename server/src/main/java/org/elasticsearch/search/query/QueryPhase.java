@@ -45,8 +45,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
@@ -265,7 +265,7 @@ public class QueryPhase implements SearchPhase {
 
             final Runnable cancellationRunnable;
             if (searchContext.lowLevelCancellation()) {
-                SearchTask task = searchContext.getTask();
+                SearchShardTask task = searchContext.getTask();
                 cancellationRunnable = () -> { if (task.isCancelled()) throw new TaskCancelledException("cancelled"); };
             } else {
                 cancellationRunnable = null;
@@ -412,6 +412,10 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.collapse() != null) return null;
         if (searchContext.trackScores()) return null;
         if (searchContext.aggregations() != null) return null;
+        if (canEarlyTerminate(reader, searchContext.sort())) {
+            // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher
+            return null;
+        }
         Sort sort = searchContext.sort().sort;
         SortField sortField = sort.getSort()[0];
         if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return null;

@@ -337,7 +337,7 @@ public final class IpRangeAggregationBuilder
     }
 
     public IpRangeAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.BYTES, ValueType.IP);
+        super(in, CoreValuesSourceType.IP, ValueType.IP);
         final int numRanges = in.readVInt();
         for (int i = 0; i < numRanges; ++i) {
             addRange(new Range(in));
@@ -347,7 +347,7 @@ public final class IpRangeAggregationBuilder
 
     @Override
     protected ValuesSourceType resolveScriptAny(Script script) {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.IP;
     }
 
     @Override

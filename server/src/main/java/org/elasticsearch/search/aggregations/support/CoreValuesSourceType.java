@@ -24,10 +24,12 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
@@ -35,6 +37,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.function.LongSupplier;
 
@@ -87,7 +91,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
 
-            ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData)fieldContext.indexFieldData());
+            ValuesSource.Numeric dataSource = new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData());
             if (script != null) {
                 // Value script case
                 dataSource = new ValuesSource.Numeric.WithScript(dataSource, script);
@@ -166,6 +170,11 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
             final GeoPoint missing = new GeoPoint(rawMissing.toString());
             return MissingValues.replaceMissing((ValuesSource.GeoPoint) valuesSource, missing);
         }
+
+        @Override
+        public DocValueFormat getFormatter(String format, ZoneId tz) {
+            return DocValueFormat.GEOHASH;
+        }
     },
     RANGE {
         @Override
@@ -187,7 +196,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
                 // TODO: Is this the correct exception type here?
                 throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
             }
-            RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType)fieldType;
+            RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType) fieldType;
             return new ValuesSource.Range(fieldContext.indexFieldData(), rangeFieldType.rangeType());
         }
 
@@ -195,7 +204,66 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
         public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
-    };
+    },
+    // TODO: Ordinal Numbering sync with types from master
+    IP {
+        @Override
+        public ValuesSource getEmpty() {
+            return BYTES.getEmpty();
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            return BYTES.getScript(script, scriptValueType);
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            return BYTES.getField(fieldContext, script);
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            return BYTES.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        }
+
+        @Override
+        public DocValueFormat getFormatter(String format, ZoneId tz) {
+            return DocValueFormat.IP;
+        }
+    },
+    DATE {
+        @Override
+        public ValuesSource getEmpty() {
+            return null;
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            return NUMERIC.getScript(script, scriptValueType);
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            return NUMERIC.getField(fieldContext, script);
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        }
+
+        @Override
+        public DocValueFormat getFormatter(String format, ZoneId tz) {
+            return  new DocValueFormat.DateTime(
+                format == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format),
+                tz == null ? ZoneOffset.UTC : tz,
+                // If we were just looking at fields, we could read the resolution from the field settings, but we need to deal with script
+                // output, which has no way to indicate the resolution, so we need to default to something.  Milliseconds is the standard.
+                DateFieldMapper.Resolution.MILLISECONDS);
+        }
+    }
+    ;
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

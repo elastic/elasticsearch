@@ -19,9 +19,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
@@ -29,7 +27,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.function.Function;
 
 /**
@@ -78,7 +75,8 @@ public class ValuesSourceConfig {
         Function<Script, ValuesSourceType> resolveScriptAny,
         String aggregationName) {
         ValuesSourceConfig config;
-
+        MappedFieldType fieldType = null;
+        ValuesSourceType valuesSourceType;
         if (field == null) {
             // Stand Alone Script Case
             if (script == null) {
@@ -91,7 +89,7 @@ public class ValuesSourceConfig {
              */
             // TODO: Not pluggable, should always be valueType if specified, BYTES if not.
             // TODO: Probably should validate that the resulting type is valid for this agg.  That needs to be plugable.
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
+            valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
             if (valuesSourceType == CoreValuesSourceType.ANY) {
                 // the specific value source type is undefined, but for scripts,
                 // we need to have a specific value source
@@ -100,12 +98,11 @@ public class ValuesSourceConfig {
                 valuesSourceType = resolveScriptAny.apply(script);
             }
             config = new ValuesSourceConfig(valuesSourceType);
-            config.format(resolveFormat(format, valueType, timeZone));
             config.script(createScript(script, context));
             config.scriptValueType(valueType);
         } else {
             // Field case
-            MappedFieldType fieldType = context.fieldMapper(field);
+            fieldType = context.fieldMapper(field);
             if (fieldType == null) {
                 /* Unmapped Field Case
                  * We got here because the user specified a field, but it doesn't exist on this index, possibly because of a wildcard index
@@ -115,12 +112,11 @@ public class ValuesSourceConfig {
                 // TODO: This should be pluggable too; Effectively that will replace the missingAny() case from toValuesSource()
                 // TODO: PLAN - get rid of unmapped; it's only used by valid(), and we're intending to get rid of that.
                 // TODO:        Once we no longer care about unmapped, we can merge this case with  the mapped case.
-                ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
+                valuesSourceType = valueType != null ? valueType.getValuesSourceType() : CoreValuesSourceType.ANY;
                 if (valuesSourceType == CoreValuesSourceType.ANY) {
                     valuesSourceType = resolveScriptAny.apply(script);
                 }
                 config = new ValuesSourceConfig(valuesSourceType);
-                config.format(resolveFormat(format, valueType, timeZone));
                 config.unmapped(true);
                 if (valueType != null) {
                     // todo do we really need this for unmapped?
@@ -128,15 +124,15 @@ public class ValuesSourceConfig {
                 }
             } else {
                 IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-                ValuesSourceType valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, indexFieldData,
+                valuesSourceType = ValuesSourceRegistry.getInstance().getValuesSourceType(fieldType, indexFieldData,
                     aggregationName, valueType);
                 config = new ValuesSourceConfig(valuesSourceType);
 
                 config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
                 config.script(createScript(script, context));
-                config.format(fieldType.docValueFormat(format, timeZone));
             }
         }
+        config.format(resolveFormat(format, valuesSourceType, timeZone, fieldType));
         config.missing(missing);
         config.timezone(timeZone);
         return config;
@@ -151,19 +147,13 @@ public class ValuesSourceConfig {
         }
     }
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType, @Nullable ZoneId tz) {
-        if (valueType == null) {
-            return DocValueFormat.RAW; // we can't figure it out
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValuesSourceType valuesSourceType, @Nullable ZoneId tz,
+                                                MappedFieldType fieldType) {
+        if (fieldType != null) {
+            return fieldType.docValueFormat(format, tz);
         }
-        DocValueFormat valueFormat = valueType.defaultFormat;
-        if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
-            valueFormat = new DocValueFormat.Decimal(format);
-        }
-        if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
-            valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : ZoneOffset.UTC,
-                DateFieldMapper.Resolution.MILLISECONDS);
-        }
-        return valueFormat;
+        // Script or Unmapped case
+        return valuesSourceType.getFormatter(format, tz);
     }
 
     private final ValuesSourceType valueSourceType;

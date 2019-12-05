@@ -106,7 +106,6 @@ public class DeflateCompressor implements Compressor {
         out.writeBytes(HEADER);
         final boolean nowrap = true;
         final Deflater deflater = new Deflater(LEVEL, nowrap);
-        // Transport compression depends on syncFlush because we need the size of the compressed header
         final boolean syncFlush = true;
         DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush);
         OutputStream compressedOut = new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE);

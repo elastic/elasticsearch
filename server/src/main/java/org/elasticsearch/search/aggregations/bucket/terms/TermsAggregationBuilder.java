@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -95,7 +94,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new TermsAggregationBuilder(aggregationName, null), null);
+        return PARSER.parse(parser, new TermsAggregationBuilder(aggregationName), null);
     }
 
     private BucketOrder order = BucketOrder.compound(BucketOrder.count(false)); // automatically adds tie-breaker key asc order
@@ -106,7 +105,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private boolean showTermDocCountError = false;
 
-    public TermsAggregationBuilder(String name, ValueType valueType) {
+    public TermsAggregationBuilder(String name) {
         super(name);
     }
 

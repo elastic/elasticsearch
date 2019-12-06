@@ -153,7 +153,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.size(0);
         originalRequest.source(source);
-        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms", null).userValueTypeHint(ValueType.NUMERIC);
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC);
         terms.field("price");
         terms.size(1);
         source.aggregation(terms);

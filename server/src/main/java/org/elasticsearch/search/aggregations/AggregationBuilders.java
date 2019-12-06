@@ -266,7 +266,7 @@ public class AggregationBuilders {
      * Create a new {@link SignificantTerms} aggregation with the given name.
      */
     public static SignificantTermsAggregationBuilder significantTerms(String name) {
-        return new SignificantTermsAggregationBuilder(name, null);
+        return new SignificantTermsAggregationBuilder(name);
     }
 
 
@@ -313,7 +313,7 @@ public class AggregationBuilders {
      * Create a new {@link Terms} aggregation with the given name.
      */
     public static TermsAggregationBuilder terms(String name) {
-        return new TermsAggregationBuilder(name, null);
+        return new TermsAggregationBuilder(name);
     }
 
     /**

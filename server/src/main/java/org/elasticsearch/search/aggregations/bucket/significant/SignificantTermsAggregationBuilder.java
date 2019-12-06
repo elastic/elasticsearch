@@ -40,7 +40,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -102,7 +101,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return new Aggregator.Parser() {
             @Override
             public AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-                return aggregationParser.parse(parser, new SignificantTermsAggregationBuilder(aggregationName, null), null);
+                return aggregationParser.parse(parser, new SignificantTermsAggregationBuilder(aggregationName), null);
             }
         };
     }
@@ -113,7 +112,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
-    public SignificantTermsAggregationBuilder(String name, ValueType valueType) {
+    public SignificantTermsAggregationBuilder(String name) {
         super(name);
     }
 

@@ -302,7 +302,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
     public void testStringTerms() throws IOException {
 
-        TermsAggregationBuilder terms = new TermsAggregationBuilder("test_string_terms", null).userValueTypeHint(ValueType.STRING);
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("test_string_terms").userValueTypeHint(ValueType.STRING);
         terms.field("foo")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));

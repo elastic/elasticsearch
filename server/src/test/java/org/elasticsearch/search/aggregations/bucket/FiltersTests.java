@@ -168,7 +168,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertTrue(((FiltersAggregationBuilder) rewritten).isKeyed());
 
         // test sub-agg filter that does rewrite
-        original = new TermsAggregationBuilder("terms", null).userValueTypeHint(ValueType.BOOLEAN)
+        original = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.BOOLEAN)
             .subAggregation(
                 new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter",  new BoolQueryBuilder()))
             );

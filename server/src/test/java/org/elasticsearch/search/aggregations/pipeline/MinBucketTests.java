@@ -37,7 +37,7 @@ public class MinBucketTests extends AbstractBucketMetricsTestCase<MinBucketPipel
 
     public void testValidate() {
         AggregationBuilder singleBucketAgg = new GlobalAggregationBuilder("global");
-        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms", null).userValueTypeHint(ValueType.STRING);
+        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING);
         final Set<AggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(singleBucketAgg);
         aggBuilders.add(multiBucketAgg);

@@ -273,7 +273,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG};
                     String[] fieldNames = new String[]{"string", "long"};
                     for (int i = 0; i < fieldNames.length; i++) {
-                        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", null)
+                        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name")
                             .userValueTypeHint(valueTypes[i])
                             .field(fieldNames[i]);
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
@@ -309,7 +309,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", null)
+                    RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name")
                         .field("field");
                     expectThrows(AggregationExecutionException.class,
                         () -> createAggregator(aggregationBuilder, indexSearcher, fieldType));
@@ -323,7 +323,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         testBothCases(query, dataset, aggregation -> {
-                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms", null).userValueTypeHint(ValueType.STRING)
+                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)
                     .field(KEYWORD_FIELD);
                 aggregation.field(LONG_FIELD).maxDocCount(1).subAggregation(terms);
             },
@@ -342,7 +342,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         );
 
         testBothCases(query, dataset, aggregation -> {
-                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms", null).userValueTypeHint(ValueType.STRING)
+                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)
                     .field(KEYWORD_FIELD);
                 aggregation.field(KEYWORD_FIELD).maxDocCount(1).subAggregation(terms);
             },
@@ -378,11 +378,11 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
                     GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global")
                         .subAggregation(
-                            new RareTermsAggregationBuilder("terms", null)
+                            new RareTermsAggregationBuilder("terms")
                                 .userValueTypeHint(ValueType.STRING)
                                 .field("keyword")
                                 .subAggregation(
-                                    new RareTermsAggregationBuilder("sub_terms", null)
+                                    new RareTermsAggregationBuilder("sub_terms")
                                         .userValueTypeHint(ValueType.STRING)
                                         .field("keyword")
                                         .subAggregation(
@@ -427,7 +427,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.commit();
 
                 NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
-                    .subAggregation(new RareTermsAggregationBuilder("terms", null)
+                    .subAggregation(new RareTermsAggregationBuilder("terms")
                         .userValueTypeHint(ValueType.LONG)
                         .field("nested_value")
                         .maxDocCount(1)
@@ -461,7 +461,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.commit();
                 for (boolean withScore : new boolean[]{true, false}) {
                     NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
-                        .subAggregation(new RareTermsAggregationBuilder("terms", null)
+                        .subAggregation(new RareTermsAggregationBuilder("terms")
                             .userValueTypeHint(ValueType.LONG)
                             .field("nested_value")
                             .maxDocCount(2)
@@ -585,7 +585,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", null);
+                RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name");
                 aggregationBuilder.userValueTypeHint(valueType);
                 if (configure != null) {
                     configure.accept(aggregationBuilder);

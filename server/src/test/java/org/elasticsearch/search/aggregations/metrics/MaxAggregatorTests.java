@@ -744,7 +744,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         fieldType.setName("value");
         fieldType.setHasDocValues(true);
 
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", null).userValueTypeHint(ValueType.NUMERIC)
             .field("value")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>max", true)))
             .subAggregation(AggregationBuilders.filter("filter", termQuery("value", 100))
@@ -862,7 +862,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
                 .field("values");
             ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count", null)
                 .field("values");
-            TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("terms",  ValueType.NUMERIC)
+            TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("terms", null)
+                .userValueTypeHint(ValueType.NUMERIC)
                 .field("value").collectMode(collectionMode)
                 .subAggregation(new MaxAggregationBuilder("sub_max").field("invalid"));
 

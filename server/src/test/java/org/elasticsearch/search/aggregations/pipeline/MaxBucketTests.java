@@ -37,7 +37,7 @@ public class MaxBucketTests extends AbstractBucketMetricsTestCase<MaxBucketPipel
 
     public void testValidate() {
         AggregationBuilder singleBucketAgg = new GlobalAggregationBuilder("global");
-        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms", ValueType.STRING);
+        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms", null).userValueTypeHint(ValueType.STRING);
         final Set<AggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(singleBucketAgg);
         aggBuilders.add(multiBucketAgg);

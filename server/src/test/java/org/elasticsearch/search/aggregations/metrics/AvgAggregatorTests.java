@@ -515,7 +515,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         fieldType.setName("value");
         fieldType.setHasDocValues(true);
 
-        AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", null).userValueTypeHint(ValueType.NUMERIC)
             .field("value")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>avg", true)))
             .subAggregation(AggregationBuilders.filter("filter", termQuery("value", 100))

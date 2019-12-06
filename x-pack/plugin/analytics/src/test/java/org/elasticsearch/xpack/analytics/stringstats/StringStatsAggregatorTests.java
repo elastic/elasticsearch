@@ -206,7 +206,8 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         textFieldType.setName("text");
         textFieldType.setFielddata(true);
 
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms", null)
+            .userValueTypeHint(ValueType.NUMERIC)
             .field("value")
             .subAggregation(new StringStatsAggregationBuilder("text_stats").field("text").userValueTypeHint(ValueType.STRING));
 

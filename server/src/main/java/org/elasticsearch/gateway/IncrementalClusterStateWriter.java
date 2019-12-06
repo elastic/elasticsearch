@@ -53,8 +53,12 @@ public class IncrementalClusterStateWriter {
 
     private final MetaStateService metaStateService;
 
-    // On master-eligible nodes we call updateClusterStateForMasterEligibleNode under the Coordinator's mutex;
-    // on master-ineligible data nodes we call retainIndicesOnDataOnlyNode and updateClusterStateForDataOnlyNode which are synchronized
+    /**
+     * Synchronization for the mutable fields in this class works as follows:
+     * On master-eligible nodes we call {@link #updateClusterStateForMasterEligibleNode} under the Coordinator's mutex;
+     * on master-ineligible data nodes we call {@link #retainIndicesOnDataOnlyNode} and {@link #updateClusterStateForDataOnlyNode}
+     * which are synchronized.
+     */
     private Manifest previousManifest;
     private ClusterState previousClusterState;
     private final LongSupplier relativeTimeMillisSupplier;
@@ -130,8 +134,10 @@ public class IncrementalClusterStateWriter {
 
     /**
      * Updates the manifest to only retain a subset of the currently referenced indices, based on what indices in the given cluster state
-     * are relevant to the current node. Note that this method is synchronized as it allows concurrent access with
-     * {@link #updateClusterStateForDataOnlyNode}.
+     * are relevant to the current node, and remembers this subset. Note that this method is synchronized as it allows concurrent access
+     * with {@link #updateClusterStateForDataOnlyNode}. Once this method successfully completes, it guarantees that every subsequent write
+     * issued by {@link #updateClusterStateForDataOnlyNode} will not touch any index folder that is not in the subset defined through this
+     * method, and also does not refer to any such folder in its manifest that is not in this subset.
      *
      * @param clusterState new {@link ClusterState}
      * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.
@@ -160,7 +166,7 @@ public class IncrementalClusterStateWriter {
     /**
      * Updates the manifest and metadata on disk for data-only nodes. As this method will run concurrently to clean-up actions on the
      * node, we have to make sure that we always check whether we should still work on a given index, which is updated
-     * by
+     * by {@link #retainIndicesOnDataOnlyNode}.
      *
      * @param newState new {@link ClusterState}
      * @throws WriteStateException if exception occurs. See also {@link WriteStateException#isDirty()}.

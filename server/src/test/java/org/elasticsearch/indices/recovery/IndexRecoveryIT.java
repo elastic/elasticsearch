@@ -142,7 +142,6 @@ import static org.hamcrest.Matchers.oneOf;
 public class IndexRecoveryIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test-idx-1";
-    private static final String INDEX_TYPE = "test-type-1";
     private static final String REPO_NAME = "test-repo-1";
     private static final String SNAP_NAME = "test-snap-1";
 

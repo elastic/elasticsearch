@@ -43,10 +43,8 @@ about either an existing {dfanalytics-job} or one that has not been created yet.
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (Optional, string) A numerical character string that uniquely identifies the existing
-  {dfanalytics-job} to explain. This identifier can contain lowercase alphanumeric
-  characters (a-z and 0-9), hyphens, and underscores. It must start and end with
-  alphanumeric characters.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 [[ml-explain-dfanalytics-request-body]]
 ==== {api-request-body-title}

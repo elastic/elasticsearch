@@ -39,7 +39,8 @@ separated list.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-delete-job-query-parms]]
 ==== {api-query-parms-title}

@@ -29,9 +29,8 @@ more information, see <<security-privileges>> and <<built-in-roles>>.
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (Required, string) Identifier for the {dfanalytics-job}. This identifier can
-  contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
-  underscores. It must start and end with alphanumeric characters.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [[ml-start-dfanalytics-query-params]]
 ==== {api-query-parms-title}

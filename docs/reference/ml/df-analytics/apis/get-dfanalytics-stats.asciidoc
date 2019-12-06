@@ -36,27 +36,16 @@ information, see <<security-privileges>> and <<built-in-roles>>.
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (Optional, string)Identifier for the {dfanalytics-job}. If you do not specify
-  one of these options, the API returns information for the first hundred
-  {dfanalytics-jobs}.
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
 
 
 [[ml-get-dfanalytics-stats-query-params]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
-  (Optional, boolean) Specifies what to do when the request:
-+
---
-* Contains wildcard expressions and there are no {dfanalytics-jobs} that match.
-* Contains the `_all` string or no identifiers and there are no matches.
-* Contains wildcard expressions and there are only partial matches. 
-
-The default value is `true`, which returns an empty `data_frame_analytics` array 
-when there are no matches and the subset of results when there are partial 
-matches. If this parameter is `false`, the request returns a `404` status code 
-when there are no matches or only partial matches.
---
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `from`::
   (Optional, integer) Skips the specified number of {dfanalytics-jobs}. The

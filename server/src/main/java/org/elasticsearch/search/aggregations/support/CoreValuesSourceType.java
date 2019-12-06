@@ -235,7 +235,7 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
     DATE {
         @Override
         public ValuesSource getEmpty() {
-            return null;
+            return NUMERIC.getEmpty();
         }
 
         @Override
@@ -261,6 +261,32 @@ public enum CoreValuesSourceType implements Writeable, ValuesSourceType {
                 // If we were just looking at fields, we could read the resolution from the field settings, but we need to deal with script
                 // output, which has no way to indicate the resolution, so we need to default to something.  Milliseconds is the standard.
                 DateFieldMapper.Resolution.MILLISECONDS);
+        }
+    },
+    BOOLEAN {
+        @Override
+        public ValuesSource getEmpty() {
+            return NUMERIC.getEmpty();
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            return NUMERIC.getScript(script, scriptValueType);
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            return NUMERIC.getField(fieldContext, script);
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        }
+
+        @Override
+        public DocValueFormat getFormatter(String format, ZoneId tz) {
+            return DocValueFormat.BOOLEAN;
         }
     }
     ;

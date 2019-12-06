@@ -37,19 +37,19 @@ public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES,
             IndexFieldData.class, DocValueFormat.RAW),
-    LONG((byte) 2, "byte|short|integer|long", "long",
-                    CoreValuesSourceType.NUMERIC,
-            IndexNumericFieldData.class, DocValueFormat.RAW),
+
+    LONG((byte) 2, "byte|short|integer|long", "long", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     DOUBLE((byte) 3, "float|double", "double", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     NUMBER((byte) 4, "number", "number", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
-    DATE((byte) 5, "date", "date", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class,
+    DATE((byte) 5, "date", "date", CoreValuesSourceType.DATE, IndexNumericFieldData.class,
             new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
                 DateFieldMapper.Resolution.MILLISECONDS)),
-    IP((byte) 6, "ip", "ip", CoreValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
+
+    IP((byte) 6, "ip", "ip", CoreValuesSourceType.IP, IndexFieldData.class, DocValueFormat.IP),
     // TODO: what is the difference between "number" and "numeric"?
     NUMERIC((byte) 7, "numeric", "numeric", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     GEOPOINT((byte) 8, "geo_point", "geo_point", CoreValuesSourceType.GEOPOINT, IndexGeoPointFieldData.class, DocValueFormat.GEOHASH),
-    BOOLEAN((byte) 9, "boolean", "boolean", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN),
+    BOOLEAN((byte) 9, "boolean", "boolean", CoreValuesSourceType.BOOLEAN, IndexNumericFieldData.class, DocValueFormat.BOOLEAN),
     RANGE((byte) 10, "range", "range", CoreValuesSourceType.RANGE, BinaryDVIndexFieldData.class, DocValueFormat.RAW);
 
     final String description;
@@ -77,15 +77,6 @@ public enum ValueType implements Writeable {
 
     public ValuesSourceType getValuesSourceType() {
         return valuesSourceType;
-    }
-
-    public boolean isA(ValueType valueType) {
-        return valueType.valuesSourceType == valuesSourceType &&
-                valueType.fieldDataType.isAssignableFrom(fieldDataType);
-    }
-
-    public boolean isNotA(ValueType valueType) {
-        return !isA(valueType);
     }
 
     public DocValueFormat defaultFormat() {

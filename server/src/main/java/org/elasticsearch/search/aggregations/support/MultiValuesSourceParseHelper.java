@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,12 +32,9 @@ public final class MultiValuesSourceParseHelper {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::valueType, p -> {
             ValueType valueType = ValueType.resolveForScript(p.text());
-            if (targetValueType != null && valueType.isNotA(targetValueType)) {
-                throw new ParsingException(p.getTokenLocation(),
-                    "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
-                        + valueType + "]. It can only work on value of type ["
-                        + targetValueType + "]");
-            }
+            // TODO: We used to apply limited type checking here to see if the user specified type was compatible with the expected type
+            //       That got removed in the process of moving away from ValueType, but we should add something back in before merging
+            //       to master.
             return valueType;
         }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
 

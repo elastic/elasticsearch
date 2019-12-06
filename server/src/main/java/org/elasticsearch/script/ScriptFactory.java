@@ -19,7 +19,10 @@
 
 package org.elasticsearch.script;
 
+/**
+ * Contains utility methods for compiled scripts without impacting concrete script signatures
+ */
 public interface ScriptFactory {
-    /** Is the result of this script deterministic? */
+    /** Returns {@code true} if the result of the script will be deterministic, {@code false} otherwise. */
     default boolean isResultDeterministic() { return false; }
 }

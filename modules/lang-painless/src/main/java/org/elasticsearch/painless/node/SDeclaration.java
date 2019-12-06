@@ -36,13 +36,13 @@ import java.util.Set;
  */
 public final class SDeclaration extends AStatement {
 
-    private final String type;
+    private final DType type;
     private final String name;
     private AExpression expression;
 
     private Variable variable = null;
 
-    public SDeclaration(Location location, String type, String name, AExpression expression) {
+    public SDeclaration(Location location, DType type, String name, AExpression expression) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
@@ -61,19 +61,15 @@ public final class SDeclaration extends AStatement {
 
     @Override
     void analyze(ScriptRoot scriptRoot, Locals locals) {
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
-        }
+        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
 
         if (expression != null) {
-            expression.expected = clazz;
+            expression.expected = resolvedType.getType();
             expression.analyze(scriptRoot, locals);
             expression = expression.cast(scriptRoot, locals);
         }
 
-        variable = locals.addVariable(location, clazz, name, false);
+        variable = locals.addVariable(location, resolvedType.getType(), name, false);
     }
 
     @Override

@@ -105,19 +105,18 @@ public class GatewayMetaState {
                 manifestClusterStateTuple.v1(),
                 prepareInitialClusterState(transportService, clusterSettings, manifestClusterStateTuple.v2()),
                 transportService.getThreadPool()::relativeTimeInMillis);
-        if (DiscoveryNode.isMasterNode(settings) == false) {
-            if (DiscoveryNode.isDataNode(settings)) {
-                persistedState.set(new DataOnlyNodePersistedState(settings, incrementalClusterStateWriter,
-                    transportService.getThreadPool()));
-            } else {
-                // Non-master non-data nodes do not need to persist the cluster state as they do not use a persistent store
-                persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(),
-                    manifestClusterStateTuple.v2()));
-            }
-        } else {
-            // Master-ineligible nodes must persist the cluster state when accepting it because they must reload the (complete, fresh)
+        if (DiscoveryNode.isMasterNode(settings)) {
+            // Master-eligible nodes must persist the cluster state when accepting it because they must reload the (complete, fresh)
             // last-accepted cluster state when restarted.
             persistedState.set(new MasterEligibleNodePersistedState(incrementalClusterStateWriter));
+        } else if (DiscoveryNode.isDataNode(settings)) {
+            // Data-only nodes persist the metadata for shards that they hold, and only in a delayed fashion to power dangling indices
+            persistedState.set(new DataOnlyNodePersistedState(settings, incrementalClusterStateWriter,
+                transportService.getThreadPool()));
+        } else {
+            // Non-master non-data nodes do not need to persist the cluster state as they do not use a persistent store
+            persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(),
+                manifestClusterStateTuple.v2()));
         }
     }
 

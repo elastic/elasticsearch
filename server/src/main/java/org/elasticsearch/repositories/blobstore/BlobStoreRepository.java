@@ -731,6 +731,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         return false;
                     }
                     return allSnapshotIds.contains(foundUUID) == false;
+                } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
+                    // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
+                    return repositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
                 }
                 return false;
             }

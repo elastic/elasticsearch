@@ -109,6 +109,7 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
+import org.elasticsearch.painless.node.DUnresolvedType;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
 import org.elasticsearch.painless.node.EBool;
@@ -478,8 +479,9 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         for (DeclvarContext declvar : ctx.declvar()) {
             String name = declvar.ID().getText();
             AExpression expression = declvar.expression() == null ? null : (AExpression)visit(declvar.expression());
+            DUnresolvedType unresolvedType = new DUnresolvedType(location(declvar), type);
 
-            declarations.add(new SDeclaration(location(declvar), type, name, expression));
+            declarations.add(new SDeclaration(location(declvar), unresolvedType, name, expression));
         }
 
         return new SDeclBlock(location(ctx), declarations);

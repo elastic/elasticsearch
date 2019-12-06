@@ -1,0 +1,620 @@
+[[getting-started]]
+= {es}を始めましょう
+
+[partintro]
+--
+{es}を使用して、REST APIによりデータを保存、検索、分析する方法を試してみましょう。
+
+本チュートリアルでは、下記の項目を説明します。
+
+. {es}クラスタを起動して実行する
+. サンプルドキュメントのインデックスを作成する
+. {es}クエリ言語を使用して、ドキュメントを検索する
+. バケットとメトリックの集計を使用して、結果を分析する
+
+
+他のドキュメントをお求めでしょうか？
+
+<<elasticsearch-intro, {es} Introduction>>では、専門用語と、{es}の仕組みの基本を学習できます。すでに{es}に精通しており、他のElastic Stack製品も組み合わせた使用方法を確認したい場合は、
+{stack-gs}/get-started-elastic-stack.html[Elastic Stack Tutorial] で、{es}、 {kib}、 {beats}、 および{ls}を使用して、システム監視ソリューションをセットアップする方法を確認できます。
+
+TIP: https://www.elastic.co/cloud/elasticsearch-service/signup[{ess}の14-dayフリートライアル] を使うと、クラウド上で素早く{es}を始めることができます。
+--
+
+[[getting-started-install]]
+== {es}を起動して実行しましょう
+
+{es}を試すために、{ess}の
+https://www.elastic.co/cloud/elasticsearch-service/signup[ホスト環境]
+を作るか、ローカルのLinux、macOS、Windowsマシン上にマルチノード{es}クラスタをセットアップします。
+
+[float]
+[[run-elasticsearch-hosted]]
+=== Elastic Cloud上で{es}を実行する
+
+{es}サービス上で環境を作成すると、Kibana、APMとともに3ノードの{es}クラスタが準備されます。
+
+環境を作成する:
+
+. https://www.elastic.co/cloud/elasticsearch-service/signup[フリートライアル]に登録して、あなたのメールアドレスを確認してください。
+. アカウントにパスワードを設定してください。
+. **Create Deployment** をクリックしてください。
+
+環境作成ができれば、<<getting-started-index>>準備は完了です。
+
+[float]
+[[run-elasticsearch-local]]
+=== ローカルのLinux、macOS、Windowsマシン上で{es}を実行する
+
+{ess}上で環境を作成すると、1つのマスターノードと2つのデータノードが自動的に準備されます。tar または zipアーカイブからインストールする場合は、ローカルで複数の{es}インスタンスを起動することで、マルチノードクラスタの動作を確認できます。
+
+ローカルで3ノードの{es}クラスタを実行する:
+
+. OSに合った{es}アーカイブをダウンロードする:
++
+Linux: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz[elasticsearch-{version}-linux-x86_64.tar.gz]
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
+--------------------------------------------------
+// NOTCONSOLE
++
+macOS: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz[elasticsearch-{version}-darwin-x86_64.tar.gz]
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+--------------------------------------------------
+// NOTCONSOLE
++
+Windows:
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip[elasticsearch-{version}-windows-x86_64.zip]
+
+. アーカイブを展開する:
++
+Linux:
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
+--------------------------------------------------
++
+macOS:
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+tar -xvf elasticsearch-{version}-darwin-x86_64.tar.gz
+--------------------------------------------------
++
+Windows PowerShell:
++
+["source","powershell",subs="attributes,callouts"]
+--------------------------------------------------
+Expand-Archive elasticsearch-{version}-windows-x86_64.zip
+--------------------------------------------------
+
+. `bin` ディレクトリから{es}を起動する:
++
+Linux and macOS:
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+cd elasticsearch-{version}/bin
+./elasticsearch
+--------------------------------------------------
++
+Windows:
++
+["source","powershell",subs="attributes,callouts"]
+--------------------------------------------------
+cd elasticsearch-{version}\bin
+.\elasticsearch.bat
+--------------------------------------------------
++
+これで、シングルノードの{es}クラスタが実行されました！
+
+. あと2つの{es}インスタンスを起動して、典型的なマルチノードクラスタの動作を見てみましょう。それぞれのノードに対して、ユニークなデータとログのパスを指定する必要があります。
++
+Linux and macOS:
++
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+./elasticsearch -Epath.data=data2 -Epath.logs=log2
+./elasticsearch -Epath.data=data3 -Epath.logs=log3
+--------------------------------------------------
++
+Windows:
++
+["source","powershell",subs="attributes,callouts"]
+--------------------------------------------------
+.\elasticsearch.bat -E path.data=data2 -E path.logs=log2
+.\elasticsearch.bat -E path.data=data3 -E path.logs=log3
+--------------------------------------------------
++
+追加したノードにはユニークなIDが割り振られます。3ノードが全てローカルで実行されていると、それらは自動的に1つ目のノードのクラスタに配置されます。
+
+. cat health APIを使って、3ノードクラスタが動作していることを確認しましょう。
+cat APIs は、生のJSONより分かりやすい形式で、クラスタとインデックスに関する情報を返します。
++
+{es} REST API にHTTPリクエストを送ることで、クラスタと直接対話することができます。本ガイド中のほとんどの例では、適切なcURLコマンドをコマンドラインにコピーして実行するだけで、ローカルの{es}インスタンスにリクエストを送信できます。Kibanaがインストールおよび起動済みであれば、Kibanaを開いて、Devコンソールからリクエストを送信することもできます。
++
+TIP: 独自のアプリケーション内で{es}を利用したい場合は、
+https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} language
+clients] 
+を確認してください。
++
+[source,console]
+--------------------------------------------------
+GET /_cat/health?v
+--------------------------------------------------
++
+返答メッセージとして、`elasticsearch` のステータスが `green` かつ、ノードが3つ存在することを確認します:
++
+[source,txt]
+--------------------------------------------------
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1565052807 00:53:27  elasticsearch green           3         3      6   3    0    0        0             0                  -                100.0%
+--------------------------------------------------
+// TESTRESPONSE[s/1565052807 00:53:27  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
+// TESTRESPONSE[s/3         3      6   3/\\d+         \\d+      \\d+   \\d+/]
+// TESTRESPONSE[s/0             0                  -/0             \\d+                  (-|\\d+(micros|ms|s))/]
+// TESTRESPONSE[non_json]
++
+NOTE: 単一の{es}インスタンスのみで実行している場合、クラスタのステータスは yellow になります。シングルノードクラスタは完全に機能しますが、データを別のノードに複製して復元性を高めることはできません。 クラスタのステータスを green にするには、レプリカシャードが利用可能である必要があります。 クラスタのステータスが red の場合、一部のデータが利用できません。
+
+[float]
+[[gs-other-install]]
+=== 別のインストールオプション
+
+アーカイブファイルから{es}をインストールすると、ローカルで簡単にマルチインスタンスのインストールと実行を試すことができます。単一インスタンスの起動であれば、Dockerコンテナ上で{es}を実行できる他、LinuxへはDEBまたはRPMパッケージで、macOSへはHomebrewで、WindowsへはMSIパッケージインストーラを使って、{es}をインストールすることもできます。詳しくは <<install-elasticsearch>> をご覧ください。
+
+[[getting-started-index]]
+== ドキュメントのインデックスを作成する
+
+クラスタが起動および実行していれば、データにインデックスを作成する準備ができています。
+{es}にデータを投入する方法は色々ありますが、最終的に行うことは同じで、JSONドキュメントを{es}インデックスに投入します。
+
+これは、単純なPUTリクエストで直接行えます。PUTリクエストには、追加したいドキュメントのユニークIDと、
+リクエストボディに1つ以上の `"field": "value"` ペアを指定します。
+
+[source,console]
+--------------------------------------------------
+PUT /customer/_doc/1
+{
+  "name": "John Doe"
+}
+--------------------------------------------------
+
+このリクエストにより、`customer` インデックスが既に存在していなければ自動的に作成されます。さらに、IDが `1` の新しいドキュメントが追加され、 `name` フィールドが格納されます。
+
+新しいドキュメントであれば、ドキュメントのバージョン1が作成されたという旨の結果が返ります。
+
+[source,console-result]
+--------------------------------------------------
+{
+  "_index" : "customer",
+  "_id" : "1",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 2,
+    "failed" : 0
+  },
+  "_seq_no" : 26,
+  "_primary_term" : 4
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/]
+// TESTRESPONSE[s/"successful" : \d+/"successful" : $body._shards.successful/]
+// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
+
+
+新たなドキュメントは、クラスタ内の全ノードから即座に利用可能になります。
+ドキュメントIDを指定したGETリクエストによってこれを取得できます。
+
+[source,console]
+--------------------------------------------------
+GET /customer/_doc/1
+--------------------------------------------------
+// TEST[continued]
+
+返答としては、指定したIDのドキュメントが見つかった旨と、元のソースフィールドが返ります。
+
+[source,console-result]
+--------------------------------------------------
+{
+  "_index" : "customer",
+  "_id" : "1",
+  "_version" : 1,
+  "_seq_no" : 26,
+  "_primary_term" : 4,
+  "found" : true,
+  "_source" : {
+    "name": "John Doe"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ ]
+// TESTRESPONSE[s/"_primary_term" : \d+/"_primary_term" : $body._primary_term/]
+
+[float]
+[[getting-started-batch-processing]]
+=== ドキュメントのインデックスを一括で作成しましょう
+
+インデックスを作成したいドキュメントがたくさんある場合、
+{ref}/docs-bulk.html[bulk API]
+を使うとそれらをバッチ送信できます。bulkを使うとネットワーク往復が最小化されるため、ドキュメント個別にリクエストを送信するのに比べてはるかに高速になります。
+
+最適なバッチサイズは、ドキュメントのサイズと複雑さ、インデックス作成と検索の負荷、クラスタで利用可能なリソースなど、多くの要因に依存します。最初は、1,000〜5,000のドキュメントバッチと合計5MB〜15MBのペイロードで始めると良いでしょう。そこから、最適なサイズを探していくことができます。
+
+{es}にデータを投入して、検索と分析を始める:
+
+. https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[`accounts.json`] サンプルデータセットをダウンロードしてください。これは、ユーザーアカウントに関する下記のような内容のドキュメントです。内容はランダムに生成されます。:
++
+[source,js]
+--------------------------------------------------
+{
+    "account_number": 0,
+    "balance": 16623,
+    "firstname": "Bradshaw",
+    "lastname": "Mckenzie",
+    "age": 29,
+    "gender": "F",
+    "address": "244 Columbus Place",
+    "employer": "Euron",
+    "email": "bradshawmckenzie@euron.com",
+    "city": "Hobucken",
+    "state": "CO"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+. 下記の `_bulk` リクエストによって、`bank` インデックス内にアカウントデータのインデックスを作成します。
++
+[source,sh]
+--------------------------------------------------
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_bulk?pretty&refresh" --data-binary "@accounts.json"
+curl "localhost:9200/_cat/indices?v"
+--------------------------------------------------
+// NOTCONSOLE
++
+////
+これは、ドキュメントテストに適した方法で上記を複製しますが、ドキュメントには表示されません:
++
+[source,console]
+--------------------------------------------------
+GET /_cat/indices?v
+--------------------------------------------------
+// TEST[setup:bank]
+////
++
+応答は、1,000個のドキュメントが正常にインデックス付けされたことを示しています。
++
+[source,txt]
+--------------------------------------------------
+health status index uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    128.6kb        128.6kb
+--------------------------------------------------
+// TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
+// TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ non_json]
+
+[[getting-started-search]]
+== 検索してみましょう
+
+{es}インデックスにデータを投入したので、`_search` エンドポイントにリクエストを送信することで、データの検索ができます。検索の全機能にアクセスするためには、{es}クエリDSLを使ってください。これを使って、リクエストボディに検索条件を指定します。また、リクエストURIには、検索したいインデックスの名前を指定します。
+
+例えば、下記のリクエストは、`bank` インデックス内の全ドキュメントをアカウントナンバーでソートして取得します。:
+
+[source,console]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_all": {} },
+  "sort": [
+    { "account_number": "asc" }
+  ]
+}
+--------------------------------------------------
+// TEST[continued]
+
+デフォルトでは、検索条件にマッチした最初の10個のドキュメントが `hits` セクションに書かれて返されます。
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took" : 63,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+        "value": 1000,
+        "relation": "eq"
+    },
+    "max_score" : null,
+    "hits" : [ {
+      "_index" : "bank",
+      "_id" : "0",
+      "sort": [0],
+      "_score" : null,
+      "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
+    }, {
+      "_index" : "bank",
+      "_id" : "1",
+      "sort": [1],
+      "_score" : null,
+      "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
+    }, ...
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 63/"took" : $body.took/]
+// TESTRESPONSE[s/\.\.\./$body.hits.hits.2, $body.hits.hits.3, $body.hits.hits.4, $body.hits.hits.5, $body.hits.hits.6, $body.hits.hits.7, $body.hits.hits.8, $body.hits.hits.9/]
+
+レスポンスには、検索リクエストに関する下記情報も含まれます。
+
+* `took` – {es}がクエリの実行にかかった時間（ミリ秒）
+* `timed_out` – 検索リクエストがタイムアウトしたかどうか
+* `_shards` – 検索されたシャードの数と、成功、失敗、またはスキップされたシャードの数の内訳
+* `max_score` – 見つかった最も関連性の高いドキュメントのスコア
+* `hits.total.value` - 見つかったドキュメントの数
+* `hits.sort` - ドキュメントのソート位置（関連性スコアでソートしない場合）
+* `hits._score` - ドキュメントの関連性スコア（ `match_all` を使用する場合は適用されません）
+
+各検索リクエストは自己完結型です。{es}はリクエスト間で状態情報を保持しません。検索ヒットをページングするには、リクエストで `from` および `size` パラメーターを指定します。
+
+例えば、次のリクエストはヒット10〜19を取得します。
+
+[source,console]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_all": {} },
+  "sort": [
+    { "account_number": "asc" }
+  ],
+  "from": 10,
+  "size": 10
+}
+--------------------------------------------------
+// TEST[continued]
+
+ここまでで、基本的な検索リクエストの送信方法について解説しました。
+次は、`match_all` よりもう少し高度なクエリの構築をしてみましょう。
+
+フィールド内の特定の用語を検索するには、 `match` クエリを使用できます。例えば、次のリクエストは `address` フィールドに `mill` または `lane` が含まれる顧客を検索します。
+
+[source,console]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match": { "address": "mill lane" } }
+}
+--------------------------------------------------
+// TEST[continued]
+
+個々の用語ではなく、フレーズで検索したい場合は、 `match` の代わりに `match_phrase` を使用します。例えば、次のリクエストは、フレーズ `mill lane` を含むアドレスのみに一致します。
+
+[source,console]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": { "match_phrase": { "address": "mill lane" } }
+}
+--------------------------------------------------
+// TEST[continued]
+
+より複雑なクエリを作成するには、 `bool` クエリを使用して複数のクエリ条件を組み合わせることができます。条件は、必須（must match）、望ましい（should match）、望ましくない（must not match）として指定できます。
+
+例えば、次のリクエストは、 `bank` インデックスの検索条件として、40歳の顧客のアカウントを指定し、アイダホ（ID）に住んでいる顧客のアカウントは除外します。:
+
+[source,console]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "age": "40" } }
+      ],
+      "must_not": [
+        { "match": { "state": "ID" } }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+Booleanクエリの各 `must` 、 `should` 、および `must_not` 要素は、クエリ句と呼ばれます。 `must` または `should` 句の条件がどの程度満たされているかは、ドキュメントの _relevance score_ で表現されます。スコアが高いほど、よりドキュメントが検索条件に一致しています。デフォルトでは、{es}はこれらのrelevance scoreでランク付けされたドキュメントを返します。
+
+`must_not` 句の条件は _filter_ として扱われます。これは、ドキュメントを結果に含むか含まないの判断に用いられるため、ドキュメントのスコアでは表現されません。また、構造化データに基づいてドキュメントを含めたり除外したりするために、任意のフィルターを明示的に指定することもできます。
+
+たとえば、次のリクエストは範囲フィルタを使用して、残高が20,000〜30,000ドル（両端を含む）のアカウントに限定して検索します。
+
+[source,console]
+--------------------------------------------------
+GET /bank/_search
+{
+  "query": {
+    "bool": {
+      "must": { "match_all": {} },
+      "filter": {
+        "range": {
+          "balance": {
+            "gte": 20000,
+            "lte": 30000
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+[[getting-started-aggregations]]
+== 集計を使って分析しましょう
+
+{es}集計により、検索結果に関するメタ情報を取得し、「テキサスに何人のアカウント所有者がいますか？」、または「テネシー州の口座の平均残高はいくらですか？」といった問題に答えることができます。１つのリクエスト内で、ドキュメントの検索、ヒットのフィルタリング、集計を使用した結果の分析のすべてを実行できます。
+
+たとえば、次のリクエストは、 `terms` 集計を使用して `bank` インデックス内のすべてのアカウントをstate別にグループ化し、アカウントの数が多い順に10個のstateを降順で返します。
+
+[source,console]
+--------------------------------------------------
+GET /bank/_search
+{
+  "size": 0,
+  "aggs": {
+    "group_by_state": {
+      "terms": {
+        "field": "state.keyword"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+レスポンスの `buckets` 部に `state` に関する値が書かれています。`doc_count` は各stateのアカウントの数を示します。たとえば、 `ID`（アイダホ州）には27個のアカウントがあることがわかります。リクエストに `size = 0` を設定すると、レスポンスには集計結果のみが含まれます。
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took": 29,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "skipped" : 0,
+    "failed": 0
+  },
+  "hits" : {
+     "total" : {
+        "value": 1000,
+        "relation": "eq"
+     },
+    "max_score" : null,
+    "hits" : [ ]
+  },
+  "aggregations" : {
+    "group_by_state" : {
+      "doc_count_error_upper_bound": 20,
+      "sum_other_doc_count": 770,
+      "buckets" : [ {
+        "key" : "ID",
+        "doc_count" : 27
+      }, {
+        "key" : "TX",
+        "doc_count" : 27
+      }, {
+        "key" : "AL",
+        "doc_count" : 25
+      }, {
+        "key" : "MD",
+        "doc_count" : 25
+      }, {
+        "key" : "TN",
+        "doc_count" : 23
+      }, {
+        "key" : "MA",
+        "doc_count" : 21
+      }, {
+        "key" : "NC",
+        "doc_count" : 21
+      }, {
+        "key" : "ND",
+        "doc_count" : 21
+      }, {
+        "key" : "ME",
+        "doc_count" : 20
+      }, {
+        "key" : "MO",
+        "doc_count" : 20
+      } ]
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 29/"took": $body.took/]
+
+集計を組み合わせることで、あなたのデータのより複雑な要約を作成できます。たとえば、次のリクエストは、前の `group_by_state` 集計内に `avg` 集計をネストして、各stateの平均口座残高を計算します。
+
+[source,console]
+--------------------------------------------------
+GET /bank/_search
+{
+  "size": 0,
+  "aggs": {
+    "group_by_state": {
+      "terms": {
+        "field": "state.keyword"
+      },
+      "aggs": {
+        "average_balance": {
+          "avg": {
+            "field": "balance"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+結果の数でソートする代わりに、 `terms` 集計内にorderを指定することにより、ネストされた集計の結果を使用してソートすることができます。
+
+[source,console]
+--------------------------------------------------
+GET /bank/_search
+{
+  "size": 0,
+  "aggs": {
+    "group_by_state": {
+      "terms": {
+        "field": "state.keyword",
+        "order": {
+          "average_balance": "desc"
+        }
+      },
+      "aggs": {
+        "average_balance": {
+          "avg": {
+            "field": "balance"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+これらのような基本的なバケットとメトリックの集計に加えて、{es}は、複数のフィールドに対して操作したり、日付、IPアドレス、地理データなどの特定のタイプのデータを分析したりするための特殊な集計を提供します。個々の集計の結果をパイプライン集計に与えて、さらに分析することもできます。
+
+集計によって提供されるコア分析機能により、機械学習を使用して異常を検出するなどの高度な機能が可能になります。
+
+[[getting-started-next-steps]]
+== さらなるステップアップのために
+
+本チュートリアルでは、クラスタのセットアップ、ドキュメントのインデックス作成、検索と集計の実行を試しました。
+次に進んでみましょう。
+
+* {stack-gs}/get-started-elastic-stack.html#install-kibana[Dive in to the Elastic
+Stack Tutorial] では、Kibana、Logstash、およびBeatsをインストールし、基本的なシステム監視ソリューションをセットアップします。
+
+* {kibana-ref}/add-sample-data.html[Load one of the sample data sets into Kibana]
+では、{es}とKibanaを併用してデータを視覚化する方法を確認します。
+
+* Elastic search ソリューションを探してみましょう:
+** https://swiftype.com/documentation/site-search/crawler-quick-start[Site Search]
+** https://swiftype.com/documentation/app-search/getting-started[App Search]
+** https://swiftype.com/documentation/enterprise-search/getting-started[Enterprise Search]

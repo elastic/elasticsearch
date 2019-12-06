@@ -43,16 +43,14 @@ close the job, then reopen the job and restart the {dfeed} for the changes to ta
 
 --
 
-[[update-analysisconfig]]`analysis_config`::
-`detectors`:::
-//TBD Is the implication that you can add more detectors to the array? Or only update existing detectors (in particular the follow properties)?
-`custom_rules`::::
+`detectors`::
+`custom_rules`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
-`detector_description`::::
+`description`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
-`detector_index`::::
+`detector_index`:::
 (integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
 
@@ -73,7 +71,7 @@ the job with an increased `model_memory_limit`.
 --
 
 `background_persist_interval`::
-(<<time-units, time units>>)
+(<<time-units,time units>>)
 include::{docdir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 +
 --

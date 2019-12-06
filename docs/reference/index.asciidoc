@@ -69,8 +69,6 @@ include::{xes-repo-dir}/security/index.asciidoc[]
 
 include::{xes-repo-dir}/watcher/index.asciidoc[]
 
-include::rest-api/index.asciidoc[]
-
 include::commands/index.asciidoc[]
 
 :edit_url:

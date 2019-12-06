@@ -35,6 +35,9 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
 
+/**
+ * TODO add links back
+ */
 public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, LenientlyParsedTrainedModel {
 
     public static final ParseField NAME = new ParseField("lang_ident_neural_network");
@@ -119,6 +122,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
                 NAME.getPreferredName(),
                 embeddedVectorFeatureName);
         }
+        // TODO add length checks?
         double[] embeddedVector = (double[]) vector;
 
         double[] h0 = hiddenLayer.productPlusBias(false, embeddedVector);

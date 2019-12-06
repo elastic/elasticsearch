@@ -29,6 +29,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
+/**
+ * This embedding class creates and embeds all the features layed out here
+ *
+ */
 public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CLD3WordEmbedding.class);
@@ -174,6 +178,9 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
         this.destField = destField;
     }
 
+    /**
+     * Derived from: https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/embedding_network.cc#L74
+     */
     private double[] concatEmbeddings(List<FeatureValue[]> featureVectors) {
         double[] concat = new double[concatLayerSize];
 
@@ -191,7 +198,7 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
 
                 // Multiplier for each embedding weight.
                 int row = featureValue.getRow();
-                double multiplier = featureValue.getWeight() * shortToDouble(quants[row]);
+                double multiplier = featureValue.getWeight() * shortToFloat(quants[row]);
 
                 // Iterate across columns for this row
                 for (int i = 0; i < embeddingDim; ++i) {
@@ -206,8 +213,9 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
         return concat;
     }
 
-    private static double shortToDouble(short s) {
+    private static float shortToFloat(short s) {
         // We fill in the new mantissa bits with 0, and don't do anything smarter.
+        // TODO java internals may be different
         int i = (s << 16);
         return Float.intBitsToFloat(i);
     }
@@ -216,6 +224,9 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
         return data[row * colDim + col];
     }
 
+    /**
+     * Derived from: https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/language_identifier_features.cc#L56
+     */
     private static FeatureValue[] getNGramFeatureValue(String text, int nGramSize, int idDimension) throws Exception {
 
         // First add terminators:
@@ -276,6 +287,9 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
         return results;
     }
 
+    /**
+     * Derived from: https://github.com/google/cld3/blob/master/src/relevant_script_feature.cc
+     */
     static FeatureValue[] getRelevantScriptFeature(String text) throws UnsupportedEncodingException {
         if (text.isEmpty()) {
             return new FeatureValue[0];
@@ -331,6 +345,8 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
 
         List<FeatureValue[]> processedFeatures = new ArrayList<>(6);
         try {
+            //These two preprocessing steps are to satisfy the cleaning done here in CLD3
+            // https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/nnet_language_identifier.cc#L190..L226
             text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
             text = FeatureUtils.cleanAndLowerText(text);
             processedFeatures.add(getNGramFeatureValue(text, 2, 1000));

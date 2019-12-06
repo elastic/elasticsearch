@@ -21,6 +21,7 @@ public final class ScriptFeatureExtractor {
         }
 
         // TODO do we need to make this UTF8?
+        // probably...
         Character.UnicodeScript unicodeScript = Character.UnicodeScript.of(m.group().codePointAt(0));
 
         return ULScript.unicodeScriptToULScript(unicodeScript);

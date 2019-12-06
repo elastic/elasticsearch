@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
 
 import java.io.UnsupportedEncodingException;
 
+/**
+ * Derived from https://github.com/google/cld3/blob/master/src/script_detector.h
+ */
 public final class ScriptDetector {
 
     private ScriptDetector() { }
@@ -43,7 +46,6 @@ public final class ScriptDetector {
         // easily iterate over the scripts.
         kNumRelevantScripts(12);
 
-        // This enum is also used as an int TODO (review if this is the most effective way to do this in java...)
         private final int code;
 
         Script(int code) {
@@ -67,6 +69,8 @@ public final class ScriptDetector {
         byte[] bytes;
 
         try {
+            // TODO Java is UTF16 So, if we actually care about accuracy here we need to dig further
+            // Derived from: https://github.com/google/cld3/blob/484afe9ba7438d078e60b3a26e7fb590213c0e17/src/utils.cc#L228
             bytes = p.substring(0, 1).getBytes("UTF8");
             numBytes = bytes.length;
         } catch (UnsupportedEncodingException e) {

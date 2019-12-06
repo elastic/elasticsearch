@@ -24,6 +24,9 @@ public final class FeatureUtils {
         return Hash32(bytes, bytes.length, 0xBEEF);
     }
 
+    /**
+     * Derived from https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/utils.cc#L137
+     */
     private static int Hash32(byte[] data, int n, int seed) {
         // 'm' and 'r' are mixing constants generated offline.
         // They're not really 'magic', they just happen to work well.
@@ -137,6 +140,10 @@ public final class FeatureUtils {
     }
 
     // Clean up text and lowercase it
+
+    /**
+     *
+     */
     public static String cleanAndLowerText(String text) {
         // cld3 has complex optimised cleaning code - but generally boils down to:
         // - remove punctuation

@@ -534,7 +534,7 @@ end::model-memory-limit[]
 
 tag::model-plot-config[]
 This advanced configuration option stores model information along with the
-results. It provides a more detailed view into anomaly detection.
+results. It provides a more detailed view into {anomaly-detect}.
 +
 --
 WARNING: If you enable model plot it can add considerable overhead to the performance

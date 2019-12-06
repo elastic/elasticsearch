@@ -284,7 +284,7 @@ a {dfeed}, these properties are automatically set.
 +
 --
 When data is received via the <<ml-post-data,post data>> API, it is not stored
-in {es}. Only the results for anomaly detection are retained.
+in {es}. Only the results for {anomaly-detect} are retained.
 
 A data description object has the following properties:
 

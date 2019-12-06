@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.RejectedExecutionException;
@@ -145,7 +146,7 @@ public final class TimedRunnableTests extends ESTestCase {
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
             }
 
             @Override
@@ -156,5 +157,28 @@ public final class TimedRunnableTests extends ESTestCase {
             }
         }).run();
         assertTrue(afterRan.get());
+    }
+
+    public void testNestedOnFailureTriggersOnlyOnce() {
+        final Exception expectedException = new RuntimeException();
+        final AtomicBoolean onFailureRan = new AtomicBoolean(false);
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> new TimedRunnable(new AbstractRunnable() {
+
+            @Override
+            public void onFailure(Exception e) {
+                if (onFailureRan.compareAndSet(false, true) == false) {
+                    fail("onFailure should have only been called once");
+                }
+                ExceptionsHelper.reThrowIfNotNull(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                throw expectedException;
+            }
+
+        }).run());
+        assertTrue(onFailureRan.get());
+        assertSame(thrown, expectedException);
     }
 }

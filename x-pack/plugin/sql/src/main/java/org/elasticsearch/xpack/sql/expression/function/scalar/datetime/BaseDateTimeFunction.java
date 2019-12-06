@@ -53,6 +53,11 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), field(), zoneId());
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
@@ -60,10 +65,5 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
         BaseDateTimeFunction other = (BaseDateTimeFunction) obj;
         return Objects.equals(other.field(), field())
             && Objects.equals(other.zoneId(), zoneId());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), zoneId());
     }
 }

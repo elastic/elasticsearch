@@ -107,10 +107,12 @@ public class GatewayMetaState {
                 transportService.getThreadPool()::relativeTimeInMillis);
         if (DiscoveryNode.isMasterNode(settings) == false) {
             if (DiscoveryNode.isDataNode(settings)) {
-                persistedState.set(new DataOnlyNodePersistedState(settings, incrementalClusterStateWriter, transportService.getThreadPool()));
+                persistedState.set(new DataOnlyNodePersistedState(settings, incrementalClusterStateWriter,
+                    transportService.getThreadPool()));
             } else {
                 // Non-master non-data nodes do not need to persist the cluster state as they do not use a persistent store
-                persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));
+                persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(),
+                    manifestClusterStateTuple.v2()));
             }
         } else {
             // Master-ineligible nodes must persist the cluster state when accepting it because they must reload the (complete, fresh)
@@ -313,7 +315,7 @@ public class GatewayMetaState {
 
         private volatile ClusterState lastCommittedStateWithPersistence;
 
-        public DataOnlyNodePersistedState(Settings settings, IncrementalClusterStateWriter incrementalClusterStateWriter,
+        DataOnlyNodePersistedState(Settings settings, IncrementalClusterStateWriter incrementalClusterStateWriter,
                                           ThreadPool threadPool) {
             super(incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm(),
                 incrementalClusterStateWriter.getPreviousClusterState());

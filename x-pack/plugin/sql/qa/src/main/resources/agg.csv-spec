@@ -604,8 +604,30 @@ SELECT COUNT(ALL first_name) all_names, COUNT(*) c FROM test_emp;
 
    all_names   |       c
 ---------------+---------------
-90             |100
+90             |100 
 ;
+
+countDistinctAndLiteral
+schema::ln:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING ln>5 AND ccc>5;
+
+      ln       |     ccc     
+---------------+-------------
+10             |10           
+33             |33
+57             |57                
+;
+
+countSmallCountTypesWithHaving
+schema::ln:l|dln:l|fn:l|dfn:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>5 AND ln>32 AND dfn>1 AND fn>1 AND ccc>5;
+
+      ln       |     dln     |      fn       |     dfn    |      ccc
+---------------+-------------+---------------+------------+-------------
+33             |32           |32             |32          |33
+57             |54           |48             |48          |57
+;
+
 
 countAllCountTypesWithHaving
 schema::ln:l|dln:l|fn:l|dfn:l|ccc:l

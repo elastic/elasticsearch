@@ -715,7 +715,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parser.parse("type1", new CompressedXContent(mapping))
         );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        assertThat(e.getMessage(), containsString("A field's name cannot be empty."));
     }
 
     public void testImplicitlySetDefaultScriptLang() throws Exception {

@@ -490,7 +490,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        assertThat(e.getMessage(), containsString("A field's name cannot be empty."));
     }
 
     public void testSplitQueriesOnWhitespace() throws IOException {

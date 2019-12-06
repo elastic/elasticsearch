@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
@@ -58,11 +59,13 @@ import org.elasticsearch.xpack.sql.util.Holder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -604,17 +607,53 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             if (plan instanceof OrderBy && !plan.resolved() && plan.childrenResolved()) {
                 OrderBy o = (OrderBy) plan;
+                LogicalPlan child = o.child();
                 List<Order> maybeResolved = new ArrayList<>();
                 for (Order or : o.order()) {
-                    maybeResolved.add(tryResolveExpression(or, o.child()));
+                    maybeResolved.add(or.resolved() ? or : tryResolveExpression(or, child));
+                }
+                
+                Stream<Order> referencesStream = maybeResolved.stream()
+                        .filter(Expression::resolved);
+
+                // if there are any references in the output
+                // try and resolve them to the source in order to compare the source expressions
+                // e.g. ORDER BY a + 1
+                //      \ SELECT a + 1
+                // a + 1 in SELECT is actually Alias("a + 1", a + 1) and translates to ReferenceAttribute
+                // in the output. However it won't match the unnamed a + 1 despite being the same expression
+                // so explicitly compare the source
+                
+                // if there's a match, remove the item from the reference stream
+                if (Expressions.hasReferenceAttribute(child.outputSet())) {
+                    final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
+
+                    // collect aliases
+                    child.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                        if (e instanceof Alias) {
+                            Alias a = (Alias) e;
+                            collectRefs.put(a.toAttribute(), a.child());
+                        }
+                    }));
+
+                    referencesStream = referencesStream.filter(r -> {
+                        for (Attribute attr : child.outputSet()) {
+                            if (attr instanceof ReferenceAttribute) {
+                                Expression source = collectRefs.getOrDefault(attr, attr);
+                                // found a match, no need to resolve it further
+                                // so filter it out
+                                if (source.equals(r.child())) {
+                                    return false;
+                                }
+                            }
+                        }
+                        return true;
+                    });
                 }
 
-                AttributeSet resolvedRefs = Expressions.references(maybeResolved.stream()
-                        .filter(Expression::resolved)
-                        .collect(toList()));
+                AttributeSet resolvedRefs = Expressions.references(referencesStream.collect(toList()));
 
-                AttributeSet missing = resolvedRefs.subtract(o.child().outputSet());
-
+                AttributeSet missing = resolvedRefs.subtract(child.outputSet());
 
                 if (!missing.isEmpty()) {
                     // Add missing attributes but project them away afterwards

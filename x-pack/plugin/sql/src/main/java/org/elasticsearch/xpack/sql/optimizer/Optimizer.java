@@ -466,7 +466,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                     if ((equalsAsAttribute(child, group)
                                             && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))
                                         || (equalsAsAttribute(alias, group)
-                                                && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))) {
+                                            && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))) {
                                         isMatching.set(Boolean.TRUE);
                                     }
                                 }

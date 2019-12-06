@@ -149,6 +149,15 @@ public final class Expressions {
         return new AttributeMap<>(aliasMap);
     }
 
+    public static boolean hasReferenceAttribute(Collection<Attribute> output) {
+        for (Attribute attribute : output) {
+            if (attribute instanceof ReferenceAttribute) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static List<Attribute> onlyPrimitiveFieldAttributes(Collection<Attribute> attributes) {
         List<Attribute> filtered = new ArrayList<>();
         // add only primitives

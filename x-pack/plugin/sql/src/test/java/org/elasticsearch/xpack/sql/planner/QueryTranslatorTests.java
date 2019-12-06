@@ -76,7 +76,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
-//@TestLogging(value = "org.elasticsearch.xpack.sql:TRACE", reason = "debug")
 public class QueryTranslatorTests extends ESTestCase {
 
     private static SqlParser parser;
@@ -1290,7 +1289,6 @@ public class QueryTranslatorTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "The resolution fails since the expression is not resolved as a whole")
     public void testGroupByConstantScalar() {
         PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test WHERE PI() * int > 5.0 GROUP BY PI() * int " +
             "ORDER BY PI() * int LIMIT 10");

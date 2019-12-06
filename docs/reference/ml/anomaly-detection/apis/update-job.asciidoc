@@ -107,7 +107,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=renormalization-window-days]
 +
 --
 NOTE: If the job is open when you make the update, you must stop the {dfeed},
-close the job, then reopen the job and restart the data feed for the changes to take effect.
+close the job, then reopen the job and restart the {dfeed} for the changes to take effect.
 
 --
 

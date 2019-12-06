@@ -598,10 +598,40 @@ public class TokenServiceTests extends ESTestCase {
         final int numBytes = randomIntBetween(1, TokenService.MINIMUM_BYTES + 32);
         final byte[] randomBytes = new byte[numBytes];
         random().nextBytes(randomBytes);
-        TokenService tokenService = createTokenService(Settings.EMPTY, systemUTC());
+        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, Base64.getEncoder().encodeToString(randomBytes));
+
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
+            tokenService.getAndValidateToken(requestContext, future);
+            assertNull(future.get());
+        }
+    }
+
+    public void testNotValidPre72Tokens() throws Exception {
+        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
+        // mock another random token so that we don't find a token in TokenService#getUserTokenFromId
+        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
+        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
+        storeTokenHeader(requestContext, generateAccessToken(tokenService, Version.V_7_1_0));
+
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
+            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
+            tokenService.getAndValidateToken(requestContext, future);
+            assertNull(future.get());
+        }
+    }
+
+    public void testNotValidAfter72Tokens() throws Exception {
+        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
+        // mock another random token so that we don't find a token in TokenService#getUserTokenFromId
+        Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
+        mockGetTokenFromId(tokenService, UUIDs.randomBase64UUID(), authentication, false);
+        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
+        storeTokenHeader(requestContext, generateAccessToken(tokenService, randomFrom(Version.V_7_2_0, Version.V_7_3_2)));
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -819,6 +849,14 @@ public class TokenServiceTests extends ESTestCase {
         newStateBuilder.nodes(discoBuilder);
         setState(clusterService, newStateBuilder.build());
         return anotherDataNode;
+    }
+
+    private String generateAccessToken(TokenService tokenService, Version version) throws Exception {
+        String accessTokenString = UUIDs.randomBase64UUID();
+        if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            accessTokenString = TokenService.hashTokenString(accessTokenString);
+        }
+        return tokenService.prependVersionAndEncodeAccessToken(version, accessTokenString);
     }
 
 }

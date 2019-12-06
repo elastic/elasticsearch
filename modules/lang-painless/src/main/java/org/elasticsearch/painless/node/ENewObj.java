@@ -75,6 +75,9 @@ public final class ENewObj extends AExpression {
                     "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/" + arguments.size() + "] not found"));
         }
 
+        // TODO(stu): set deterministic in scriptRoot based on constructor
+        // scriptRoot.setDeterministic(constructor.annotations.contains(DeterministicAnnotation.class);
+
         Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
         constructor.typeParameters.toArray(types);
 
@@ -117,5 +120,10 @@ public final class ENewObj extends AExpression {
     @Override
     public String toString() {
         return singleLineToStringWithOptionalArgs(arguments, type);
+    }
+
+    private boolean isDeterministic() {
+        // TODO(stu): check for annotation
+        return false;
     }
 }

@@ -38,6 +38,7 @@ public class ScriptRoot {
 
     protected final FunctionTable functionTable = new FunctionTable();
     protected int syntheticCounter = 0;
+    protected boolean deterministic = true;
 
     public ScriptRoot(PainlessLookup painlessLookup, CompilerSettings compilerSettings, ScriptClassInfo scriptClassInfo, SClass classRoot) {
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
@@ -72,4 +73,6 @@ public class ScriptRoot {
     public String getNextSyntheticName(String prefix) {
         return prefix + "$synthetic$" + syntheticCounter++;
     }
+
+    public void setDeterministic(boolean deterministic) { this.deterministic &= deterministic; }
 }

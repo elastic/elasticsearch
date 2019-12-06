@@ -143,11 +143,14 @@ public final class PainlessScriptEngine implements ScriptEngine {
         });
 
         Set<String> extractedVariables = new HashSet<>();
+        // TODO(stu): get isDeterministic out of scriptroot from the compile
         compile(contextsToCompilers.get(context), loader, extractedVariables, scriptName, scriptSource, params);
 
         if (context.statefulFactoryClazz != null) {
+            // TODO(stu): isDeterministic needs to go here
             return generateFactory(loader, context, extractedVariables, generateStatefulFactory(loader, context, extractedVariables));
         } else {
+            // TODO(stu): or here
             return generateFactory(loader, context, extractedVariables, WriterConstants.CLASS_TYPE);
         }
     }
@@ -279,6 +282,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         Set<String> extractedVariables,
         Type classType
     ) {
+        // TODO(stu): use ASM to override the isDeterministic method and create it with correct value
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.factoryClazz).getInternalName();
@@ -374,6 +378,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 @Override
                 public Void run() {
                     String name = scriptName == null ? source : scriptName;
+                    // TODO(stu): isDeterministic needs to come here, once compiled is part of class loader
+                    // so we can find it in class loader for the factory
                     compiler.compile(loader, extractedVariables, name, source, compilerSettings);
 
                     return null;

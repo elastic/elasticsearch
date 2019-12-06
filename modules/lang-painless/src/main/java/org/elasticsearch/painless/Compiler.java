@@ -211,6 +211,7 @@ final class Compiler {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
         root.extractVariables(extractedVariables);
+        // TODO(stu): ScriptRoot created here, needs to be passed up to
         root.analyze(painlessLookup, settings);
         Map<String, Object> statics = root.write();
 

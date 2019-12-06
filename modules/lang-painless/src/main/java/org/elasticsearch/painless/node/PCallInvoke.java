@@ -79,6 +79,9 @@ public final class PCallInvoke extends AExpression {
                         "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
 
+            // TODO(stu): set deterministic in scriptRoot based on method
+            // scriptRoot.setDeterministic(method.annotations.contains(DeterministicAnnotation.class);
+
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
         }
 

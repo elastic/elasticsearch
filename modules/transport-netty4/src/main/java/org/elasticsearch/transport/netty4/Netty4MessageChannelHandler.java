@@ -59,6 +59,9 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         try {
             Channel channel = ctx.channel();
             Attribute<Netty4TcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
+            if (buffer.readableBytes() > 0) {
+                buffer.retain();
+            }
             transport.inboundMessage(channelAttribute.get(), Netty4Utils.toBytesReference(buffer));
         } finally {
             buffer.release();

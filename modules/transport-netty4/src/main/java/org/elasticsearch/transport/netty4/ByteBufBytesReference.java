@@ -23,12 +23,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-final class ByteBufBytesReference extends AbstractBytesReference {
+final class ByteBufBytesReference extends AbstractBytesReference implements Releasable {
 
     private final ByteBuf buffer;
     private final int length;
@@ -101,4 +102,8 @@ final class ByteBufBytesReference extends AbstractBytesReference {
         return buffer.capacity();
     }
 
+    @Override
+    public void close() {
+        buffer.release();
+    }
 }

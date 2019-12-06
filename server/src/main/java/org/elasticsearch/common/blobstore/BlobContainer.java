@@ -21,6 +21,7 @@ package org.elasticsearch.common.blobstore;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
@@ -48,6 +49,26 @@ public interface BlobContainer {
      * @throws  IOException if the blob can not be read.
      */
     InputStream readBlob(String blobName) throws IOException;
+
+    default ByteBuffer readBlob(String blobName, long from, int length) throws IOException {
+        try (InputStream stream = readBlob(blobName)) {
+            stream.skip(from);
+
+            final ByteBuffer buffer = ByteBuffer.allocate(length);
+            buffer.put(stream.readNBytes(length));
+            while (stream.read() >= 0);
+
+            return buffer.asReadOnlyBuffer().limit(length).position(0);
+        }
+    }
+
+    default void readBlob(String blobName, long from, int length, byte[] buffer, int offset) throws IOException {
+        try (InputStream stream = readBlob(blobName)) {
+            stream.skip(from);
+            int read = stream.read(buffer, offset, length);
+            assert read == length;
+        }
+    }
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name.

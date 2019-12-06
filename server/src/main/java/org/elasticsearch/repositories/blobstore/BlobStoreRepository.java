@@ -854,7 +854,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return blobStore().blobContainer(indicesPath().add(indexId.getId()));
     }
 
-    private BlobContainer shardContainer(IndexId indexId, ShardId shardId) {
+    BlobContainer shardContainer(IndexId indexId, ShardId shardId) {
         return shardContainer(indexId, shardId.getId());
     }
 
@@ -1402,6 +1402,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshot.incrementalSize(), snapshot.totalSize(), null); // Not adding a real generation here as it doesn't matter to callers
     }
 
+    /*public BlobStoreIndexShardSnapshot loadShardSnapshot(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        return loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
+    }*/
+
     @Override
     public void verify(String seed, DiscoveryNode localNode) {
         assertSnapshotOrGenericThread();
@@ -1513,7 +1517,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Loads information about shard snapshot
      */
-    private BlobStoreIndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
+    BlobStoreIndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
         try {
             return indexShardSnapshotFormat.read(shardContainer, snapshotId.getUUID());
         } catch (NoSuchFileException ex) {

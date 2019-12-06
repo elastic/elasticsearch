@@ -24,6 +24,7 @@ import java.util.Map;
 
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -57,5 +58,8 @@ public interface RepositoryPlugin {
     default Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
                                                                     ThreadPool threadPool) {
         return Collections.emptyMap();
+    }
+
+    default void onRepositoriesModule(RepositoriesModule repositoriesModule) {
     }
 }

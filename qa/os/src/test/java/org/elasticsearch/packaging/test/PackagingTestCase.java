@@ -48,6 +48,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -150,11 +152,11 @@ public abstract class PackagingTestCase extends Assert {
             switch (distribution.packaging) {
                 case TAR:
                 case ZIP:
-                    Archives.runElasticsearch(installation, sh);
+                    awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
                     break;
                 case DEB:
                 case RPM:
-                    Packages.startElasticsearch(sh, installation);
+                    awaitElasticsearchStartup(Packages.startElasticsearch(sh));
                     break;
                 case DOCKER:
                     // nothing, "installing" docker image is running it
@@ -206,5 +208,67 @@ public abstract class PackagingTestCase extends Assert {
             });
         }
         return sh;
+    }
+
+    public Shell.Result startElasticsearch() throws Exception {
+        if (distribution.isPackage()) {
+            return Packages.startElasticsearch(sh);
+        } else {
+            assertTrue(distribution.isArchive());
+            return Archives.startElasticsearch(installation, sh);
+        }
+    }
+
+    public void stopElasticsearch() throws Exception {
+        distribution().packagingConditional()
+            .forPackage(() -> Packages.stopElasticsearch(sh))
+            .forArchive(() -> Archives.stopElasticsearch(installation))
+            .forDocker(/* TODO */ Platforms.NO_ACTION)
+            .run();
+    }
+
+    public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
+        assertThat("Startup command should succeed", result.exitCode, equalTo(0));
+        distribution().packagingConditional()
+            .forPackage(() -> Packages.assertElasticsearchStarted(sh, installation))
+            .forArchive(() -> Archives.assertElasticsearchStarted(installation, sh))
+            .forDocker(Docker::waitForElasticsearchToStart)
+            .run();
+    }
+
+    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage) {
+
+        if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
+
+            // If log file exists, then we have bootstrapped our logging and the
+            // error should be in the logs
+            assertTrue("log file exists", Files.exists(installation.logs.resolve("elasticsearch.log")));
+            String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
+            assertThat(logfile, containsString(expectedMessage));
+
+        } else if (distribution().isPackage() && Platforms.isSystemd()) {
+
+            // For systemd, retrieve the error from journalctl
+            assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
+            Shell.Result error = sh.run("journalctl --boot --unit elasticsearch.service");
+            assertThat(error.stdout, containsString(expectedMessage));
+
+        } else if (Platforms.WINDOWS == true) {
+
+            // In Windows, we have written our stdout and stderr to files in order to run
+            // in the background
+            String wrapperPid = result.stdout.trim();
+            sh.runIgnoreExitCode("Wait-Process -Timeout 15 -Id " + wrapperPid);
+            sh.runIgnoreExitCode("Get-EventSubscriber | " +
+                "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |" +
+                "Unregister-EventSubscriber -Force");
+            assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), containsString(expectedMessage));
+
+        } else {
+
+            // Otherwise, error should be on shell stderr
+            assertThat(result.stderr, containsString(expectedMessage));
+
+        }
     }
 }

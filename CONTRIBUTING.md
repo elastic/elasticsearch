@@ -205,7 +205,7 @@ Please follow these formatting guidelines:
   these are intended for use in documentation, so please make it clear what
   you have done, and only do this where the benefit clearly outweighs the
   decrease in consistency.
-* Note that JavaDoc and block comments i.e. `/* ... */` are not formatted,
+* Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e `// ...` are.
 * There is an implicit rule that negative boolean expressions should use
   the form `foo == false` instead of `!foo` for better readability of the
@@ -241,88 +241,88 @@ The `paddedCell()` option is disabled for normal operation so that any
 misbehaviour is detected, and not just suppressed. You can enabled the
 option from the command line by running Gradle with `-Dspotless.paddedcell`.
 
-### JavaDoc
+### Javadoc
 
-Good JavaDoc can help with navigating and understanding code. Elasticsearch
-has some guidelines around when to write JavaDoc and when not to, but note
+Good Javadoc can help with navigating and understanding code. Elasticsearch
+has some guidelines around when to write Javadoc and when not to, but note
 that we don't want to be overly prescriptive. The intent of these guidelines
 is to be helpful, not to turn writing code into a chore.
 
 #### The short version
 
-   1. Always add JavaDoc to new code.
-   2. Add JavaDoc to existing code if you can.
+   1. Always add Javadoc to new code.
+   2. Add Javadoc to existing code if you can.
    3. Document the "why", not the "how", unless that's important to the
       "why.
    4. Don't document anything trivial or obvious (e.g. getters and
-      setters). In other words, the JavaDoc should add some value.
+      setters). In other words, the Javadoc should add some value.
 
 #### The long version
 
    1. If you add a new Java package, please also add package-level
-      JavaDoc that explains what the package is for. This can just be a
+      Javadoc that explains what the package is for. This can just be a
       reference to a more foundational / parent package if appropriate. An
       example would be a package hierarchy for a new feature or plugin -
       the package docs could explain the purpose of the feature, any
       caveats, and possibly some examples of configuration and usage.
-   2. New classes and interfaces must have class-level JavaDoc that
+   2. New classes and interfaces must have class-level Javadoc that
       describes their purpose. There are a lot of classes in the
       Elasticsearch repository, and it's easier to navigate when you
       can quickly find out what is the purpose of a class. This doesn't
       apply to inner classes or interfaces, unless you expect them to be
       explicitly used outside their parent class.
-   3. New public methods must have JavaDoc, because they form part of the
+   3. New public methods must have Javadoc, because they form part of the
       contract between the class and its consumers. Similarly, new abstract
-      methods must have JavaDoc because they are part of the contract
+      methods must have Javadoc because they are part of the contract
       between a class and its subclasses. It's important that contributors
-      know why they need to implement a method, and the JavaDoc should make
+      know why they need to implement a method, and the Javadoc should make
       this clear. You don't need to document a method if it's overriding an
       abstract method (either from an abstract superclass or an interface),
       unless your implementation is doing something "unexpected" e.g. deviating
       from the intent of the original method.
    4. Following on from the above point, please add docs to existing public
       methods if you are editing them, or to abstract methods if you can.
-   5. Non-public, non-abstract methods don't require JavaDoc, but if you feel
+   5. Non-public, non-abstract methods don't require Javadoc, but if you feel
       that adding some would make it easier for other developers to
       understand the code, or why it's written in a particular way, then please
       do so.
-   6. Properties don't need to have JavaDoc, but please add some if there's
+   6. Properties don't need to have Javadoc, but please add some if there's
       something useful to say.
-   7. JavaDoc should not go into low-level implementation details unless
+   7. Javadoc should not go into low-level implementation details unless
       this is critical to understanding the code e.g. documenting the
       subtleties of the implementation of a private method. The point here
-      is that implementations will change over time, and the JavaDoc is
+      is that implementations will change over time, and the Javadoc is
       less likely to become out-of-date if it only talks about the what is
       the purpose of the code, not what it does.
-   8. Examples in JavaDoc can be very useful, so feel free to add some if
+   8. Examples in Javadoc can be very useful, so feel free to add some if
       you can reasonably do so i.e. if it takes a whole page of code to set
-      up an example, then JavaDoc probably isn't the right place for it.
+      up an example, then Javadoc probably isn't the right place for it.
       Longer or more elaborate examples are probably better suited
       to the package docs.
-   9. Test methods are a good place to add JavaDoc, because you can use it
+   9. Test methods are a good place to add Javadoc, because you can use it
       to succinctly describe e.g. preconditions, actions and expectations
       of the test, more easily that just using the test name alone. Please
       consider documenting your tests in this way.
-   10. Sometimes you shouldn't add JavaDoc:
+   10. Sometimes you shouldn't add Javadoc:
        1. Where it adds no value, for example where a method's
           implementation is trivial such as with getters and setters, or a
           method just delegates to another object.
-       2. However, you should still add JavaDoc if there are caveats around
+       2. However, you should still add Javadoc if there are caveats around
           calling a method that are not immediately obvious from reading the
           method's implementation in isolation.
-       3. You can omit JavaDoc for simple classes, e.g. where they are a
+       3. You can omit Javadoc for simple classes, e.g. where they are a
           simple container for some data. However, please consider whether a
           reader might still benefit from some additional background, for
           example about why the class exists at all.
-   11. Not all comments need to be JavaDoc. Sometimes it will make more
+   11. Not all comments need to be Javadoc. Sometimes it will make more
        sense to add comments in a method's body, for example due to important
        implementation decisions or "gotchas". As a general guide, if some
        information forms part of the contract between a method and its callers,
-       then it should go in the JavaDoc, otherwise you might consider using
+       then it should go in the Javadoc, otherwise you might consider using
        regular comments in the code. Remember as well that Elasticsearch
        has extensive [user documentation](./docs), and it is not the role
-       of JavaDoc to replace that.
-   12. If you need help writing JavaDoc, just ask!
+       of Javadoc to replace that.
+   12. If you need help writing Javadoc, just ask!
 
 Finally, use your judgement! Base your decisions on what will help other
 developers - including yourself, when you come back to some code

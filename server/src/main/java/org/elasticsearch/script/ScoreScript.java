@@ -229,7 +229,7 @@ public abstract class ScoreScript {
     }
 
     /** A factory to construct stateful {@link ScoreScript} factories for a specific index. */
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
 
         ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
 

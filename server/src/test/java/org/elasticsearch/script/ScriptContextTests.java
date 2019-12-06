@@ -23,28 +23,28 @@ import org.elasticsearch.test.ESTestCase;
 
 public class ScriptContextTests extends ESTestCase {
 
-    public interface TwoNewInstance {
+    public interface TwoNewInstance extends ScriptFactory {
         String newInstance(int foo, int bar);
         String newInstance(int foo);
 
-        interface StatefulFactory {
+        interface StatefulFactory extends ScriptFactory {
             TwoNewInstance newFactory();
         }
     }
 
-    public interface TwoNewFactory {
+    public interface TwoNewFactory extends ScriptFactory {
         String newFactory(int foo, int bar);
         String newFactory(int foo);
     }
 
-    public interface MissingNewInstance {
+    public interface MissingNewInstance extends ScriptFactory {
         String typoNewInstanceMethod(int foo);
     }
 
     public interface DummyScript {
         int execute(int foo);
 
-        interface Factory {
+        interface Factory extends ScriptFactory {
             DummyScript newInstance();
         }
     }
@@ -54,7 +54,7 @@ public class ScriptContextTests extends ESTestCase {
         interface StatefulFactory {
             DummyStatefulScript newInstance();
         }
-        interface Factory {
+        interface Factory extends ScriptFactory {
             StatefulFactory newFactory();
         }
     }

@@ -41,7 +41,7 @@ public abstract class TemplateScript {
     /** Run a template and return the resulting string, encoded in utf8 bytes. */
     public abstract String execute();
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         TemplateScript newInstance(Map<String, Object> params);
     }
 

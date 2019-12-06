@@ -11,6 +11,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptFactory;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -42,7 +43,7 @@ public class MockPainlessScriptEngine extends MockScriptEngine {
     }
 
     @Override
-    public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
+    public <T extends ScriptFactory> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
         if (context.instanceClazz.equals(ScoreScript.class)) {
             return context.factoryClazz.cast(new MockScoreScript(p -> 0.0));
         }

@@ -48,7 +48,7 @@ public abstract class BucketAggregationSelectorScript {
 
     public abstract boolean execute();
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         BucketAggregationSelectorScript newInstance(Map<String, Object> params);
     }
 }

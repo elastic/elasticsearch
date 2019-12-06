@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -46,6 +47,8 @@ import java.util.Map;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ObjectMapper.class));
+    static final String TRAILING_DOT_DEPRECATION_MESSAGE = "Field names with trailing dots will no longer be accepted " +
+        "in 8.0 indices. Previously, we accepted these field names and stripped them away when parsing the mappings.";
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
@@ -277,7 +280,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
-                    String[] fieldNameParts = fieldName.split("\\.");
+
+                    // We pass explicitly pass the 'limit' parameter to String#split to make sure that the last component is always
+                    // returned, even when it's an empty string. This allows us to handle trailing dots in field names correctly.
+                    String[] fieldNameParts = fieldName.split("\\.", -1);
+
+                    // Prior to 8.0, we accidentally accepted trailing dots in field names but just stripped them away. This logic ensures
+                    // that we keep this behavior for indices created before 8.0 to maintain backwards compatibility. We don't fall back
+                    // to the old logic if the field name is composed entirely of dots like '.', because that always threw an exception.
+                    if (parserContext.indexVersionCreated().before(Version.V_8_0_0) && fieldName.matches("\\.*") == false) {
+                        if (fieldNameParts[fieldNameParts.length - 1].isEmpty()) {
+                            deprecationLogger.deprecatedAndMaybeLog("field_with_trailing_dot", TRAILING_DOT_DEPRECATION_MESSAGE);
+                        }
+                        fieldNameParts = fieldName.split("\\.");
+                    }
+
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                     Mapper.Builder<?,?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
@@ -324,7 +341,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         super(name);
         assert settings != null;
         if (name.isEmpty()) {
-            throw new IllegalArgumentException("name cannot be empty string");
+            throw new IllegalArgumentException("An object field's name cannot be empty.");
         }
         this.fullPath = fullPath;
         this.enabled = enabled;

@@ -19,15 +19,27 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 
+import java.util.Arrays;
+
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocumentMapperParserTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     public void testTypeLevel() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
@@ -76,6 +88,89 @@ public class DocumentMapperParserTests extends ESSingleNodeTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] of different type"));
     }
 
+    public void testFieldWithLeadingDot() throws Exception {
+        for (Version indexVersion : Arrays.asList(Version.V_7_5_0, Version.V_8_0_0)) {
+            IndexService indexService = createTestIndex(indexVersion);
+            DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject(".field")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                mapperParser.parse("_doc", new CompressedXContent(mapping)));
+            assertThat(e.getMessage(), containsString("An object field's name cannot be empty."));
+        }
+    }
+
+    public void testFieldWithSingleDot() throws Exception {
+        for (Version indexVersion : Arrays.asList(Version.V_7_5_0, Version.V_8_0_0)) {
+            IndexService indexService = createTestIndex(indexVersion);
+            DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject(".")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                mapperParser.parse("_doc", new CompressedXContent(mapping)));
+            assertThat(e.getMessage(), containsString("A field's name cannot be empty."));
+        }
+    }
+
+    public void testFieldWithTrailingDot() throws Exception {
+        IndexService indexService = createTestIndex(Version.V_8_0_0);
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("field.")
+                        .field("type", "text")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            mapperParser.parse("_doc", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(), containsString("A field's name cannot be empty."));
+    }
+
+    // Prior to 8.0, we accepted these field names with trailing dots but stripped them away. Here we
+    // ensure that they are still accepted, to maintain backwards compatibility with 7.x indices.
+    public void testFieldWithTrailingDot_V_7() throws Exception {
+        Version indexVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        IndexService indexService = createTestIndex(indexVersion);
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("field.")
+                        .field("type", "text")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        DocumentMapper mapper = mapperParser.parse("_doc", new CompressedXContent(mapping));
+        assertNotNull(mapper.mappers().getMapper("field"));
+        assertWarnings(ObjectMapper.TRAILING_DOT_DEPRECATION_MESSAGE);
+    }
+
     public void testMultiFieldsWithFieldAlias() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
@@ -98,5 +193,12 @@ public class DocumentMapperParserTests extends ESSingleNodeTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             mapperParser.parse("type", new CompressedXContent(mapping)));
         assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
+    }
+
+    private IndexService createTestIndex(Version indexVersion) {
+        Settings settings = Settings.builder()
+            .put("index.version.created", indexVersion)
+            .build();
+        return createIndex("test-" + indexVersion, settings);
     }
 }

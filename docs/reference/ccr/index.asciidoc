@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[xpack-ccr]]
-== {ccr-cap}
+= {ccr-cap}
 
 beta[]
 

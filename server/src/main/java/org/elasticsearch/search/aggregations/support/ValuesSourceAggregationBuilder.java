@@ -317,16 +317,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         return CoreValuesSourceType.BYTES;
     }
 
-    /**
-     * Provide a hook for aggregations to have finer grained control of the ValueType for script values.  This will only be called if the
-     * user did not supply a type hint for the script.  The script object is provided for reference
-     * @param script - the user supplied script
-     * @return The ValueType we expect this script to yield
-     */
-    protected ValueType defaultValueType(Script script) {
-        return userValueTypeHint;
-    }
-
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         return ValuesSourceConfig.resolve(queryShardContext,
                 this.userValueTypeHint, field, script, missing, timeZone, format, this::resolveScriptAny, this.getType());

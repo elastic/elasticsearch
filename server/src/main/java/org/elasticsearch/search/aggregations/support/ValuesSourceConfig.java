@@ -240,20 +240,14 @@ public class ValuesSourceConfig {
         return format;
     }
 
-    @Nullable
-    public ValuesSource toValuesSource(QueryShardContext context) {
-        return toValuesSource(context, value -> ValuesSource.Bytes.WithOrdinals.EMPTY);
-    }
-
     /**
      * Transform the {@link ValuesSourceType} we selected in resolve into the specific {@link ValuesSource} instance to use for this shard
      * @param context - Literally just used to get the current time
-     * @param resolveMissingAny - Hook to allow aggregations to select a finer grained ValuesSource based on the user supplied missing value
      * @return - A {@link ValuesSource} ready to be read from by an aggregator
      */
     @Nullable
     // TODO: Replace QueryShardContext with a LongProvider
-    public ValuesSource toValuesSource(QueryShardContext context, Function<Object, ValuesSource> resolveMissingAny) {
+    public ValuesSource toValuesSource(QueryShardContext context) {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(

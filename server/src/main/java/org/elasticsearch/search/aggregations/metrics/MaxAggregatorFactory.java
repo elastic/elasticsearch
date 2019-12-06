@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -37,11 +36,6 @@ import java.util.List;
 import java.util.Map;
 
 class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
-
-    @Override
-    protected ValuesSource resolveMissingAny(Object missing) {
-        return CoreValuesSourceType.NUMERIC.getEmpty();
-    }
 
     MaxAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,

@@ -92,16 +92,6 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         );
     }
 
-
-    @Override
-    protected ValuesSource resolveMissingAny(Object missing) {
-        if (missing instanceof Number) {
-            return ValuesSource.Numeric.EMPTY;
-        }
-        throw new IllegalArgumentException("Only numeric missing values are supported for histogram aggregation, found ["
-            + missing + "]");
-    }
-
     public HistogramAggregatorFactory(String name,
                                         ValuesSourceConfig config,
                                         double interval,

@@ -101,7 +101,9 @@ final class CsvParser {
                     return true;
                 }
             } else if (isWhitespace(c)) {
-                if (trim) startIndex++;
+                if (trim) { 
+                    startIndex++;
+                }
             } else {
                 state = State.UNQUOTED;
                 builder.setLength(0);

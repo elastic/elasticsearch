@@ -289,9 +289,10 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                             newBuilder = new SumAggregationBuilder(formatFieldName(field, SumAggregationBuilder.NAME, RollupField.VALUE));
                         } else if (metric.equals(MetricConfig.VALUE_COUNT.getPreferredName())) {
                             // TODO allow non-numeric value_counts.
-                            // Hardcoding this is fine for now since the job validation guarantees that all metric fields are numerics
+                            // I removed the hard coding of NUMERIC as part of cleaning up targetValueType, but I don't think  that resolves
+                            // the above to do note -- Tozzi 2019-12-06
                             newBuilder = new ValueCountAggregationBuilder(
-                                formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE), ValueType.NUMERIC);
+                                formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE), null);
                         } else {
                             throw new IllegalArgumentException("Unsupported metric type [" + metric + "]");
                         }

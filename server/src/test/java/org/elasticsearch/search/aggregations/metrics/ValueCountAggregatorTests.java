@@ -189,11 +189,23 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
                           ValueType valueType,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalValueCount> verify) throws IOException {
+        // Test both with and without the userValueTypeHint
+        testCase(query, valueType, indexer, verify, true);
+        testCase(query, valueType, indexer, verify, false);
+    }
+
+    private void testCase(Query query,
+                          ValueType valueType,
+                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
+                          Consumer<InternalValueCount> verify, boolean testWithHint) throws IOException {
         MappedFieldType fieldType = createMappedFieldType(valueType);
         fieldType.setName(FIELD_NAME);
         fieldType.setHasDocValues(true);
 
-        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", valueType);
+        ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", null);
+        if (valueType != null && testWithHint) {
+            aggregationBuilder.userValueTypeHint(valueType);
+        }
         aggregationBuilder.field(FIELD_NAME);
 
         testCase(aggregationBuilder, query, indexer, verify, fieldType);

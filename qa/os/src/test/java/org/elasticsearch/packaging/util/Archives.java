@@ -246,7 +246,7 @@ public class Archives {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
+    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         assertFalse("Pid file doesn't exist when starting Elasticsearch", Files.exists(pidFile));

@@ -149,7 +149,7 @@ public abstract class PackagingTestCase extends Assert {
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
-            awaitElasticsearchStartup(startElasticsearch());
+            awaitElasticsearchStartup(runElasticsearchStartCommand());
         } catch (Exception e ){
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
@@ -186,14 +186,21 @@ public abstract class PackagingTestCase extends Assert {
         return sh;
     }
 
-    public Shell.Result startElasticsearch() throws Exception {
+    /**
+     * Run the command to start Elasticsearch, but don't wait or test for success.
+     * This method is useful for testing failure conditions in startup. To await success,
+     * use {@link #startElasticsearch()}.
+     * @return Shell results of the startup command.
+     * @throws Exception when command fails immediately.
+     */
+    public Shell.Result runElasticsearchStartCommand() throws Exception {
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                return Archives.startElasticsearch(installation, sh);
+                return Archives.runElasticsearchStartCommand(installation, sh);
             case DEB:
             case RPM:
-                return Packages.startElasticsearch(sh);
+                return Packages.runElasticsearchStartCommand(sh);
             case DOCKER:
                 // nothing, "installing" docker image is running it
         }
@@ -215,6 +222,15 @@ public abstract class PackagingTestCase extends Assert {
             .forArchive(() -> Archives.assertElasticsearchStarted(installation, sh))
             .forDocker(Docker::waitForElasticsearchToStart)
             .run();
+    }
+
+    /**
+     * Start Elasticsearch and wait until it's up and running. If you just want to run
+     * the start command, use {@link #runElasticsearchStartCommand()}.
+     * @throws Exception if Elasticsearch can't start
+     */
+    public void startElasticsearch() throws Exception {
+        awaitElasticsearchStartup(runElasticsearchStartCommand());
     }
 
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage) {

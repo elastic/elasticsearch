@@ -271,7 +271,7 @@ public class Packages {
     /**
      * Starts Elasticsearch, without checking that startup is successful.
      */
-    public static Shell.Result startElasticsearch(Shell sh) throws IOException {
+    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
@@ -325,11 +325,12 @@ public class Packages {
         }
     }
 
-    public static Shell.Result restartElasticsearch(Shell sh) throws IOException {
+    public static void restartElasticsearch(Shell sh, Installation installation) throws IOException {
         if (isSystemd()) {
-            return sh.run("systemctl restart elasticsearch.service");
+            sh.run("systemctl restart elasticsearch.service");
         } else {
-            return sh.run("service elasticsearch restart");
+            sh.run("service elasticsearch restart");
         }
+        assertElasticsearchStarted(sh, installation);
     }
 }

@@ -22,6 +22,23 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
+/**
+ * An {@code EncryptionPacketsInputStream} wraps another input stream and encrypts its contents.
+ * The method of encryption is AES/GCM/NoPadding, which is a variant of authenticated encryption.
+ * The encryption works packet wise, i.e. the bytes are encrypted separately, using an unique
+ * {@code Cipher}. All the packets are encrypted using the same {@code SecretKey} but using a
+ * different Initialization Vector. The IV is comprised of an integer the same for all packets,
+ * a {@code nonce} that must not repeat for the same {@code secretKey}, and a monotonically
+ * increasing long counter. The packet size is preferably a large multiple of the AES block size,
+ * but this is not a requirement.
+ * <p>
+ * This input stream supports the {@code mark} and {@code reset} operations only if the wrapped
+ * stream also supports them. A {@code mark} call will trigger the memory buffering of the current
+ * packet and will also trigger a {@code mark} call on the wrapped input stream on the next
+ * packet boundary.
+ *
+ * @see DecryptionPacketsInputStream
+ */
 public final class EncryptionPacketsInputStream extends ChainingInputStream {
 
     private static final int MAX_PACKET_LENGTH_IN_BYTES = 1 << 30;

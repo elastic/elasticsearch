@@ -640,7 +640,7 @@ public final class SearchPhaseController {
                 index = 1;
                 if (hasAggs || hasTopDocs) {
                     progressListener.notifyPartialReduce(progressListener.searchShards(processedShards),
-                        topDocsStats.getTotalHits(), aggsBuffer[0], numReducePhases);
+                        topDocsStats.getTotalHits(), hasAggs ? aggsBuffer[0] : null, numReducePhases);
                 }
             }
             final int i = index++;

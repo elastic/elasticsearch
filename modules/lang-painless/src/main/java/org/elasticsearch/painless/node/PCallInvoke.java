@@ -27,6 +27,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.spi.annotation.DeterministicAnnotation;
 
 import java.util.List;
 import java.util.Objects;
@@ -79,8 +80,7 @@ public final class PCallInvoke extends AExpression {
                         "method [" + typeToCanonicalTypeName(prefix.actual) + ", " + name + "/" + arguments.size() + "] not found"));
             }
 
-            // TODO(stu): set deterministic in scriptRoot based on method
-            // scriptRoot.setDeterministic(method.annotations.contains(DeterministicAnnotation.class);
+            scriptRoot.setDeterministic(method.annotations.containsKey(DeterministicAnnotation.class));
 
             sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
         }

@@ -86,6 +86,11 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.supportsContentStream();
     }
 
+    @Override
+    public boolean allowsUnsafeBuffers() {
+        return restHandler.allowsUnsafeBuffers();
+    }
+
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);

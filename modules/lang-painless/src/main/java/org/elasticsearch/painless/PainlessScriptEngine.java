@@ -337,8 +337,9 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         String methodName = "isResultDeterministic";
         org.objectweb.asm.commons.Method isResultDeterministic = new org.objectweb.asm.commons.Method(methodName,
-        MethodType.methodType(boolean.class).toMethodDescriptorString());
-        GeneratorAdapter deterAdapter = new GeneratorAdapter(Opcodes.ASM5, instance,
+            MethodType.methodType(boolean.class).toMethodDescriptorString());
+
+        GeneratorAdapter deterAdapter = new GeneratorAdapter(Opcodes.ASM5, isResultDeterministic,
             writer.visitMethod(Opcodes.ACC_PUBLIC, methodName, isResultDeterministic.getDescriptor(), null, null));
         deterAdapter.visitCode();
         deterAdapter.push(scriptRoot.deterministic);

@@ -547,7 +547,7 @@ class java.lang.Integer {
   int min(int,int)
   int numberOfLeadingZeros(int)
   int numberOfTrailingZeros(int)
-  int parseInt(String)
+  int parseInt(String) @deterministic
   int parseInt(String,int)
   int parseUnsignedInt(String)
   int parseUnsignedInt(String,int)

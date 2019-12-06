@@ -23,6 +23,11 @@ import org.elasticsearch.ingest.IngestDocument;
 
 final class CsvParser {
 
+    private static final char LF = '\n';
+    private static final char CR = '\r';
+    private static final char SPACE = ' ';
+    private static final char TAB = '\t';
+
     private enum State {
         START, UNQUOTED, QUOTED, QUOTED_END
     }
@@ -35,8 +40,8 @@ final class CsvParser {
     private final StringBuilder builder = new StringBuilder();
     private State state = State.START;
     private String line;
-    private int currentHeader;
-    private int startIndex;
+    private int currentHeader = 0;
+    private int startIndex = 0;
     private int length;
     private int currentIndex;
 
@@ -101,7 +106,7 @@ final class CsvParser {
                     return true;
                 }
             } else if (isWhitespace(c)) {
-                if (trim) { 
+                if (trim) {
                     startIndex++;
                 }
             } else {
@@ -117,7 +122,7 @@ final class CsvParser {
         int spaceCount = 0;
         for (; currentIndex < length; currentIndex++) {
             char c = currentChar();
-            if (c == '\n' || c == '\r' || c == quote) {
+            if (c == LF || c == CR || c == quote) {
                 throw new IllegalArgumentException("Illegal character inside unquoted field at " + currentIndex);
             } else if (trim && isWhitespace(c)) {
                 spaceCount++;
@@ -181,7 +186,7 @@ final class CsvParser {
     }
 
     private boolean isWhitespace(char c) {
-        return c == ' ' || c == '\t';
+        return c == SPACE || c == TAB;
     }
 
     private boolean setField(int endIndex) {

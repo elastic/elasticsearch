@@ -33,12 +33,12 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
  * If there's more fields requested than there is in the CSV, extra field will not be present in the document after processing.
  * In the same way this processor will skip any field that is empty in CSV.
  *
- * By default it uses rules according to <a href="https://tools.ietf.org/html/rfc4180">RCF 4180</a>,
- * but it can be tweaked with following parameters:
+ * By default it uses rules according to <a href="https://tools.ietf.org/html/rfc4180">RCF 4180</a> with one exception: whitespaces are allowed
+ * before or after quoted field. Processor can be tweaked with following parameters:
  *
  * quote: set custom quote character (defaults to ")
  * separator: set custom separator (defaults to ,)
- * trim: trim leading whitespaces in each field (allows also whitespaces before quoted fields, defaults to false)
+ * trim: trim leading and trailing whitespaces in unquoted fields
  */
 public final class CsvProcessor extends AbstractProcessor {
 

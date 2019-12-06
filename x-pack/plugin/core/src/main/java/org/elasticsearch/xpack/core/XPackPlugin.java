@@ -310,12 +310,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ThreadPool threadPool) {
-        return Map.of("source", SourceOnlySnapshotRepository.newRepositoryFactory());
-    }
-
-    @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
             return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());

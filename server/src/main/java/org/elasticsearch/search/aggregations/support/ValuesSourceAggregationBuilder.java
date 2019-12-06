@@ -307,19 +307,19 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     /**
-     * Provide a hook for aggregations to have finer grained control of the CoreValuesSourceType for script values.  This will only be
-     * called if the user did not supply a type hint for the script.  The script object is provided for reference.
+     * Provide a hook for aggregations to have finer grained control of the {@link ValuesSourceType } when {@link ValuesSourceConfig}
+     * can't resolve a type (i.e.  this will be called before falling back to CoreValuesSourceType.ANY.)
      *
      * @param script - The user supplied script
      * @return The CoreValuesSourceType we expect this script to yield.
      */
-    protected ValuesSourceType resolveScriptAny(Script script) {
+    protected ValuesSourceType defaultValueSourceType(Script script) {
         return CoreValuesSourceType.BYTES;
     }
 
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         return ValuesSourceConfig.resolve(queryShardContext,
-                this.userValueTypeHint, field, script, missing, timeZone, format, this::resolveScriptAny, this.getType());
+                this.userValueTypeHint, field, script, missing, timeZone, format, this::defaultValueSourceType, this.getType());
     }
 
     protected abstract ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,

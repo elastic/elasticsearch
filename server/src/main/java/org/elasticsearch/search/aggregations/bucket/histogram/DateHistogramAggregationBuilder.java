@@ -161,7 +161,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceType resolveScriptAny(Script script) {
+    protected ValuesSourceType defaultValueSourceType(Script script) {
         // TODO: No idea how we'd support Range scripts here.
         return CoreValuesSourceType.NUMERIC;
     }

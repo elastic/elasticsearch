@@ -62,10 +62,10 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected ValuesSourceType resolveScriptAny(Script script) {
+    protected ValuesSourceType defaultValueSourceType(Script script) {
         return CoreValuesSourceType.NUMERIC;
     }
-    
+
     /**
      * Read from a stream.
      */

@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.util.Locale;
@@ -14,8 +15,6 @@ import java.util.StringJoiner;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
-import static org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import static org.elasticsearch.xpack.sql.expression.Expressions.name;
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 
@@ -56,7 +55,6 @@ public final class TypeResolutions {
         return isType(e, dt -> dt.isNumeric() || dt.isDateOrTimeBased(), operationName, paramOrd,
             "date", "time", "datetime", "numeric");
     }
-
 
     public static TypeResolution isGeo(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, DataType::isGeo, operationName, paramOrd, "geo_point", "geo_shape");
@@ -120,7 +118,7 @@ public final class TypeResolutions {
                                         String operationName,
                                         ParamOrdinal paramOrd,
                                         String... acceptedTypes) {
-        return predicate.test(e.dataType()) || DataTypes.isNull(e.dataType())?
+        return predicate.test(e.dataType()) || e.dataType().isNull() ?
             TypeResolution.TYPE_RESOLVED :
             new TypeResolution(format(null, "{}argument of [{}] must be [{}], found value [{}] type [{}]",
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",

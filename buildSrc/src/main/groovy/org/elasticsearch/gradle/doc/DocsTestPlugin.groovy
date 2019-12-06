@@ -21,19 +21,21 @@ package org.elasticsearch.gradle.doc
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.test.RestTestPlugin
+import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+
 /**
  * Sets up tests for documentation.
  */
-public class DocsTestPlugin extends RestTestPlugin {
+class DocsTestPlugin implements Plugin<Project> {
 
     @Override
-    public void apply(Project project) {
+    void apply(Project project) {
         project.pluginManager.apply('elasticsearch.testclusters')
         project.pluginManager.apply('elasticsearch.standalone-rest-test')
-        super.apply(project)
+        project.pluginManager.apply('elasticsearch.rest-test')
+
         String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line
         project.testClusters.integTest.testDistribution = distribution.toUpperCase()

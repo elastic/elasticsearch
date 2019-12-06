@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
@@ -51,13 +53,14 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         }
 
         /**
-         * Parses request for memory estimation.
-         * {@link Request} is reused across {@link PutDataFrameAnalyticsAction} and {@link EstimateMemoryUsageAction} but parsing differs
+         * Parses request for use in the explain action.
+         * {@link Request} is reused across {@link PutDataFrameAnalyticsAction} and
+         * {@link ExplainDataFrameAnalyticsAction} but parsing differs
          * between these two usages.
          */
-        public static Request parseRequestForMemoryEstimation(XContentParser parser) {
+        public static Request parseRequestForExplain(XContentParser parser) {
             DataFrameAnalyticsConfig.Builder configBuilder = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null);
-            DataFrameAnalyticsConfig config = configBuilder.buildForMemoryEstimation();
+            DataFrameAnalyticsConfig config = configBuilder.buildForExplain();
             return new PutDataFrameAnalyticsAction.Request(config);
         }
 
@@ -86,6 +89,24 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
         @Override
         public ActionRequestValidationException validate() {
+            ActionRequestValidationException error = null;
+            error = checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(config, error);
+            return error;
+        }
+
+        private ActionRequestValidationException checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(
+                DataFrameAnalyticsConfig config, ActionRequestValidationException error) {
+            if (config.getAnalyzedFields() == null) {
+                return null;
+            }
+            for (String analyzedInclude : config.getAnalyzedFields().includes()) {
+                if (config.getSource().isFieldExcluded(analyzedInclude)) {
+                    return ValidateActions.addValidationError("field [" + analyzedInclude + "] is included in ["
+                        + DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName() + "] but not in ["
+                        + DataFrameAnalyticsConfig.SOURCE.getPreferredName() + "."
+                        + DataFrameAnalyticsSource._SOURCE.getPreferredName() + "]", error);
+                }
+            }
             return null;
         }
 
@@ -119,7 +140,7 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
         Response() {}
 
-        Response(StreamInput in) throws IOException {
+        public Response(StreamInput in) throws IOException {
             super(in);
             config = new DataFrameAnalyticsConfig(in);
         }

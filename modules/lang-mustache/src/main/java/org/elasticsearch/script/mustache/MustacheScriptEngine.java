@@ -41,6 +41,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -77,6 +78,11 @@ public final class MustacheScriptEngine implements ScriptEngine {
             throw new ScriptException(ex.getMessage(), ex, Collections.emptyList(), templateSource, NAME);
         }
 
+    }
+
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return Set.of(TemplateScript.CONTEXT);
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {

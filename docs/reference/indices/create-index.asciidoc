@@ -35,6 +35,7 @@ creating an index, you can specify the following:
 --
 (Optional, string) Name of the index you wish to create.
 
+// tag::index-name-reqs[]
 Index names must meet the following criteria:
 
 - Lowercase only
@@ -43,13 +44,12 @@ Index names must meet the following criteria:
 - Cannot start with `-`, `_`, `+`
 - Cannot be `.` or `..`
 - Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+// end::index-name-reqs[]
 --
 
 
 [[indices-create-api-query-params]]
 ==== {api-query-parms-title}
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
@@ -132,10 +132,6 @@ PUT /test
     }
 }
 --------------------------------------------------
-
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
-types in requests is now deprecated, a type can still be provided if the request parameter
-include_type_name is set. For more details, please see <<removal-of-types>>.
 
 [[create-index-aliases]]
 ===== Aliases

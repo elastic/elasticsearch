@@ -59,7 +59,7 @@ override any settings or mappings specified in an index template.
 
 ===== Comments in index templates
 You can use C-style /* */ block comments in index templates.
-You can includes comments anywhere in the request body,
+You can include comments anywhere in the request body,
 except before the opening curly bracket.
 
 [[getting]]	
@@ -85,8 +85,6 @@ If `true`, this request cannot replace or update existing index templates.
 Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
 `order`::
 (Optional,integer)
@@ -248,4 +246,3 @@ The API returns the following response:
   }	
 }	
 --------------------------------------------------	
-// TESTRESPONSE

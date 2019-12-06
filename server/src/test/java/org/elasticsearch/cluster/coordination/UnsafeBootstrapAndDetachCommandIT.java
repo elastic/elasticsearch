@@ -374,12 +374,12 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         ensureStableCluster(2);
 
         logger.info("--> index 1 doc and ensure index is green");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen("test");
 
         logger.info("--> verify 1 doc in the index");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> stop data-only node and detach it from the old cluster");
         Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
@@ -407,7 +407,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         ensureGreen("test");
 
         logger.info("--> verify the doc is there");
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {

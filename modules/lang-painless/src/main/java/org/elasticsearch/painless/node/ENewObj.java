@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Type;
@@ -53,13 +54,6 @@ public final class ENewObj extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        for (AExpression argument : arguments) {
-            argument.storeSettings(settings);
-        }
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         for (AExpression argument : arguments) {
             argument.extractVariables(variables);
@@ -67,14 +61,14 @@ public final class ENewObj extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
-        actual = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
+        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
@@ -95,28 +89,28 @@ public final class ENewObj extends AExpression {
 
             expression.expected = types[argument];
             expression.internal = true;
-            expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
+            expression.analyze(scriptRoot, locals);
+            arguments.set(argument, expression.cast(scriptRoot, locals));
         }
 
         statement = true;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
-        writer.newInstance(MethodWriter.getType(actual));
+        methodWriter.newInstance(MethodWriter.getType(actual));
 
         if (read) {
-            writer.dup();
+            methodWriter.dup();
         }
 
         for (AExpression argument : arguments) {
-            argument.write(writer, globals);
+            argument.write(classWriter, methodWriter, globals);
         }
 
-        writer.invokeConstructor(
+        methodWriter.invokeConstructor(
                     Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
     }
 

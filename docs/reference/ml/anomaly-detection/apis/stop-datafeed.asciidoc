@@ -24,7 +24,7 @@ Stops one or more {dfeeds}.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-stop-datafeed-desc]]
 ==== {api-description-title}
@@ -82,14 +82,13 @@ are no matches or only partial matches.
 
 The following example stops the `datafeed-total-requests` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-total-requests/_stop
 {
   "timeout": "30s"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_startdf]
 
 When the {dfeed} stops, you receive the following results:

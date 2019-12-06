@@ -146,6 +146,11 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return contextsToCompilers.keySet();
+    }
+
     /**
      * Generates a stateful factory class that will return script instances.  Acts as a middle man between
      * the {@link ScriptContext#factoryClazz} and the {@link ScriptContext#instanceClazz} when used so that
@@ -196,7 +201,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
             constructor.loadThis();
             constructor.loadArg(count);
-            constructor.putField(Type.getType(className), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+            constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
         }
 
         constructor.returnValue();
@@ -230,7 +235,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
             adapter.loadThis();
-            adapter.getField(Type.getType(className), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+            adapter.getField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
         }
 
         adapter.loadArgs();
@@ -243,7 +248,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
 
-        return Type.getType(className);
+        return Type.getType("L" + className + ";");
     }
 
     /**
@@ -316,7 +321,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         try {
             return context.factoryClazz.cast(factory.getConstructor().newInstance());
-        } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
+        } catch (Exception exception) {
+            // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException(
                 "An internal error occurred attempting to define the factory class [" + className + "].", exception);
         }

@@ -16,7 +16,7 @@ Either registers a new watch in {watcher} or updates an existing one.
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 [[watcher-api-put-watch-desc]]
 ==== {api-description-title}
@@ -32,8 +32,8 @@ IMPORTANT:  You must use {kib} or this API to create a watch. Do not put a watch
             privileges on the `.watches` index.
 
 When adding a watch you can also define its initial
-{stack-ov}/how-watcher-works.html#watch-active-state[active state]. You do that
-by setting the `active` parameter.
+<<watch-active-state,active state>>. You do that by setting the `active`
+parameter.
 
 [[watcher-api-put-watch-security]]
 ===== Security integration
@@ -65,16 +65,16 @@ A watch has the following fields:
 |======
 | Name              | Description
 
-| `trigger`         | The {stack-ov}/trigger.html[trigger] that defines when
+| `trigger`         | The <<trigger,trigger>> that defines when
                       the watch should run.
 
-| `input`           | The {stack-ov}/input.html[input] that defines the input
+| `input`           | The <<input,input>> that defines the input
                       that loads the data for the watch.
 
-| `condition`       | The {stack-ov}/condition.html[condition] that defines if
+| `condition`       | The <<condition,condition>> that defines if
                       the actions should be run.
 
-| `actions`         | The list of {stack-ov}/actions.html[actions] that will be
+| `actions`         | The list of <<actions,actions>> that will be
                       run if the condition matches
 
 | `metadata`        | Metadata json that will be copied into the history entries.
@@ -113,7 +113,7 @@ characteristics:
 * The watch condition checks if any search hits where found.
 * When found, the watch action sends an email to an administrator.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/my-watch
 {
@@ -161,10 +161,9 @@ PUT _watcher/watch/my-watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 When you add a watch you can also define its initial
-{stack-ov}/how-watcher-works.html#watch-active-state[active state]. You do that
+<<watch-active-state,active state>>. You do that
 by setting the `active` parameter. The following command adds a watch and sets
 it to be inactive by default:
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -44,7 +46,6 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 public class ExplainResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField _INDEX = new ParseField("_index");
-    private static final ParseField _TYPE = new ParseField("_type");
     private static final ParseField _ID = new ParseField("_id");
     private static final ParseField MATCHED = new ParseField("matched");
     private static final ParseField EXPLANATION = new ParseField("explanation");
@@ -54,37 +55,33 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     private static final ParseField GET = new ParseField("get");
 
     private String index;
-    private String type;
     private String id;
     private boolean exists;
     private Explanation explanation;
     private GetResult getResult;
 
-    // TODO(talevy): remove dependency on empty constructor from ExplainResponseTests
-    ExplainResponse() {
-    }
-
-    public ExplainResponse(String index, String type, String id, boolean exists) {
+    public ExplainResponse(String index, String id, boolean exists) {
         this.index = index;
-        this.type = type;
         this.id = id;
         this.exists = exists;
     }
 
-    public ExplainResponse(String index, String type, String id, boolean exists, Explanation explanation) {
-        this(index, type, id, exists);
+    public ExplainResponse(String index, String id, boolean exists, Explanation explanation) {
+        this(index, id, exists);
         this.explanation = explanation;
     }
 
-    public ExplainResponse(String index, String type, String id, boolean exists, Explanation explanation, GetResult getResult) {
-        this(index, type, id, exists, explanation);
+    public ExplainResponse(String index, String id, boolean exists, Explanation explanation, GetResult getResult) {
+        this(index, id, exists, explanation);
         this.getResult = getResult;
     }
 
     public ExplainResponse(StreamInput in) throws IOException {
         super(in);
         index = in.readString();
-        type = in.readString();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readString();
+        }
         id = in.readString();
         exists = in.readBoolean();
         if (in.readBoolean()) {
@@ -97,14 +94,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
 
     public String getIndex() {
         return index;
-    }
-
-    /**
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public String getType() {
-        return type;
     }
 
     public String getId() {
@@ -139,7 +128,9 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeBoolean(exists);
         if (explanation == null) {
@@ -157,13 +148,19 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     }
 
     private static final ConstructingObjectParser<ExplainResponse, Boolean> PARSER = new ConstructingObjectParser<>("explain", true,
-        (arg, exists) -> new ExplainResponse((String) arg[0], (String) arg[1], (String) arg[2], exists, (Explanation) arg[3],
-            (GetResult) arg[4]));
+        (arg, exists) -> new ExplainResponse((String) arg[0], (String) arg[1], exists, (Explanation) arg[2],
+            (GetResult) arg[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _INDEX);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), _TYPE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _ID);
+        final ConstructingObjectParser<Explanation, Boolean> explanationParser = getExplanationsParser();
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), explanationParser, EXPLANATION);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> GetResult.fromXContentEmbedded(p), GET);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ConstructingObjectParser<Explanation, Boolean> getExplanationsParser() {
         final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>("explanation", true,
             arg -> {
                 if ((float) arg[0] > 0) {
@@ -175,8 +172,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         explanationParser.declareFloat(ConstructingObjectParser.constructorArg(), VALUE);
         explanationParser.declareString(ConstructingObjectParser.constructorArg(), DESCRIPTION);
         explanationParser.declareObjectArray(ConstructingObjectParser.constructorArg(), explanationParser, DETAILS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), explanationParser, EXPLANATION);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> GetResult.fromXContentEmbedded(p), GET);
+        return explanationParser;
     }
 
     public static ExplainResponse fromXContent(XContentParser parser, boolean exists) {
@@ -187,7 +183,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX.getPreferredName(), index);
-        builder.field(_TYPE.getPreferredName(), type);
         builder.field(_ID.getPreferredName(), id);
         builder.field(MATCHED.getPreferredName(), isMatch());
         if (hasExplanation()) {
@@ -229,7 +224,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         }
         ExplainResponse other = (ExplainResponse) obj;
         return index.equals(other.index)
-            && type.equals(other.type)
             && id.equals(other.id)
             && Objects.equals(explanation, other.explanation)
             && getResult.isExists() == other.getResult.isExists()
@@ -239,6 +233,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, id, explanation, getResult.isExists(), getResult.sourceAsMap(), getResult.getFields());
+        return Objects.hash(index, id, explanation, getResult.isExists(), getResult.sourceAsMap(), getResult.getFields());
     }
 }

@@ -18,7 +18,7 @@ Validates detector configuration information.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-valid-detector-desc]]
 ==== {api-description-title}
@@ -37,7 +37,7 @@ see <<ml-detectorconfig,detector configuration objects>>.
 
 The following example validates detector configuration information:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/_validate/detector
 {
@@ -46,7 +46,6 @@ POST _ml/anomaly_detectors/_validate/detector
   "by_field_name": "airline"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 When the validation completes, you receive the following results:

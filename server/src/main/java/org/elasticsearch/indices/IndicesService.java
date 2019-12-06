@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -91,6 +92,7 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -167,6 +169,9 @@ public class IndicesService extends AbstractLifecycleComponent
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
+    public static final Setting<Boolean> INDICES_ID_FIELD_DATA_ENABLED_SETTING =
+        Setting.boolSetting("indices.id_field_data.enabled", false, Property.Dynamic, Property.NodeScope);
+
 
     /**
      * The node's settings.
@@ -185,6 +190,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CircuitBreakerService circuitBreakerService;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
     private final Client client;
     private volatile Map<String, IndexService> indices = emptyMap();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
@@ -201,6 +207,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
+    private volatile boolean idFieldDataEnabled;
 
     @Override
     protected void doStart() {
@@ -212,7 +219,7 @@ public class IndicesService extends AbstractLifecycleComponent
                           AnalysisRegistry analysisRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
-                          ScriptService scriptService, Client client, MetaStateService metaStateService,
+                          ScriptService scriptService, ClusterService clusterService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
                           Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories) {
         this.settings = settings;
@@ -234,7 +241,10 @@ public class IndicesService extends AbstractLifecycleComponent
         this.circuitBreakerService = circuitBreakerService;
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
         this.client = client;
+        this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ID_FIELD_DATA_ENABLED_SETTING, this::setIdFieldDataEnabled);
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             @Override
             public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
@@ -550,11 +560,13 @@ public class IndicesService extends AbstractLifecycleComponent
                 bigArrays,
                 threadPool,
                 scriptService,
+                clusterService,
                 client,
                 indicesQueryCache,
                 mapperRegistry,
                 indicesFieldDataCache,
-                namedWriteableRegistry
+                namedWriteableRegistry,
+                this::isIdFieldDataEnabled
         );
     }
 
@@ -648,12 +660,11 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
-            (type, mapping) -> {
+            mapping -> {
                 assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS:
                     "mapping update consumer only required by local shards recovery";
                 client.admin().indices().preparePutMapping()
                     .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                    .setType(type)
                     .setSource(mapping.source().string(), XContentType.JSON)
                     .get();
             }, this);
@@ -1242,6 +1253,11 @@ public class IndicesService extends AbstractLifecycleComponent
             return false;
         }
 
+        // Profiled queries should not use the cache
+        if (request.source() != null && request.source().profile()) {
+            return false;
+        }
+
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
@@ -1440,6 +1456,17 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public boolean isMetaDataField(Version indexCreatedVersion, String field) {
         return mapperRegistry.isMetaDataField(indexCreatedVersion, field);
+    }
+
+    /**
+     * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
+     */
+    public boolean isIdFieldDataEnabled() {
+        return idFieldDataEnabled;
+    }
+
+    private void setIdFieldDataEnabled(boolean value) {
+        this.idFieldDataEnabled = value;
     }
 
     /**

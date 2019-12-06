@@ -1,3 +1,4 @@
+[role="xpack"]
 [[java-rest-high-x-pack-watcher-put-watch]]
 === Put watch API
 

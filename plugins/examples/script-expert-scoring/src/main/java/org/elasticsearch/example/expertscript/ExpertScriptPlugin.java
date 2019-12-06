@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * An example script plugin that adds a {@link ScriptEngine} implementing expert scoring.
@@ -76,6 +77,11 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             // optionally close resources
         }
 
+        @Override
+        public Set<ScriptContext<?>> getSupportedContexts() {
+            return Set.of(ScoreScript.CONTEXT);
+        }
+
         private static class PureDfLeafFactory implements LeafFactory {
             private final Map<String, Object> params;
             private final SearchLookup lookup;
@@ -115,7 +121,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                      */
                     return new ScoreScript(params, lookup, context) {
                         @Override
-                        public double execute() {
+                        public double execute(ExplanationHolder explanation) {
                             return 0.0d;
                         }
                     };
@@ -138,7 +144,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         currentDocid = docid;
                     }
                     @Override
-                    public double execute() {
+                    public double execute(ExplanationHolder explanation) {
                         if (postings.docID() != currentDocid) {
                             /*
                              * advance moved past the current doc, so this doc

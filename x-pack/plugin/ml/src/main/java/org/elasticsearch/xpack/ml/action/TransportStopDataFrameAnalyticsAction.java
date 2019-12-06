@@ -32,16 +32,19 @@ import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -59,17 +62,20 @@ public class TransportStopDataFrameAnalyticsAction
     private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;
     private final DataFrameAnalyticsConfigProvider configProvider;
+    private final DataFrameAnalyticsAuditor auditor;
 
     @Inject
     public TransportStopDataFrameAnalyticsAction(TransportService transportService, ActionFilters actionFilters,
                                                  ClusterService clusterService, ThreadPool threadPool,
                                                  PersistentTasksService persistentTasksService,
-                                                 DataFrameAnalyticsConfigProvider configProvider) {
+                                                 DataFrameAnalyticsConfigProvider configProvider,
+                                                 DataFrameAnalyticsAuditor auditor) {
         super(StopDataFrameAnalyticsAction.NAME, clusterService, transportService, actionFilters, StopDataFrameAnalyticsAction.Request::new,
             StopDataFrameAnalyticsAction.Response::new, StopDataFrameAnalyticsAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
         this.configProvider = configProvider;
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Override
@@ -134,6 +140,7 @@ public class TransportStopDataFrameAnalyticsAction
                                                  Set<String> failedAnalytics) {
         for (String analyticsId : analyticsIds) {
             switch (MlTasks.getDataFrameAnalyticsState(analyticsId, tasks)) {
+                case STARTING:
                 case STARTED:
                 case REINDEXING:
                 case ANALYZING:
@@ -243,7 +250,7 @@ public class TransportStopDataFrameAnalyticsAction
                 });
             },
             e -> {
-                if (e instanceof ResourceNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     // the task has disappeared so must have stopped
                     listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
                 } else {
@@ -258,7 +265,10 @@ public class TransportStopDataFrameAnalyticsAction
         persistentTasksService.waitForPersistentTasksCondition(persistentTasks ->
                 filterPersistentTasks(persistentTasks, analyticsIds).isEmpty(),
             request.getTimeout(), ActionListener.wrap(
-                booleanResponse -> listener.onResponse(response),
+                booleanResponse -> {
+                    auditor.info(request.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STOPPED);
+                    listener.onResponse(response);
+                },
                 listener::onFailure
             ));
     }

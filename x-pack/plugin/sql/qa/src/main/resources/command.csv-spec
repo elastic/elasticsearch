@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Commands
 //
@@ -39,16 +41,24 @@ CURRENT_DATE     |SCALAR
 CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
+DATEADD          |SCALAR
+DATEDIFF         |SCALAR
+DATEPART         |SCALAR
+DATETRUNC        |SCALAR
+DATE_ADD         |SCALAR
+DATE_DIFF        |SCALAR
+DATE_PART        |SCALAR
+DATE_TRUNC       |SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
-DAYOFMONTH       |SCALAR         
-DAYOFWEEK        |SCALAR         
-DAYOFYEAR        |SCALAR         
-DAY_NAME         |SCALAR         
-DAY_OF_MONTH     |SCALAR         
-DAY_OF_WEEK      |SCALAR         
-DAY_OF_YEAR      |SCALAR         
-DOM              |SCALAR         
+DAYOFMONTH       |SCALAR
+DAYOFWEEK        |SCALAR
+DAYOFYEAR        |SCALAR
+DAY_NAME         |SCALAR
+DAY_OF_MONTH     |SCALAR
+DAY_OF_WEEK      |SCALAR
+DAY_OF_YEAR      |SCALAR
+DOM              |SCALAR
 DOW              |SCALAR         
 DOY              |SCALAR         
 HOUR             |SCALAR         
@@ -73,8 +83,12 @@ NOW              |SCALAR
 QUARTER          |SCALAR         
 SECOND           |SCALAR         
 SECOND_OF_MINUTE |SCALAR
+TIMESTAMPADD     |SCALAR
+TIMESTAMPDIFF    |SCALAR
+TIMESTAMP_ADD    |SCALAR
+TIMESTAMP_DIFF   |SCALAR
 TODAY            |SCALAR
-WEEK             |SCALAR         
+WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
 ABS              |SCALAR         
@@ -108,8 +122,9 @@ SIN              |SCALAR
 SINH             |SCALAR         
 SQRT             |SCALAR         
 TAN              |SCALAR         
-TRUNCATE         |SCALAR         
-ASCII            |SCALAR         
+TRUNC            |SCALAR
+TRUNCATE         |SCALAR
+ASCII            |SCALAR
 BIT_LENGTH       |SCALAR         
 CHAR             |SCALAR         
 CHARACTER_LENGTH |SCALAR         

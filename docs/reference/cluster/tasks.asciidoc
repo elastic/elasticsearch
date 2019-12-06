@@ -1,61 +1,71 @@
 [[tasks]]
-=== Task Management API
+=== Task management API
+++++
+<titleabbrev>Task management</titleabbrev>
+++++
 
-beta[The Task Management API is new and should still be considered a beta feature.  The API may change in ways that are not backwards compatible]
+beta[The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.]
 
 Returns information about the tasks currently executing in the cluster.
 
 [[tasks-api-request]]
 ==== {api-request-title}
 
-`GET /_tasks` +
-
 `GET /_tasks/<task_id>`
+
+`GET /_tasks`
 
 
 [[tasks-api-desc]]
 ==== {api-description-title}
 
-The task management API allows to retrieve information about the tasks currently
-executing on one or more nodes in the cluster.
+The task management API returns information
+about tasks currently executing
+on one or more nodes in the cluster.
 
 
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-`<task_id>`::
-    (Optional, string) The ID of the task to return (`node_id:task_number`).
+include::{docdir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 
 [[tasks-api-query-params]]
 ==== {api-query-parms-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=actions]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=group-by]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-`wait_for_completion`::
-    (Optional, boolean) If `true`, it waits for the matching tasks to complete. 
-    Defaults to `false`.
-
+include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 
     
 [[tasks-api-response-codes]]
 ==== {api-response-codes-title}
 
+// tag::tasks-api-404[]
 `404` (Missing resources)::
-    If `{task_id}` is specified but not found, this code indicates that there 
-    are no resources that match the request.
-
+If `<task_id>` is specified but not found, this code indicates that there 
+are no resources that match the request.
+// end::tasks-api-404[]
 
 [[tasks-api-examples]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks <1>
 GET _tasks?nodes=nodeId1,nodeId2 <2>
 GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:No tasks to retrieve]
 
 <1> Retrieves all tasks currently running on all nodes in the cluster.
@@ -104,22 +114,20 @@ The API returns the following result:
 It is also possible to retrieve information for a particular task. The following 
 example retrieves information about task `oTUltX4IQMOUUVeiohTt8A:124`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks/oTUltX4IQMOUUVeiohTt8A:124
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 If the task isn't found, the API returns a 404.
 
 To retrieve all children of a particular task:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks?parent_task_id=oTUltX4IQMOUUVeiohTt8A:123
 --------------------------------------------------
-// CONSOLE
 
 If the parent isn't found, the API does not return a 404.
 
@@ -131,11 +139,10 @@ the running tasks. This is useful for telling one task from another but is more
 costly to execute. For example, fetching all searches using the `detailed`
 request parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks?actions=*search&detailed
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:No tasks to retrieve]
 
 The API returns the following result:
@@ -195,34 +202,19 @@ The task API can also be used to wait for completion of a particular task. The
 following call will block for 10 seconds or until the task with id
 `oTUltX4IQMOUUVeiohTt8A:12345` is completed.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks/oTUltX4IQMOUUVeiohTt8A:12345?wait_for_completion=true&timeout=10s
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 You can also wait for all tasks for certain action types to finish. This command 
 will wait for all `reindex` tasks to finish:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks?actions=*reindex&wait_for_completion=true&timeout=10s
 --------------------------------------------------
-// CONSOLE
-
-
-===== Listing tasks by using _cat
-
-Tasks can be also listed using _cat version of the list tasks command, which
-accepts the same arguments as the standard list tasks command.
-
-[source,js]
---------------------------------------------------
-GET _cat/tasks
-GET _cat/tasks?detailed
---------------------------------------------------
-// CONSOLE
 
 [[task-cancellation]]
 ===== Task Cancellation
@@ -230,22 +222,20 @@ GET _cat/tasks?detailed
 If a long-running task supports cancellation, it can be cancelled with the cancel 
 tasks API. The following example cancels task `oTUltX4IQMOUUVeiohTt8A:12345`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _tasks/oTUltX4IQMOUUVeiohTt8A:12345/_cancel
 --------------------------------------------------
-// CONSOLE
 
 The task cancellation command supports the same task selection parameters as the 
 list tasks command, so multiple tasks can be cancelled at the same time. For 
 example, the following command will cancel all reindex tasks running on the 
 nodes `nodeId1` and `nodeId2`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _tasks/_cancel?nodes=nodeId1,nodeId2&actions=*reindex
 --------------------------------------------------
-// CONSOLE
 
 ===== Task Grouping
 
@@ -253,19 +243,17 @@ The task lists returned by task API commands can be grouped either by nodes
 (default) or by parent tasks using the `group_by` parameter. The following 
 command will change the grouping to parent tasks:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks?group_by=parents
 --------------------------------------------------
-// CONSOLE
 
 The grouping can be disabled by specifying `none` as a `group_by` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks?group_by=none
 --------------------------------------------------
-// CONSOLE
 
 
 ===== Identifying running tasks

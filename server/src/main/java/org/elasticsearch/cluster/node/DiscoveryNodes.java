@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,6 +42,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -517,26 +519,18 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 if (summary.length() > 0) {
                     summary.append(", ");
                 }
-                summary.append("removed {");
-                for (DiscoveryNode node : removedNodes()) {
-                    summary.append(node).append(',');
-                }
-                summary.append("}");
+                summary.append("removed {").append(Strings.collectionToCommaDelimitedString(removedNodes())).append('}');
             }
             if (added()) {
-                // don't print if there is one added, and it is us
-                if (!(addedNodes().size() == 1 && addedNodes().get(0).getId().equals(localNodeId))) {
+                final String addedNodesExceptLocalNode = addedNodes().stream()
+                    .filter(node -> node.getId().equals(localNodeId) == false).map(DiscoveryNode::toString)
+                    .collect(Collectors.joining(","));
+                if (addedNodesExceptLocalNode.length() > 0) {
+                    // ignore ourselves when reporting on nodes being added
                     if (summary.length() > 0) {
                         summary.append(", ");
                     }
-                    summary.append("added {");
-                    for (DiscoveryNode node : addedNodes()) {
-                        if (!node.getId().equals(localNodeId)) {
-                            // don't print ourself
-                            summary.append(node).append(',');
-                        }
-                    }
-                    summary.append("}");
+                    summary.append("added {").append(addedNodesExceptLocalNode).append('}');
                 }
             }
             return summary.toString();

@@ -9,7 +9,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
@@ -18,9 +17,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilter;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ConfusionMatrixTests extends AbstractSerializingTestCase<ConfusionMatrix> {
 
@@ -49,31 +47,21 @@ public class ConfusionMatrixTests extends AbstractSerializingTestCase<ConfusionM
     }
 
     public void testEvaluate() {
-        SoftClassificationMetric.ClassInfo classInfo = mock(SoftClassificationMetric.ClassInfo.class);
-        when(classInfo.getName()).thenReturn("foo");
-
         Aggregations aggs = new Aggregations(Arrays.asList(
-            createFilterAgg("confusion_matrix_foo_at_0.25_TP", 1L),
-            createFilterAgg("confusion_matrix_foo_at_0.25_FP", 2L),
-            createFilterAgg("confusion_matrix_foo_at_0.25_TN", 3L),
-            createFilterAgg("confusion_matrix_foo_at_0.25_FN", 4L),
-            createFilterAgg("confusion_matrix_foo_at_0.5_TP", 5L),
-            createFilterAgg("confusion_matrix_foo_at_0.5_FP", 6L),
-            createFilterAgg("confusion_matrix_foo_at_0.5_TN", 7L),
-            createFilterAgg("confusion_matrix_foo_at_0.5_FN", 8L)
+            mockFilter("confusion_matrix_at_0.25_TP", 1L),
+            mockFilter("confusion_matrix_at_0.25_FP", 2L),
+            mockFilter("confusion_matrix_at_0.25_TN", 3L),
+            mockFilter("confusion_matrix_at_0.25_FN", 4L),
+            mockFilter("confusion_matrix_at_0.5_TP", 5L),
+            mockFilter("confusion_matrix_at_0.5_FP", 6L),
+            mockFilter("confusion_matrix_at_0.5_TN", 7L),
+            mockFilter("confusion_matrix_at_0.5_FN", 8L)
         ));
 
         ConfusionMatrix confusionMatrix = new ConfusionMatrix(Arrays.asList(0.25, 0.5));
-        EvaluationMetricResult result = confusionMatrix.evaluate(classInfo, aggs);
+        EvaluationMetricResult result = confusionMatrix.evaluate(aggs);
 
         String expected = "{\"0.25\":{\"tp\":1,\"fp\":2,\"tn\":3,\"fn\":4},\"0.5\":{\"tp\":5,\"fp\":6,\"tn\":7,\"fn\":8}}";
         assertThat(Strings.toString(result), equalTo(expected));
-    }
-
-    private static Filter createFilterAgg(String name, long docCount) {
-        Filter agg = mock(Filter.class);
-        when(agg.getName()).thenReturn(name);
-        when(agg.getDocCount()).thenReturn(docCount);
-        return agg;
     }
 }

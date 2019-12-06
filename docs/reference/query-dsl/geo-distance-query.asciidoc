@@ -8,7 +8,7 @@ Filters documents that include only hits that exists within a specific
 distance from a geo point. Assuming the following mapping and indexed
 document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_locations
 {
@@ -35,14 +35,13 @@ PUT /my_locations/_doc/1
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 
 Then the following simple query can be executed with a `geo_distance`
 filter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my_locations/_search
 {
@@ -64,7 +63,6 @@ GET /my_locations/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Accepted Formats
@@ -75,7 +73,7 @@ representations of the geo point, the filter can accept it as well:
 [float]
 ===== Lat Lon As Properties
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my_locations/_search
 {
@@ -97,7 +95,6 @@ GET /my_locations/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Lat Lon As Array
@@ -105,7 +102,7 @@ GET /my_locations/_search
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
 conform with http://geojson.org/[GeoJSON].
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my_locations/_search
 {
@@ -124,7 +121,6 @@ GET /my_locations/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [float]
@@ -132,7 +128,7 @@ GET /my_locations/_search
 
 Format in `lat,lon`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my_locations/_search
 {
@@ -151,12 +147,11 @@ GET /my_locations/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Geohash
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my_locations/_search
 {
@@ -175,7 +170,6 @@ GET /my_locations/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Options

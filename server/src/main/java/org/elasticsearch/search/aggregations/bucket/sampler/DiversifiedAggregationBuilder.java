@@ -24,16 +24,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -62,7 +62,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     private String executionHint = null;
 
     public DiversifiedAggregationBuilder(String name) {
-        super(name, ValuesSourceType.ANY, null);
+        super(name, CoreValuesSourceType.ANY, null);
     }
 
     protected DiversifiedAggregationBuilder(DiversifiedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -81,7 +81,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
      * Read from a stream.
      */
     public DiversifiedAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.ANY, null);
+        super(in, CoreValuesSourceType.ANY, null);
         shardSize = in.readVInt();
         maxDocsPerValue = in.readVInt();
         executionHint = in.readOptionalString();
@@ -148,9 +148,11 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context,
-            ValuesSourceConfig<ValuesSource> config, AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, context, parent,
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<ValuesSource> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException {
+        return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, queryShardContext, parent,
                 subFactoriesBuilder, metaData);
     }
 

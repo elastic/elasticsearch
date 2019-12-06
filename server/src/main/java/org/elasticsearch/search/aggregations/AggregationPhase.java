@@ -52,7 +52,7 @@ public class AggregationPhase implements SearchPhase {
             Aggregator[] aggregators;
             try {
                 AggregatorFactories factories = context.aggregations().factories();
-                aggregators = factories.createTopLevelAggregators();
+                aggregators = factories.createTopLevelAggregators(context);
                 for (int i = 0; i < aggregators.length; i++) {
                     if (aggregators[i] instanceof GlobalAggregator == false) {
                         collectors.add(aggregators[i]);
@@ -116,7 +116,7 @@ public class AggregationPhase implements SearchPhase {
                 globalsCollector.preCollection();
                 context.searcher().search(query, collector);
             } catch (Exception e) {
-                throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
+                throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
             } finally {
                 context.clearReleasables(SearchContext.Lifetime.COLLECTION);
             }

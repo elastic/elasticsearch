@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Literal;
 
+import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.BitSet;
 import java.util.Iterator;
 
@@ -27,7 +29,11 @@ public final class FunctionTestUtils {
     public static Literal randomIntLiteral() {
         return l(ESTestCase.randomInt());
     }
-    
+
+    public static Literal randomDatetimeLiteral() {
+        return l(ZonedDateTime.ofInstant(Instant.ofEpochMilli(ESTestCase.randomLong()), ESTestCase.randomZone()));
+    }
+
     public static class Combinations implements Iterable<BitSet> {
         private int n;
         private int k;
@@ -39,8 +45,9 @@ public final class FunctionTestUtils {
 
         @Override
         public Iterator<BitSet> iterator() {
-            return new Iterator<BitSet>() {
+            return new Iterator<>() {
                 BitSet bs = new BitSet(n);
+
                 {
                     bs.set(0, k);
                 }
@@ -55,9 +62,9 @@ public final class FunctionTestUtils {
                     BitSet old = (BitSet) bs.clone();
                     int b = bs.previousClearBit(n - 1);
                     int b1 = bs.previousSetBit(b);
-                    if (b1 == -1)
+                    if (b1 == -1) {
                         bs = null;
-                    else {
+                    } else {
                         bs.clear(b1);
                         bs.set(b1 + 1, b1 + (n - b) + 1);
                         bs.clear(b1 + (n - b) + 1, n);

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Set;
 
@@ -39,17 +40,12 @@ public final class EBoolean extends AExpression {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        // Do nothing.
-    }
-
-    @Override
     void extractVariables(Set<String> variables) {
         // Do nothing.
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
         }
@@ -58,7 +54,7 @@ public final class EBoolean extends AExpression {
     }
 
     @Override
-    void write(MethodWriter adapter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter adapter, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
 

@@ -88,7 +88,7 @@ C샤프
 
 Then create an analyzer as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT nori_sample
 {
@@ -119,7 +119,6 @@ GET nori_sample/_analyze
   "text": "세종시"  <1>
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Sejong city
 
@@ -161,7 +160,7 @@ The above `analyze` request returns the following:
 You can also inline the rules directly in the tokenizer definition using
 the `user_dictionary_rules` option:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT nori_sample
 {
@@ -186,14 +185,13 @@ PUT nori_sample
   }
 }
 --------------------------------------------------
-// CONSOLE
 --
 
 The `nori_tokenizer` sets a number of additional attributes per token that are used by token filters
 to modify the stream.
 You can view all these additional attributes with the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _analyze
 {
@@ -203,7 +201,6 @@ GET _analyze
   "explain": true
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> A tree with deep roots
 
@@ -329,7 +326,7 @@ and defaults to:
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT nori_sample
 {
@@ -363,7 +360,6 @@ GET nori_sample/_analyze
   "text": "여섯 용이"  <2>
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Korean numerals should be removed (`NR`)
 <2> Six dragons
@@ -395,7 +391,7 @@ Which responds with:
 
 The `nori_readingform` token filter rewrites tokens written in Hanja to their Hangul form.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT nori_sample
 {
@@ -419,7 +415,6 @@ GET nori_sample/_analyze
   "text": "鄕歌"      <1>
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> A token written in Hanja: Hyangga
 

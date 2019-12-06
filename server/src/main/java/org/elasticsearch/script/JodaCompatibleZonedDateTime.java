@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
 
@@ -50,7 +51,6 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQuery;
 import java.time.temporal.TemporalUnit;
 import java.time.temporal.ValueRange;
-import java.time.temporal.WeekFields;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -474,14 +474,14 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getWeekOfWeekyear() {
-        logDeprecatedMethod("getWeekOfWeekyear()", "get(WeekFields.ISO.weekOfWeekBasedYear())");
-        return dt.get(WeekFields.ISO.weekOfWeekBasedYear());
+        logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear())");
+        return dt.get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear());
     }
 
     @Deprecated
     public int getWeekyear() {
-        logDeprecatedMethod("getWeekyear()", "get(WeekFields.ISO.weekBasedYear())");
-        return dt.get(WeekFields.ISO.weekBasedYear());
+        logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekBasedYear())");
+        return dt.get(DateFormatters.WEEK_FIELDS.weekBasedYear());
     }
 
     @Deprecated

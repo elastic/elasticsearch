@@ -18,7 +18,7 @@ languages other than English:
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -26,7 +26,6 @@ POST _analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -142,7 +141,7 @@ The `classic` tokenizer accepts the following parameters:
 In this example, we configure the `classic` tokenizer to have a
 `max_token_length` of 5 (for demonstration purposes):
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -169,7 +168,6 @@ POST my_index/_analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 

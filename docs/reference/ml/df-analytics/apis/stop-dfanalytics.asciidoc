@@ -25,8 +25,7 @@ experimental[]
 ==== {api-prereq-title}
 
 * You must have `machine_learning_admin` built-in role to use this API. For more 
-information, see {stack-ov}/security-privileges.html[Security privileges] and 
-{stack-ov}/built-in-roles.html[Built-in roles].
+information, see <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-stop-dfanalytics-desc]]
 ==== {api-description-title}
@@ -68,11 +67,10 @@ stop all {dfanalytics-job} by using _all or by specifying * as the
 
 The following example stops the `loganalytics` {dfanalytics-job}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/data_frame/analytics/loganalytics/_stop
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 When the {dfanalytics-job} stops, you receive the following results:

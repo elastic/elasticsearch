@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -304,6 +305,35 @@ public class MockScriptEngine implements ScriptEngine {
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
 
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        // TODO(stu): make part of `compile()`
+        return Set.of(
+            FieldScript.CONTEXT,
+            TermsSetQueryScript.CONTEXT,
+            NumberSortScript.CONTEXT,
+            StringSortScript.CONTEXT,
+            IngestScript.CONTEXT,
+            AggregationScript.CONTEXT,
+            IngestConditionalScript.CONTEXT,
+            UpdateScript.CONTEXT,
+            BucketAggregationScript.CONTEXT,
+            BucketAggregationSelectorScript.CONTEXT,
+            SignificantTermsHeuristicScoreScript.CONTEXT,
+            TemplateScript.CONTEXT,
+            FilterScript.CONTEXT,
+            SimilarityScript.CONTEXT,
+            SimilarityWeightScript.CONTEXT,
+            MovingFunctionScript.CONTEXT,
+            ScoreScript.CONTEXT,
+            ScriptedMetricAggContexts.InitScript.CONTEXT,
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            ScriptedMetricAggContexts.CombineScript.CONTEXT,
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT,
+            IntervalFilterScript.CONTEXT
+        );
+    }
+
     private Map<String, Object> createVars(Map<String, Object> params) {
         Map<String, Object> vars = new HashMap<>();
         vars.put("params", params);
@@ -566,7 +596,7 @@ public class MockScriptEngine implements ScriptEngine {
                     Scorable[] scorerHolder = new Scorable[1];
                     return new ScoreScript(params, lookup, ctx) {
                         @Override
-                        public double execute() {
+                        public double execute(ExplanationHolder explanation) {
                             Map<String, Object> vars = new HashMap<>(getParams());
                             vars.put("doc", getDoc());
                             if (scorerHolder[0] != null) {

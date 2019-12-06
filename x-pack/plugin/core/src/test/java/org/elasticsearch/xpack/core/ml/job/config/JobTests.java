@@ -109,6 +109,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(job.getResultsRetentionDays());
         assertNotNull(job.allInputFields());
         assertFalse(job.allInputFields().isEmpty());
+        assertFalse(job.allowLazyOpen());
     }
 
     public void testNoId() {
@@ -639,6 +640,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setResultsIndexName(randomValidJobId());
+        }
+        if (randomBoolean()) {
+            builder.setAllowLazyOpen(randomBoolean());
         }
         return builder.build();
     }

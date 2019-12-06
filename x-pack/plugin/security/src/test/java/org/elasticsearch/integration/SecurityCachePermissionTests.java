@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.is;
 public class SecurityCachePermissionTests extends SecurityIntegTestCase {
 
     private final String READ_ONE_IDX_USER = "read_user";
-    
+
     @Override
     public String configUsers() {
         return super.configUsers()
@@ -46,14 +46,14 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
 
     @Before
     public void loadData() {
-        index("data", "a", "1", "{ \"name\": \"John\", \"token\": \"token1\" }");
-        index("tokens", "tokens", "1", "{ \"group\": \"1\", \"tokens\": [\"token1\", \"token2\"] }");
+        index("data", "1", "{ \"name\": \"John\", \"token\": \"token1\" }");
+        index("tokens", "1", "{ \"group\": \"1\", \"tokens\": [\"token1\", \"token2\"] }");
         refresh();
     }
 
     public void testThatTermsFilterQueryDoesntLeakData() {
         SearchResponse response = client().prepareSearch("data").setQuery(QueryBuilders.constantScoreQuery(
-                QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
+                QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "1", "tokens"))))
                 .execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
         assertThat(response.getHits().getHits().length, is(1));
@@ -64,11 +64,11 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
                     SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)))
                     .prepareSearch("data")
                     .setQuery(QueryBuilders.constantScoreQuery(
-                    QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
+                    QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "1", "tokens"))))
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (ElasticsearchSecurityException e) {
-            assertThat(e.toString(), containsString("ElasticsearchSecurityException[action"));
+            assertThat(e.toString(), containsString("ElasticsearchSecurityException: action"));
             assertThat(e.toString(), containsString("unauthorized"));
         }
     }

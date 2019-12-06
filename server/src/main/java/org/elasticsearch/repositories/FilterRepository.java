@@ -19,8 +19,8 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -69,26 +69,22 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public RepositoryData getRepositoryData() {
-        return in.getRepositoryData();
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        in.getRepositoryData(listener);
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
-        in.initializeSnapshot(snapshotId, indices, metaData);
+    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
+                                 int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                 boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
+                                 boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
+        in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
+            includeGlobalState, metaData, userMetadata, writeShardGens, listener);
     }
 
     @Override
-    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                         List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                         MetaData metaData, Map<String, Object> userMetadata) {
-        return in.finalizeSnapshot(snapshotId, indices, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, metaData, userMetadata);
-    }
-
-    @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
-        in.deleteSnapshot(snapshotId, repositoryStateId, listener);
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
+        in.deleteSnapshot(snapshotId, repositoryStateId, writeShardGens, listener);
     }
 
     @Override
@@ -123,18 +119,24 @@ public class FilterRepository implements Repository {
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
-        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, listener);
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
+                              ActionListener<String> listener) {
+        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, listener);
     }
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId,
-                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-        in.restoreShard(store, snapshotId, version, indexId, snapshotShardId, recoveryState);
+    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
+                             ActionListener<Void> listener) {
+        in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
-        return in.getShardSnapshotStatus(snapshotId, version, indexId, shardId);
+    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        return in.getShardSnapshotStatus(snapshotId, indexId, shardId);
+    }
+
+    @Override
+    public void updateState(ClusterState state) {
+        in.updateState(state);
     }
 
     @Override

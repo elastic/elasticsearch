@@ -3,6 +3,7 @@
 :request: GetBucketsRequest
 :response: GetBucketsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get buckets API
 

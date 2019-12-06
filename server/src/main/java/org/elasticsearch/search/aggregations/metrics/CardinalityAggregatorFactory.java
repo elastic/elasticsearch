@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -36,23 +37,32 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
 
     private final Long precisionThreshold;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, Long precisionThreshold,
-            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    CardinalityAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config,
+                                    Long precisionThreshold,
+                                    QueryShardContext queryShardContext,
+                                    AggregatorFactory parent,
+                                    AggregatorFactories.Builder subFactoriesBuilder,
+                                    Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.precisionThreshold = precisionThreshold;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new CardinalityAggregator(name, null, precision(), context, parent, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new CardinalityAggregator(name, null, precision(), searchContext, parent, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new CardinalityAggregator(name, valuesSource, precision(), context, parent, pipelineAggregators,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
+        return new CardinalityAggregator(name, valuesSource, precision(), searchContext, parent, pipelineAggregators,
                 metaData);
     }
 

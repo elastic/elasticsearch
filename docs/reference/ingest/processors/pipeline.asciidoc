@@ -7,7 +7,7 @@ Executes another pipeline.
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `name`           | yes       | -        | The name of the pipeline to execute
+| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<accessing-template-fields,template snippets>>.
 include::common-options.asciidoc[]
 |======
 
@@ -83,7 +83,6 @@ Response from the index request:
 --------------------------------------------------
 {
   "_index": "myindex",
-  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "result": "created",

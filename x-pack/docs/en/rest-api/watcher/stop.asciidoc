@@ -16,7 +16,7 @@ Stops the {watcher} service if it is running.
 ==== {api-prereq-title}
 
 * You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security privileges].
+information, see <<security-privileges>>.
 
 //[[watcher-api-stop-desc]]
 //==== {api-description-title}
@@ -39,11 +39,10 @@ information, see {stack-ov}/security-privileges.html[Security privileges].
 [[watcher-api-stop-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/_stop
 --------------------------------------------------
-// CONSOLE
 
 {watcher} returns the following response if the request is successful:
 

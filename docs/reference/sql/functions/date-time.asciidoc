@@ -8,7 +8,7 @@
 [[sql-functions-datetime-interval]]
 ==== Intervals
 
-A common requirement when dealing with date/time in general revolves around 
+A common requirement when dealing with date/time in general revolves around
 the notion of `interval`, a topic that is worth exploring in the context of {es} and {es-sql}.
 
 {es} has comprehensive support for <<date-math, date math>> both inside <<date-math-index-names, index names>> and <<mapping-date-format, queries>>.
@@ -55,7 +55,7 @@ s|Description
 
 ==== Operators
 
-Basic arithmetic operators (`+`, `-`, etc) support date/time parameters as indicated below:
+Basic arithmetic operators (`+`, `-`, `*`) support date/time parameters as indicated below:
 
 [source, sql]
 --------------------------------------------------
@@ -247,6 +247,335 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
 [IMPORTANT]
 Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
 function as the maximum number of second fractional digits returned is 3 (milliseconds).
+
+[[sql-functions-datetime-add]]
+==== `DATE_ADD/DATEADD/TIMESTAMP_ADD/TIMESTAMPADD`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_ADD(
+    string_exp, <1>
+    integer_exp, <2>
+    datetime_exp) <3>
+--------------------------------------------------
+
+*Input*:
+
+<1> string expression denoting the date/time unit to add to the date/datetime
+<2> integer expression denoting how many times the above unit should be added to/from the date/datetime,
+if a negative value is used it results to a subtraction from the date/datetime
+<3> date/datetime expression
+
+*Output*: datetime
+
+.Description:
+
+Add the given number of date/time units to a date/datetime. If the number of units is negative then it's subtracted from
+the date/datetime. If any of the three arguments is `null` a `null` is returned.
+
+[WARNING]
+If the second argument is a long there is possibility of truncation since an integer value will be extracted and
+used from that long.
+
+[cols="^,^"]
+|===
+2+h|Datetime units to add/subtract
+
+s|unit
+s|abbreviations
+
+| year        | years, yy, yyyy
+| quarter     | quarters, qq, q
+| month       | months, mm, m
+| dayofyear   | dy, y
+| day         | days, dd, d
+| week        | weeks, wk, ww
+| weekday     | weekdays, dw
+| hour        | hours, hh
+| minute      | minutes, mi, n
+| second      | seconds, ss, s
+| millisecond | milliseconds, ms
+| microsecond | microseconds, mcs
+| nanosecond  | nanoseconds, ns
+|===
+
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateTimeYears]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateTimeWeeks]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateTimeSeconds]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateQuarters]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateAddDateMinutes]
+--------------------------------------------------
+
+[[sql-functions-datetime-diff]]
+==== `DATE_DIFF/DATEDIFF/TIMESTAMP_DIFF/TIMESTAMPDIFF`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_DIFF(
+    string_exp, <1>
+    datetime_exp, <2>
+    datetime_exp) <3>
+--------------------------------------------------
+
+*Input*:
+
+<1> string expression denoting the date/time unit difference between the following two date/datetime expressions
+<2> start date/datetime expression
+<3> end date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Subtract the second argument from the third argument and return their difference in multiples of the unit
+specified in the first argument. If the second argument (start) is greater than the third argument (end),
+then negative values are returned. If any of the three arguments is `null`, a `null` is returned.
+
+[cols="^,^"]
+|===
+2+h|Datetime difference units
+
+s|unit
+s|abbreviations
+
+| year        | years, yy, yyyy
+| quarter     | quarters, qq, q
+| month       | months, mm, m
+| dayofyear   | dy, y
+| day         | days, dd, d
+| week        | weeks, wk, ww
+| weekday     | weekdays, dw
+| hour        | hours, hh
+| minute      | minutes, mi, n
+| second      | seconds, ss, s
+| millisecond | milliseconds, ms
+| microsecond | microseconds, mcs
+| nanosecond  | nanoseconds, ns
+|===
+
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeYears]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeWeeks]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeSeconds]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateQuarters]
+--------------------------------------------------
+
+[NOTE]
+For `hour` and `minute`, `DATEDIFF` doesn't do any rounding, but instead first truncates
+the more detailed time fields on the 2 dates to zero and then calculates the subtraction.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeHours]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeMinutes]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
+--------------------------------------------------
+
+[[sql-functions-datetime-part]]
+==== `DATE_PART/DATEPART`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_PART(
+    string_exp, <1>
+    datetime_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> string expression denoting the unit to extract from the date/datetime
+<2> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the specified unit from a date/datetime. If any of the two arguments is `null` a `null` is returned.
+It's similar to <<sql-functions-datetime-extract>> but with different names and aliases for the units and
+provides more options (e.g.: `TZOFFSET`).
+
+[cols="^,^"]
+|===
+2+h|Datetime units to extract
+
+s|unit
+s|abbreviations
+
+| year        | years, yy, yyyy
+| quarter     | quarters, qq, q
+| month       | months, mm, m
+| dayofyear   | dy, y
+| day         | days, dd, d
+| week        | weeks, wk, ww
+| weekday     | weekdays, dw
+| hour        | hours, hh
+| minute      | minutes, mi, n
+| second      | seconds, ss, s
+| millisecond | milliseconds, ms
+| microsecond | microseconds, mcs
+| nanosecond  | nanoseconds, ns
+| tzoffset    | tz
+|===
+
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeYears]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeMinutes]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateQuarter]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateMonth]
+--------------------------------------------------
+
+[NOTE]
+For `week` and `weekday` the unit is extracted using the non-ISO calculation, which means
+that a given week is considered to start from Sunday, not Monday.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeWeek]
+--------------------------------------------------
+
+[NOTE]
+The `tzoffset` returns the total number of minutes (signed) that represent the time zone's offset.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeTzOffsetPlus]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeTzOffsetMinus]
+--------------------------------------------------
+
+[[sql-functions-datetime-trunc]]
+==== `DATE_TRUNC/DATETRUNC`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_TRUNC(
+    string_exp, <1>
+    datetime_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> string expression denoting the unit to which the date/datetime should be truncated to
+<2> date/datetime expression
+
+*Output*: datetime
+
+.Description:
+
+Truncate the date/datetime to the specified unit by setting all fields that are less significant than the specified
+one to zero (or one, for day, day of week and month). If any of the two arguments is `null` a `null` is returned.
+
+[cols="^,^"]
+|===
+2+h|Datetime truncation units
+
+s|unit
+s|abbreviations
+
+| millennium  | millennia
+| century     | centuries
+| decade      | decades
+| year        | years, yy, yyyy
+| quarter     | quarters, qq, q
+| month       | months, mm, m
+| week        | weeks, wk, ww
+| day         | days, dd, d
+| hour        | hours, hh
+| minute      | minutes, mi, n
+| second      | seconds, ss, s
+| millisecond | milliseconds, ms
+| microsecond | microseconds, mcs
+| nanosecond  | nanoseconds, ns
+|===
+
+
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateTimeMillennium]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateTimeWeek]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateTimeMinutes]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateDecades]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateQuarter]
+--------------------------------------------------
 
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH/DOM/DAY`

@@ -36,10 +36,15 @@ public class FieldAttribute extends TypedAttribute {
     public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field) {
         this(source, parent, name, field, null, Nullability.TRUE, null, false);
     }
+    
+    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, String qualifier, Nullability nullability,
+            ExpressionId id, boolean synthetic) {
+        this(source, parent, name, field.getDataType(), field, qualifier, nullability, id, synthetic);
+    }
 
-    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, String qualifier,
+    public FieldAttribute(Source source, FieldAttribute parent, String name, DataType type, EsField field, String qualifier,
                           Nullability nullability, ExpressionId id, boolean synthetic) {
-        super(source, name, field.getDataType(), qualifier, nullability, id, synthetic);
+        super(source, name, type, qualifier, nullability, id, synthetic);
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
@@ -57,7 +62,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parent, name(), field, qualifier(), nullable(), id(), synthetic());
+        return NodeInfo.create(this, FieldAttribute::new, parent, name(), dataType(), field, qualifier(), nullable(), id(), synthetic());
     }
 
     public FieldAttribute parent() {
@@ -98,13 +103,8 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    protected Expression canonicalize() {
-        return new FieldAttribute(source(), null, "<none>", field, null, Nullability.TRUE, id(), false);
-    }
-
-    @Override
-    protected Attribute clone(Source source, String name, String qualifier, Nullability nullability,
-                              ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source source, String name, DataType type, String qualifier,
+            Nullability nullability, ExpressionId id, boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
         return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
     }

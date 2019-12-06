@@ -39,22 +39,24 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.action.search.SearchProgressListener.NOOP;
+
 public class FetchSearchPhaseTests extends ESTestCase {
 
-    public void testShortcutQueryAndFetchOptimization() throws IOException {
+    public void testShortcutQueryAndFetchOptimization() {
         SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 1);
+        ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 1);
         boolean hasHits = randomBoolean();
         final int numHits;
         if (hasHits) {
             QuerySearchResult queryResult = new QuerySearchResult();
+            queryResult.setSearchShardTarget(new SearchShardTarget("node0",
+                new ShardId("index", "index", 0), null, OriginalIndices.NONE));
             queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 1.0F), new DocValueFormat[0]);
             queryResult.size(1);
@@ -87,14 +89,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
     }
 
-    public void testFetchTwoDocument() throws IOException {
+    public void testFetchTwoDocument() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
+        ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
-        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0), 
+        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
             null, OriginalIndices.NONE));
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -145,14 +146,14 @@ public class FetchSearchPhaseTests extends ESTestCase {
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
     }
 
-    public void testFailFetchOneDoc() throws IOException {
+    public void testFailFetchOneDoc() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
+        ArraySearchPhaseResults<SearchPhaseResult> results =
+            controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
-        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0), 
+        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
             null, OriginalIndices.NONE));
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -204,17 +205,17 @@ public class FetchSearchPhaseTests extends ESTestCase {
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(123L));
     }
 
-    public void testFetchDocsConcurrently() throws IOException, InterruptedException {
+    public void testFetchDocsConcurrently() throws InterruptedException {
         int resultSetSize = randomIntBetween(0, 100);
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
         SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), numHits);
+        ArraySearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(NOOP,
+            mockSearchPhaseContext.getRequest(), numHits);
         for (int i = 0; i < numHits; i++) {
-            QuerySearchResult queryResult = new QuerySearchResult(i, new SearchShardTarget("node1", new ShardId("test", "na", 0), 
+            QuerySearchResult queryResult = new QuerySearchResult(i, new SearchShardTarget("node1", new ShardId("test", "na", 0),
                 null, OriginalIndices.NONE));
             queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                     new ScoreDoc[] {new ScoreDoc(i+1, i)}), i), new DocValueFormat[0]);
@@ -264,14 +265,14 @@ public class FetchSearchPhaseTests extends ESTestCase {
             sizeReleasedContexts, mockSearchPhaseContext.releasedSearchContexts.size());
     }
 
-    public void testExceptionFailsPhase() throws IOException {
+    public void testExceptionFailsPhase() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
+        ArraySearchPhaseResults<SearchPhaseResult> results =
+            controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = randomIntBetween(2, 10);
-        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0), 
+        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
             null, OriginalIndices.NONE));
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -320,14 +321,14 @@ public class FetchSearchPhaseTests extends ESTestCase {
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
     }
 
-    public void testCleanupIrrelevantContexts() throws IOException { // contexts that are not fetched should be cleaned up
+    public void testCleanupIrrelevantContexts() { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
-        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
-            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
+        ArraySearchPhaseResults<SearchPhaseResult> results =
+            controller.newSearchPhaseResults(NOOP, mockSearchPhaseContext.getRequest(), 2);
         int resultSetSize = 1;
-        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0), 
+        QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new ShardId("test", "na", 0),
             null, OriginalIndices.NONE));
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);

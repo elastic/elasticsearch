@@ -13,7 +13,7 @@ Retrieves information about all follower indices.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
@@ -21,32 +21,28 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 // TEST[setup:remote_cluster_and_leader_index]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEARDOWN
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /<index>/_ccr/info
 --------------------------------------------------
-// CONSOLE
 // TEST[s/<index>/follower_index/]
 
 [[ccr-get-follow-info-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor` cluster
-privileges. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+privileges. For more information, see <<security-privileges>>.
 
 [[ccr-get-follow-info-desc]]
 ==== {api-description-title}
@@ -138,11 +134,10 @@ The `parameters` contains the following fields:
 
 This example retrieves follower info:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /follower_index/_ccr/info
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following results:
 

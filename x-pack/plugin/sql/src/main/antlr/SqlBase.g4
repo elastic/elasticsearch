@@ -90,7 +90,7 @@ orderBy
     ;
 
 querySpecification
-    : SELECT setQuantifier? selectItem (',' selectItem)*
+    : SELECT setQuantifier? selectItems
       fromClause?
       (WHERE where=booleanExpression)?
       (GROUP BY groupBy)?
@@ -98,7 +98,7 @@ querySpecification
     ;
 
 fromClause
-    : FROM relation (',' relation)*
+    : FROM relation (',' relation)* pivotClause?
     ;
 
 groupBy
@@ -121,6 +121,10 @@ namedQuery
 setQuantifier
     : DISTINCT
     | ALL
+    ;
+
+selectItems                                       
+    : selectItem (',' selectItem)*
     ;
 
 selectItem
@@ -154,6 +158,18 @@ relationPrimary
     | '(' relation ')' (AS? qualifiedName)?                           #aliasedRelation
     ;
 
+pivotClause
+    : PIVOT '(' aggs=pivotArgs FOR column=qualifiedName IN '(' vals=pivotArgs ')' ')'
+    ;
+
+pivotArgs
+    : namedValueExpression (',' namedValueExpression)* 
+    ;
+    
+namedValueExpression
+    : valueExpression  (AS? identifier)?
+    ;
+    
 expression
     : booleanExpression
     ;
@@ -201,7 +217,7 @@ pattern
     
 patternEscape
     : ESCAPE escape=string
-    | ESCAPE_ESC escape=string '}'
+    | ESCAPE_ESC escape=string ESC_END
     ;
 
 valueExpression
@@ -258,7 +274,7 @@ extractTemplate
 
 functionExpression
     : functionTemplate
-    | FUNCTION_ESC functionTemplate '}'
+    | FUNCTION_ESC functionTemplate ESC_END
     ;
     
 functionTemplate
@@ -343,6 +359,7 @@ whenClause
     ;
 
 // http://developer.mimer.se/validator/sql-reserved-words.tml
+// https://developer.mimer.com/wp-content/uploads/standard-sql-reserved-words-summary.pdf
 nonReserved
     : ANALYZE | ANALYZED 
     | CATALOGS | COLUMNS | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP
@@ -355,7 +372,7 @@ nonReserved
     | LAST | LIMIT 
     | MAPPED | MINUTE | MONTH
     | OPTIMIZED 
-    | PARSED | PHYSICAL | PLAN 
+    | PARSED | PHYSICAL | PIVOT | PLAN 
     | QUERY 
     | RLIKE
     | SCHEMAS | SECOND | SHOW | SYS
@@ -397,6 +414,7 @@ EXPLAIN: 'EXPLAIN';
 EXTRACT: 'EXTRACT';
 FALSE: 'FALSE';
 FIRST: 'FIRST';
+FOR: 'FOR';
 FORMAT: 'FORMAT';
 FROM: 'FROM';
 FROZEN: 'FROZEN';
@@ -434,6 +452,7 @@ ORDER: 'ORDER';
 OUTER: 'OUTER';
 PARSED: 'PARSED';
 PHYSICAL: 'PHYSICAL';
+PIVOT: 'PIVOT';
 PLAN: 'PLAN';
 RIGHT: 'RIGHT';
 RLIKE: 'RLIKE';
@@ -461,15 +480,16 @@ YEAR: 'YEAR';
 YEARS: 'YEARS';
 
 // Escaped Sequence
-ESCAPE_ESC: '{ESCAPE';
-FUNCTION_ESC: '{FN';
-LIMIT_ESC:'{LIMIT';
-DATE_ESC: '{D';
-TIME_ESC: '{T';
-TIMESTAMP_ESC: '{TS';
+ESCAPE_ESC: ESC_START 'ESCAPE';
+FUNCTION_ESC: ESC_START 'FN';
+LIMIT_ESC: ESC_START 'LIMIT';
+DATE_ESC: ESC_START 'D';
+TIME_ESC: ESC_START 'T';
+TIMESTAMP_ESC: ESC_START 'TS';
 // mapped to string literal
-GUID_ESC: '{GUID';
+GUID_ESC: ESC_START 'GUID';
 
+ESC_START: '{' (WS)*;
 ESC_END: '}';
 
 // Operators

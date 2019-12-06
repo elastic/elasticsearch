@@ -4,7 +4,7 @@
 Allows to return a <<modules-scripting,script
 evaluation>> (based on different fields) for each hit, for example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -30,7 +30,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Script fields can work on fields that are not stored (`price` in
@@ -41,7 +40,7 @@ Script fields can also access the actual `_source` document and
 extract specific elements to be returned from it by using `params['_source']`.
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
     {
@@ -55,7 +54,6 @@ GET /_search
         }
     }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Note the `_source` keyword here to navigate the json-like model.

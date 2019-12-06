@@ -2,7 +2,6 @@ package org.elasticsearch.gradle;
 
 import org.gradle.api.Named;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Nested;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -117,8 +116,7 @@ public class LazyPropertyMap<K, V> extends AbstractLazyPropertyCollection implem
     }
 
     @Override
-    @Nested
-    List<? extends Object> getNormalizedCollection() {
+    public List<? extends Object> getNormalizedCollection() {
         return delegate.values().stream()
             .peek(this::validate)
             .filter(entry -> entry.getNormalization() != PropertyNormalization.IGNORE_VALUE)

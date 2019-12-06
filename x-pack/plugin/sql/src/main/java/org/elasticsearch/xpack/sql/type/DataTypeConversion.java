@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
 import static org.elasticsearch.xpack.sql.type.DataType.NULL;
+import static org.elasticsearch.xpack.sql.type.DataType.TEXT;
 import static org.elasticsearch.xpack.sql.type.DataType.TIME;
 
 /**
@@ -44,11 +45,17 @@ public abstract class DataTypeConversion {
         if (left == right) {
             return left;
         }
-        if (DataTypes.isNull(left)) {
+        if (left.isNull()) {
             return right;
         }
-        if (DataTypes.isNull(right)) {
+        if (right.isNull()) {
             return left;
+        }
+        if (left.isString() && right.isString()) {
+            if (left == TEXT) {
+                return TEXT;
+            }
+            return right;
         }
         if (left.isNumeric() && right.isNumeric()) {
             // if one is int
@@ -80,12 +87,12 @@ public abstract class DataTypeConversion {
 
         // interval and dates
         if (left == DATE) {
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 return left;
             }
         }
         if (right == DATE) {
-            if (DataTypes.isInterval(left)) {
+            if (left.isInterval()) {
                 return right;
             }
         }
@@ -93,7 +100,7 @@ public abstract class DataTypeConversion {
             if (right == DATE) {
                 return DATETIME;
             }
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 return left;
             }
         }
@@ -101,7 +108,7 @@ public abstract class DataTypeConversion {
             if (left == DATE) {
                 return DATETIME;
             }
-            if (DataTypes.isInterval(left)) {
+            if (left.isInterval()) {
                 return right;
             }
         }
@@ -109,7 +116,7 @@ public abstract class DataTypeConversion {
             if (right == DATE || right == TIME) {
                 return left;
             }
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 return left;
             }
         }
@@ -117,24 +124,24 @@ public abstract class DataTypeConversion {
             if (left == DATE || left == TIME) {
                 return right;
             }
-            if (DataTypes.isInterval(left)) {
+            if (left.isInterval()) {
                 return right;
             }
         }
         // Interval * integer is a valid operation
-        if (DataTypes.isInterval(left)) {
+        if (left.isInterval()) {
             if (right.isInteger()) {
                 return left;
             }
         }
-        if (DataTypes.isInterval(right)) {
+        if (right.isInterval()) {
             if (left.isInteger()) {
                 return right;
             }
         }
-        if (DataTypes.isInterval(left)) {
+        if (left.isInterval()) {
             // intervals widening
-            if (DataTypes.isInterval(right)) {
+            if (right.isInterval()) {
                 // null returned for incompatible intervals
                 return DataTypes.compatibleInterval(left, right);
             }

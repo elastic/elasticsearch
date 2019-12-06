@@ -64,6 +64,7 @@ class DatafeedJob {
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private final Supplier<Long> currentTimeSupplier;
     private final DelayedDataDetector delayedDataDetector;
+    private final Integer maxEmptySearches;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -73,11 +74,12 @@ class DatafeedJob {
     private volatile Long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
+    private volatile boolean haveEverSeenData;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
                 DataExtractorFactory dataExtractorFactory, DatafeedTimingStatsReporter timingStatsReporter, Client client,
                 AnomalyDetectionAuditor auditor, Supplier<Long> currentTimeSupplier, DelayedDataDetector delayedDataDetector,
-                long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
+                Integer maxEmptySearches, long latestFinalBucketEndTimeMs, long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
@@ -88,15 +90,18 @@ class DatafeedJob {
         this.auditor = auditor;
         this.currentTimeSupplier = currentTimeSupplier;
         this.delayedDataDetector = delayedDataDetector;
+        this.maxEmptySearches = maxEmptySearches;
         this.latestFinalBucketEndTimeMs = latestFinalBucketEndTimeMs;
         long lastEndTime = Math.max(latestFinalBucketEndTimeMs, latestRecordTimeMs);
         if (lastEndTime > 0) {
             lastEndTimeMs = lastEndTime;
         }
+        this.haveEverSeenData = haveSeenDataPreviously;
     }
 
     void isolate() {
         isIsolated = true;
+        timingStatsReporter.disallowPersisting();
     }
 
     boolean isIsolated() {
@@ -105,6 +110,10 @@ class DatafeedJob {
 
     public String getJobId() {
         return jobId;
+    }
+
+    public Integer getMaxEmptySearches() {
+        return maxEmptySearches;
     }
 
     public void finishReportingTimingStats() {
@@ -379,6 +388,7 @@ class DatafeedJob {
                     break;
                 }
                 recordCount += counts.getProcessedRecordCount();
+                haveEverSeenData |= (recordCount > 0);
                 if (counts.getLatestRecordTimeStamp() != null) {
                     lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
                 }
@@ -405,7 +415,7 @@ class DatafeedJob {
         }
 
         if (recordCount == 0) {
-            throw new EmptyDataCountException(nextRealtimeTimestamp());
+            throw new EmptyDataCountException(nextRealtimeTimestamp(), haveEverSeenData);
         }
     }
 
@@ -508,10 +518,11 @@ class DatafeedJob {
     static class EmptyDataCountException extends RuntimeException {
 
         final long nextDelayInMsSinceEpoch;
+        final boolean haveEverSeenData;
 
-        EmptyDataCountException(long nextDelayInMsSinceEpoch) {
+        EmptyDataCountException(long nextDelayInMsSinceEpoch, boolean haveEverSeenData) {
             this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
+            this.haveEverSeenData = haveEverSeenData;
         }
     }
-
 }

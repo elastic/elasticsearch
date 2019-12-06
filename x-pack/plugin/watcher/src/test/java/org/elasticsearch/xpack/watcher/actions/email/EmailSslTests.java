@@ -12,6 +12,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -31,7 +33,8 @@ import javax.mail.internet.MimeMessage;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.ArrayList;
@@ -50,18 +53,26 @@ public class EmailSslTests extends ESTestCase {
 
     @Before
     public void startSmtpServer() throws GeneralSecurityException, IOException {
-        final KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        // Keystore and private key will share the same password
         final char[] keystorePassword = "test-smtp".toCharArray();
-        try (InputStream is = getDataInputStream("test-smtp.p12")) {
-            keyStore.load(is, keystorePassword);
-        }
+        final Path tempDir = createTempDir();
+        final Path certPath = tempDir.resolve("test-smtp.crt");
+        final Path keyPath = tempDir.resolve("test-smtp.pem");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/watcher/actions/email/test-smtp.crt"), certPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/watcher/actions/email/test-smtp.pem"), keyPath);
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, keystorePassword);
+        keyStore.setKeyEntry("test-smtp", PemUtils.readPrivateKey(keyPath, keystorePassword::clone), keystorePassword,
+            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
         final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keystorePassword).build();
         server = EmailServer.localhost(logger, sslContext);
     }
 
     @After
     public void stopSmtpServer() {
-        server.stop();
+        if (null != server) {
+            server.stop();
+        }
     }
 
     public void testFailureSendingMessageToSmtpServerWithUntrustedCertificateAuthority() throws Exception {
@@ -96,6 +107,7 @@ public class EmailSslTests extends ESTestCase {
     }
 
     public void testCanSendMessageToSmtpServerByDisablingVerification() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM with verification mode None", inFipsJvm());
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);
         try {

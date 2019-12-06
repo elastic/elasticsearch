@@ -8,7 +8,7 @@ The `span_multi` query allows you to wrap a `multi term query` (one of wildcard,
 fuzzy, prefix, range or regexp query) as a `span query`, so
 it can be nested. Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -21,11 +21,10 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 A boost can also be associated with the query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -38,7 +37,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 WARNING: `span_multi` queries will hit too many clauses failure if the number of terms that match the query exceeds the
 boolean query limit (defaults to 1024).To avoid an unbounded expansion you can set the <<query-dsl-multi-term-rewrite,

@@ -3,6 +3,7 @@
 :request: ExecuteWatchRequest
 :response: ExecuteWatchResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Execute watch API
 

@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.fs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 
@@ -44,10 +45,14 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
 
     @Override
     protected Settings repositorySettings() {
-        return Settings.builder()
-            .put(super.repositorySettings())
-            .put("location", randomRepoPath())
-            .build();
+        final Settings.Builder settings = Settings.builder();
+        settings.put(super.repositorySettings());
+        settings.put("location", randomRepoPath());
+        if (randomBoolean()) {
+            long size = 1 << randomInt(10);
+            settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));
+        }
+        return settings.build();
     }
 
     public void testMissingDirectoriesNotCreatedInReadonlyRepository() throws IOException, ExecutionException, InterruptedException {

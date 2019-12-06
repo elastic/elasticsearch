@@ -25,7 +25,7 @@ Read more about http://www.regular-expressions.info/catastrophic.html[pathologic
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -33,7 +33,6 @@ POST _analyze
   "text": "The foo_bar_size's default is 5."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -122,7 +121,7 @@ The `pattern` tokenizer accepts the following parameters:
 In this example, we configure the `pattern` tokenizer to break text into
 tokens when it encounters commas:
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -149,7 +148,6 @@ POST my_index/_analyze
   "text": "comma,separated,values"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -211,7 +209,7 @@ escaped, so the pattern ends up looking like:
 
     \"((?:\\\\\"|[^\"]|\\\\\")+)\"
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -239,7 +237,6 @@ POST my_index/_analyze
   "text": "\"value\", \"value with embedded \\\" quote\""
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 

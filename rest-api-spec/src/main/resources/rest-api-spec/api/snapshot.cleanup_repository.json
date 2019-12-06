@@ -1,6 +1,9 @@
 {
   "snapshot.cleanup_repository": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+      "description": "Removes stale data from repository."
+    },
     "stability": "stable",
     "url": {
       "paths": [
@@ -12,7 +15,6 @@
           "parts": {
             "repository": {
               "type": "string",
-              "required" : true,
               "description": "A repository name"
             }
           }

@@ -50,9 +50,6 @@ import static org.elasticsearch.packaging.util.Packages.clearJournal;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
-import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
-import static org.elasticsearch.packaging.util.Packages.startElasticsearchIgnoringFailure;
-import static org.elasticsearch.packaging.util.Packages.stopElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
@@ -347,7 +344,7 @@ public class PackageTests extends PackagingTestCase {
 
             // Make sure we don't pick up the journal entries for previous ES instances.
             clearJournal(sh);
-            startElasticsearchIgnoringFailure(sh);
+            startElasticsearch();
 
             final Result logs = sh.run("journalctl -u elasticsearch.service");
 

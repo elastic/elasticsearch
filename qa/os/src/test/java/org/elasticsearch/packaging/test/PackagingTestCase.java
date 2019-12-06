@@ -149,19 +149,7 @@ public abstract class PackagingTestCase extends Assert {
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
-            switch (distribution.packaging) {
-                case TAR:
-                case ZIP:
-                    awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
-                    break;
-                case DEB:
-                case RPM:
-                    awaitElasticsearchStartup(Packages.startElasticsearch(sh));
-                    break;
-                case DOCKER:
-                    // nothing, "installing" docker image is running it
-            }
-
+            awaitElasticsearchStartup(startElasticsearch());
         } catch (Exception e ){
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
@@ -182,19 +170,7 @@ public abstract class PackagingTestCase extends Assert {
                 FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
             throw e;
         }
-
-        switch (distribution.packaging) {
-            case TAR:
-            case ZIP:
-                Archives.stopElasticsearch(installation);
-                break;
-            case DEB:
-            case RPM:
-                Packages.stopElasticsearch(sh);
-                break;
-            case DOCKER:
-                // nothing, removing container is handled externally
-        }
+        stopElasticsearch();
     }
 
     protected static Shell newShell() throws Exception {
@@ -211,12 +187,17 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public Shell.Result startElasticsearch() throws Exception {
-        if (distribution.isPackage()) {
-            return Packages.startElasticsearch(sh);
-        } else {
-            assertTrue(distribution.isArchive());
-            return Archives.startElasticsearch(installation, sh);
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                return Archives.startElasticsearch(installation, sh);
+            case DEB:
+            case RPM:
+                return Packages.startElasticsearch(sh);
+            case DOCKER:
+                // nothing, "installing" docker image is running it
         }
+        return Shell.NO_OP;
     }
 
     public void stopElasticsearch() throws Exception {

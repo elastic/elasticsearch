@@ -268,6 +268,9 @@ public class Packages {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
     }
 
+    /**
+     * Starts Elasticsearch, without checking that startup is successful.
+     */
     public static Shell.Result startElasticsearch(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
@@ -276,21 +279,6 @@ public class Packages {
             return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
         }
         return sh.runIgnoreExitCode("service elasticsearch start");
-    }
-
-    /**
-     * Starts Elasticsearch, without checking that startup is successful. To also check
-     * that Elasticsearch has started, call {@link #startElasticsearch(Shell)}.
-     */
-    public static void startElasticsearchIgnoringFailure(Shell sh) {
-        if (isSystemd()) {
-            sh.runIgnoreExitCode("systemctl daemon-reload");
-            sh.runIgnoreExitCode("systemctl enable elasticsearch.service");
-            sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service");
-            sh.runIgnoreExitCode("systemctl start elasticsearch.service");
-        } else {
-            sh.runIgnoreExitCode("service elasticsearch start");
-        }
     }
 
     /**

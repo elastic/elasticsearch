@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -60,7 +59,7 @@ public class ParentAggregationBuilder
      *            the type of children documents
      */
     public ParentAggregationBuilder(String name, String childType) {
-        super(name, ValueType.STRING);
+        super(name);
         if (childType == null) {
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
@@ -84,7 +83,7 @@ public class ParentAggregationBuilder
      * Read from a stream.
      */
     public ParentAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.BYTES, ValueType.STRING);
+        super(in);
         childType = in.readString();
     }
 

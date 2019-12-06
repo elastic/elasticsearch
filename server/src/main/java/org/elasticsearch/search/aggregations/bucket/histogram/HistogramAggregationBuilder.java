@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -104,7 +103,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Create a new builder with the given name. */
     public HistogramAggregationBuilder(String name) {
-        super(name, ValueType.NUMERIC);
+        super(name);
     }
 
     protected HistogramAggregationBuilder(HistogramAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -125,7 +124,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Read from a stream, for internal use only. */
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY, ValueType.NUMERIC);
+        super(in);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();

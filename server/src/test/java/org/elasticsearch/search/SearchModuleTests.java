@@ -374,7 +374,7 @@ public class SearchModuleTests extends ESTestCase {
          * Read from a stream.
          */
         protected TestAggregationBuilder(StreamInput in) throws IOException {
-            super(in, null, null);
+            super(in);
         }
 
         @Override

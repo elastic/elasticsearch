@@ -28,7 +28,7 @@ public final class MultiValuesSourceParseHelper {
 
     public static <VS extends ValuesSource, T> void declareCommon(
         AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<VS, ?>, T> objectParser, boolean formattable,
-        ValueType targetValueType) {
+        ValueType expectedValueType) {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::valueType, p -> {
             ValueType valueType = ValueType.resolveForScript(p.text());

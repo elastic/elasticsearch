@@ -229,15 +229,18 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
 
     private GeoDistanceAggregationBuilder(String name, GeoPoint origin,
                                           InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory) {
-        super(name, rangeFactory.getValueType());
+        super(name);
         this.origin = origin;
+        // TODO: This is just copy/pasta from the old targetValueType setting.  It may not be appropriate to set userValueTypeHint here.
+        userValueTypeHint(rangeFactory.getValueType());
     }
 
     /**
      * Read from a stream.
      */
     public GeoDistanceAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalGeoDistance.FACTORY.getValueSourceType(), InternalGeoDistance.FACTORY.getValueType());
+        super(in);
+        userValueTypeHint(InternalGeoDistance.FACTORY.getValueType());
         origin = new GeoPoint(in.readDouble(), in.readDouble());
         int size = in.readVInt();
         ranges = new ArrayList<>(size);

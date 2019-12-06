@@ -810,7 +810,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max") .field("values");
-        ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count", null)
+        ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count")
             .field("values");
 
         MaxAggregator maxAggregator = createAggregator(maxAggregationBuilder, indexSearcher, fieldType);
@@ -860,7 +860,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         for (Aggregator.SubAggCollectionMode collectionMode : Aggregator.SubAggCollectionMode.values()) {
             MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max")
                 .field("values");
-            ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count", null)
+            ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count")
                 .field("values");
             TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("terms", null)
                 .userValueTypeHint(ValueType.NUMERIC)

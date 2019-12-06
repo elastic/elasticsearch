@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -108,7 +107,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     private boolean showTermDocCountError = false;
 
     public TermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, valueType);
+        super(name);
     }
 
     protected TermsAggregationBuilder(TermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -130,7 +129,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
      * Read from a stream.
      */
     public TermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
         bucketCountThresholds = new BucketCountThresholds(in);
         collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
         executionHint = in.readOptionalString();

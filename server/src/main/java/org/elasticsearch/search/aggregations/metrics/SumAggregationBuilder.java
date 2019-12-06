@@ -28,8 +28,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -52,7 +50,7 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     public SumAggregationBuilder(String name) {
-        super(name, ValueType.NUMERIC);
+        super(name);
     }
 
     protected SumAggregationBuilder(SumAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -68,7 +66,7 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
      * Read from a stream.
      */
     public SumAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
     }
 
     @Override

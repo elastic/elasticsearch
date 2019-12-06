@@ -46,7 +46,6 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -130,7 +129,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
-        super(name, ValueType.DATE);
+        super(name);
     }
 
     protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
@@ -151,7 +150,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY, ValueType.DATE);
+        super(in);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();

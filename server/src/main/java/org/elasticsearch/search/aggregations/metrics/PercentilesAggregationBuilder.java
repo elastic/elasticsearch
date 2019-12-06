@@ -29,8 +29,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -131,7 +129,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     private boolean keyed = true;
 
     public PercentilesAggregationBuilder(String name) {
-        super(name, ValueType.NUMERIC);
+        super(name);
     }
 
     protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,
@@ -153,7 +151,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
      * Read from a stream.
      */
     public PercentilesAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();

@@ -29,8 +29,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -49,11 +47,11 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new ValueCountAggregationBuilder(aggregationName, null), null);
+        return PARSER.parse(parser, new ValueCountAggregationBuilder(aggregationName), null);
     }
 
-    public ValueCountAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, targetValueType);
+    public ValueCountAggregationBuilder(String name) {
+        super(name);
     }
 
     protected ValueCountAggregationBuilder(ValueCountAggregationBuilder clone,
@@ -70,7 +68,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
      * Read from a stream.
      */
     public ValueCountAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
     }
 
     @Override

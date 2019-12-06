@@ -28,8 +28,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -57,7 +55,7 @@ public class ExtendedStatsAggregationBuilder
     private double sigma = 2.0;
 
     public ExtendedStatsAggregationBuilder(String name) {
-        super(name, ValueType.NUMERIC);
+        super(name);
     }
 
     protected ExtendedStatsAggregationBuilder(ExtendedStatsAggregationBuilder clone,
@@ -75,7 +73,7 @@ public class ExtendedStatsAggregationBuilder
      * Read from a stream.
      */
     public ExtendedStatsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
         sigma = in.readDouble();
     }
 

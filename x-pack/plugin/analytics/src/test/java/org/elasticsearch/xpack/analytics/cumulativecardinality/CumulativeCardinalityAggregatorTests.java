@@ -82,7 +82,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
-        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality", null).userValueTypeHint(ValueType.NUMERIC)
+        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality").userValueTypeHint(ValueType.NUMERIC)
             .field(VALUE_FIELD));
         aggBuilder.subAggregation(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "the_cardinality"));
 
@@ -103,7 +103,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
-        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality", null).userValueTypeHint(ValueType.NUMERIC)
+        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality").userValueTypeHint(ValueType.NUMERIC)
             .field("foo"));
         aggBuilder.subAggregation(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "the_cardinality"));
 

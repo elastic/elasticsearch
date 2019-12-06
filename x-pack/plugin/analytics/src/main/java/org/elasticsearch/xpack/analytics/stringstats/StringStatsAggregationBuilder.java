@@ -15,8 +15,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
@@ -45,7 +43,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     public StringStatsAggregationBuilder(String name) {
-        super(name, ValueType.STRING);
+        super(name);
     }
 
     public StringStatsAggregationBuilder(StringStatsAggregationBuilder clone,
@@ -57,7 +55,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     /** Read from a stream. */
     public StringStatsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.BYTES, ValueType.STRING);
+        super(in);
         this.showDistribution = in.readBoolean();
     }
 

@@ -38,7 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 
 public class CompositeValuesSourceParserHelper {
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser,
-                                                                                           ValueType targetValueType) {
+                                                                                           ValueType expectedValueType) {
         objectParser.declareField(VB::field, XContentParser::text,
             new ParseField("field"), ObjectParser.ValueType.STRING);
         objectParser.declareBoolean(VB::missingBucket, new ParseField("missing_bucket"));

@@ -29,8 +29,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -49,11 +47,11 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     }
 
     public static MissingAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new MissingAggregationBuilder(aggregationName, null), null);
+        return PARSER.parse(parser, new MissingAggregationBuilder(aggregationName), null);
     }
 
-    public MissingAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, targetValueType);
+    public MissingAggregationBuilder(String name) {
+        super(name);
     }
 
     protected MissingAggregationBuilder(MissingAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -69,7 +67,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
      * Read from a stream.
      */
     public MissingAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
     }
 
     @Override
@@ -94,7 +92,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
-    
+
     @Override
     public String getType() {
         return NAME;

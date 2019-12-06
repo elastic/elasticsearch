@@ -29,7 +29,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -54,7 +53,7 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     public AvgAggregationBuilder(String name) {
-        super(name, ValueType.NUMERIC);
+        super(name);
     }
 
     public AvgAggregationBuilder(AvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -70,7 +69,7 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
      * Read from a stream.
      */
     public AvgAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
     }
 
     @Override

@@ -30,8 +30,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -58,13 +56,13 @@ public final class CardinalityAggregationBuilder
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new CardinalityAggregationBuilder(aggregationName, null), null);
+        return PARSER.parse(parser, new CardinalityAggregationBuilder(aggregationName), null);
     }
 
     private Long precisionThreshold = null;
 
-    public CardinalityAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, targetValueType);
+    public CardinalityAggregationBuilder(String name) {
+        super(name);
     }
 
     public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -76,7 +74,7 @@ public final class CardinalityAggregationBuilder
      * Read from a stream.
      */
     public CardinalityAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }

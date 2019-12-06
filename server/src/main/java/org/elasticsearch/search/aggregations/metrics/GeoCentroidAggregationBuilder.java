@@ -28,8 +28,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -53,7 +51,7 @@ public class GeoCentroidAggregationBuilder
     }
 
     public GeoCentroidAggregationBuilder(String name) {
-        super(name, ValueType.GEOPOINT);
+        super(name);
     }
 
     protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -69,7 +67,7 @@ public class GeoCentroidAggregationBuilder
      * Read from a stream.
      */
     public GeoCentroidAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(in);
     }
 
     @Override

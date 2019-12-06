@@ -30,8 +30,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -114,7 +112,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     public PercentileRanksAggregationBuilder(String name, double[] values) {
-        super(name, ValueType.NUMERIC);
+        super(name);
         if (values == null) {
             throw new IllegalArgumentException("[values] must not be null: [" + name + "]");
         }
@@ -146,7 +144,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
      * Read from a stream.
      */
     public PercentileRanksAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
         values = in.readDoubleArray();
         keyed = in.readBoolean();
         numberOfSignificantValueDigits = in.readVInt();

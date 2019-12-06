@@ -523,8 +523,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         // Cap currentRetry to avoid overflow when computing n variable
         int maxCurrentRetry = Math.min(currentRetry, 24);
         long n = Math.round(Math.pow(2, maxCurrentRetry - 1));
-        // + 1 here, because nextInt(...) bound is exclusive and otherwise the first delay would always be zero.
-        int k = Randomness.get().nextInt(Math.toIntExact(n + 1));
+        // + 1 here, because nextInt(...) bound is exclusive and otherwise the delay maybe zero.
+        int k = Randomness.get().nextInt(Math.toIntExact(n)) + 1;
         int backOffDelay = k * DELAY_MILLIS;
         return Math.min(backOffDelay, maxRetryDelayInMillis);
     }

@@ -32,7 +32,6 @@ import org.gradle.util.GradleVersion
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
 plugins {
-  id 'com.gradle.build-scan' version '2.4.2'
   id 'lifecycle-base'
   id 'elasticsearch.global-build-info'
   id "com.diffplug.gradle.spotless" version "3.24.2" apply false

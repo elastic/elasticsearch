@@ -1,3 +1,7 @@
+plugins {
+  id "com.gradle.enterprise" version "3.0"
+}
+
 String dirName = rootProject.projectDir.name
 rootProject.name = dirName
 

@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -147,15 +146,7 @@ public class IncrementalClusterStateWriter {
             indicesToRetainOnDataNode = IncrementalClusterStateWriter.getRelevantIndicesOnDataOnlyNode(clusterState);
             writer = new AtomicClusterStateWriter(metaStateService, previousManifest);
             final Map<Index, Long> indexGenerations = new HashMap<>(previousManifest.getIndexGenerations());
-            boolean changed = false;
-            for (Iterator<Map.Entry<Index, Long>> iter = indexGenerations.entrySet().iterator(); iter.hasNext(); ) {
-                Map.Entry<Index, Long> entry = iter.next();
-                if (indicesToRetainOnDataNode.contains(entry.getKey()) == false) {
-                    changed = true;
-                    iter.remove();
-                }
-            }
-            if (changed) {
+            if (indexGenerations.entrySet().removeIf(entry -> indicesToRetainOnDataNode.contains(entry.getKey()) == false)) {
                 Manifest manifest = new Manifest(previousManifest.getCurrentTerm(), previousManifest.getClusterStateVersion(),
                     previousManifest.getGlobalGeneration(), indexGenerations);
                 assert manifest.getIndexGenerations().keySet().stream().allMatch(indicesToRetainOnDataNode::contains);
@@ -203,12 +194,7 @@ public class IncrementalClusterStateWriter {
         }
 
         synchronized (this) {
-            for (Iterator<Map.Entry<Index, Long>> iter = indexGenerations.entrySet().iterator(); iter.hasNext(); ) {
-                Map.Entry<Index, Long> entry = iter.next();
-                if (indicesToRetainOnDataNode.contains(entry.getKey()) == false) {
-                    iter.remove();
-                }
-            }
+            indexGenerations.entrySet().removeIf(entry -> indicesToRetainOnDataNode.contains(entry.getKey()) == false);
 
             assert startManifest.getClusterStateVersion() == previousManifest.getClusterStateVersion();
             assert startManifest.getCurrentTerm() == previousManifest.getCurrentTerm();

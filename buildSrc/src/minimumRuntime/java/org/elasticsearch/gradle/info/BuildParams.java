@@ -84,7 +84,6 @@ public class BuildParams {
         return value(runtimeJavaVersion);
     }
 
-    @ExecutionTime
     public static Boolean isInFipsJvm() {
         return value(inFipsJvm);
     }
@@ -155,6 +154,8 @@ public class BuildParams {
                 .filter(f -> Modifier.isStatic(f.getModifiers()))
                 .forEach(f -> {
                     try {
+                        // Since we are mutating private static fields from a public static inner class we need to suppress
+                        // accessibility controls here.
                         f.setAccessible(true);
                         f.set(null, null);
                     } catch (IllegalAccessException e) {

@@ -235,7 +235,23 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testLoadState() throws IOException {
+    public void testLoadStateWithoutMissingCustoms() throws IOException {
+        runLoadStateTest(false, false);
+    }
+
+    public void testLoadStateWithoutMissingCustomsButPreserved() throws IOException {
+        runLoadStateTest(false, true);
+    }
+
+    public void testLoadStateWithMissingCustomsButPreserved() throws IOException {
+        runLoadStateTest(true, true);
+    }
+
+    public void testLoadStateWithMissingCustomsAndNotPreserved() throws IOException {
+        runLoadStateTest(true, false);
+    }
+
+    private void runLoadStateTest(boolean hasMissingCustoms, boolean preserveUnknownCustoms) throws IOException {
         final Path[] dirs = new Path[randomIntBetween(1, 5)];
         int numStates = randomIntBetween(1, 5);
         List<MetaData> meta = new ArrayList<>();
@@ -243,7 +259,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
             meta.add(randomMeta());
         }
         Set<Path> corruptedFiles = new HashSet<>();
-        final boolean preserveUnknownCustoms = randomBoolean();
         MetaDataStateFormat<MetaData> format = metaDataFormat(preserveUnknownCustoms);
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
@@ -261,13 +276,12 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         List<Path> dirList = Arrays.asList(dirs);
         Collections.shuffle(dirList, random());
-        final boolean hasMissingCustoms = randomBoolean();
         MetaData loadedMetaData = format.loadLatestState(logger, hasMissingCustoms ?
             NamedXContentRegistry.EMPTY : xContentRegistry(), dirList.toArray(new Path[0]));
         MetaData latestMetaData = meta.get(numStates-1);
         assertThat(loadedMetaData.clusterUUID(), not(equalTo("_na_")));
         assertThat(loadedMetaData.clusterUUID(), equalTo(latestMetaData.clusterUUID()));
-        ImmutableOpenMap<String,IndexMetaData> indices = loadedMetaData.indices();
+        ImmutableOpenMap<String, IndexMetaData> indices = loadedMetaData.indices();
         assertThat(indices.size(), equalTo(latestMetaData.indices().size()));
         for (IndexMetaData original : latestMetaData) {
             IndexMetaData deserialized = indices.get(original.getIndex().getName());

@@ -84,7 +84,7 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
+    public <T extends ScriptFactory> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
         Function<Map<String, Object>, Object> script = scripts.get(source);

@@ -50,6 +50,7 @@ import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -132,7 +133,8 @@ public final class PainlessLookupBuilder {
                     for (WhitelistConstructor whitelistConstructor : whitelistClass.whitelistConstructors) {
                         origin = whitelistConstructor.origin;
                         painlessLookupBuilder.addPainlessConstructor(
-                                targetCanonicalClassName, whitelistConstructor.canonicalTypeNameParameters);
+                                targetCanonicalClassName, whitelistConstructor.canonicalTypeNameParameters,
+                                whitelistConstructor.painlessAnnotations);
                     }
 
                     for (WhitelistMethod whitelistMethod : whitelistClass.whitelistMethods) {
@@ -140,7 +142,7 @@ public final class PainlessLookupBuilder {
                         painlessLookupBuilder.addPainlessMethod(
                                 whitelist.classLoader, targetCanonicalClassName, whitelistMethod.augmentedCanonicalClassName,
                                 whitelistMethod.methodName, whitelistMethod.returnCanonicalTypeName,
-                                whitelistMethod.canonicalTypeNameParameters);
+                                whitelistMethod.canonicalTypeNameParameters, whitelistMethod.painlessAnnotations);
                     }
 
                     for (WhitelistField whitelistField : whitelistClass.whitelistFields) {
@@ -150,6 +152,7 @@ public final class PainlessLookupBuilder {
                     }
                 }
 
+                // TODO(stu): handle annotations here, need to wire up ClassBinding and ECallLocal
                 for (WhitelistMethod whitelistStatic : whitelist.whitelistImportedMethods) {
                     origin = whitelistStatic.origin;
                     painlessLookupBuilder.addImportedPainlessMethod(
@@ -313,7 +316,8 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessConstructor(String targetCanonicalClassName, List<String> canonicalTypeNameParameters) {
+    public void addPainlessConstructor(String targetCanonicalClassName, List<String> canonicalTypeNameParameters,
+            Map<Class<?>, Object> annotations) {
         Objects.requireNonNull(targetCanonicalClassName);
         Objects.requireNonNull(canonicalTypeNameParameters);
 
@@ -337,10 +341,10 @@ public final class PainlessLookupBuilder {
             typeParameters.add(typeParameter);
         }
 
-        addPainlessConstructor(targetClass, typeParameters);
+        addPainlessConstructor(targetClass, typeParameters, annotations);
     }
 
-    public void addPainlessConstructor(Class<?> targetClass, List<Class<?>> typeParameters) {
+    public void addPainlessConstructor(Class<?> targetClass, List<Class<?>> typeParameters, Map<Class<?>, Object> annotations) {
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(typeParameters);
 
@@ -390,7 +394,8 @@ public final class PainlessLookupBuilder {
 
         String painlessConstructorKey = buildPainlessConstructorKey(typeParametersSize);
         PainlessConstructor existingPainlessConstructor = painlessClassBuilder.constructors.get(painlessConstructorKey);
-        PainlessConstructor newPainlessConstructor = new PainlessConstructor(javaConstructor, typeParameters, methodHandle, methodType);
+        PainlessConstructor newPainlessConstructor = new PainlessConstructor(javaConstructor, typeParameters, methodHandle, methodType,
+            annotations);
 
         if (existingPainlessConstructor == null) {
             newPainlessConstructor = painlessConstructorCache.computeIfAbsent(newPainlessConstructor, key -> key);
@@ -403,7 +408,8 @@ public final class PainlessLookupBuilder {
     }
 
     public void addPainlessMethod(ClassLoader classLoader, String targetCanonicalClassName, String augmentedCanonicalClassName,
-            String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
+            String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
+            Map<Class<?>, Object> annotations) {
 
         Objects.requireNonNull(classLoader);
         Objects.requireNonNull(targetCanonicalClassName);
@@ -449,11 +455,11 @@ public final class PainlessLookupBuilder {
                     "[[" + targetCanonicalClassName + "], [" + methodName + "], " + canonicalTypeNameParameters + "]");
         }
 
-        addPainlessMethod(targetClass, augmentedClass, methodName, returnType, typeParameters);
+        addPainlessMethod(targetClass, augmentedClass, methodName, returnType, typeParameters, annotations);
     }
 
     public void addPainlessMethod(Class<?> targetClass, Class<?> augmentedClass,
-            String methodName, Class<?> returnType, List<Class<?>> typeParameters) {
+            String methodName, Class<?> returnType, List<Class<?>> typeParameters, Map<Class<?>, Object> annotations) {
 
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
@@ -562,7 +568,7 @@ public final class PainlessLookupBuilder {
                 painlessClassBuilder.staticMethods.get(painlessMethodKey) :
                 painlessClassBuilder.methods.get(painlessMethodKey);
         PainlessMethod newPainlessMethod =
-                new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType);
+                new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType, annotations);
 
         if (existingPainlessMethod == null) {
             newPainlessMethod = painlessMethodCache.computeIfAbsent(newPainlessMethod, key -> key);
@@ -840,8 +846,9 @@ public final class PainlessLookupBuilder {
         MethodType methodType = methodHandle.type();
 
         PainlessMethod existingImportedPainlessMethod = painlessMethodKeysToImportedPainlessMethods.get(painlessMethodKey);
+        // TODO(stu): update with annotations
         PainlessMethod newImportedPainlessMethod =
-                new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType);
+                new PainlessMethod(javaMethod, targetClass, returnType, typeParameters, methodHandle, methodType, Collections.emptyMap());
 
         if (existingImportedPainlessMethod == null) {
             newImportedPainlessMethod = painlessMethodCache.computeIfAbsent(newImportedPainlessMethod, key -> key);
@@ -1444,7 +1451,7 @@ public final class PainlessLookupBuilder {
                         painlessMethod.javaMethod.getName(), bridgeTypeParameters.toArray(new Class<?>[0]));
                 MethodHandle bridgeHandle = MethodHandles.publicLookup().in(bridgeClass).unreflect(bridgeClass.getMethods()[0]);
                 bridgePainlessMethod = new PainlessMethod(bridgeMethod, bridgeClass,
-                        painlessMethod.returnType, bridgeTypeParameters, bridgeHandle, bridgeMethodType);
+                        painlessMethod.returnType, bridgeTypeParameters, bridgeHandle, bridgeMethodType, Collections.emptyMap());
                 painlessClassBuilder.runtimeMethods.put(painlessMethodKey.intern(), bridgePainlessMethod);
                 painlessBridgeCache.put(painlessMethod, bridgePainlessMethod);
             } catch (Exception exception) {

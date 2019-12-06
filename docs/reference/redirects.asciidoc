@@ -604,6 +604,3 @@ See <<monitoring-overview>>.
 
 See <<monitor-elasticsearch-cluster>>.
 
-[role="exclude",id="administer-elasticsearch"]
-=== Administering {es}
-See <<high-availability>>.

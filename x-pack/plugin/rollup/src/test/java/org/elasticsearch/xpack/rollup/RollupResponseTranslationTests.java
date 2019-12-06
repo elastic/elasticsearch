@@ -1010,9 +1010,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     public void testUnsupportedMetric() throws IOException {
 
 
-        AggregationBuilder nonRollup = new CardinalityAggregationBuilder("test_metric", ValueType.LONG).field("foo");
+        AggregationBuilder nonRollup = new CardinalityAggregationBuilder("test_metric", null).userValueTypeHint(ValueType.LONG)
+            .field("foo");
         String fieldName = "foo.max." + RollupField.VALUE;
-        AggregationBuilder rollup = new CardinalityAggregationBuilder("test_metric", ValueType.LONG).field(fieldName);
+        AggregationBuilder rollup = new CardinalityAggregationBuilder("test_metric", null).userValueTypeHint(ValueType.LONG)
+            .field(fieldName);
 
         NumberFieldMapper.Builder nrValueMapper = new NumberFieldMapper.Builder("foo",
                 NumberFieldMapper.NumberType.LONG);

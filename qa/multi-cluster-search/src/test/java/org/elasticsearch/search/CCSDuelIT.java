@@ -577,7 +577,7 @@ public class CCSDuelIT extends ESRestTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.size(0);
         searchRequest.source(sourceBuilder);
-        CardinalityAggregationBuilder tags = new CardinalityAggregationBuilder("tags", ValueType.STRING);
+        CardinalityAggregationBuilder tags = new CardinalityAggregationBuilder("tags", null).userValueTypeHint(ValueType.STRING);
         tags.field("tags.keyword");
         sourceBuilder.aggregation(tags);
         duelSearch(searchRequest, CCSDuelIT::assertAggs);

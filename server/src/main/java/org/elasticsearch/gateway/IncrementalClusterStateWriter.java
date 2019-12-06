@@ -53,9 +53,8 @@ public class IncrementalClusterStateWriter {
 
     private final MetaStateService metaStateService;
 
-    // On master-eligible nodes we call updateClusterState under the Coordinator's mutex; on master-ineligible data nodes we call
-    // updateClusterState on the (unique) cluster applier thread; on other nodes we never call updateClusterState. In all cases there's
-    // no need to synchronize access to these fields.
+    // On master-eligible nodes we call updateClusterStateForMasterEligibleNode under the Coordinator's mutex;
+    // on master-ineligible data nodes we call retainIndicesOnDataOnlyNode and updateClusterStateForDataOnlyNode which are synchronized
     private Manifest previousManifest;
     private ClusterState previousClusterState;
     private final LongSupplier relativeTimeMillisSupplier;

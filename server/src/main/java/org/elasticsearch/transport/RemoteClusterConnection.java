@@ -34,7 +34,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.function.Function;
 
 /**
@@ -210,17 +209,13 @@ final class RemoteClusterConnection implements Closeable {
             SniffConnectionStrategy sniffStrategy = (SniffConnectionStrategy) this.connectionStrategy;
             return new RemoteConnectionInfo(
                 clusterAlias,
-                sniffStrategy.getSeedNodes(),
-                sniffStrategy.getMaxConnections(),
-                getNumNodesConnected(),
+                null,
                 initialConnectionTimeout,
                 skipUnavailable);
         } else {
             return new RemoteConnectionInfo(
                 clusterAlias,
-                Collections.emptyList(),
-                0,
-                getNumNodesConnected(),
+                null,
                 initialConnectionTimeout,
                 skipUnavailable);
         }

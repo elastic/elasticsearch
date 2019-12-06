@@ -111,5 +111,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         protected void connectImpl(ActionListener<Void> listener) {
 
         }
+
+        @Override
+        protected RemoteConnectionInfo.ModeInfo getModeInfo() {
+            return null;
+        }
     }
 }

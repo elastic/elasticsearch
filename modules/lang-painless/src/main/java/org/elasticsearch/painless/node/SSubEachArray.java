@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -55,11 +54,6 @@ final class SSubEachArray extends AStatement {
         this.variable = Objects.requireNonNull(variable);
         this.expression = Objects.requireNonNull(expression);
         this.block = block;
-    }
-
-    @Override
-    void storeSettings(CompilerSettings settings) {
-        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

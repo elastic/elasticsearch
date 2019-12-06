@@ -1010,7 +1010,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (refresh) {
             engine.refresh("test_get_doc_ids");
         }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids")) {
+        try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids", Engine.SearcherScope.INTERNAL)) {
             List<DocIdSeqNoAndSource> docs = new ArrayList<>();
             for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {
                 LeafReader reader = leafContext.reader();

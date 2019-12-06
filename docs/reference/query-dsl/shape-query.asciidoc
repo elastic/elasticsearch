@@ -40,7 +40,7 @@ PUT /example
 POST /example/_doc?refresh
 {
     "name": "Lucky Landing",
-    "location": {
+    "geometry": {
         "type": "point",
         "coordinates": [1355.400544, 5255.530286]
     }

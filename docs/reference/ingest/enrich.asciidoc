@@ -180,7 +180,7 @@ When defining the enrich processor, you must include at least the following:
 * The enrich policy to use.
 * The field used to match incoming documents to the documents in your enrich index.
 * The target field to add to incoming documents. This target field contains the
-enrich fields specified in your enrich policy.
+match and enrich fields specified in your enrich policy.
 
 You also can use the `max_matches` option to set the number of enrich documents
 an incoming document can match. If set to the default of `1`, data is added to
@@ -371,6 +371,8 @@ the pipeline, add an <<enrich-processor,enrich processor>> that includes:
 * The `field` of incoming documents used to match the geo_shape of documents
   from the enrich index.
 * The `target_field` used to store appended enrich data for incoming documents.
+  This field contains the `match_field` and `enrich_fields` specified in your
+  enrich policy.
 * The `shape_relation`, which indicates how the processor matches geo_shapes in
   incoming documents to geo_shapes in documents from the enrich index. See
   <<_spatial_relations>> for valid options and more information.
@@ -526,6 +528,8 @@ the pipeline, add an <<enrich-processor,enrich processor>> that includes:
 * The `field` of incoming documents used to match documents
   from the enrich index.
 * The `target_field` used to store appended enrich data for incoming documents.
+  This field contains the `match_field` and `enrich_fields` specified in your
+  enrich policy.
 
 [source,console]
 ----

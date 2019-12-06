@@ -425,4 +425,94 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             is(true)
         );
     }
+
+    public void testDeleteOldCheckpoints() throws InterruptedException {
+        String transformId = randomAlphaOfLengthBetween(1, 10);
+        long timestamp = System.currentTimeMillis() - randomLongBetween(20000, 40000);
+
+        // create some other docs to check they are not getting accidentally deleted
+        TransformStoredDoc storedDocs = TransformStoredDocTests.randomTransformStoredDoc(transformId);
+        SeqNoPrimaryTermAndIndex firstIndex = new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME);
+        assertAsync(listener -> transformConfigManager.putOrUpdateTransformStoredDoc(storedDocs, null, listener), firstIndex, null, null);
+
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+        assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
+
+        // create 100 checkpoints
+        for (int i = 1; i <= 100; i++) {
+            TransformCheckpoint checkpoint = new TransformCheckpoint(
+                transformId,
+                timestamp + i * 200,
+                i,
+                Collections.emptyMap(),
+                timestamp - 100 + i * 200
+            );
+            assertAsync(listener -> transformConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);
+        }
+
+        // read a random checkpoint
+        int randomCheckpoint = randomIntBetween(1, 100);
+        TransformCheckpoint checkpointExpected = new TransformCheckpoint(
+            transformId,
+            timestamp + randomCheckpoint * 200,
+            randomCheckpoint,
+            Collections.emptyMap(),
+            timestamp - 100 + randomCheckpoint * 200
+        );
+
+        assertAsync(
+            listener -> transformConfigManager.getTransformCheckpoint(transformId, randomCheckpoint, listener),
+            checkpointExpected,
+            null,
+            null
+        );
+
+        // test delete based on checkpoint number (time would allow more)
+        assertAsync(
+            listener -> transformConfigManager.deleteOldCheckpoints(transformId, 11L, timestamp + 1 + 20L * 200, listener),
+            10L,
+            null,
+            null
+        );
+
+        // test delete based on time (checkpoint number would allow more)
+        assertAsync(
+            listener -> transformConfigManager.deleteOldCheckpoints(transformId, 30L, timestamp + 1 + 20L * 200, listener),
+            10L,
+            null,
+            null
+        );
+
+        // zero delete
+        assertAsync(
+            listener -> transformConfigManager.deleteOldCheckpoints(transformId, 30L, timestamp + 1 + 20L * 200, listener),
+            0L,
+            null,
+            null
+        );
+
+        // delete the rest
+        assertAsync(
+            listener -> transformConfigManager.deleteOldCheckpoints(transformId, 101L, timestamp + 1 + 100L * 200, listener),
+            80L,
+            null,
+            null
+        );
+
+        // test that the other docs are still there
+        assertAsync(
+            listener -> transformConfigManager.getTransformStoredDoc(transformId, listener),
+            Tuple.tuple(storedDocs, firstIndex),
+            null,
+            null
+        );
+
+        assertAsync(
+            listener -> transformConfigManager.getTransformConfiguration(transformConfig.getId(), listener),
+            transformConfig,
+            null,
+            null
+        );
+
+    }
 }

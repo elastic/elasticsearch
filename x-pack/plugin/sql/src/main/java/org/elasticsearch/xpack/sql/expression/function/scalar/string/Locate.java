@@ -133,10 +133,12 @@ public class Locate extends ScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
+        if (start != null && newChildren.size() != 3) {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
+        } else if (start == null && newChildren.size() != 2) {
+            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
         }
 
-        return new Locate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Locate(source(), newChildren.get(0), newChildren.get(1), start == null ? null : newChildren.get(2));
     }
 }

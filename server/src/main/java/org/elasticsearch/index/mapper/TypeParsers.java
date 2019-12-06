@@ -257,7 +257,7 @@ public class TypeParsers {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext,
                                           String propName, Object propNode) {
         if (propName.equals("fields")) {

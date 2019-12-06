@@ -18,11 +18,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,7 +50,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -204,7 +203,9 @@ public class HistogramFieldMapper extends FieldMapper {
                                 public HistogramValues getHistogramValues() throws IOException {
                                     try {
                                         final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
+                                        final InternalHistogramValue value = new InternalHistogramValue();
                                         return new HistogramValues() {
+
                                             @Override
                                             public boolean advanceExact(int doc) throws IOException {
                                                 return values.advanceExact(doc);
@@ -213,7 +214,8 @@ public class HistogramFieldMapper extends FieldMapper {
                                             @Override
                                             public HistogramValue histogram() throws IOException {
                                                 try {
-                                                    return getHistogramValue(values.binaryValue());
+                                                    value.reset(values.binaryValue());
+                                                    return value;
                                                 } catch (IOException e) {
                                                     throw new IOException("Cannot load doc value", e);
                                                 }
@@ -222,7 +224,6 @@ public class HistogramFieldMapper extends FieldMapper {
                                     } catch (IOException e) {
                                         throw new IOException("Cannot load doc values", e);
                                     }
-
                                 }
 
                                 @Override
@@ -261,44 +262,6 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
                     };
                 }
-
-                private HistogramValue getHistogramValue(final BytesRef bytesRef) throws IOException {
-                    final ByteBufferStreamInput streamInput = new ByteBufferStreamInput(
-                        ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
-                    return new HistogramValue() {
-                        double value;
-                        int count;
-                        boolean isExhausted;
-
-                        @Override
-                        public boolean next() throws IOException {
-                            if (streamInput.available() > 0) {
-                                count = streamInput.readVInt();
-                                value = streamInput.readDouble();
-                                return true;
-                            }
-                            isExhausted = true;
-                            return false;
-                        }
-
-                        @Override
-                        public double value() {
-                            if (isExhausted) {
-                                throw new IllegalArgumentException("histogram already exhausted");
-                            }
-                            return value;
-                        }
-
-                        @Override
-                        public int count() {
-                            if (isExhausted) {
-                                throw new IllegalArgumentException("histogram already exhausted");
-                            }
-                            return count;
-                        }
-                    };
-                }
-
             };
         }
 
@@ -397,7 +360,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     "[" + COUNTS_FIELD.getPreferredName() +"] but got [" + values.size() + " != " + counts.size() +"]");
             }
             if (fieldType().hasDocValues()) {
-                BytesStreamOutput streamOutput = new BytesStreamOutput();
+                ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
                 for (int i = 0; i < values.size(); i++) {
                     int count = counts.get(i);
                     if (count < 0) {
@@ -405,13 +368,12 @@ public class HistogramFieldMapper extends FieldMapper {
                             + name() + "], ["+ COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i));
                     } else if (count > 0) {
                         // we do not add elements with count == 0
-                        streamOutput.writeVInt(count);
-                        streamOutput.writeDouble(values.get(i));
+                        dataOutput.writeVInt(count);
+                        dataOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
                     }
                 }
-
-                Field field = new BinaryDocValuesField(simpleName(), streamOutput.bytes().toBytesRef());
-                streamOutput.close();
+                BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
+                Field field = new BinaryDocValuesField(simpleName(), docValue);
                 if (context.doc().getByKey(fieldType().name()) != null) {
                     throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                         "] doesn't not support indexing multiple values for the same field in the same document");
@@ -439,6 +401,53 @@ public class HistogramFieldMapper extends FieldMapper {
         super.doXContentBody(builder, includeDefaults, params);
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
+        }
+    }
+
+    /** re-usable {@link HistogramValue} implementation */
+    private static class InternalHistogramValue extends HistogramValue {
+        double value;
+        int count;
+        boolean isExhausted;
+        ByteArrayDataInput dataInput;
+
+        InternalHistogramValue() {
+            dataInput = new ByteArrayDataInput();
+        }
+
+        /** reset the value for the histogram */
+        void reset(BytesRef bytesRef) {
+            dataInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            isExhausted = false;
+            value = 0;
+            count = 0;
+        }
+
+        @Override
+        public boolean next() {
+            if (dataInput.eof() == false) {
+                count = dataInput.readVInt();
+                value = Double.longBitsToDouble(dataInput.readLong());
+                return true;
+            }
+            isExhausted = true;
+            return false;
+        }
+
+        @Override
+        public double value() {
+            if (isExhausted) {
+                throw new IllegalArgumentException("histogram already exhausted");
+            }
+            return value;
+        }
+
+        @Override
+        public int count() {
+            if (isExhausted) {
+                throw new IllegalArgumentException("histogram already exhausted");
+            }
+            return count;
         }
     }
 }

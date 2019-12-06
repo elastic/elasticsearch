@@ -57,6 +57,7 @@ import org.elasticsearch.client.ilm.ShrinkAction;
 import org.elasticsearch.client.ilm.UnfollowAction;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
@@ -687,7 +688,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(49, namedXContents.size());
+        assertEquals(51, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -729,21 +730,23 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(TimeSyncConfig.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
         assertThat(names, hasItems(BinarySoftClassification.NAME, Classification.NAME, Regression.NAME));
-        assertEquals(Integer.valueOf(7), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
+        assertEquals(Integer.valueOf(8), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
         assertThat(names,
             hasItems(AucRocMetric.NAME,
                 PrecisionMetric.NAME,
                 RecallMetric.NAME,
                 ConfusionMatrixMetric.NAME,
+                AccuracyMetric.NAME,
                 MulticlassConfusionMatrixMetric.NAME,
                 MeanSquaredErrorMetric.NAME,
                 RSquaredMetric.NAME));
-        assertEquals(Integer.valueOf(7), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
+        assertEquals(Integer.valueOf(8), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
         assertThat(names,
             hasItems(AucRocMetric.NAME,
                 PrecisionMetric.NAME,
                 RecallMetric.NAME,
                 ConfusionMatrixMetric.NAME,
+                AccuracyMetric.NAME,
                 MulticlassConfusionMatrixMetric.NAME,
                 MeanSquaredErrorMetric.NAME,
                 RSquaredMetric.NAME));
@@ -762,6 +765,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.remote_info",
             "create",
             "get_script_context",
+            "get_script_languages",
             "get_source",
             "indices.exists_type",
             "indices.get_upgrade",

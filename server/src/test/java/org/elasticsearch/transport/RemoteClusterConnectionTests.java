@@ -330,7 +330,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 int maxNumConnections = randomIntBetween(1, 5);
                 String clusterAlias = "test-cluster";
                 Settings settings = Settings.builder().put(buildSniffSettings(clusterAlias, seedNodes))
-                    .put(RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections).build();
+                    .put(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections).build();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
                     // test no nodes connected
                     RemoteConnectionInfo remoteConnectionInfo = assertSerialization(connection.getConnectionInfo());
@@ -461,8 +461,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 discoverableTransports.add(transportService);
             }
 
-            List<String> seedNodes = new CopyOnWriteArrayList<>(randomSubsetOf(discoverableNodes.stream()
-                .map(d -> d.getAddress().toString()).collect(Collectors.toList())));
+            List<String> seedNodes = new CopyOnWriteArrayList<>(randomSubsetOf(randomIntBetween(1, discoverableNodes.size()),
+                discoverableNodes.stream().map(d -> d.getAddress().toString()).collect(Collectors.toList())));
             Collections.shuffle(seedNodes, random());
 
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {

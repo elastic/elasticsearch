@@ -41,7 +41,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -57,7 +56,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -78,9 +76,6 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
 public class Reindexer {
 
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. " +
-        "Instead consider using query filtering to find the desired subset of data.";
 
     private final ClusterService clusterService;
     private final Client client;
@@ -98,10 +93,6 @@ public class Reindexer {
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
-        SearchSourceBuilder searchSource = request.getSearchRequest().source();
-        if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
-            deprecationLogger.deprecated(SORT_DEPRECATED_MESSAGE);
-        }
         BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
     }
 

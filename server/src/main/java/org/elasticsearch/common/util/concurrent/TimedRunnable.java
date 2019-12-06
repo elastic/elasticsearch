@@ -60,11 +60,7 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     @Override
     public void onFailure(final Exception e) {
         this.failedOrRejected = true;
-        if (original instanceof AbstractRunnable) {
-            ((AbstractRunnable) original).onFailure(e);
-        } else {
-            ExceptionsHelper.reThrowIfNotNull(e);
-        }
+        ExceptionsHelper.reThrowIfNotNull(e);
     }
 
     @Override

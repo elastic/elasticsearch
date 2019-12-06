@@ -160,6 +160,8 @@ class BuildPlugin implements Plugin<Project> {
                             testClusters.all { ElasticsearchCluster cluster ->
                                 cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
                                 cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                                // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
+                                cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
                             }
                         }
                     }

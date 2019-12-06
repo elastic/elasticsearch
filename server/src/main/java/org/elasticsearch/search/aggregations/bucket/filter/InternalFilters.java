@@ -189,7 +189,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<List<InternalBucket>> bucketsList = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalFilters filters = (InternalFilters) aggregation;

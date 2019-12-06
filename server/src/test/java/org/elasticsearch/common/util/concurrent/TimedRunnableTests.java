@@ -33,7 +33,6 @@ public final class TimedRunnableTests extends ESTestCase {
         final boolean isForceExecution = randomBoolean();
         final AtomicBoolean onAfter = new AtomicBoolean();
         final AtomicReference<Exception> onRejection = new AtomicReference<>();
-        final AtomicReference<Exception> onFailure = new AtomicReference<>();
         final AtomicBoolean doRun = new AtomicBoolean();
 
         final AbstractRunnable runnable = new AbstractRunnable() {
@@ -54,7 +53,6 @@ public final class TimedRunnableTests extends ESTestCase {
 
             @Override
             public void onFailure(final Exception e) {
-                onFailure.set(e);
             }
 
             @Override
@@ -70,10 +68,6 @@ public final class TimedRunnableTests extends ESTestCase {
         final Exception rejection = new RejectedExecutionException();
         timedRunnable.onRejection(rejection);
         assertThat(onRejection.get(), equalTo(rejection));
-
-        final Exception failure = new Exception();
-        timedRunnable.onFailure(failure);
-        assertThat(onFailure.get(), equalTo(failure));
 
         timedRunnable.run();
         assertTrue(doRun.get());

@@ -240,6 +240,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
      */
     public GeoDistanceAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+        // TODO: This is just copy/pasta from the old targetValueType setting.  It may not be appropriate to set userValueTypeHint here.
         userValueTypeHint(InternalGeoDistance.FACTORY.getValueType());
         origin = new GeoPoint(in.readDouble(), in.readDouble());
         int size = in.readVInt();

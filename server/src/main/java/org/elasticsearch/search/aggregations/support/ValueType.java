@@ -44,7 +44,6 @@ public enum ValueType implements Writeable {
     DATE((byte) 5, "date", "date", CoreValuesSourceType.DATE, IndexNumericFieldData.class,
             new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
                 DateFieldMapper.Resolution.MILLISECONDS)),
-
     IP((byte) 6, "ip", "ip", CoreValuesSourceType.IP, IndexFieldData.class, DocValueFormat.IP),
     // TODO: what is the difference between "number" and "numeric"?
     NUMERIC((byte) 7, "numeric", "numeric", CoreValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),

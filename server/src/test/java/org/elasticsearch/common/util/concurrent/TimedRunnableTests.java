@@ -67,9 +67,6 @@ public final class TimedRunnableTests extends ESTestCase {
 
         assertThat(timedRunnable.isForceExecution(), equalTo(isForceExecution));
 
-        timedRunnable.onAfter();
-        assertTrue(onAfter.get());
-
         final Exception rejection = new RejectedExecutionException();
         timedRunnable.onRejection(rejection);
         assertThat(onRejection.get(), equalTo(rejection));
@@ -80,6 +77,7 @@ public final class TimedRunnableTests extends ESTestCase {
 
         timedRunnable.run();
         assertTrue(doRun.get());
+        assertTrue(onAfter.get());
     }
 
     public void testTimedRunnableDelegatesRunInFailureCase() {
@@ -144,4 +142,25 @@ public final class TimedRunnableTests extends ESTestCase {
         assertSame(exception, thrown);
     }
 
+    public void testTimedRunnableExecutesNestedOnAfterOnce() {
+        final AtomicBoolean afterRan = new AtomicBoolean(false);
+        new TimedRunnable(new AbstractRunnable() {
+
+            @Override
+            public void onFailure(final Exception e) {
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+            }
+
+            @Override
+            public void onAfter() {
+                if (afterRan.compareAndSet(false, true) == false) {
+                    fail("onAfter should have only been called once");
+                }
+            }
+        }).run();
+        assertTrue(afterRan.get());
+    }
 }

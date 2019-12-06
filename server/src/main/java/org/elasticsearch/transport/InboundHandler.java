@@ -195,10 +195,14 @@ public class InboundHandler {
                 final TransportChannel requestChannel = transportChannel;
                 threadPool.executor(reg.getExecutor()).execute(new AbstractRunnable() {
 
+                    private boolean released = false;
+
                     @SuppressWarnings({"unchecked"})
                     @Override
                     protected void doRun() throws Exception {
                         final TransportRequest request = reg.newRequest(message.getStreamInput());
+                        releasable.close();
+                        released = true;
                         request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                         reg.processMessageReceived(request, requestChannel);
                     }
@@ -221,7 +225,9 @@ public class InboundHandler {
 
                     @Override
                     public void onAfter() {
-                        releasable.close();
+                        if (released == false) {
+                            releasable.close();
+                        }
                     }
                 });
             }
@@ -244,6 +250,9 @@ public class InboundHandler {
     private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
                                                               Releasable releasable, TransportResponseHandler<T> handler) {
         threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
+
+            private boolean released = false;
+
             @Override
             public void onFailure(Exception e) {
                 handleException(handler, new ResponseHandlerFailureTransportException(e));
@@ -255,6 +264,8 @@ public class InboundHandler {
                 try {
                     response = handler.read(stream);
                     response.remoteAddress(new TransportAddress(remoteAddress));
+                    releasable.close();
+                    released = true;
                 } catch (Exception e) {
                     handleException(handler, new TransportSerializationException(
                         "Failed to deserialize response from handler [" + handler.getClass().getName() + "]", e));
@@ -265,7 +276,9 @@ public class InboundHandler {
 
             @Override
             public void onAfter() {
-                releasable.close();
+                if (released == false) {
+                    releasable.close();
+                }
             }
         });
     }

@@ -60,7 +60,7 @@ include::monitoring/index.asciidoc[]
 
 include::frozen-indices.asciidoc[]
 
-include::administering.asciidoc[]
+include::high-availability.asciidoc[]
 
 include::data-rollup-transform.asciidoc[]
 

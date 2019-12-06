@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -120,11 +121,12 @@ public class InboundHandler {
             throw e;
         }
         final Releasable releasable = () -> {
-            if (reference instanceof Releasable) {
-                ((Releasable) reference).close();
-            }
             try {
-                message.close();
+                IOUtils.close(() -> {
+                    if (reference instanceof Releasable) {
+                        ((Releasable) reference).close();
+                    }
+                }, message);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

@@ -205,20 +205,7 @@ final class RemoteClusterConnection implements Closeable {
      * Get the information about remote nodes to be rendered on {@code _remote/info} requests.
      */
     public RemoteConnectionInfo getConnectionInfo() {
-        if (connectionStrategy instanceof SniffConnectionStrategy) {
-            SniffConnectionStrategy sniffStrategy = (SniffConnectionStrategy) this.connectionStrategy;
-            return new RemoteConnectionInfo(
-                clusterAlias,
-                null,
-                initialConnectionTimeout,
-                skipUnavailable);
-        } else {
-            return new RemoteConnectionInfo(
-                clusterAlias,
-                null,
-                initialConnectionTimeout,
-                skipUnavailable);
-        }
+        return new RemoteConnectionInfo(clusterAlias, connectionStrategy.getModeInfo(), initialConnectionTimeout, skipUnavailable);
     }
 
     int getNumNodesConnected() {

@@ -82,6 +82,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         // TODO: Change to 7.6 after backport
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeEnum(modeInfo.modeType());
+            modeInfo.writeTo(out);
             out.writeTimeValue(initialConnectionTimeout);
         } else {
             if (modeInfo.modeType() == RemoteConnectionStrategy.ConnectionStrategy.SNIFF) {

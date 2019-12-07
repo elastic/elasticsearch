@@ -59,14 +59,14 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     enum ConnectionStrategy {
         SNIFF(SniffConnectionStrategy.CHANNELS_PER_CONNECTION, SniffConnectionStrategy::enablementSettings,
-            SniffConnectionStrategy.infoReader()) {
+            SniffConnectionStrategy::infoReader) {
             @Override
             public String toString() {
                 return "sniff";
             }
         },
         SIMPLE(SimpleConnectionStrategy.CHANNELS_PER_CONNECTION, SimpleConnectionStrategy::enablementSettings,
-            SimpleConnectionStrategy.infoReader()) {
+            SimpleConnectionStrategy::infoReader) {
             @Override
             public String toString() {
                 return "simple";
@@ -75,10 +75,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
         private final int numberOfChannels;
         private final Supplier<Stream<Setting.AffixSetting<?>>> enablementSettings;
-        private final Writeable.Reader<RemoteConnectionInfo.ModeInfo> reader;
+        private final Supplier<Writeable.Reader<RemoteConnectionInfo.ModeInfo>> reader;
 
         ConnectionStrategy(int numberOfChannels, Supplier<Stream<Setting.AffixSetting<?>>> enablementSettings,
-                           Writeable.Reader<RemoteConnectionInfo.ModeInfo> reader) {
+                           Supplier<Writeable.Reader<RemoteConnectionInfo.ModeInfo>> reader) {
             this.numberOfChannels = numberOfChannels;
             this.enablementSettings = enablementSettings;
             this.reader = reader;
@@ -89,7 +89,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
 
         public Writeable.Reader<RemoteConnectionInfo.ModeInfo> getReader() {
-            return reader;
+            return reader.get();
         }
     }
 

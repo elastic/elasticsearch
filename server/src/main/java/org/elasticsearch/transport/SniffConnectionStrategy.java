@@ -198,7 +198,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
-        return null;
+        return SniffModeInfo::new;
     }
 
     @Override
@@ -227,7 +227,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected RemoteConnectionInfo.ModeInfo getModeInfo() {
-        return null;
+        return new SniffModeInfo(configuredSeedNodes, maxNumRemoteConnections, connectionManager.size());
     }
 
     private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {

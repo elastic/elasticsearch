@@ -255,13 +255,13 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
         return oldSeeds.equals(newSeeds) == false;
     }
 
-    private static class SimpleModeInfo implements RemoteConnectionInfo.ModeInfo {
+    static class SimpleModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         private final List<String> addresses;
         private final int maxSocketConnections;
         private final int numSocketsConnected;
 
-        private SimpleModeInfo(List<String> addresses, int maxSocketConnections, int numSocketsConnected) {
+        SimpleModeInfo(List<String> addresses, int maxSocketConnections, int numSocketsConnected) {
             this.addresses = addresses;
             this.maxSocketConnections = maxSocketConnections;
             this.numSocketsConnected = numSocketsConnected;
@@ -294,7 +294,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public boolean isConnected() {
-            return false;
+            return numSocketsConnected > 0;
         }
 
         @Override

@@ -44,6 +44,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
@@ -306,72 +309,78 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-//    public void testGetConnectionInfo() throws Exception {
-//        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-//        try (MockTransportService transport1 = startTransport("seed_node", knownNodes, Version.CURRENT);
-//             MockTransportService transport2 = startTransport("seed_node_1", knownNodes, Version.CURRENT);
-//             MockTransportService transport3 = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
-//            DiscoveryNode node1 = transport1.getLocalDiscoNode();
-//            DiscoveryNode node2 = transport3.getLocalDiscoNode();
-//            DiscoveryNode node3 = transport2.getLocalDiscoNode();
-//            knownNodes.add(transport1.getLocalDiscoNode());
-//            knownNodes.add(transport3.getLocalDiscoNode());
-//            knownNodes.add(transport2.getLocalDiscoNode());
-//            Collections.shuffle(knownNodes, random());
-//            List<String> seedNodes = addresses(node3, node1, node2);
-//            Collections.shuffle(seedNodes, random());
-//
-//            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT,
-//           threadPool, null)) {
-//                service.start();
-//                service.acceptIncomingRequests();
-//                int maxNumConnections = randomIntBetween(1, 5);
-//                String clusterAlias = "test-cluster";
-//                Settings settings = Settings.builder().put(buildSniffSettings(clusterAlias, seedNodes))
-//                    .put(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections).build();
-//                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
-//                    // test no nodes connected
-//                    RemoteConnectionInfo remoteConnectionInfo = assertSerialization(connection.getConnectionInfo());
-//                    assertNotNull(remoteConnectionInfo);
-//                    assertEquals(0, remoteConnectionInfo.numNodesConnected);
-//                    assertEquals(3, remoteConnectionInfo.seedNodes.size());
-//                    assertEquals(maxNumConnections, remoteConnectionInfo.connectionsPerCluster);
-//                    assertEquals(clusterAlias, remoteConnectionInfo.clusterAlias);
-//                }
-//            }
-//        }
-//    }
-//
-//    public void testRemoteConnectionInfo() throws IOException {
-//        RemoteConnectionInfo stats =
-//            new RemoteConnectionInfo("test_cluster", null, Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(30), false);
-//        assertSerialization(stats);
-//
-//        RemoteConnectionInfo stats1 =
-//            new RemoteConnectionInfo("test_cluster", null, Arrays.asList("seed:1"), 4, 4, TimeValue.timeValueMinutes(30), true);
-//        assertSerialization(stats1);
-//        assertNotEquals(stats, stats1);
-//
-//        stats1 = new RemoteConnectionInfo("test_cluster_1", null, Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(30), false);
-//        assertSerialization(stats1);
-//        assertNotEquals(stats, stats1);
-//
-//        stats1 = new RemoteConnectionInfo("test_cluster", null, Arrays.asList("seed:15"), 4, 3, TimeValue.timeValueMinutes(30), false);
-//        assertSerialization(stats1);
-//        assertNotEquals(stats, stats1);
-//
-//        stats1 = new RemoteConnectionInfo("test_cluster", null, Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(30), true);
-//        assertSerialization(stats1);
-//        assertNotEquals(stats, stats1);
-//
-//        stats1 = new RemoteConnectionInfo("test_cluster", null, Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(325), true);
-//        assertSerialization(stats1);
-//        assertNotEquals(stats, stats1);
-//
-//        stats1 = new RemoteConnectionInfo("test_cluster", null, Arrays.asList("seed:1"), 5, 3, TimeValue.timeValueMinutes(30), false);
-//        assertSerialization(stats1);
-//        assertNotEquals(stats, stats1);
-//    }
+    public void testGetConnectionInfo() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService transport1 = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService transport2 = startTransport("seed_node_1", knownNodes, Version.CURRENT);
+             MockTransportService transport3 = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode node1 = transport1.getLocalDiscoNode();
+            DiscoveryNode node2 = transport3.getLocalDiscoNode();
+            DiscoveryNode node3 = transport2.getLocalDiscoNode();
+            knownNodes.add(transport1.getLocalDiscoNode());
+            knownNodes.add(transport3.getLocalDiscoNode());
+            knownNodes.add(transport2.getLocalDiscoNode());
+            Collections.shuffle(knownNodes, random());
+            List<String> seedNodes = addresses(node3, node1, node2);
+            Collections.shuffle(seedNodes, random());
+
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT,
+           threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                int maxNumConnections = randomIntBetween(1, 5);
+                String clusterAlias = "test-cluster";
+                Settings settings = Settings.builder().put(buildSniffSettings(clusterAlias, seedNodes))
+                    .put(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(), maxNumConnections).build();
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                    // test no nodes connected
+                    RemoteConnectionInfo remoteConnectionInfo = assertSerialization(connection.getConnectionInfo());
+                    assertNotNull(remoteConnectionInfo);
+                    SniffConnectionStrategy.SniffModeInfo sniffInfo = (SniffConnectionStrategy.SniffModeInfo) remoteConnectionInfo.modeInfo;
+                    assertEquals(0, sniffInfo.numNodesConnected);
+                    assertEquals(3, sniffInfo.seedNodes.size());
+                    assertEquals(maxNumConnections, sniffInfo.maxConnectionsPerCluster);
+                    assertEquals(clusterAlias, remoteConnectionInfo.clusterAlias);
+                }
+            }
+        }
+    }
+
+    public void testRemoteConnectionInfo() throws IOException {
+        List<String> remoteAddresses = Collections.singletonList("seed:1");
+
+        RemoteConnectionInfo.ModeInfo modeInfo1;
+        RemoteConnectionInfo.ModeInfo modeInfo2;
+
+        if (randomBoolean()) {
+            modeInfo1 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 4, 4);
+            modeInfo2 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 4, 3);
+        } else {
+            modeInfo1 = new SimpleConnectionStrategy.SimpleModeInfo(remoteAddresses, 18, 18);
+            modeInfo2 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 18, 17);
+        }
+
+        RemoteConnectionInfo stats =
+            new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), false);
+        assertSerialization(stats);
+
+        RemoteConnectionInfo stats1 =
+            new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(30), true);
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster_1", modeInfo1, TimeValue.timeValueMinutes(30), false);
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo1, TimeValue.timeValueMinutes(325), false);
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+
+        stats1 = new RemoteConnectionInfo("test_cluster", modeInfo2, TimeValue.timeValueMinutes(30), false);
+        assertSerialization(stats1);
+        assertNotEquals(stats, stats1);
+    }
 
     private static RemoteConnectionInfo assertSerialization(RemoteConnectionInfo info) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -386,29 +395,35 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-//    public void testRenderConnectionInfoXContent() throws IOException {
-//        RemoteConnectionInfo stats =
-//            new RemoteConnectionInfo("test_cluster", null, Arrays.asList("seed:1"), 4, 3, TimeValue.timeValueMinutes(30), true);
-//        stats = assertSerialization(stats);
-//        XContentBuilder builder = XContentFactory.jsonBuilder();
-//        builder.startObject();
-//        stats.toXContent(builder, null);
-//        builder.endObject();
-//        assertEquals("{\"test_cluster\":{\"seeds\":[\"seed:1\"],\"connected\":true," +
-//            "\"num_nodes_connected\":3,\"max_connections_per_cluster\":4,\"initial_connect_timeout\":\"30m\"," +
-//            "\"skip_unavailable\":true}}", Strings.toString(builder));
-//
-//        stats = new RemoteConnectionInfo(
-//            "some_other_cluster", null, Arrays.asList("seed:1", "seed:2"), 2, 0, TimeValue.timeValueSeconds(30), false);
-//        stats = assertSerialization(stats);
-//        builder = XContentFactory.jsonBuilder();
-//        builder.startObject();
-//        stats.toXContent(builder, null);
-//        builder.endObject();
-//        assertEquals("{\"some_other_cluster\":{\"seeds\":[\"seed:1\",\"seed:2\"],"
-//            + "\"connected\":false,\"num_nodes_connected\":0,\"max_connections_per_cluster\":2,\"initial_connect_timeout\":\"30s\"," +
-//            "\"skip_unavailable\":false}}", Strings.toString(builder));
-//    }
+    public void testRenderConnectionInfoXContent() throws IOException {
+        List<String> remoteAddresses = Arrays.asList("seed:1", "seed:2");
+
+        RemoteConnectionInfo.ModeInfo modeInfo;
+
+        boolean sniff = randomBoolean();
+        if (sniff) {
+            modeInfo = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 3, 2);
+        } else {
+            modeInfo = new SimpleConnectionStrategy.SimpleModeInfo(remoteAddresses, 18, 16);
+        }
+
+        RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo, TimeValue.timeValueMinutes(30), true);
+        stats = assertSerialization(stats);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, null);
+        builder.endObject();
+
+        if (sniff) {
+            assertEquals("{\"test_cluster\":{\"connected\":true,\"mode\":\"sniff\",\"seeds\":[\"seed:1\",\"seed:2\"]," +
+                "\"num_nodes_connected\":2,\"max_connections_per_cluster\":3,\"initial_connect_timeout\":\"30m\"," +
+                "\"skip_unavailable\":true}}", Strings.toString(builder));
+        } else {
+            assertEquals("{\"test_cluster\":{\"connected\":true,\"mode\":\"simple\",\"addresses\":[\"seed:1\",\"seed:2\"]," +
+                "\"num_sockets_connected\":16,\"max_socket_connections\":18,\"initial_connect_timeout\":\"30m\"," +
+                "\"skip_unavailable\":true}}", Strings.toString(builder));
+        }
+    }
 
     public void testCollectNodes() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
@@ -21,7 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
@@ -69,10 +69,6 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         Source newSource = randomValueOtherThan(c.source(), SourceTests::randomSource);
         assertEquals(new Case(c.source(), c.children()),
             c.transformPropertiesOnly(p -> Objects.equals(p, c.source()) ? newSource: p, Object.class));
-
-        String newName = randomValueOtherThan(c.name(), () -> randomAlphaOfLength(5));
-        assertEquals(new Case(c.source(), c.children()),
-            c.transformPropertiesOnly(p -> Objects.equals(p, c.name()) ? newName : p, Object.class));
     }
 
     @Override

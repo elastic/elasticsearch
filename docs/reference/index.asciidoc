@@ -59,11 +59,11 @@ include::monitoring/index.asciidoc[]
 
 include::rollup/index.asciidoc[]
 
+include::high-availability.asciidoc[]
+
 include::{xes-repo-dir}/security/index.asciidoc[]
 
 include::{xes-repo-dir}/watcher/index.asciidoc[]
-
-include::rest-api/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 
@@ -73,6 +73,8 @@ include::how-to.asciidoc[]
 include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
+
+include::rest-api/index.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
 

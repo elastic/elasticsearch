@@ -3,9 +3,6 @@
 [[xpack-ccr]]
 = {ccr-cap}
 
-[partintro]
---
-
 beta[]
 
 The {ccr} (CCR) feature enables replication of indices in remote clusters to a 
@@ -23,7 +20,6 @@ This guide provides an overview of {ccr}:
 * <<ccr-auto-follow>>
 * <<ccr-getting-started>>
 
---
 
 include::overview.asciidoc[]
 include::requirements.asciidoc[]

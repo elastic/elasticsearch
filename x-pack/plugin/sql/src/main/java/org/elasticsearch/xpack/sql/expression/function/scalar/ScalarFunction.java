@@ -22,23 +22,12 @@ import static java.util.Collections.emptyList;
  */
 public abstract class ScalarFunction extends Function implements ScriptWeaver {
 
-    private ScalarFunctionAttribute lazyAttribute = null;
-
     protected ScalarFunction(Source source) {
         super(source, emptyList());
     }
 
     protected ScalarFunction(Source source, List<Expression> fields) {
         super(source, fields);
-    }
-
-    @Override
-    public final ScalarFunctionAttribute toAttribute() {
-        if (lazyAttribute == null) {
-            lazyAttribute = new ScalarFunctionAttribute(source(), name(), dataType(), id(), functionId(), asScript(), orderBy(),
-                asPipe());
-        }
-        return lazyAttribute;
     }
 
     // used if the function is monotonic and thus does not have to be computed for ordering purposes

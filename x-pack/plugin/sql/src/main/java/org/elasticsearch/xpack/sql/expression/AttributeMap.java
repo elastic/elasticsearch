@@ -32,14 +32,14 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
         @Override
         public int hashCode() {
-            return attr.hashCode();
+            return attr.semanticHash();
         }
 
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof AttributeWrapper) {
                 AttributeWrapper aw = (AttributeWrapper) obj;
-                return attr.equals(aw.attr);
+                return attr.semanticEquals(aw.attr);
             }
 
             return false;
@@ -63,7 +63,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
         @Override
         public Iterator<U> iterator() {
-            return new Iterator<U>() {
+            return new Iterator<>() {
                 final Iterator<W> i = set.iterator();
 
                 @Override
@@ -300,7 +300,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     @Override
     public Set<Attribute> keySet() {
         if (keySet == null) {
-            keySet = new UnwrappingSet<AttributeWrapper, Attribute>(delegate.keySet()) {
+            keySet = new UnwrappingSet<>(delegate.keySet()) {
                 @Override
                 protected Attribute unwrap(AttributeWrapper next) {
                     return next.attr;
@@ -321,10 +321,10 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     @Override
     public Set<Entry<Attribute, E>> entrySet() {
         if (entrySet == null) {
-            entrySet = new UnwrappingSet<Entry<AttributeWrapper, E>, Entry<Attribute, E>>(delegate.entrySet()) {
+            entrySet = new UnwrappingSet<>(delegate.entrySet()) {
                 @Override
                 protected Entry<Attribute, E> unwrap(final Entry<AttributeWrapper, E> next) {
-                    return new Entry<Attribute, E>() {
+                    return new Entry<>() {
                         @Override
                         public Attribute getKey() {
                             return next.getKey().attr;

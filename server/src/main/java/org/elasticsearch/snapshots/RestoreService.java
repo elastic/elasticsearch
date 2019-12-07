@@ -269,7 +269,7 @@ public class RestoreService implements ClusterStateApplier {
                                 if (currentIndexMetaData == null) {
                                     // Index doesn't exist - create it and start recovery
                                     // Make sure that the index we are about to create has a validate name
-                                    MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
+                                    MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState, Collections.emptySet());
                                     createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), false);
                                     IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
                                         .state(IndexMetaData.State.OPEN)

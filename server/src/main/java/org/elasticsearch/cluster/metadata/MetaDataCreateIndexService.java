@@ -46,12 +46,14 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -68,6 +70,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -80,6 +83,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -98,6 +102,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
  */
 public class MetaDataCreateIndexService {
     private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
@@ -110,19 +115,21 @@ public class MetaDataCreateIndexService {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
+    private final Map<String, SystemIndexDescriptor> systemIndexDescriptors;
     private final boolean forbidPrivateIndexSettings;
 
     public MetaDataCreateIndexService(
-            final Settings settings,
-            final ClusterService clusterService,
-            final IndicesService indicesService,
-            final AllocationService allocationService,
-            final AliasValidator aliasValidator,
-            final Environment env,
-            final IndexScopedSettings indexScopedSettings,
-            final ThreadPool threadPool,
-            final NamedXContentRegistry xContentRegistry,
-            final boolean forbidPrivateIndexSettings) {
+        final Settings settings,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final AllocationService allocationService,
+        final AliasValidator aliasValidator,
+        final Environment env,
+        final IndexScopedSettings indexScopedSettings,
+        final ThreadPool threadPool,
+        final NamedXContentRegistry xContentRegistry,
+        final Map<String, SystemIndexDescriptor> systemIndexDescriptors,
+        final boolean forbidPrivateIndexSettings) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -132,16 +139,22 @@ public class MetaDataCreateIndexService {
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
+        this.systemIndexDescriptors = systemIndexDescriptors;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }
 
     /**
      * Validate the name for an index against some static rules and a cluster state.
+     * Set of allowed system index names is *optional* - provide it only if you want to allow certain dot-prefixed names.
      */
-    public static void validateIndexName(String index, ClusterState state) {
+    public static void validateIndexName(String index, ClusterState state, @Nullable final Set<String> allowedSystemIndices) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
+        }
+        if (index.charAt(0) == '.' && (Objects.isNull(allowedSystemIndices) || allowedSystemIndices.contains(index) == false)) {
+            deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, creating indices with " +
+                "names starting with a dot will fail as these names are reserved for system indices", index);
         }
         if (state.routingTable().hasIndex(index)) {
             throw new ResourceAlreadyExistsException(state.routingTable().index(index).getIndex());
@@ -591,7 +604,7 @@ public class MetaDataCreateIndexService {
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
-        validateIndexName(request.index(), state);
+        validateIndexName(request.index(), state, systemIndexDescriptors.keySet());
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 

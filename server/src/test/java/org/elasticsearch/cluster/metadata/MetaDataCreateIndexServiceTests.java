@@ -51,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -423,7 +424,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     private void validateIndexName(String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
             () -> MetaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
-                .getDefault(Settings.EMPTY)).build()));
+                .getDefault(Settings.EMPTY)).build(), Collections.emptySet()));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
 
@@ -486,4 +487,22 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertThat(e, hasToString(containsString(expectedMessage)));
     }
 
+    public void testValidateIndexNameChecksSystemIndexNames() {
+        // Check deprecations
+        MetaDataCreateIndexService.validateIndexName(".test", ClusterState.EMPTY_STATE, null);
+        assertWarnings("index name [.test] starts with a dot '.', in the next major version, creating indices with " +
+            "names starting with a dot will fail as these names are reserved for system indices");
+        MetaDataCreateIndexService.validateIndexName(".test2", ClusterState.EMPTY_STATE, Collections.emptySet());
+        assertWarnings("index name [.test2] starts with a dot '.', in the next major version, creating indices with " +
+            "names starting with a dot will fail as these names are reserved for system indices");
+        MetaDataCreateIndexService.validateIndexName(".test3", ClusterState.EMPTY_STATE,
+            new HashSet<>(Arrays.asList(".test1", ".test2", ".foobar")));
+        assertWarnings("index name [.test3] starts with a dot '.', in the next major version, creating indices with " +
+            "names starting with a dot will fail as these names are reserved for system indices");
+
+        // Check NO deprecation warnings if we give the index name
+        MetaDataCreateIndexService.validateIndexName(".test4", ClusterState.EMPTY_STATE, new HashSet<>(Arrays.asList(".test4")));
+        MetaDataCreateIndexService.validateIndexName(".test5", ClusterState.EMPTY_STATE,
+            new HashSet<>(Arrays.asList(".foo", ".bar", ".baz", ".test5", ".quux")));
+    }
 }

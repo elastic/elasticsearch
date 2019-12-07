@@ -96,7 +96,7 @@ ifeval::["{release-state}"=="unreleased"]
 [NOTE]
 ==================================================
 
-The configured repository is diabled by default. This eliminates the possibility of accidentally
+The configured repository is disabled by default. This eliminates the possibility of accidentally
 upgrading `elasticsearch` when upgrading the rest of the system. Each install or upgrade command
 must explicitly enable the repository as indicated in the sample commands above.
 ==================================================

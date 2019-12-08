@@ -29,7 +29,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -77,7 +76,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -136,19 +134,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.networkService = networkService;
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
-        final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);
-        String[] features;
-        if (defaultFeatures == null) {
-            features = new String[0];
-        } else {
-            defaultFeatures.names().forEach(key -> {
-                if (Booleans.parseBoolean(defaultFeatures.get(key)) == false) {
-                    throw new IllegalArgumentException("feature settings must have default [true] value");
-                }
-            });
-            // use a sorted set to present the features in a consistent order
-            features = new TreeSet<>(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);
-        }
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         this.outboundHandler = new OutboundHandler(nodeName, version, threadPool, bigArrays);

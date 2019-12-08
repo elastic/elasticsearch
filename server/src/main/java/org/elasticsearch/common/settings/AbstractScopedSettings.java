@@ -171,6 +171,15 @@ public abstract class AbstractScopedSettings {
      * @return the unmerged applied settings
     */
     public synchronized Settings applySettings(Settings newSettings) {
+        return applySettings(null, newSettings);
+    }
+
+    /**
+     * @param target the target to be applied newSettings
+     * @param newSettings the settings to apply
+     * @return the unmerged applied settings
+    */
+    public synchronized Settings applySettings(String target, Settings newSettings) {
         if (lastSettingsApplied != null && newSettings.equals(lastSettingsApplied)) {
             // nothing changed in the settings, ignore
             return newSettings;
@@ -181,7 +190,7 @@ public abstract class AbstractScopedSettings {
             List<Runnable> applyRunnables = new ArrayList<>();
             for (SettingUpdater<?> settingUpdater : settingUpdaters) {
                 try {
-                    applyRunnables.add(settingUpdater.updater(current, previous));
+                    applyRunnables.add(settingUpdater.updater(target, current, previous));
                 } catch (Exception ex) {
                     logger.warn(() -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
                     throw ex;
@@ -287,7 +296,7 @@ public abstract class AbstractScopedSettings {
             }
 
             @Override
-            public void apply(Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
+            public void apply(String target, Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
                 for (Map.Entry<String, Tuple<A, B>> entry : values.entrySet()) {
                     consumer.accept(entry.getKey(), entry.getValue());
                 }
@@ -336,7 +345,7 @@ public abstract class AbstractScopedSettings {
             }
 
             @Override
-            public void apply(Map<String, Settings> values, Settings current, Settings previous) {
+            public void apply(String target, Map<String, Settings> values, Settings current, Settings previous) {
                 for (Map.Entry<String, Settings> entry : values.entrySet()) {
                     consumer.accept(entry.getKey(), entry.getValue());
                 }
@@ -584,30 +593,34 @@ public abstract class AbstractScopedSettings {
         /**
          * Applies the given value to the updater. This methods will actually run the update.
          */
-        void apply(T value, Settings current, Settings previous);
+        void apply(String target, T value, Settings current, Settings previous);
 
         /**
          * Updates this updaters value if it has changed.
          * @return <code>true</code> iff the value has been updated.
          */
         default boolean apply(Settings current, Settings previous) {
+            return apply(null, current, previous);
+        }
+
+        default boolean apply(String target, Settings current, Settings previous) {
             if (hasChanged(current, previous)) {
                 T value = getValue(current, previous);
-                apply(value, current, previous);
+                apply(target, value, current, previous);
                 return true;
             }
             return false;
         }
 
         /**
-         * Returns a callable runnable that calls {@link #apply(Object, Settings, Settings)} if the settings
+         * Returns a callable runnable that calls {@link #apply(String, Object, Settings, Settings)} if the settings
          * actually changed. This allows to defer the update to a later point in time while keeping type safety.
          * If the value didn't change the returned runnable is a noop.
          */
-        default Runnable updater(Settings current, Settings previous) {
+        default Runnable updater(String target, Settings current, Settings previous) {
             if (hasChanged(current, previous)) {
                 T value = getValue(current, previous);
-                return () -> { apply(value, current, previous);};
+                return () -> { apply(target, value, current, previous);};
             }
             return () -> {};
         }

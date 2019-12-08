@@ -702,7 +702,7 @@ public final class IndexSettings {
             // nothing to update, same settings
             return false;
         }
-        scopedSettings.applySettings(newSettings);
+        scopedSettings.applySettings(indexMetaData.getIndex().getName(), newSettings);
         this.settings = newIndexSettings;
         return true;
     }

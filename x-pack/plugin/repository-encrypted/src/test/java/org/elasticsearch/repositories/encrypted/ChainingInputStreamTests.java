@@ -21,9 +21,9 @@ public class ChainingInputStreamTests extends ESTestCase {
 
     // test pass through element wise
     // test empty component input stream
-    // test stream ends when receives null
+    // test close
 
-    public void testEmpty() throws Exception {
+    public void testEmptyChain() throws Exception {
         ChainingInputStream emptyStream = newEmptyStream();
         assertThat(emptyStream.read(), Matchers.is(-1));
         emptyStream = newEmptyStream();
@@ -50,6 +50,82 @@ public class ChainingInputStreamTests extends ESTestCase {
         assertThat(test.read(), Matchers.is(-1));
         assertThat(nextCalled.get(), Matchers.is(true));
         assertThat(headInputStream.get(), Matchers.nullValue());
+    }
+
+    public void testChaining() throws Exception {
+        int componentCount = 2 + Randomness.get().nextInt(8);
+        TestInputStream[] sourceComponents = new TestInputStream[componentCount];
+        TestInputStream[] chainComponents = new TestInputStream[componentCount + 2];
+        for (int i = 0; i < sourceComponents.length; i++) {
+            byte[] b = new byte[Randomness.get().nextInt(2)];
+            Randomness.get().nextBytes(b);
+            sourceComponents[i] = new TestInputStream(b);
+        }
+        ChainingInputStream test = new ChainingInputStream() {
+            int i = 0;
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                chainComponents[i] = (TestInputStream) currentComponentIn;
+                if (i < sourceComponents.length) {
+                    return sourceComponents[i++];
+                } else {
+                    i++;
+                    return null;
+                }
+            }
+
+            @Override
+            public boolean markSupported() {
+                return false;
+            }
+        };
+        test.readAllBytes();
+        assertThat(chainComponents[0], Matchers.nullValue());
+        assertThat(chainComponents[chainComponents.length - 1], Matchers.nullValue());
+        for (int i = 0; i < sourceComponents.length; i++) {
+            assertThat(chainComponents[i+1], Matchers.is(sourceComponents[i]));
+            assertThat(chainComponents[i+1].closed.get(), Matchers.is(true));
+        }
+    }
+
+    public void testNullComponentTerminatesChain() throws Exception {
+        TestInputStream[] sourceComponents = new TestInputStream[3];
+        TestInputStream[] chainComponents = new TestInputStream[5];
+        byte[] b1 = new byte[1 + Randomness.get().nextInt(2)];
+        Randomness.get().nextBytes(b1);
+        sourceComponents[0] = new TestInputStream(b1);
+        sourceComponents[1] = null;
+        byte[] b2 = new byte[1 + Randomness.get().nextInt(2)];
+        Randomness.get().nextBytes(b2);
+        sourceComponents[2] = new TestInputStream(b2);
+        ChainingInputStream test = new ChainingInputStream() {
+            int i = 0;
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                chainComponents[i] = (TestInputStream) currentComponentIn;
+                if (i < sourceComponents.length) {
+                    return sourceComponents[i++];
+                } else {
+                    i++;
+                    return null;
+                }
+            }
+
+            @Override
+            public boolean markSupported() {
+                return false;
+            }
+        };
+        byte[] b = test.readAllBytes();
+        assertThat(b.length, Matchers.is(b1.length));
+        for (int i = 0; i < b.length; i++) {
+            Assert.assertThat(b[i], Matchers.is(b1[i]));
+        }
+        assertThat(chainComponents[0], Matchers.nullValue());
+        assertThat(chainComponents[1], Matchers.is(sourceComponents[0]));
+        assertThat(chainComponents[1].closed.get(), Matchers.is(true));
+        assertThat(chainComponents[2], Matchers.nullValue());
+        assertThat(chainComponents[3], Matchers.nullValue());
     }
 
     public void testReadAll() throws Exception {
@@ -88,4 +164,28 @@ public class ChainingInputStreamTests extends ESTestCase {
         };
     }
 
+    static class TestInputStream extends InputStream {
+
+        final byte[] b;
+        int i = 0;
+        final AtomicBoolean closed = new AtomicBoolean(false);
+
+        TestInputStream(byte[] b) {
+            this.b = b;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (b == null || i >= b.length) {
+                return -1;
+            }
+            return b[i++];
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed.set(true);
+        }
+
+    }
 }

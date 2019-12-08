@@ -73,9 +73,9 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
     }
 
     @Override
-    InputStream nextElement(InputStream currentElementIn) throws IOException {
+    InputStream nextComponent(InputStream currentComponentIn) throws IOException {
         // the last packet input stream is the only one shorter than encryptedPacketLength
-        if (currentElementIn != null && ((CountingInputStream) currentElementIn).getCount() < encryptedPacketLength) {
+        if (currentComponentIn != null && ((CountingInputStream) currentComponentIn).getCount() < encryptedPacketLength) {
             // there are no more packets
             return null;
         }

@@ -11,50 +11,61 @@ import java.util.Objects;
 import org.elasticsearch.common.Nullable;
 
 /**
- * A {@code ChainingInputStream} concatenates several input streams into a single one.
+ * A {@code ChainingInputStream} concatenates multiple component input streams into a
+ * single input stream.
  * It starts reading from the first input stream until it's exhausted, whereupon
- * it closes it and starts reading from the next one, until the last component stream is
- * exhausted.
+ * it closes it and starts reading from the next one, until the last component input
+ * stream is exhausted.
  * <p>
- * The implementing subclass must provide the component input streams and describe the
- * chaining order, by implementing the {@link #nextElement(InputStream)} method. This
- * assumes ownership of the component input streams as they are generated. They should
- * not be accessed by any other callers and they will be closed when they are exhausted
- * and before requesting the next one. The previous element instance is passed to the
- * {@code nextElement} method to obtain the next component. This is similar in scope to
- * {@link java.io.SequenceInputStream}.
+ * The implementing subclass provides the component input streams by implementing the
+ * {@link #nextComponent(InputStream)} method. This method receives the instance of the
+ * current input stream, which has been exhausted, and must return the next input stream.
+ * The {@code ChainingInputStream} assumes ownership of the newly generated component input
+ * stream, i.e. they should not be used by other callers and they will be closed when they
+ * are exhausted or when the {@code ChainingInputStream} is closed.
  * <p>
  * This stream does support {@code mark} and {@code reset} but it expects that the component
- * streams also support it. Otherwise the implementing subclass must override
- * {@code markSupported} to return {@code false}.
+ * streams also support it. If the component input streams do not support {@code mark} and
+ * {@code reset}, the implementing subclass must override {@code markSupported} to return
+ * {@code false}.
  * <p>
- * The {@code close} call will close all the element streams that are generated (the same way
- * as if they would be iterated during a read all operation) and any subsequent {@code read},
+ * The {@code close} call will close the current component input stream and any subsequent {@code read},
  * {@code skip}, {@code available} and {@code reset} calls will throw {@code IOException}s.
+ * <p>
+ * The {@code ChainingInputStream} is similar in purpose to the {@link java.io.SequenceInputStream}.
  * <p>
  * This is NOT thread-safe, multiple threads sharing a single instance must synchronize access.
  */
 public abstract class ChainingInputStream extends InputStream {
 
+    /**
+     * value for the current input stream when there are no subsequent streams left, i.e. when
+     * {@link #nextComponent(InputStream)} returns {@code null}
+     */
     private static final InputStream EXHAUSTED_MARKER = InputStream.nullInputStream();
 
     /**
      * The instance of the currently in use component input stream,
-     * i.e. the instance servicing the read and skip calls on the {@code ChainingInputStream}
+     * i.e. the instance currently servicing the read and skip calls on the {@code ChainingInputStream}
      */
     private InputStream currentIn;
     /**
      * The instance of the component input stream at the time of the last {@code mark} call.
      */
     private InputStream markIn;
+    /**
+     * {@code true} if {@link #close()} has been called; any subsequent {@code read}, {@code skip}
+     * {@code available} and {@code reset} calls will throw {@code IOException}s
+     */
     private boolean closed;
 
     /**
-     * This method is passed the current element input stream and must return the successive one,
-     * or {@code null} if the current element is the last one. It is passed the {@code null} value
-     * at the very start, when no element input stream has yet been obtained.
+     * This method is responsible for generating the component input streams.
+     * It is passed the current input stream and must return the successive one,
+     * or {@code null} if the current component is the last one. It is passed the {@code null} value
+     * at the very start, when no component input stream has yet been obtained.
      */
-    abstract @Nullable InputStream nextElement(@Nullable InputStream currentElementIn) throws IOException;
+    abstract @Nullable InputStream nextComponent(@Nullable InputStream currentComponentIn) throws IOException;
 
     @Override
     public int read() throws IOException {
@@ -90,9 +101,12 @@ public abstract class ChainingInputStream extends InputStream {
         if (n <= 0) {
             return 0;
         }
+        if (currentIn == null) {
+            nextIn();
+        }
         long bytesRemaining = n;
         while (bytesRemaining > 0) {
-            long bytesSkipped = currentIn == null ? 0 : currentIn.skip(bytesRemaining);
+            long bytesSkipped = currentIn.skip(bytesRemaining);
             if (bytesSkipped == 0) {
                 int byteRead = read();
                 if (byteRead == -1) {
@@ -110,7 +124,10 @@ public abstract class ChainingInputStream extends InputStream {
     @Override
     public int available() throws IOException {
         ensureOpen();
-        return currentIn == null ? 0 : currentIn.available();
+        if (currentIn == null) {
+            nextIn();
+        }
+        return currentIn.available();
     }
 
     @Override
@@ -120,13 +137,13 @@ public abstract class ChainingInputStream extends InputStream {
 
     @Override
     public void mark(int readlimit) {
-        if (markSupported()) {
+        if (markSupported() && false == closed) {
             // closes any previously stored mark input stream
             if (markIn != null && markIn != EXHAUSTED_MARKER && currentIn != markIn) {
                 try {
                     markIn.close();
                 } catch (IOException e) {
-                    // an IOException on an input stream element is not important
+                    // an IOException on a component input stream close is not important
                 }
             }
             // stores the current input stream to be reused in case of a reset
@@ -159,8 +176,6 @@ public abstract class ChainingInputStream extends InputStream {
             if (markIn != null && markIn != currentIn && markIn != EXHAUSTED_MARKER) {
                 markIn.close();
             }
-            // iterate over the input stream elements and close them
-            while (nextIn()) {}
         }
     }
 
@@ -174,11 +189,11 @@ public abstract class ChainingInputStream extends InputStream {
         if (currentIn == EXHAUSTED_MARKER) {
             return false;
         }
-        // close the current element, but only if it is not saved because of mark
+        // close the current component, but only if it is not saved because of mark
         if (currentIn != null && currentIn != markIn) {
             currentIn.close();
         }
-        currentIn = nextElement(currentIn);
+        currentIn = nextComponent(currentIn);
         if (markSupported() && currentIn != null && false == currentIn.markSupported()) {
             throw new IllegalStateException("Component input stream must support mark");
         }

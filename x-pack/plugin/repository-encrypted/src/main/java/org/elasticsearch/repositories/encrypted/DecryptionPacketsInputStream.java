@@ -57,8 +57,8 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
     }
 
     @Override
-    InputStream nextElement(InputStream currentElementIn) throws IOException {
-        if (currentElementIn != null && currentElementIn.read() != -1) {
+    InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+        if (currentComponentIn != null && currentComponentIn.read() != -1) {
             throw new IllegalStateException("Stream for previous packet has not been fully processed");
         }
         if (false == hasNext) {

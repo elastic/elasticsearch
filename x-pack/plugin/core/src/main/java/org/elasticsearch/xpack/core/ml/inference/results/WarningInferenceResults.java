@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -53,7 +54,7 @@ public class WarningInferenceResults implements InferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String resultField) {
+    public void writeResult(IngestDocument document, String resultField, InferenceConfig inferenceConfig) {
         ExceptionsHelper.requireNonNull(document, "document");
         ExceptionsHelper.requireNonNull(resultField, "resultField");
         document.setFieldValue(resultField, warning);

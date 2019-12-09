@@ -623,8 +623,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         credentials.add(cred);
     }
 
-    @Override
-    public void runElasticsearchBinScriptWithInput(String input, String tool, String... args) {
+    private void runElasticsearchBinScriptWithInput(String input, String tool, String... args) {
         if (
             Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false &&
                 Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false

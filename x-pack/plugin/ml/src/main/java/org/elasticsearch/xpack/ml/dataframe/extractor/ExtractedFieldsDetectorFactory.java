@@ -109,7 +109,7 @@ public class ExtractedFieldsDetectorFactory {
             listener::onFailure
         );
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(config.getSource().getParsedQuery());
         for (Map.Entry<String, Long> entry : fieldCardinalityLimits.entrySet()) {
             String fieldName = entry.getKey();
             Long limit = entry.getValue();

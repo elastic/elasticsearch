@@ -483,5 +483,4 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             return BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject());
         }
     }
-
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.TemplateScript;
 
 import java.io.Reader;
@@ -64,7 +65,12 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * @return a compiled template object for later execution.
      * */
     @Override
-    public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> options) {
+    public <T extends ScriptFactory> T compile(
+        String templateName,
+        String templateSource,
+        ScriptContext<T> context,
+        Map<String, String> options
+    ) {
         if (context.instanceClazz.equals(TemplateScript.class) == false) {
             throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
         }

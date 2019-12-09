@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -173,7 +174,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         assertThat(stats.getFailureReason(), is(nullValue()));
-        assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
+        assertThat("Stats were: " + Strings.toString(stats), stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
     protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {
@@ -202,7 +203,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
             .get();
-        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), arrayWithSize(1));
     }
 
     /**

@@ -124,6 +124,7 @@ public class ConnectionManagerTests extends ESTestCase {
         assertEquals(1, nodeDisconnectedCount.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49903")
     public void testConcurrentConnectsAndDisconnects() throws BrokenBarrierException, InterruptedException {
         DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         Transport.Connection connection = new TestConnect(node);

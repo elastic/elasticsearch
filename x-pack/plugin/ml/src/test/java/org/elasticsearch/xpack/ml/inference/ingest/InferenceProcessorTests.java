@@ -117,7 +117,8 @@ public class InferenceProcessorTests extends ESTestCase {
             new ClassificationConfig(2, "my_top_classes"),
             Collections.emptyMap(),
             "ml.my_processor",
-            true);
+            true,
+            null);
 
         Map<String, Object> source = new HashMap<>();
         Map<String, Object> ingestMetadata = new HashMap<>();

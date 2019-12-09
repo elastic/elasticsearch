@@ -59,7 +59,7 @@ public final class RepositoryData {
     public static final long UNKNOWN_REPO_GEN = -2L;
 
     /**
-     * Generation value indicating that the repository generation could not be determined.
+     * The generation value indicating that the repository generation could not be determined.
      */
     public static final long CORRUPTED_REPO_GEN = -3L;
 

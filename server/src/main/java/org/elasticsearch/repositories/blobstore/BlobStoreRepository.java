@@ -218,11 +218,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final ClusterService clusterService;
 
     /**
-     * While running in a cluster with nodes older than {@link RepositoryMetaData#REPO_GEN_IN_CS_VERSION} in it, finding the latest
-     * repository generation is not done via the cluster state. This flag is set by {@link #updateState} in case this node finds
-     * itself in such a mixed-version cluster containing nodes older than {@link RepositoryMetaData#REPO_GEN_IN_CS_VERSION} to ensure
-     * appropriate backwards compatible logic is used.
-     * TODO: Reword to include read-only repos
+     * This flag indicates that the repository can not exclusively rely on the value stored in {@link #latestKnownRepoGen} to determine the
+     * latest repository generation but must inspect its physical contents as well via {@link #latestIndexBlobId()}.
+     * This flag is set in the following two situations:
+     * <ul>
+     *     <li>All repositories that are read-only, i.e. for which {@link #isReadOnly()} returns {@code true} because there are no
+     *     guarantees that another cluster is not writing to the repository at the same time</li>
+     *     <li>The node finds itself in a mixed-version cluster containing nodes older than
+     *     {@link RepositoryMetaData#REPO_GEN_IN_CS_VERSION} where the master node does not update the value of
+     *     {@link RepositoryMetaData#generation()} when writing a new {@code index-N} blob</li>
+     * </ul>
      */
     private volatile boolean bestEffortConsistency;
 
@@ -303,7 +308,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
             // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
-            // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet exist
+            // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet
+            // exist
             if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && deletionsInProgress != null) {
                 bestGenerationFromCS = bestGeneration(deletionsInProgress.getEntries());
             }
@@ -761,7 +767,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     return allSnapshotIds.contains(foundUUID) == false;
                 } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
-                    return repositoryData.getGenId() >= Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
+                    // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
+                    return repositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
                 }
                 return false;
             }
@@ -1021,17 +1028,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onFailure(corruptedStateException(null));
             return;
         }
-        if (bestEffortConsistency == false) {
-            if (latestKnownRepoGen.get() == RepositoryData.UNKNOWN_REPO_GEN) {
-                initializeRepoInClusterState(ActionListener.wrap(v -> getRepositoryData(listener), listener::onFailure));
-                return;
-            }
+        if (bestEffortConsistency == false && latestKnownRepoGen.get() == RepositoryData.UNKNOWN_REPO_GEN) {
+            initializeRepoInClusterState(ActionListener.wrap(v -> getRepositoryData(listener), listener::onFailure));
+            return;
         }
         threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
             // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
             while (true) {
                 final long genToLoad;
                 if (bestEffortConsistency) {
+                    // We're only using #latestKnownRepoGen as a hint in this mode and listing repo contents as a secondary way of trying
+                    // to find a higher generation
                     final long generation;
                     try {
                         generation = latestIndexBlobId();
@@ -1044,6 +1051,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             + "] from repository contents but correct generation must be at least [" + genToLoad + "]");
                     }
                 } else {
+                    // We only rely on the generation tracked in #latestKnownRepoGen which is exclusively updated from the cluster state
                     genToLoad = latestKnownRepoGen.get();
                 }
                 try {
@@ -1056,6 +1064,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         continue;
                     }
                     if (bestEffortConsistency == false && ExceptionsHelper.unwrap(e, NoSuchFileException.class) != null) {
+                        // We did not find the expected index-N even though the cluster state continues to point at the missing value
+                        // of N so we mark this repository as corrupted.
                         markRepoCorrupted(genToLoad, e,
                             ActionListener.wrap(v -> l.onFailure(corruptedStateException(e)), l::onFailure));
                         return;
@@ -1077,33 +1087,43 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 "the cluster recover the known state of the repository from its physical contents.", cause);
     }
 
+    /**
+     * Marks the repository as corrupted. This puts the repository in a state where its tracked value for
+     * {@link RepositoryMetaData#pendingGeneration()} is unchanged while its value for {@link RepositoryMetaData#generation()} is set to
+     * {@link RepositoryData#CORRUPTED_REPO_GEN}. In this state, the repository can not be used any longer and must be removed and
+     * recreated after the problem that lead to it being marked as corrupted has been fixed.
+     *
+     * @param corruptedGeneration generation that failed to load because the index file was not found but that should have loaded
+     * @param originalException   exception that lead to the failing to load the {@code index-N} blob
+     * @param listener            listener to invoke once done
+     */
     private void markRepoCorrupted(long corruptedGeneration, Exception originalException, ActionListener<Void> listener) {
-        clusterService.submitStateUpdateTask("update_repo_gen", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                final RepositoriesMetaData state = currentState.metaData().custom(RepositoriesMetaData.TYPE);
-                final RepositoryMetaData repoState = state.repository(metadata.name());
-                final long prevGeneration = repoState.generation();
-                if (prevGeneration != corruptedGeneration) {
-                    throw new IllegalStateException("Tried to mark repo generation [" + corruptedGeneration
-                        + "] as corrupted but its state concurrently changed to [" + repoState + "]");
+        clusterService.submitStateUpdateTask("mark repository corrupted [" + metadata.name() + "][" + corruptedGeneration + "]",
+            new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    final RepositoriesMetaData state = currentState.metaData().custom(RepositoriesMetaData.TYPE);
+                    final RepositoryMetaData repoState = state.repository(metadata.name());
+                    if (repoState.generation() != corruptedGeneration) {
+                        throw new IllegalStateException("Tried to mark repo generation [" + corruptedGeneration
+                            + "] as corrupted but its state concurrently changed to [" + repoState + "]");
+                    }
+                    return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData()).putCustom(
+                        RepositoriesMetaData.TYPE, state.withUpdatedGeneration(
+                            metadata.name(), RepositoryData.CORRUPTED_REPO_GEN, repoState.pendingGeneration())).build()).build();
                 }
-                return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData()).putCustom(
-                    RepositoriesMetaData.TYPE, state.withUpdatedGeneration(
-                        metadata.name(), RepositoryData.CORRUPTED_REPO_GEN, repoState.pendingGeneration())).build()).build();
-            }
 
-            @Override
-            public void onFailure(String source, Exception e) {
-                listener.onFailure(new RepositoryException(metadata.name(), "Failed marking repository state as corrupted",
-                    ExceptionsHelper.useOrSuppress(e, originalException)));
-            }
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(new RepositoryException(metadata.name(), "Failed marking repository state as corrupted",
+                        ExceptionsHelper.useOrSuppress(e, originalException)));
+                }
 
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(null);
-            }
-        });
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(null);
+                }
+            });
     }
 
     private RepositoryData getRepositoryData(long indexGen) {

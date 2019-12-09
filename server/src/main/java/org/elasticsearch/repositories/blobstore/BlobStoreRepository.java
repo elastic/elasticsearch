@@ -1034,53 +1034,53 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // cluster state
                 listener.onFailure(new RepositoryException(metadata.name(), "Repository not initialized yet"));
             } else {
-                initializeRepoInClusterState(ActionListener.wrap(v -> getRepositoryData(listener), listener::onFailure));
+                // After initializing the repo in the cluster state we retry loading the latest RepositoryData on the generic pool
+                initializeRepoInClusterState(ActionListener.wrap(v ->
+                    threadPool.generic().execute(ActionRunnable.wrap(listener, this::getRepositoryData)), listener::onFailure));
             }
             return;
         }
-        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
-            // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
-            while (true) {
-                final long genToLoad;
-                if (bestEffortConsistency) {
-                    // We're only using #latestKnownRepoGen as a hint in this mode and listing repo contents as a secondary way of trying
-                    // to find a higher generation
-                    final long generation;
-                    try {
-                        generation = latestIndexBlobId();
-                    } catch (IOException ioe) {
-                        throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
-                    }
-                    genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
-                    if (genToLoad > generation) {
-                        logger.info("Determined repository generation [" + generation
-                            + "] from repository contents but correct generation must be at least [" + genToLoad + "]");
-                    }
-                } else {
-                    // We only rely on the generation tracked in #latestKnownRepoGen which is exclusively updated from the cluster state
-                    genToLoad = latestKnownRepoGen.get();
-                }
+        // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
+        while (true) {
+            final long genToLoad;
+            if (bestEffortConsistency) {
+                // We're only using #latestKnownRepoGen as a hint in this mode and listing repo contents as a secondary way of trying
+                // to find a higher generation
+                final long generation;
                 try {
-                    l.onResponse(getRepositoryData(genToLoad));
+                    generation = latestIndexBlobId();
+                } catch (IOException ioe) {
+                    throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
+                }
+                genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
+                if (genToLoad > generation) {
+                    logger.info("Determined repository generation [" + generation
+                        + "] from repository contents but correct generation must be at least [" + genToLoad + "]");
+                }
+            } else {
+                // We only rely on the generation tracked in #latestKnownRepoGen which is exclusively updated from the cluster state
+                genToLoad = latestKnownRepoGen.get();
+            }
+            try {
+                listener.onResponse(getRepositoryData(genToLoad));
+                return;
+            } catch (RepositoryException e) {
+                if (genToLoad != latestKnownRepoGen.get()) {
+                    logger.warn("Failed to load repository data generation [" + genToLoad +
+                        "] because a concurrent operation moved the current generation to [" + latestKnownRepoGen.get() + "]", e);
+                    continue;
+                }
+                if (bestEffortConsistency == false && ExceptionsHelper.unwrap(e, NoSuchFileException.class) != null) {
+                    // We did not find the expected index-N even though the cluster state continues to point at the missing value
+                    // of N so we mark this repository as corrupted.
+                    markRepoCorrupted(genToLoad, e,
+                        ActionListener.wrap(v -> listener.onFailure(corruptedStateException(e)), listener::onFailure));
                     return;
-                } catch (RepositoryException e) {
-                    if (genToLoad != latestKnownRepoGen.get()) {
-                        logger.warn("Failed to load repository data generation [" + genToLoad +
-                            "] because a concurrent operation moved the current generation to [" + latestKnownRepoGen.get() + "]", e);
-                        continue;
-                    }
-                    if (bestEffortConsistency == false && ExceptionsHelper.unwrap(e, NoSuchFileException.class) != null) {
-                        // We did not find the expected index-N even though the cluster state continues to point at the missing value
-                        // of N so we mark this repository as corrupted.
-                        markRepoCorrupted(genToLoad, e,
-                            ActionListener.wrap(v -> l.onFailure(corruptedStateException(e)), l::onFailure));
-                        return;
-                    } else {
-                        throw e;
-                    }
+                } else {
+                    throw e;
                 }
             }
-        }));
+        }
     }
 
     private RepositoryException corruptedStateException(@Nullable Exception cause) {

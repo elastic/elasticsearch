@@ -61,7 +61,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(clusterState);
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
-        StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+        StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(currentStepKey));
         assertThat(lifecycleState.getPhaseTime(), nullValue());
         assertThat(lifecycleState.getActionTime(), nullValue());

@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -298,6 +299,59 @@ public class SimpleConnectionStrategyTests extends ESTestCase {
                     remoteConnectionManager.getAnyRemoteConnection().close();
 
                     assertTrue(multipleResolveLatch.await(30L, TimeUnit.SECONDS));
+                }
+            }
+        }
+    }
+
+    public void testSimpleStrategyWillNeedToBeRebuiltIfNumOfSocketsOrAddressesChange() {
+        try (MockTransportService transport1 = startTransport("node1", Version.CURRENT);
+             MockTransportService transport2 = startTransport("node2", Version.CURRENT)) {
+            TransportAddress address1 = transport1.boundAddress().publishAddress();
+            TransportAddress address2 = transport2.boundAddress().publishAddress();
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                int numOfConnections = randomIntBetween(4, 8);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SimpleConnectionStrategy strategy = new SimpleConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         numOfConnections, addresses(address1, address2))) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertTrue(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
+                    assertEquals(numOfConnections, connectionManager.size());
+                    assertTrue(strategy.assertNoRunningConnections());
+
+                    Setting<?> modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE
+                        .getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> addressesSetting = SimpleConnectionStrategy.REMOTE_CLUSTER_ADDRESSES
+                        .getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> socketConnections = SimpleConnectionStrategy.REMOTE_SOCKET_CONNECTIONS
+                        .getConcreteSettingForNamespace("cluster-alias");
+
+                    Settings noChange = Settings.builder()
+                        .put(modeSetting.getKey(), "simple")
+                        .put(addressesSetting.getKey(), Strings.arrayToCommaDelimitedString(addresses(address1, address2).toArray()))
+                        .put(socketConnections.getKey(), numOfConnections)
+                        .build();
+                    assertFalse(strategy.shouldRebuildConnection(noChange));
+                    Settings addressesChanged = Settings.builder()
+                        .put(modeSetting.getKey(), "simple")
+                        .put(addressesSetting.getKey(), Strings.arrayToCommaDelimitedString(addresses(address1).toArray()))
+                        .build();
+                    assertTrue(strategy.shouldRebuildConnection(addressesChanged));
+                    Settings socketsChanged = Settings.builder()
+                        .put(modeSetting.getKey(), "simple")
+                        .put(addressesSetting.getKey(), Strings.arrayToCommaDelimitedString(addresses(address1, address2).toArray()))
+                        .put(socketConnections.getKey(), numOfConnections + 1)
+                        .build();
+                    assertTrue(strategy.shouldRebuildConnection(socketsChanged));
                 }
             }
         }

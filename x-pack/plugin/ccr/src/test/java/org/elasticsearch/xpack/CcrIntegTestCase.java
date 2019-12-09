@@ -405,6 +405,14 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+
+    @Before
+    public void setupSourceEnabledOrDisabled() {
+        sourceEnabled = randomBoolean();
+    }
+
+    protected boolean sourceEnabled;
+
     protected String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
                                     final Map<String, String> additionalIndexSettings) throws IOException {
         final String settings;
@@ -435,6 +443,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                             builder.endObject();
                         }
                         builder.endObject();
+                        if (sourceEnabled == false) {
+                            builder.startObject("_source");
+                            builder.field("enabled", false);
+                            builder.endObject();
+                        }
                     }
                     builder.endObject();
                 }

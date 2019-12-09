@@ -487,7 +487,7 @@ public final class SearchPhaseController {
         }
         ReduceContext reduceContext = reduceContextFunction.apply(performFinalReduce);
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null :
-            InternalAggregations.reduce(aggregationsList, reduceContext);
+            InternalAggregations.topLevelReduce(aggregationsList, reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size,
             reducedCompletionSuggestions);
@@ -625,7 +625,7 @@ public final class SearchPhaseController {
             if (index == bufferSize) {
                 if (hasAggs) {
                     ReduceContext reduceContext = controller.reduceContextFunction.apply(false);
-                    InternalAggregations reducedAggs = InternalAggregations.reduce(Arrays.asList(aggsBuffer), reduceContext);
+                    InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Arrays.asList(aggsBuffer), reduceContext);
                     Arrays.fill(aggsBuffer, null);
                     aggsBuffer[0] = reducedAggs;
                 }

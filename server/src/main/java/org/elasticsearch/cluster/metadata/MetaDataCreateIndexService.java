@@ -283,6 +283,24 @@ public class MetaDataCreateIndexService {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
+            return applyCreateIndexRequest(currentState);
+        }
+
+        protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+            MetaDataCreateIndexService.checkShardLimit(settings, clusterState);
+        }
+
+        @Override
+        public void onFailure(String source, Exception e) {
+            if (e instanceof ResourceAlreadyExistsException) {
+                logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+            } else {
+                logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+            }
+            super.onFailure(source, e);
+        }
+
+        private ClusterState applyCreateIndexRequest(ClusterState currentState) throws Exception {
             logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
             Index createdIndex = null;
             String removalExtraInfo = null;
@@ -573,20 +591,6 @@ public class MetaDataCreateIndexService {
                     indicesService.removeIndex(createdIndex, removalReason, removalExtraInfo);
                 }
             }
-        }
-
-        protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
-            MetaDataCreateIndexService.checkShardLimit(settings, clusterState);
-        }
-
-        @Override
-        public void onFailure(String source, Exception e) {
-            if (e instanceof ResourceAlreadyExistsException) {
-                logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
-            } else {
-                logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
-            }
-            super.onFailure(source, e);
         }
     }
 

@@ -116,7 +116,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             }),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope),
-        REMOTE_CLUSTER_SEEDS);
+        () -> REMOTE_CLUSTER_SEEDS);
 
     /**
      * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single

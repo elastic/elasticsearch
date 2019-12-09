@@ -44,6 +44,7 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.TermsSetQueryScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -108,7 +109,12 @@ public class ExpressionScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+    public <T extends ScriptFactory> T compile(
+        String scriptName,
+        String scriptSource,
+        ScriptContext<T> context,
+        Map<String, String> params
+    ) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();

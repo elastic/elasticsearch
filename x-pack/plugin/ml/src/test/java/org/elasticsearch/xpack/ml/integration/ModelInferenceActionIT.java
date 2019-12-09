@@ -134,7 +134,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
 
         // Test classification
-        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(0), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer, ClassificationConfig.EMPTY_PARAMS, true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults()
                 .stream()
@@ -143,7 +143,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             contains("not_to_be", "to_be"));
 
         // Get top classes
-        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2, null), true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults =
@@ -162,7 +162,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         // Test that top classes restrict the number returned
-        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1, null), true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);

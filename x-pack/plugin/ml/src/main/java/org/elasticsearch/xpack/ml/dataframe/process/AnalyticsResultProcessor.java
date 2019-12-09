@@ -37,6 +37,8 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toList;
+
 public class AnalyticsResultProcessor {
 
     private static final Logger LOGGER = LogManager.getLogger(AnalyticsResultProcessor.class);
@@ -166,13 +168,10 @@ public class AnalyticsResultProcessor {
         Instant createTime = Instant.now();
         String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
         TrainedModelDefinition definition = inferenceModel.build();
-        List<String> fieldNamesWithoutDependentVariable = new ArrayList<>(fieldNames.size());
         String dependentVariable = getDependentVariable();
-        for (String fieldName : fieldNames) {
-            if (fieldName.equals(dependentVariable) == false) {
-                fieldNamesWithoutDependentVariable.add(fieldName);
-            }
-        }
+        List<String> fieldNamesWithoutDependentVariable = fieldNames.stream()
+            .filter(f -> f.equals(dependentVariable) == false)
+            .collect(toList());
         return TrainedModelConfig.builder()
             .setModelId(modelId)
             .setCreatedBy("data-frame-analytics")

@@ -22,17 +22,17 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
-public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
+public class GeoTileGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
     @Override
-    protected GeoHashGridAggregationBuilder createTestAggregatorBuilder() {
+    protected GeoTileGridAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAlphaOfLengthBetween(3, 20);
-        GeoHashGridAggregationBuilder factory = new GeoHashGridAggregationBuilder(name);
+        GeoTileGridAggregationBuilder factory = new GeoTileGridAggregationBuilder(name);
         if (randomBoolean()) {
-            int precision = randomIntBetween(1, 12);
-            factory.precision(precision);
+            factory.precision(randomIntBetween(0, GeoTileUtils.MAX_ZOOM));
         }
         if (randomBoolean()) {
             factory.size(randomIntBetween(1, Integer.MAX_VALUE));

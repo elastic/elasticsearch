@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -36,11 +37,13 @@ public class CellIdSource extends ValuesSource.Numeric {
     private final ValuesSource.GeoPoint valuesSource;
     private final int precision;
     private final GeoPointLongEncoder encoder;
+    private final GeoBoundingBox geoBoundingBox;
 
-    public CellIdSource(GeoPoint valuesSource, int precision, GeoPointLongEncoder encoder) {
+    public CellIdSource(GeoPoint valuesSource,int precision, GeoBoundingBox geoBoundingBox, GeoPointLongEncoder encoder) {
         this.valuesSource = valuesSource;
         //different GeoPoints could map to the same or different hashing cells.
         this.precision = precision;
+        this.geoBoundingBox = geoBoundingBox;
         this.encoder = encoder;
     }
 
@@ -55,7 +58,7 @@ public class CellIdSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        return new CellValues(valuesSource.geoPointValues(ctx), precision, encoder);
+        return new CellValues(valuesSource.geoPointValues(ctx), precision, geoBoundingBox, encoder);
     }
 
     @Override
@@ -81,21 +84,28 @@ public class CellIdSource extends ValuesSource.Numeric {
         private MultiGeoPointValues geoValues;
         private int precision;
         private GeoPointLongEncoder encoder;
+        private GeoBoundingBox geoBoundingBox;
 
-        protected CellValues(MultiGeoPointValues geoValues, int precision, GeoPointLongEncoder encoder) {
+        protected CellValues(MultiGeoPointValues geoValues, int precision, GeoBoundingBox geoBoundingBox, GeoPointLongEncoder encoder) {
             this.geoValues = geoValues;
             this.precision = precision;
             this.encoder = encoder;
+            this.geoBoundingBox = geoBoundingBox;
         }
 
         @Override
         public boolean advanceExact(int docId) throws IOException {
             if (geoValues.advanceExact(docId)) {
-                resize(geoValues.docValueCount());
-                for (int i = 0; i < docValueCount(); ++i) {
+                int docValueCount = geoValues.docValueCount();
+                resize(docValueCount);
+                int j = 0;
+                for (int i = 0; i < docValueCount; i++) {
                     org.elasticsearch.common.geo.GeoPoint target = geoValues.nextValue();
-                    values[i] = encoder.encode(target.getLon(), target.getLat(), precision);
+                    if (geoBoundingBox.isUnbounded() || geoBoundingBox.pointInBounds(target.getLon(), target.getLat())) {
+                        values[j++] = encoder.encode(target.getLon(), target.getLat(), precision);
+                    }
                 }
+                resize(j);
                 sort();
                 return true;
             } else {

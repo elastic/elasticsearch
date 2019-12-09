@@ -28,6 +28,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -43,6 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
 
@@ -64,18 +70,18 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     protected abstract GeoGridAggregationBuilder createBuilder(String name);
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, randomPrecision(), iw -> {
-            // Intentionally not writing any docs
-        }, geoGrid -> {
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, randomPrecision(), null, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
+        }, iw -> {
+            // Intentionally not writing any docs
         });
     }
 
     public void testFieldMissing() throws IOException {
-        testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), iw -> {
-            iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
-        }, geoGrid -> {
+        testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), null, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
+        }, iw -> {
+            iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
         });
     }
 
@@ -83,7 +89,13 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         int precision = randomPrecision();
         int numPoints = randomIntBetween(8, 128);
         Map<String, Integer> expectedCountPerGeoHash = new HashMap<>();
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, iw -> {
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, null, geoHashGrid -> {
+            assertEquals(expectedCountPerGeoHash.size(), geoHashGrid.getBuckets().size());
+            for (GeoGrid.Bucket bucket : geoHashGrid.getBuckets()) {
+                assertEquals((long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
+            }
+            assertTrue(AggregationInspectionHelper.hasValue(geoHashGrid));
+        }, iw -> {
             List<LatLonDocValuesField> points = new ArrayList<>();
             Set<String> distinctHashesPerDoc = new HashSet<>();
             for (int pointId = 0; pointId < numPoints; pointId++) {
@@ -112,17 +124,69 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             if (points.size() != 0) {
                 iw.addDocument(points);
             }
-        }, geoHashGrid -> {
-            assertEquals(expectedCountPerGeoHash.size(), geoHashGrid.getBuckets().size());
-            for (GeoGrid.Bucket bucket : geoHashGrid.getBuckets()) {
-                assertEquals((long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
-            }
-            assertTrue(AggregationInspectionHelper.hasValue(geoHashGrid));
         });
     }
 
-    private void testCase(Query query, String field, int precision, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalGeoGrid<T>> verify) throws IOException {
+    public void testBounds() throws IOException {
+        final int numDocs = randomIntBetween(64, 256);
+        final GeoGridAggregationBuilder builder = createBuilder("_name");
+
+        expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
+        expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
+
+        Rectangle rectangle = GeometryTestUtils.randomRectangle();
+
+        int in = 0, out = 0;
+        List<LatLonDocValuesField> docs = new ArrayList<>();
+        while (in + out < numDocs) {
+            if (rectangle.getMinX() > rectangle.getMaxX()) {
+                if (randomBoolean()) {
+                    double lonWithin = randomBoolean() ?
+                        randomDoubleBetween(rectangle.getMinX(), 180.0, true)
+                        : randomDoubleBetween(-180.0, rectangle.getMaxX(), true);
+                    double latWithin = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), true);
+                    in++;
+                    docs.add(new LatLonDocValuesField(FIELD_NAME, latWithin, lonWithin));
+                } else {
+                    double lonOutside = (rectangle.getMinX() + rectangle.getMaxX()) / 2;
+                    double latOutside = rectangle.getMinX() - randomIntBetween(1, 10);
+                    out++;
+                    docs.add(new LatLonDocValuesField(FIELD_NAME, latOutside, lonOutside));
+                }
+
+            } else {
+                if (randomBoolean()) {
+                    double lonWithin = randomDoubleBetween(rectangle.getMinX(), rectangle.getMaxX(), true);
+                    double latWithin = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), true);
+                    in++;
+                    docs.add(new LatLonDocValuesField(FIELD_NAME, latWithin, lonWithin));
+                } else {
+                    double lonOutside = randomDoubleBetween(rectangle.getMaxX(), 180.0, false);
+                    double latOutside = randomDoubleBetween(rectangle.getMaxY(), 90.0, false);
+                    out++;
+                    docs.add(new LatLonDocValuesField(FIELD_NAME, latOutside, lonOutside));
+                }
+            }
+
+        }
+
+        final long numDocsInBucket = in;
+
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, 0, rectangle, geoGrid -> {
+            assertThat(geoGrid.getBuckets().size(), equalTo(1));
+            long docCount = geoGrid.getBuckets().get(0).getDocCount();
+            assertThat(docCount, equalTo(numDocsInBucket));
+            assertTrue(AggregationInspectionHelper.hasValue(geoGrid));
+        }, iw -> {
+            for (LatLonDocValuesField docField : docs) {
+                iw.addDocument(Collections.singletonList(docField));
+            }
+        });
+    }
+
+    private void testCase(Query query, String field, int precision, Rectangle boundingBox,
+                          Consumer<InternalGeoGrid<T>> verify,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -133,6 +197,13 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
 
         GeoGridAggregationBuilder aggregationBuilder = createBuilder("_name").field(field);
         aggregationBuilder.precision(precision);
+        if (boundingBox != null) {
+            GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(boundingBox.getMaxLat(), boundingBox.getMinLon()),
+                new GeoPoint(boundingBox.getMinLat(), boundingBox.getMaxLon()));
+            aggregationBuilder.setGeoBoundingBox(geoBoundingBox);
+            assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
+        }
+
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
         fieldType.setHasDocValues(true);
         fieldType.setName(FIELD_NAME);

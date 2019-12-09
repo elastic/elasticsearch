@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -133,6 +134,34 @@ public class GeoBoundingBoxTests extends ESTestCase {
         }
     }
 
+
+    public void testPointInBounds() {
+        for (int iter = 0; iter < 100; iter++) {
+            Rectangle rectangle = GeometryTestUtils.randomRectangle();
+            GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon()));
+            if (rectangle.getMinX() > rectangle.getMaxX()) {
+                double lonWithin = randomBoolean() ?
+                    randomDoubleBetween(rectangle.getMinX(), 180.0, true)
+                    : randomDoubleBetween(-180.0, rectangle.getMaxX(), true);
+                double latWithin = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), true);
+                double lonOutside = (rectangle.getMinX() + rectangle.getMaxX()) / 2;
+                double latOutside = rectangle.getMinX() - randomIntBetween(1, 10);
+
+                assertTrue(geoBoundingBox.pointInBounds(lonWithin, latWithin));
+                assertFalse(geoBoundingBox.pointInBounds(lonOutside, latOutside));
+            } else {
+                double lonWithin = randomDoubleBetween(rectangle.getMinX(), rectangle.getMaxX(), true);
+                double latWithin = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), true);
+                double lonOutside = randomDoubleBetween(rectangle.getMaxX(), 180.0, false);
+                double latOutside = randomDoubleBetween(rectangle.getMaxY(), 90.0, false);
+
+                assertTrue(geoBoundingBox.pointInBounds(lonWithin, latWithin));
+                assertFalse(geoBoundingBox.pointInBounds(lonOutside, latOutside));
+            }
+        }
+    }
+
     private void assertBBox(GeoBoundingBox expected, XContentBuilder builder) throws IOException {
         try (XContentParser parser = createParser(builder)) {
             parser.nextToken();
@@ -140,7 +169,7 @@ public class GeoBoundingBoxTests extends ESTestCase {
         }
     }
 
-    private GeoBoundingBox randomBBox() {
+    public static GeoBoundingBox randomBBox() {
         double topLat = GeometryTestUtils.randomLat();
         double bottomLat = randomDoubleBetween(GeoUtils.MIN_LAT, topLat, true);
         return new GeoBoundingBox(new GeoPoint(topLat, GeometryTestUtils.randomLon()),

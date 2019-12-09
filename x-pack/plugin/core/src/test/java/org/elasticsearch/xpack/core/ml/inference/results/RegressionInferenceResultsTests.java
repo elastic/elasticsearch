@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 
 import java.util.HashMap;
 
@@ -24,7 +25,7 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
     public void testWriteResults() {
         RegressionInferenceResults result = new RegressionInferenceResults(0.3);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        result.writeResult(document, "result_field", new RegressionConfig());
 
         assertThat(document.getFieldValue("result_field", Double.class), equalTo(0.3));
     }

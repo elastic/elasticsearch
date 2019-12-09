@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -90,13 +92,15 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     }
 
     @Override
-    public void writeResult(IngestDocument document, String resultField) {
+    public void writeResult(IngestDocument document, String resultField, InferenceConfig config) {
+        assert config instanceof ClassificationConfig;
+        ClassificationConfig classificationConfig = (ClassificationConfig)config;
         ExceptionsHelper.requireNonNull(document, "document");
         ExceptionsHelper.requireNonNull(resultField, "resultField");
-        if (topClasses.isEmpty()) {
-            document.setFieldValue(resultField, valueAsString());
-        } else {
-            document.setFieldValue(resultField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
+        document.setFieldValue(resultField, valueAsString());
+        if (topClasses.isEmpty() == false) {
+            document.setFieldValue(classificationConfig.getTopClassesResultsField(),
+                topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
     }
 

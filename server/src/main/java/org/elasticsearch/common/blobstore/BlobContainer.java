@@ -62,14 +62,6 @@ public interface BlobContainer {
         }
     }
 
-    default void readBlob(String blobName, long from, int length, byte[] buffer, int offset) throws IOException {
-        try (InputStream stream = readBlob(blobName)) {
-            stream.skip(from);
-            int read = stream.read(buffer, offset, length);
-            assert read == length;
-        }
-    }
-
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name.
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the

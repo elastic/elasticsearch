@@ -1402,10 +1402,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshot.incrementalSize(), snapshot.totalSize(), null); // Not adding a real generation here as it doesn't matter to callers
     }
 
-    /*public BlobStoreIndexShardSnapshot loadShardSnapshot(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        return loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
-    }*/
-
     @Override
     public void verify(String seed, DiscoveryNode localNode) {
         assertSnapshotOrGenericThread();

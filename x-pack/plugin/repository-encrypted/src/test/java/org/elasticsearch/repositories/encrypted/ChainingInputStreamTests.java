@@ -546,7 +546,7 @@ public class ChainingInputStreamTests extends ESTestCase {
             if (b == null || i >= len) {
                 return -1;
             }
-            return b[i++];
+            return b[i++] & 0xFF;
         }
 
         @Override

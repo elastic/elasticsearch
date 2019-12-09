@@ -87,7 +87,7 @@ public class CountingInputStreamTests extends ESTestCase {
         CountingInputStream test = new CountingInputStream(new ByteArrayInputStream(testArray), randomBoolean());
         assertThat(test.getCount(), Matchers.is(0L));
         assertThat(test.markSupported(), Matchers.is(true));
-        int offset1 = Randomness.get().nextInt(testArray.length);
+        int offset1 = Randomness.get().nextInt(testArray.length - 1);
         if (randomBoolean()) {
             test.skip(offset1);
         } else {
@@ -95,7 +95,7 @@ public class CountingInputStreamTests extends ESTestCase {
         }
         assertThat(test.getCount(), Matchers.is((long)offset1));
         test.mark(testArray.length);
-        int offset2 = Randomness.get().nextInt(testArray.length - offset1);
+        int offset2 = 1 + Randomness.get().nextInt(testArray.length - offset1 - 1);
         if (randomBoolean()) {
             test.skip(offset2);
         } else {
@@ -131,7 +131,7 @@ public class CountingInputStreamTests extends ESTestCase {
         }
         assertThat(test.getCount(), Matchers.is((long)offset1));
         test.mark(testArray.length);
-        int offset2 = Randomness.get().nextInt(testArray.length - offset1);
+        int offset2 = 1 + Randomness.get().nextInt(testArray.length - offset1 - 1);
         if (randomBoolean()) {
             test.skip(offset2);
         } else {

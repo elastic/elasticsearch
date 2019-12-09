@@ -62,6 +62,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
         this.time = time;
     }
 
+    @SuppressWarnings("unchecked")
     public RolloverInfo(StreamInput in) throws IOException {
         this.alias = in.readString();
         this.time = in.readVLong();

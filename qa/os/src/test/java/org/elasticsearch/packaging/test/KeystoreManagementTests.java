@@ -101,7 +101,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeTrue("RPMs and Debs install a keystore file", distribution.isArchive());
         rmKeystoreIfExists();
 
-        awaitElasticsearchStartup(startElasticsearch());
+        startElasticsearch();
         stopElasticsearch();
 
         Platforms.onWindows(() -> sh.chown(installation.config("elasticsearch.keystore")));
@@ -206,7 +206,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             (password + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
             StandardOpenOption.WRITE);
 
-        awaitElasticsearchStartup(startElasticsearch());
+        startElasticsearch();
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
 
@@ -243,7 +243,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             ("wrongpassword" + System.lineSeparator()).getBytes(StandardCharsets.UTF_8),
             StandardOpenOption.WRITE);
 
-        Shell.Result result = startElasticsearch();
+        Shell.Result result = runElasticsearchStartCommand();
         assertElasticsearchFailure(result, PASSWORD_ERROR_MESSAGE);
 
         distribution().packagingConditional()

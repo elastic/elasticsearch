@@ -268,7 +268,10 @@ public class Packages {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
     }
 
-    public static Shell.Result startElasticsearch(Shell sh) throws IOException {
+    /**
+     * Starts Elasticsearch, without checking that startup is successful.
+     */
+    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
@@ -276,21 +279,6 @@ public class Packages {
             return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
         }
         return sh.runIgnoreExitCode("service elasticsearch start");
-    }
-
-    /**
-     * Starts Elasticsearch, without checking that startup is successful. To also check
-     * that Elasticsearch has started, call {@link #startElasticsearch(Shell)}.
-     */
-    public static void startElasticsearchIgnoringFailure(Shell sh) {
-        if (isSystemd()) {
-            sh.runIgnoreExitCode("systemctl daemon-reload");
-            sh.runIgnoreExitCode("systemctl enable elasticsearch.service");
-            sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service");
-            sh.runIgnoreExitCode("systemctl start elasticsearch.service");
-        } else {
-            sh.runIgnoreExitCode("service elasticsearch start");
-        }
     }
 
     /**
@@ -337,11 +325,12 @@ public class Packages {
         }
     }
 
-    public static Shell.Result restartElasticsearch(Shell sh) throws IOException {
+    public static void restartElasticsearch(Shell sh, Installation installation) throws IOException {
         if (isSystemd()) {
-            return sh.run("systemctl restart elasticsearch.service");
+            sh.run("systemctl restart elasticsearch.service");
         } else {
-            return sh.run("service elasticsearch restart");
+            sh.run("service elasticsearch restart");
         }
+        assertElasticsearchStarted(sh, installation);
     }
 }

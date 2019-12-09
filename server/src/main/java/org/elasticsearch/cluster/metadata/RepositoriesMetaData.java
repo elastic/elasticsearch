@@ -24,12 +24,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,6 +47,12 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
 
     public static final String TYPE = "repositories";
 
+    /**
+     * Serialization parameter used to hide the {@link RepositoryMetaData#generation()} and {@link RepositoryMetaData#pendingGeneration()}
+     * in {@link org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
+     */
+    public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
+
     private final List<RepositoryMetaData> repositories;
 
     /**
@@ -53,6 +62,30 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      */
     public RepositoriesMetaData(List<RepositoryMetaData> repositories) {
         this.repositories = Collections.unmodifiableList(repositories);
+    }
+
+    /**
+     * Creates a new instance that has the given repository moved to the given {@code safeGeneration} and {@code pendingGeneration}.
+     *
+     * @param repoName          repository name
+     * @param safeGeneration    new safe generation
+     * @param pendingGeneration new pending generation
+     * @return new instance with updated generations
+     */
+    public RepositoriesMetaData withUpdatedGeneration(String repoName, long safeGeneration, long pendingGeneration) {
+        int indexOfRepo = -1;
+        for (int i = 0; i < repositories.size(); i++) {
+            if (repositories.get(i).name().equals(repoName)) {
+                indexOfRepo = i;
+                break;
+            }
+        }
+        if (indexOfRepo < 0) {
+            throw new IllegalArgumentException("Unknown repository [" + repoName + "]");
+        }
+        final List<RepositoryMetaData> updatedRepos = new ArrayList<>(repositories);
+        updatedRepos.set(indexOfRepo, new RepositoryMetaData(repositories.get(indexOfRepo), safeGeneration, pendingGeneration));
+        return new RepositoriesMetaData(updatedRepos);
     }
 
     /**
@@ -87,7 +120,29 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
         RepositoriesMetaData that = (RepositoriesMetaData) o;
 
         return repositories.equals(that.repositories);
+    }
 
+    /**
+     * Checks if this instance and the given instance share the same repositories by checking that this instances' repositories and the
+     * repositories in {@code other} are equal or only differ in their values of {@link RepositoryMetaData#generation()} and
+     * {@link RepositoryMetaData#pendingGeneration()}.
+     *
+     * @param other other repositories metadata
+     * @return {@code true} iff both instances contain the same repositories apart from differences in generations
+     */
+    public boolean equalsIgnoreGenerations(@Nullable RepositoriesMetaData other) {
+        if (other == null) {
+            return false;
+        }
+        if (other.repositories.size() != repositories.size()) {
+            return false;
+        }
+        for (int i = 0; i < repositories.size(); i++) {
+            if (repositories.get(i).equalsIgnoreGenerations(other.repositories.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -142,6 +197,8 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                 }
                 String type = null;
                 Settings settings = Settings.EMPTY;
+                long generation = RepositoryData.UNKNOWN_REPO_GEN;
+                long pendingGeneration = RepositoryData.EMPTY_REPO_GEN;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         String currentFieldName = parser.currentName();
@@ -155,6 +212,16 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                                 throw new ElasticsearchParseException("failed to parse repository [{}], incompatible params", name);
                             }
                             settings = Settings.fromXContent(parser);
+                        } else if ("generation".equals(currentFieldName)) {
+                            if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
+                                throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
+                            }
+                            generation = parser.longValue();
+                        } else if ("pending_generation".equals(currentFieldName)) {
+                            if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
+                                throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
+                            }
+                            pendingGeneration = parser.longValue();
                         } else {
                             throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]",
                                 name, currentFieldName);
@@ -166,7 +233,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                 if (type == null) {
                     throw new ElasticsearchParseException("failed to parse repository [{}], missing repository type", name);
                 }
-                repository.add(new RepositoryMetaData(name, type, settings));
+                repository.add(new RepositoryMetaData(name, type, settings, generation, pendingGeneration));
             } else {
                 throw new ElasticsearchParseException("failed to parse repositories");
             }
@@ -204,6 +271,15 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
         repository.settings().toXContent(builder, params);
         builder.endObject();
 
+        if (params.paramAsBoolean(HIDE_GENERATIONS_PARAM, false) == false) {
+            builder.field("generation", repository.generation());
+            builder.field("pending_generation", repository.pendingGeneration());
+        }
         builder.endObject();
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

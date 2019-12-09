@@ -54,18 +54,18 @@ POST _transform/_preview
 ----------------------------------
 // TEST[skip:setup kibana sample data]
 
-<1> This is the destination index for the {dataframe}. It is ignored by 
+<1> This is the destination index for the {transform}. It is ignored by
 `_preview`.
-<2> Two `group_by` fields have been selected. This means the {dataframe} will 
-contain a unique row per `user` and `customer_id` combination. Within this 
-dataset both these fields are unique. By including both in the {dataframe} it 
+<2> Two `group_by` fields have been selected. This means the {transform} will
+contain a unique row per `user` and `customer_id` combination. Within this
+dataset both these fields are unique. By including both in the {transform} it
 gives more context to the final results.
 
 NOTE: In the example above, condensed JSON formatting has been used for easier 
 readability of the pivot object.
 
-The preview {transforms} API enables you to see the layout of the 
-{dataframe} in advance, populated with some sample values. For example:
+The preview {transforms} API enables you to see the layout of the
+{transform} in advance, populated with some sample values. For example:
 
 [source,js]
 ----------------------------------
@@ -86,7 +86,7 @@ The preview {transforms} API enables you to see the layout of the
 ----------------------------------
 // NOTCONSOLE
 
-This {dataframe} makes it easier to answer questions such as:
+This {transform} makes it easier to answer questions such as:
 
 * Which customers spend the most?
 
@@ -154,7 +154,7 @@ POST _transform/_preview
 // TEST[skip:setup kibana sample data]
 
 <1> Filter the source data to select only flights that were not cancelled.
-<2> This is the destination index for the {dataframe}. It is ignored by 
+<2> This is the destination index for the {transform}. It is ignored by
 `_preview`.
 <3> The data is grouped by the `Carrier` field which contains the airline name.
 <4> This `bucket_script` performs calculations on the results that are returned 
@@ -181,7 +181,7 @@ carrier:
 ----------------------------------
 // NOTCONSOLE
 
-This {dataframe} makes it easier to answer questions such as:
+This {transform} makes it easier to answer questions such as:
 
 * Which air carrier has the most delays as a percentage of flight time?
 
@@ -207,21 +207,20 @@ entity is `clientip`.
 
 [source,console]
 ----------------------------------
-POST _transform/_preview
+PUT _transform/suspicious_client_ips
 {
   "source": {
-    "index": "kibana_sample_data_logs",
-    "query": { <1>
-      "range" : {
-        "timestamp" : {
-          "gte" : "now-30d/d"
-        }
-      }
+    "index": "kibana_sample_data_logs"
+  },
+  "dest" : { <1>
+    "index" : "sample_weblogs_by_clientip"
+  },
+  "sync" : { <2>
+    "time": {
+      "field": "timestamp",
+      "delay": "60s"
     }
   },
-  "dest" : { <2>
-    "index" : "sample_weblogs_by_clientip"
-  },  
   "pivot": {
     "group_by": {  <3>
       "clientip": { "terms": { "field": "clientip" } }
@@ -275,58 +274,82 @@ POST _transform/_preview
 ----------------------------------
 // TEST[skip:setup kibana sample data]
 
-<1> This range query limits the {transform} to documents that are within the 
-last 30 days at the point in time the {transform} checkpoint is processed. For 
-batch {transforms} this occurs once.
-<2> This is the destination index for the {dataframe}. It is ignored by 
-`_preview`.
-<3> The data is grouped by the `clientip` field. 
-<4> This `scripted_metric` performs a distributed operation on the web log data 
+<1> This is the destination index for the {transform}.
+<2> Configures the {transform} to run continuously. It uses the `timestamp` field
+to synchronize the source and destination indices. The worst case
+ingestion delay is 60 seconds.
+<3> The data is grouped by the `clientip` field.
+<4> This `scripted_metric` performs a distributed operation on the web log data
 to count specific types of HTTP responses (error, success, and other).
-<5> This `bucket_script` calculates the duration of the `clientip` access based 
+<5> This `bucket_script` calculates the duration of the `clientip` access based
 on the results of the aggregation.
 
-The preview shows you that the new index would contain data like this for each 
-client IP:
+After you create the {transform}, you must start it:
+
+[source,console]
+----------------------------------
+POST _transform/suspicious_client_ips/_start
+----------------------------------
+// TEST[skip:setup kibana sample data]
+
+Shortly thereafter, the first results should be available in the destination
+index:
+
+[source,console]
+----------------------------------
+GET sample_weblogs_by_clientip/_search
+----------------------------------
+// TEST[skip:setup kibana sample data]
+
+The search result shows you data like this for each client IP:
 
 [source,js]
 ----------------------------------
-{
-  "preview" : [
-    {
-      "geo" : {
-        "src_dc" : 12.0,
-        "dest_dc" : 9.0
-      },
-      "clientip" : "0.72.176.46",
-      "agent_dc" : 3.0,
-      "responses" : {
-        "total" : 14.0,
-        "counts" : {
-          "other" : 0,
-          "success" : 14,
-          "error" : 0
+    "hits" : [
+      {
+        "_index" : "sample_weblogs_by_clientip",
+        "_id" : "MOeHH_cUL5urmartKj-b5UQAAAAAAAAA",
+        "_score" : 1.0,
+        "_source" : {
+          "geo" : {
+            "src_dc" : 2.0,
+            "dest_dc" : 2.0
+          },
+          "clientip" : "0.72.176.46",
+          "agent_dc" : 2.0,
+          "bytes_sum" : 4422.0,
+          "responses" : {
+            "total" : 2.0,
+            "counts" : {
+              "other" : 0,
+              "success" : 2,
+              "error" : 0
+            }
+          },
+          "url_dc" : 2.0,
+          "timestamp" : {
+            "duration_ms" : 5.2191698E8,
+            "min" : "2019-11-25T07:51:57.333Z",
+            "max" : "2019-12-01T08:50:34.313Z"
+          }
         }
-      },
-      "bytes_sum" : 74808.0,
-      "timestamp" : {
-        "duration_ms" : 4.919943239E9,
-        "min" : "2019-06-17T07:51:57.333Z",
-        "max" : "2019-08-13T06:31:00.572Z"
-      },
-      "url_dc" : 11.0
-    },
-    ...
-  }
-----------------------------------  
+      }
+    ]
+----------------------------------
 // NOTCONSOLE
 
-This {dataframe} makes it easier to answer questions such as:
+NOTE: Like other Kibana sample data sets, the web log sample dataset contains
+timestamps relative to when you installed it, including timestamps in the future.
+The {ctransform} will pick up the data points once they are in the past. If you 
+installed the web log sample dataset some time ago, you can uninstall and 
+reinstall it and the timestamps will change.
+
+This {transform} makes it easier to answer questions such as:
 
 * Which client IPs are transferring the most amounts of data?
 
 * Which client IPs are interacting with a high number of different URLs?
-  
+
 * Which client IPs have high error rates?
-  
+
 * Which client IPs are interacting with a high number of destination countries?

@@ -65,7 +65,7 @@ public class Archives {
 
     /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
-    private static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
+    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
 
     public static Installation installArchive(Distribution distribution) throws Exception {
         return installArchive(distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
@@ -247,7 +247,7 @@ public class Archives {
     }
 
     public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
-        return startElasticsearch(installation, sh, "");
+        return runElasticsearchStartCommand(installation, sh, "");
     }
 
     public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword) throws Exception {
@@ -267,7 +267,7 @@ public class Archives {
         return sh.runIgnoreExitCode(script);
     }
 
-    public static Shell.Result startElasticsearch(Installation installation, Shell sh, String keystorePassword) {
+    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh, String keystorePassword) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         assertFalse("Pid file doesn't exist when starting Elasticsearch", Files.exists(pidFile));
@@ -336,7 +336,7 @@ public class Archives {
             );
     }
 
-    public static void assertElasticsearchStarted(Installation installation, Shell sh) throws Exception {
+    public static void assertElasticsearchStarted(Installation installation) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         ServerUtils.waitForElasticsearch(installation);
 
@@ -345,12 +345,13 @@ public class Archives {
         assertThat(pid, is(not(emptyOrNullString())));
     }
 
-    public static void stopElasticsearch(Installation installation, Shell sh) throws Exception {
+    public static void stopElasticsearch(Installation installation) throws Exception {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
         assertTrue("pid file should exist", Files.exists(pidFile));
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
 
+        final Shell sh = new Shell();
         Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + "; tail --pid=" + pid + " -f /dev/null"));
         Platforms.onWindows(() -> {
             sh.run("Get-Process -Id " + pid + " | Stop-Process -Force; Wait-Process -Id " + pid);

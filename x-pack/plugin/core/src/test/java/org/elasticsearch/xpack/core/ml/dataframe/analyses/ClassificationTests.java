@@ -8,11 +8,20 @@ package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -113,6 +122,34 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         // training_percent == null, default applied
         classification = new Classification("foo", BOOSTED_TREE_PARAMS, "result", 3, null);
         assertThat(classification.getTrainingPercent(), equalTo(100.0));
+    }
+
+    public void testGetParams() {
+        Map<String, Set<String>> extractedFields = new HashMap<>(3);
+        extractedFields.put("foo", Collections.singleton(BooleanFieldMapper.CONTENT_TYPE));
+        extractedFields.put("bar", Collections.singleton(NumberFieldMapper.NumberType.LONG.typeName()));
+        extractedFields.put("baz", Collections.singleton(KeywordFieldMapper.CONTENT_TYPE));
+        assertThat(
+            new Classification("foo").getParams(extractedFields),
+            Matchers.<Map<String, Object>>allOf(
+                hasEntry("dependent_variable", "foo"),
+                hasEntry("num_top_classes", 2),
+                hasEntry("prediction_field_name", "foo_prediction"),
+                hasEntry("prediction_field_type", "bool")));
+        assertThat(
+            new Classification("bar").getParams(extractedFields),
+            Matchers.<Map<String, Object>>allOf(
+                hasEntry("dependent_variable", "bar"),
+                hasEntry("num_top_classes", 2),
+                hasEntry("prediction_field_name", "bar_prediction"),
+                hasEntry("prediction_field_type", "int")));
+        assertThat(
+            new Classification("baz").getParams(extractedFields),
+            Matchers.<Map<String, Object>>allOf(
+                hasEntry("dependent_variable", "baz"),
+                hasEntry("num_top_classes", 2),
+                hasEntry("prediction_field_name", "baz_prediction"),
+                hasEntry("prediction_field_type", "string")));
     }
 
     public void testFieldCardinalityLimitsIsNonNull() {

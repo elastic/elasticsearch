@@ -68,6 +68,12 @@ public class Classification implements DataFrameAnalysis {
                 .collect(Collectors.toSet()));
 
     /**
+     * Name of the parameter passed down to C++.
+     * This parameter is used to decide which JSON data type from {string, int, bool} to use when writing the prediction.
+     */
+    private static final String PREDICTION_FIELD_TYPE = "prediction_field_type";
+
+    /**
      * As long as we only support binary classification it makes sense to always report both classes with their probabilities.
      * This way the user can see if the prediction was made with confidence they need.
      */
@@ -154,7 +160,7 @@ public class Classification implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getParams() {
+    public Map<String, Object> getParams(Map<String, Set<String>> extractedFields) {
         Map<String, Object> params = new HashMap<>();
         params.put(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
         params.putAll(boostedTreeParams.getParams());
@@ -162,7 +168,28 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
+        String predictionFieldType = getPredictionFieldType(extractedFields.get(dependentVariable));
+        if (predictionFieldType != null) {
+            params.put(PREDICTION_FIELD_TYPE, predictionFieldType);
+        }
         return params;
+    }
+
+    private static String getPredictionFieldType(Set<String> dependentVariableTypes) {
+        if (dependentVariableTypes == null) {
+            return null;
+        }
+        if (Types.categorical().containsAll(dependentVariableTypes)) {
+            return "string";
+        }
+        if (Types.bool().containsAll(dependentVariableTypes)) {
+            return "bool";
+        }
+        if (Types.discreteNumerical().containsAll(dependentVariableTypes)) {
+            // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
+            return "int";
+        }
+        return null;
     }
 
     @Override

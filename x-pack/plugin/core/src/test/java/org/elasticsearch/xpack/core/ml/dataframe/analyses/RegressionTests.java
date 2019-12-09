@@ -12,7 +12,9 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -81,6 +83,12 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         // training_percent == null, default applied
         regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", null);
         assertThat(regression.getTrainingPercent(), equalTo(100.0));
+    }
+
+    public void testGetParams() {
+        assertThat(
+            new Regression("foo").getParams(null),
+            allOf(hasEntry("dependent_variable", "foo"), hasEntry("prediction_field_name", "foo_prediction")));
     }
 
     public void testFieldCardinalityLimitsIsNonNull() {

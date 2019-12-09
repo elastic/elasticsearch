@@ -26,7 +26,8 @@ information, see <<security-privileges>> and <<built-in-roles>>.
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (Required, string) Identifier for the {dfanalytics-job} you want to delete.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 [[ml-delete-dfanalytics-example]]
 ==== {api-examples-title}

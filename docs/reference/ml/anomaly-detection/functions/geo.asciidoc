@@ -25,8 +25,8 @@ This function supports the following properties:
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
 
-For more information about those properties,
-see {ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
+For more information about those properties, see the
+{ref}/ml-put-job.html#ml-put-job-request-body[create {anomaly-jobs} API].
 
 .Example 1: Analyzing transactions with the lat_long function
 [source,console]

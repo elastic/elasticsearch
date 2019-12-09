@@ -313,7 +313,7 @@ public class Archives {
             );
     }
 
-    public static void assertElasticsearchStarted(Installation installation, Shell sh) throws Exception {
+    public static void assertElasticsearchStarted(Installation installation) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         ServerUtils.waitForElasticsearch(installation);
 

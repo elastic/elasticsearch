@@ -141,6 +141,9 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER:
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation, distribution);
+                break;
+            default:
+                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }
 
@@ -203,25 +206,47 @@ public abstract class PackagingTestCase extends Assert {
                 return Packages.runElasticsearchStartCommand(sh);
             case DOCKER:
                 // nothing, "installing" docker image is running it
+                return Shell.NO_OP;
+            default:
+                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
-        return Shell.NO_OP;
     }
 
     public void stopElasticsearch() throws Exception {
-        distribution().packagingConditional()
-            .forPackage(() -> Packages.stopElasticsearch(sh))
-            .forArchive(() -> Archives.stopElasticsearch(installation))
-            .forDocker(/* TODO */ Platforms.NO_ACTION)
-            .run();
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                Archives.stopElasticsearch(installation);
+                break;
+            case DEB:
+            case RPM:
+                Packages.stopElasticsearch(sh);
+                break;
+            case DOCKER:
+                // nothing, "installing" docker image is running it
+                break;
+            default:
+                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+        }
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
         assertThat("Startup command should succeed", result.exitCode, equalTo(0));
-        distribution().packagingConditional()
-            .forPackage(() -> Packages.assertElasticsearchStarted(sh, installation))
-            .forArchive(() -> Archives.assertElasticsearchStarted(installation, sh))
-            .forDocker(Docker::waitForElasticsearchToStart)
-            .run();
+        switch (distribution.packaging) {
+            case TAR:
+            case ZIP:
+                Archives.assertElasticsearchStarted(installation);
+                break;
+            case DEB:
+            case RPM:
+                Packages.assertElasticsearchStarted(sh, installation);
+                break;
+            case DOCKER:
+                Docker.waitForElasticsearchToStart();
+                break;
+            default:
+                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+        }
     }
 
     /**

@@ -148,20 +148,8 @@ public class InferenceIngestIT extends MlNativeAutodetectIntegTestCase {
             "      {\n" +
             "        \"inference\": {\n" +
             "          \"target_field\": \"result_class\",\n" +
-            "          \"inference_config\": {\"classification\":{}},\n" +
-            "          \"model_id\": \"test_classification\",\n" +
-            "          \"field_mappings\": {\n" +
-            "            \"col1\": \"col1\",\n" +
-            "            \"col2\": \"col2\",\n" +
-            "            \"col3\": \"col3\",\n" +
-            "            \"col4\": \"col4\"\n" +
-            "          }\n" +
-            "        }\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"inference\": {\n" +
-            "          \"target_field\": \"result_class_prob\",\n" +
-            "          \"inference_config\": {\"classification\": {\"num_top_classes\":2}},\n" +
+            "          \"inference_config\": {\"classification\": " +
+            "                {\"num_top_classes\":2, \"top_classes_result_field\": \"result_class_prob\"}},\n" +
             "          \"model_id\": \"test_classification\",\n" +
             "          \"field_mappings\": {\n" +
             "            \"col1\": \"col1\",\n" +

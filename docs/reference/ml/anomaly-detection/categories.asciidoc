@@ -144,7 +144,39 @@ language.
 The optional `categorization_analyzer` property allows even greater customization
 of how categorization interprets the categorization field value. It can refer to
 a built-in {es} analyzer or a combination of zero or more character filters,
-a tokenizer, and zero or more token filters.
+a tokenizer, and zero or more token filters. If you omit the
+`categorization_analyzer`, the following default values are used:
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/_validate
+{
+  "analysis_config" : {
+    "categorization_analyzer" : {
+      "tokenizer" : "ml_classic",
+      "filter" : [
+        { "type" : "stop", "stopwords": [
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+          "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+          "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+          "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+          "GMT", "UTC"
+        ] }
+      ]
+    },
+    "categorization_field_name": "message",
+    "detectors" :[{
+      "function":"count",
+      "by_field_name": "mlcategory"
+    }]
+  },
+  "data_description" : {
+  }
+}
+--------------------------------------------------
+
+If you specify any part of the `categorization_analyzer`, however, any omitted
+sub-properties are _not_ set to default values.
 
 The `ml_classic` tokenizer and the day and month stopword filter are more or less
 equivalent to the following analyzer, which is defined using only built-in {es}
@@ -208,8 +240,22 @@ difference in behavior is that this custom analyzer does not include accented
 letters in tokens whereas the `ml_classic` tokenizer does, although that could
 be fixed by using more complex regular expressions.
 
-For more information about the `categorization_analyzer` property, see
-{ref}/ml-job-resource.html#ml-categorizationanalyzer[Categorization analyzer].
+If you are categorizing non-English messages in a language where words are
+separated by spaces, you might get better results if you change the day or month
+words in the stop token filter to the appropriate words in your language. If you
+are categorizing messages in a language where words are not separated by spaces,
+you must use a different tokenizer as well in order to get sensible
+categorization results.
+
+It is important to be aware that analyzing for categorization of machine
+generated log messages is a little different from tokenizing for search.
+Features that work well for search, such as stemming, synonym substitution, and
+lowercasing are likely to make the results of categorization worse. However, in
+order for drill down from {ml} results to work correctly, the tokens that the
+categorization analyzer produces must be similar to those produced by the search
+analyzer. If they are sufficiently similar, when you search for the tokens that
+the categorization analyzer produces then you find the original document that
+the categorization field value came from.
 
 NOTE: To add the `categorization_analyzer` property in {kib}, you must use the
 **Edit JSON** tab and copy the `categorization_analyzer` object from one of the

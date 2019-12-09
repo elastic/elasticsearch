@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,7 +38,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
     public void testWriteResultsWithClassificationLabel() {
         ClassificationInferenceResults result = new ClassificationInferenceResults(1.0, "foo", Collections.emptyList());
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        result.writeResult(document, "result_field", ClassificationConfig.EMPTY_PARAMS);
 
         assertThat(document.getFieldValue("result_field", String.class), equalTo("foo"));
     }
@@ -45,7 +46,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
     public void testWriteResultsWithoutClassificationLabel() {
         ClassificationInferenceResults result = new ClassificationInferenceResults(1.0, null, Collections.emptyList());
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        result.writeResult(document, "result_field", ClassificationConfig.EMPTY_PARAMS);
 
         assertThat(document.getFieldValue("result_field", String.class), equalTo("1.0"));
     }
@@ -60,15 +61,17 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             "foo",
             entries);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        result.writeResult(document, "result_field", new ClassificationConfig(3, "bar"));
 
-        List<?> list = document.getFieldValue("result_field", List.class);
+        List<?> list = document.getFieldValue("bar", List.class);
         assertThat(list.size(), equalTo(3));
 
         for(int i = 0; i < 3; i++) {
             Map<String, Object> map = (Map<String, Object>)list.get(i);
             assertThat(map, equalTo(entries.get(i).asValueMap()));
         }
+
+        assertThat(document.getFieldValue("result_field", String.class), equalTo("foo"));
     }
 
     @Override

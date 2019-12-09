@@ -128,6 +128,11 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
     @Override
     public String toString() {
-        return nodeName() + "[" + propertiesToString(false) + "]";
+        return sourceText();
+    }
+
+    @Override
+    public String propertiesToString(boolean skipIfChild) {
+        return super.propertiesToString(false);
     }
 }

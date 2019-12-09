@@ -96,7 +96,7 @@ public abstract class PackagingTestCase extends Assert {
     };
 
     // a shell to run system commands with
-    protected Shell sh;
+    protected static Shell sh;
 
     @Rule
     public final TestName testNameRule = new TestName();
@@ -112,11 +112,16 @@ public abstract class PackagingTestCase extends Assert {
         cleanEverything();
     }
 
+    @BeforeClass
+    public static void createShell() throws Exception {
+        sh = newShell();
+    }
+
     @Before
     public void setup() throws Exception {
         assumeFalse(failed); // skip rest of tests once one fails
 
-        sh = newShell();
+        sh.reset();
     }
 
     /** The {@link Distribution} that should be tested in this case */
@@ -195,7 +200,7 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
-    protected static Shell newShell() throws Exception {
+    static Shell newShell() throws Exception {
         Shell sh = new Shell();
         if (distribution().hasJdk == false) {
             Platforms.onLinux(() -> {

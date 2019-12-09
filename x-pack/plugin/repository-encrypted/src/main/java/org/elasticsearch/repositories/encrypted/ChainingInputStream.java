@@ -48,7 +48,7 @@ public abstract class ChainingInputStream extends InputStream {
      * The instance of the currently in use component input stream,
      * i.e. the instance currently servicing the read and skip calls on the {@code ChainingInputStream}
      */
-    private InputStream currentIn;
+    protected InputStream currentIn; // protected for tests
     /**
      * The instance of the component input stream at the time of the last {@code mark} call.
      */
@@ -156,10 +156,10 @@ public abstract class ChainingInputStream extends InputStream {
 
     @Override
     public void reset() throws IOException {
+        ensureOpen();
         if (false == markSupported()) {
             throw new IOException("Mark/reset not supported");
         }
-        ensureOpen();
         currentIn = markIn;
         if (currentIn != null && currentIn != EXHAUSTED_MARKER) {
             currentIn.reset();

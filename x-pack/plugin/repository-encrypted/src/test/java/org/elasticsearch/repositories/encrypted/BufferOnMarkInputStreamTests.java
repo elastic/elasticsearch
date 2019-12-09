@@ -791,8 +791,6 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         AtomicInteger bytesRead = new AtomicInteger(0);
         when(mockSource.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).
                 thenAnswer(invocationOnMock -> {
-                    final byte[] b = (byte[]) invocationOnMock.getArguments()[0];
-                    final int off = (int) invocationOnMock.getArguments()[1];
                     final int len = (int) invocationOnMock.getArguments()[2];
                     if (len == 0) {
                         return 0;

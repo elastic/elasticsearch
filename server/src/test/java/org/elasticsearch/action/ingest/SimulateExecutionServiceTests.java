@@ -19,14 +19,14 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.DropProcessor;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestProcessorException;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.CompoundProcessor;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
@@ -258,8 +258,8 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(simulateDocumentBaseResult.getIngestDocument(), nullValue());
         assertThat(simulateDocumentBaseResult.getFailure(), instanceOf(RuntimeException.class));
         Exception exception = simulateDocumentBaseResult.getFailure();
-        assertThat(exception, instanceOf(ElasticsearchException.class));
-        assertThat(exception.getMessage(), equalTo("java.lang.IllegalArgumentException: java.lang.RuntimeException: processor failed"));
+        assertThat(exception, instanceOf(IngestProcessorException.class));
+        assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: processor failed"));
     }
 
     public void testDropDocument() throws Exception {

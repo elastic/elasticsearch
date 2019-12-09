@@ -132,7 +132,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .settings(settings)
             .primaryTerm(0, randomIntBetween(1, 100))
             .putRolloverInfo(new RolloverInfo("test", Collections.singletonList(rolloverCondition), randomNonNegativeLong()))
-            .putMapping("_doc", "{ \"properties\": {} }");
+            .putMapping("{ \"properties\": {} }");
         indexMetaData = metaData.build();
 
         indexShard = newStartedShard(p -> newShard(routing, shardPath, indexMetaData, null, null,

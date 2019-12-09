@@ -36,7 +36,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testKeyword() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
                 "bytes", "type=keyword");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource("bytes", "abc")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -58,7 +58,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testEmptyKeyword() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
                 "bytes", "type=keyword");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource()
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -85,7 +85,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
     public void testUnmappedKeyword() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource()
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -111,7 +111,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testLong() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
                 "long", "type=long");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource("long", 42)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -133,7 +133,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testEmptyLong() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
                 "long", "type=long");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource()
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -160,7 +160,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
     public void testUnmappedLong() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource()
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -187,7 +187,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testBoolean() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
                 "bool", "type=boolean");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource("bool", true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -209,7 +209,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testEmptyBoolean() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
                 "bool", "type=boolean");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource()
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -236,7 +236,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
     public void testUnmappedBoolean() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource()
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -274,7 +274,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testFieldAlias() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type",
             "field", "type=keyword", "alias", "type=alias,path=field");
-        client().prepareIndex("index", "type", "1")
+        client().prepareIndex("index").setId("1")
             .setSource("field", "value")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();

@@ -107,17 +107,23 @@ and `JAVA11_HOME` available so that the tests can pass.
 `jrunscript` for jdk distributions.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
-using the wrapper via the `gradlew` script in the root of the repository.
+using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat` 
+script on Windows in the root of the repository. The examples below show the
+usage on Unix.
 
-We support development in the Eclipse and IntelliJ IDEs. 
-For Eclipse, the minimum version that we support is [4.13][eclipse]. 
+We support development in the Eclipse and IntelliJ IDEs.
+For Eclipse, the minimum version that we support is [4.13][eclipse].
 For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+
+[Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
+
+    ./gradlew :run
 
 ### Configuring IDEs And Running Tests
 
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`
 then `File: Import: Gradle : Existing Gradle Project`.
-Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying 
+Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying
 `eclipse.ini` accordingly to avoid GC overhead and OOM errors.
 
 IntelliJ users can automatically configure their IDE: `./gradlew idea`
@@ -151,6 +157,10 @@ For IntelliJ, go to
 For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 `VM Arguments`.
 
+Some tests related to locale testing also require the flag 
+`-Djava.locale.providers` to be set. Set the VM options/VM arguments for
+IntelliJ or Eclipse like describe above to use 
+`-Djava.locale.providers=SPI,COMPAT`.
 
 ### Java Language Formatting Guidelines
 
@@ -175,9 +185,12 @@ Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
 * Line width is 140 characters
-* Lines of code surrounded by `// tag` and `// end` comments are included
+* Lines of code surrounded by `// tag::NAME` and `// end::NAME` comments are included
   in the documentation and should only be 76 characters wide not counting
-  leading indentation
+  leading indentation. Such regions of code are not formatted automatically as
+  it is not possible to change the line length rule of the formatter for
+  part of a file. Please format such sections sympathetically with the rest
+  of the code, while keeping lines to maximum length of 76 characters.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
   the build to fail. This can be done automatically by your IDE:
    * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are
@@ -187,6 +200,17 @@ Please follow these formatting guidelines:
      There are two configuration options: `Class count to use import with
      '*'` and `Names count to use static import with '*'`. Set their values
      to 99999 or some other absurdly high value.
+* If *absolutely* necessary, you can disable formatting for regions of code
+  with the `// tag::NAME` and `// end::NAME` directives, but note that
+  these are intended for use in documentation, so please make it clear what
+  you have done, and only do this where the benefit clearly outweighs the
+  decrease in consistency.
+* Note that JavaDoc and block comments i.e. `/* ... */` are not formatted,
+  but line comments i.e `// ...` are.
+* There is an implicit rule that negative boolean expressions should use
+  the form `foo == false` instead of `!foo` for better readability of the
+  code. While this isn't strictly enforced, if might get called out in PR
+  reviews as something to change.
 
 #### Editor / IDE Support
 
@@ -213,7 +237,7 @@ Spotless will write files to
 different copies of the formatted files, so that you can see how they
 differ and infer what is the problem.
 
-The `paddedCell() option is disabled for normal operation in order to
+The `paddedCell()` option is disabled for normal operation in order to
 detect any misbehaviour. You can enabled the option from the command line
 by running Gradle with `-Dspotless.paddedcell`.
 

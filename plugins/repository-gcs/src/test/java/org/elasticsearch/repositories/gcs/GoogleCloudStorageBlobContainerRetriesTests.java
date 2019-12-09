@@ -24,6 +24,7 @@ import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpServer;
+import fixture.gcs.FakeOAuth2HttpHandler;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -68,8 +69,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeEnd;
+import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeLimit;
+import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
+import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
+import static org.elasticsearch.repositories.ESBlobStoreContainerTestCase.randomBytes;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
@@ -144,13 +149,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
 
         final List<HttpContext> httpContexts = Arrays.asList(
             // Auth
-            httpServer.createContext("/token", exchange -> {
-                byte[] response = ("{\"access_token\":\"foo\",\"token_type\":\"Bearer\",\"expires_in\":3600}").getBytes(UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                exchange.getResponseBody().write(response);
-                exchange.close();
-            }),
+            httpServer.createContext("/token", new FakeOAuth2HttpHandler()),
             // Does bucket exists?
             httpServer.createContext("/storage/v1/b/bucket", exchange -> {
                 byte[] response = ("{\"kind\":\"storage#bucket\",\"name\":\"bucket\",\"id\":\"0\"}").getBytes(UTF_8);
@@ -244,7 +243,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         httpServer.createContext("/upload/storage/v1/b/bucket/o", exchange -> {
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
             if (countDown.countDown()) {
-                Optional<Tuple<String, BytesArray>> content = TestUtils.parseMultipartRequestBody(exchange.getRequestBody());
+                Optional<Tuple<String, BytesArray>> content = parseMultipartRequestBody(exchange.getRequestBody());
                 assertThat(content.isPresent(), is(true));
                 assertThat(content.get().v1(), equalTo("write_blob_max_retries"));
                 if (Objects.deepEquals(bytes, content.get().v2().array())) {
@@ -387,12 +386,12 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                     final long bytesRead = Streams.copy(exchange.getRequestBody(), requestBody);
                     assertThat(Math.toIntExact(bytesRead), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
 
-                    final int rangeStart = TestUtils.getContentRangeStart(range);
-                    final int rangeEnd = TestUtils.getContentRangeEnd(range);
+                    final int rangeStart = getContentRangeStart(range);
+                    final int rangeEnd = getContentRangeEnd(range);
                     assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(bytesRead)));
                     assertArrayEquals(Arrays.copyOfRange(data, rangeStart, rangeEnd + 1), requestBody.toByteArray());
 
-                    final Integer limit = TestUtils.getContentRangeLimit(range);
+                    final Integer limit = getContentRangeLimit(range);
                     if (limit != null) {
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         exchange.close();

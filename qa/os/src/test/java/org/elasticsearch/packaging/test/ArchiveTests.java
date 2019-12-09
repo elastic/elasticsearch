@@ -69,7 +69,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test20PluginsListWithNoPlugins() throws Exception {
         final Installation.Executables bin = installation.executables();
-        final Result r = sh.run(bin.elasticsearchPlugin + " list");
+        final Result r = bin.elasticsearchPlugin.run(sh, "list");
 
         assertThat(r.stdout, isEmptyString());
     }
@@ -137,7 +137,16 @@ public class ArchiveTests extends PackagingTestCase {
         // cleanup from previous test
         rm(installation.config("elasticsearch.keystore"));
 
-        Archives.runElasticsearch(installation, sh);
+        try {
+            Archives.runElasticsearch(installation, sh);
+        } catch (Exception e ){
+            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
+                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
+                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+                sh.runIgnoreExitCode("jstack " + pid);
+            }
+            throw e;
+        }
 
         assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
         ServerUtils.runElasticsearchTests();

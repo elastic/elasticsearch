@@ -245,7 +245,7 @@ which results in a sensible `total` like this one:
 ====== Automatic slicing
 
 You can also let `_reindex` automatically parallelize using <<sliced-scroll>> to
-slice on `_uid`. Use `slices` to specify the number of slices to use:
+slice on `_id`. Use `slices` to specify the number of slices to use:
 
 [source,console]
 ----------------------------------------------------------------
@@ -476,8 +476,13 @@ which defaults to a maximum size of 100 MB.
 (Optional, integer) Total number of slices. 
 
 `sort`:::
++
+--
 (Optional, list) A comma-separated list of `<field>:<direction>` pairs to sort by before indexing.
 Use in conjunction with `max_docs` to control what documents are reindexed.
+
+deprecated::[7.6, Sort in reindex is deprecated. Sorting in reindex was never guaranteed to index documents in order and prevents further development of reindex such as resilience and performance improvements. If used in combination with `max_docs`&#44; consider using a query filter instead.]
+--
 
 `_source`:::
 (Optional, string) If `true` reindexes all source fields. 
@@ -544,7 +549,7 @@ the reindex returned a `noop` value for `ctx.op`.
 
 `version_conflicts`::
 
-{integer)The number of version conflicts that reindex hit.
+(integer) The number of version conflicts that reindex hits.
 
 `retries`::
 
@@ -602,8 +607,8 @@ POST _reindex
 --------------------------------------------------
 // TEST[setup:twitter]
 
-[[docs-reindex-select-sort]]
-===== Reindex select documents with sort
+[[docs-reindex-select-max-docs]]
+===== Reindex select documents with `max_docs`
 
 You can limit the number of processed documents by setting `max_docs`. 
 For example, this request copies a single document from `twitter` to
@@ -616,28 +621,6 @@ POST _reindex
   "max_docs": 1,
   "source": {
     "index": "twitter"
-  },
-  "dest": {
-    "index": "new_twitter"
-  }
-}
---------------------------------------------------
-// TEST[setup:twitter]
-
-You can use `sort` in conjunction with `max_docs` to select the documents you want to reindex. 
-Sorting makes the scroll less efficient but in some contexts it's worth it. 
-If possible, it's better to use a more selective query instead of `max_docs` and `sort`.
-
-For example, following request copies 10000 documents from `twitter` into `new_twitter`:
-
-[source,console]
---------------------------------------------------
-POST _reindex
-{
-  "max_docs": 10000,
-  "source": {
-    "index": "twitter",
-    "sort": { "date": "desc" }
   },
   "dest": {
     "index": "new_twitter"
@@ -824,11 +807,10 @@ POST _reindex
     "index": "twitter",
     "query": {
       "function_score" : {
-        "query" : { "match_all": {} },
-        "random_score" : {}
+        "random_score" : {},
+        "min_score" : 0.9    <1>
       }
-    },
-    "sort": "_score"    <1>
+    }
   },
   "dest": {
     "index": "random_twitter"
@@ -837,8 +819,8 @@ POST _reindex
 ----------------------------------------------------------------
 // TEST[setup:big_twitter]
 
-<1> `_reindex` defaults to sorting by `_doc` so `random_score` will not have any
-effect unless you override the sort to `_score`.
+<1> You may need to adjust the `min_score` depending on the relative amount of
+data extracted from source.
 
 [[reindex-scripts]]
 ===== Modify documents during reindexing

@@ -64,7 +64,7 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
     }
 
     @Override
-    public InternalSimpleLongValue doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSimpleLongValue reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

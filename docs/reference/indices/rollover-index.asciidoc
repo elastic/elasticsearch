@@ -113,8 +113,6 @@ the request checks whether the index matches provided conditions
 but does not perform a rollover.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
-
 include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

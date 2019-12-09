@@ -60,22 +60,34 @@ may contain documents that don't have an {olscore}.
 
 ====== {regression-cap}
 
-{regression-cap} supports fields that are numeric, boolean, text, keyword and ip. It 
-is also tolerant of missing values. Fields that are supported are included in 
-the analysis, other fields are ignored. Documents where included fields contain 
-an array with two or more values are also ignored. Documents in the `dest` index 
-that don’t contain a results field are not included in the {reganalysis}.
+{regression-cap} supports fields that are numeric, `boolean`, `text`, `keyword`, 
+and `ip`. It is also tolerant of missing values. Fields that are supported are 
+included in the analysis, other fields are ignored. Documents where included
+fields contain  an array with two or more values are also ignored. Documents in
+the `dest` index  that don’t contain a results field are not included in the
+ {reganalysis}.
+
+
+====== {classification-cap}
+
+{classification-cap} supports fields that are numeric, `boolean`, `text`,
+`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
+supported are included in the analysis, other fields are ignored. Documents
+where included fields contain an array with two or more values are also ignored. 
+Documents in the `dest` index that don’t contain a results field are not
+included in the {classanalysis}.
+
+{classanalysis-cap} can be improved by mapping ordinal variable values to a 
+single number. For example, in case of age ranges, you can model the values as 
+"0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
 
 
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (Required, string) A numerical character string that uniquely identifies the 
-  {dfanalytics-job}. This identifier can contain lowercase alphanumeric
-  characters (a-z and 0-9), hyphens, and underscores. It must start and end with
-  alphanumeric characters.
-
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [[ml-put-dfanalytics-request-body]]
 ==== {api-request-body-title}
@@ -86,18 +98,22 @@ that don’t contain a results field are not included in the {reganalysis}.
   <<dfanalytics-types>>.
   
 `analyzed_fields`::
-  (Optional, object) You can specify both `includes` and/or `excludes` patterns. 
-  If `analyzed_fields` is not set, only the relevant fields will be included. 
-  For example, all the numeric fields for {oldetection}. For the supported field 
-  types, see <<ml-put-dfanalytics-supported-fields>>.
-  
+  (Optional, object) Specify `includes` and/or `excludes` patterns to select
+  which fields will be included in the analysis. If `analyzed_fields` is not 
+  set, only the relevant fields will be included. For example, all the numeric 
+  fields for {oldetection}. For the supported field types, see 
+  <<ml-put-dfanalytics-supported-fields>>. Also see the <<explain-dfanalytics>> 
+  which helps understand field selection.
+
   `includes`:::
     (Optional, array) An array of strings that defines the fields that will be 
     included in the analysis.
     
   `excludes`:::
     (Optional, array) An array of strings that defines the fields that will be 
-    excluded from the analysis.
+    excluded from the analysis. You do not need to add fields with unsupported 
+    data types to `excludes`, these fields are excluded from the analysis 
+    automatically.
 
 `description`::
   (Optional, string) A description of the job.
@@ -123,20 +139,33 @@ that don’t contain a results field are not included in the {reganalysis}.
   that setting. For more information, see <<ml-settings>>.
   
 `source`::
-  (Required, object) The source configuration, consisting of `index` and 
-  optionally a `query`.
+  (object) The configuration of how to source the analysis data. It requires an 
+  `index`. Optionally, `query` and `_source` may be specified.
   
-    `index`:::
-      (Required, string or array) Index or indices on which to perform the 
-      analysis. It can be a single index or index pattern as well as an array of 
-      indices or patterns.
-  
-    `query`:::
-      (Optional, object) The {es} query domain-specific language 
-      (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
-      search POST body. All the options that are supported by {es} can be used, 
-      as this object is passed verbatim to {es}. By default, this property has 
-      the following value: `{"match_all": {}}`.
+  `index`:::
+    (Required, string or array) Index or indices on which to perform the 
+    analysis. It can be a single index or index pattern as well as an array of 
+    indices or patterns.
+    
+  `query`:::
+    (Optional, object) The {es} query domain-specific language 
+    (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
+    search POST body. All the options that are supported by {es} can be used, 
+    as this object is passed verbatim to {es}. By default, this property has 
+    the following value: `{"match_all": {}}`.
+
+  `_source`:::
+    (Optional, object) Specify `includes` and/or `excludes` patterns to select
+    which fields will be present in the destination. Fields that are excluded
+    cannot be included in the analysis.
+        
+      `includes`::::
+        (array) An array of strings that defines the fields that will be 
+        included in the destination.
+          
+      `excludes`::::
+        (array) An array of strings that defines the fields that will be 
+        excluded from the destination.
 
 `allow_lazy_start`::
   (Optional, boolean) Whether this job should be allowed to start when there
@@ -153,6 +182,80 @@ that don’t contain a results field are not included in the {reganalysis}.
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
+
+
+[[ml-put-dfanalytics-example-preprocess]]
+===== Preprocessing actions example
+
+The following example shows how to limit the scope of the analysis to certain 
+fields, specify excluded fields in the destination index, and use a query to 
+filter your data before analysis.
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/model-flight-delays-pre
+{
+  "source": {
+    "index": [
+      "kibana_sample_data_flights" <1>
+    ],
+    "query": { <2>
+      "range": {
+        "DistanceKilometers": { 
+          "gt": 0
+        }
+      }
+    },
+    "_source": { <3>
+      "includes": [],
+      "excludes": [
+        "FlightDelay",
+        "FlightDelayType"
+      ]
+    }
+  },
+  "dest": { <4>
+    "index": "df-flight-delays",
+    "results_field": "ml-results"
+  },
+  "analysis": {
+  "regression": {
+    "dependent_variable": "FlightDelayMin",
+    "training_percent": 90
+    }
+  },
+  "analyzed_fields": { <5>
+    "includes": [],
+    "excludes": [   
+      "FlightNum"
+    ]
+  },
+  "model_memory_limit": "100mb"
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> The source index to analyze.
+<2> This query filters out entire documents that will not be present in the 
+destination index.
+<3> The `_source` object defines fields in the dataset that will be included or 
+excluded in the destination index. In this case, `includes` does not specify any 
+fields, so the default behavior takes place: all the fields of the source index 
+will included except the ones that are explicitly specified in `excludes`.
+<4> Defines the destination index that contains the results of the analysis and 
+the fields of the source index specified in the `_source` object. Also defines 
+the name of the `results_field`.
+<5> Specifies fields to be included in or excluded from the analysis. This does 
+not affect whether the fields will be present in the destination index, only 
+affects whether they are used in the analysis.
+
+In this example, we can see that all the fields of the source index are included 
+in the destination index except `FlightDelay` and `FlightDelayType` because 
+these are defined as excluded fields by the `excludes` parameter of the 
+`_source` object. The `FlightNum` field is included in the destination index, 
+however it is not included in the analysis because it is explicitly specified as 
+excluded field by the `excludes` parameter of the `analyzed_fields` object.
+
 
 [[ml-put-dfanalytics-example-od]]
 ===== {oldetection-cap} example
@@ -303,3 +406,31 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 
 <1> The `training_percent` defines the percentage of the data set that will be used 
 for training the model.
+
+
+[[ml-put-dfanalytics-example-c]]
+===== {classification-cap} example
+
+The following example creates the `loan_classification` {dfanalytics-job}, the 
+analysis type is `classification`:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/loan_classification
+{
+  "source" : {
+    "index": "loan-applicants"
+  },
+  "dest" : {
+    "index": "loan-applicants-classified"
+  },
+  "analysis" : {
+    "classification": {
+      "dependent_variable": "label",
+      "training_percent": 75,
+      "num_top_classes": 2
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]

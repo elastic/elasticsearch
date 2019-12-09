@@ -83,7 +83,7 @@ public class SearchSliceIT extends ESIntegTestCase {
                     .field("static_int", 0)
                     .field("invalid_random_int", randomInt())
                 .endObject();
-            requests.add(client().prepareIndex("test", "type").setSource(builder));
+            requests.add(client().prepareIndex("test").setSource(builder));
         }
         indexRandom(true, requests);
     }

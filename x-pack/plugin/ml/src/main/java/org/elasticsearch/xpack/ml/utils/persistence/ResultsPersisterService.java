@@ -48,7 +48,7 @@ public class ResultsPersisterService {
     private static final int MAX_RETRY_SLEEP_MILLIS = (int)Duration.ofMinutes(15).toMillis();
     private static final int MIN_RETRY_SLEEP_MILLIS = 50;
     // Having an exponent higher than this causes integer overflow
-    private static final int MAX_RETRY_EXPONENT = 29;
+    private static final int MAX_RETRY_EXPONENT = 24;
 
     private final Random random = Randomness.get();
     private final Client client;

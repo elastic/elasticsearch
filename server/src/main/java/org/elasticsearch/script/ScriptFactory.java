@@ -19,20 +19,10 @@
 
 package org.elasticsearch.script;
 
-import java.util.Map;
-
 /**
- * A script used in significant terms heuristic scoring.
+ * Contains utility methods for compiled scripts without impacting concrete script signatures
  */
-public abstract class SignificantTermsHeuristicScoreScript {
-
-    public static final String[] PARAMETERS = { "params" };
-
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("script_heuristic", Factory.class);
-
-    public abstract double execute(Map<String, Object> params);
-
-    public interface Factory extends ScriptFactory {
-        SignificantTermsHeuristicScoreScript newInstance();
-    }
+public interface ScriptFactory {
+    /** Returns {@code true} if the result of the script will be deterministic, {@code false} otherwise. */
+    default boolean isResultDeterministic() { return false; }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -81,6 +82,12 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         // training_percent == null, default applied
         regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", null);
         assertThat(regression.getTrainingPercent(), equalTo(100.0));
+    }
+
+    public void testGetParams() {
+        assertThat(
+            new Regression("foo").getParams(null),
+            equalTo(Map.of("dependent_variable", "foo", "prediction_field_name", "foo_prediction")));
     }
 
     public void testFieldCardinalityLimitsIsNonNull() {

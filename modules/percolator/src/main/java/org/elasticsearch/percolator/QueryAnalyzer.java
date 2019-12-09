@@ -286,7 +286,11 @@ final class QueryAnalyzer {
             }
             // add range fields from this Result to the seenRangeFields set so that minimumShouldMatch is correctly
             // calculated for subsequent Results
-            result.extractions.stream().filter(e -> e.range != null).forEach(e -> seenRangeFields.add(e.range.fieldName));
+            result.extractions.stream()
+                .map(e -> e.range)
+                .filter(Objects::nonNull)
+                .map(e -> e.fieldName)
+                .forEach(seenRangeFields::add);
             msm += resultMsm;
 
             if (result.verified == false

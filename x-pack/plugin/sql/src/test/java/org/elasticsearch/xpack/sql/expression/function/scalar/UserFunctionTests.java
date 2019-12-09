@@ -11,6 +11,8 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.sql.expression.Alias;
+import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
@@ -28,9 +30,9 @@ public class UserFunctionTests extends ESTestCase {
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-basic.json", true));
         Analyzer analyzer = new Analyzer(
                 new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-                                  Protocol.PAGE_TIMEOUT, null, 
-                                  randomFrom(Mode.values()), randomAlphaOfLength(10), 
-                                  null, randomAlphaOfLengthBetween(1, 15), 
+                                  Protocol.PAGE_TIMEOUT, null,
+                                  randomFrom(Mode.values()), randomAlphaOfLength(10),
+                                  null, randomAlphaOfLengthBetween(1, 15),
                                   randomBoolean(), randomBoolean()),
                 new FunctionRegistry(),
                 IndexResolution.valid(test),
@@ -38,7 +40,9 @@ public class UserFunctionTests extends ESTestCase {
         );
         
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT USER()"), true);
-        assertTrue(result.projections().get(0) instanceof User);
-        assertNull(((User) result.projections().get(0)).fold());
+        NamedExpression ne = result.projections().get(0);
+        assertTrue(ne instanceof Alias);
+        assertTrue(((Alias) ne).child() instanceof User);
+        assertNull(((User) ((Alias) ne).child()).fold());
     }
 }

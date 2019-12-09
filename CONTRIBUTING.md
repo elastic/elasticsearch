@@ -115,6 +115,10 @@ We support development in the Eclipse and IntelliJ IDEs.
 For Eclipse, the minimum version that we support is [4.13][eclipse].
 For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
 
+[Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
+
+    ./gradlew :run
+
 ### Configuring IDEs And Running Tests
 
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`
@@ -153,6 +157,10 @@ For IntelliJ, go to
 For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 `VM Arguments`.
 
+Some tests related to locale testing also require the flag 
+`-Djava.locale.providers` to be set. Set the VM options/VM arguments for
+IntelliJ or Eclipse like describe above to use 
+`-Djava.locale.providers=SPI,COMPAT`.
 
 ### Java Language Formatting Guidelines
 

@@ -212,7 +212,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
 
         if (distribution.getType() == Type.INTEG_TEST_ZIP) {
-            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion();
+            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
         }
 
 

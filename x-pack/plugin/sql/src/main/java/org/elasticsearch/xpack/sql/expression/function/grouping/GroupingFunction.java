@@ -28,8 +28,6 @@ public abstract class GroupingFunction extends Function {
     private final Expression field;
     private final List<Expression> parameters;
 
-    private GroupingFunctionAttribute lazyAttribute;
-
     protected GroupingFunction(Source source, Expression field) {
         this(source, field, emptyList());
     }
@@ -49,18 +47,9 @@ public abstract class GroupingFunction extends Function {
     }
 
     @Override
-    public GroupingFunctionAttribute toAttribute() {
-        if (lazyAttribute == null) {
-            // this is highly correlated with QueryFolder$FoldAggregate#addAggFunction (regarding the function name within the querydsl)
-            lazyAttribute = new GroupingFunctionAttribute(source(), name(), dataType(), id(), functionId());
-        }
-        return lazyAttribute;
-    }
-
-    @Override
     protected Pipe makePipe() {
         // unresolved AggNameInput (should always get replaced by the folder)
-        return new AggNameInput(source(), this, name());
+        return new AggNameInput(source(), this, sourceText());
     }
 
     @Override

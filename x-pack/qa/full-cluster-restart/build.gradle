@@ -59,7 +59,6 @@ processTestResources {
 
 for (Version bwcVersion : bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
-  String bwcVersionString = "${bwcVersion}"
 
   testClusters {
     "${baseName}" {
@@ -109,12 +108,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     useCluster testClusters."${baseName}"
     dependsOn "${baseName}#oldClusterTest"
     doFirst {
-      testClusters."${baseName}".goToNextVersion({ ->
-        if (Version.fromString(bwcVersionString).onOrAfter("8.0.0")) {
-          // verify that on-disk metadata can be read using command-line tools
-          testClusters."${baseName}".runElasticsearchBinScriptWithInput("y", "elasticsearch-node", "read-and-write-metadata")
-        }
-      })
+      testClusters."${baseName}".goToNextVersion()
     }
     systemProperty 'tests.is_old_cluster', 'false'
     systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")

@@ -92,8 +92,6 @@ public interface TestClusterConfiguration {
 
     void extraConfigFile(String destination, File from, PropertyNormalization normalization);
 
-    void runElasticsearchBinScriptWithInput(String input, String tool, String... args);
-
     void extraJarFile(File from);
 
     void user(Map<String, String> userSpec);

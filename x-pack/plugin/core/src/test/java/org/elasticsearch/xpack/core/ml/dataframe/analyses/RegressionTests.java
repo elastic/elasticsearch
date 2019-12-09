@@ -11,9 +11,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -87,7 +88,7 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
     public void testGetParams() {
         assertThat(
             new Regression("foo").getParams(null),
-            equalTo(Map.of("dependent_variable", "foo", "prediction_field_name", "foo_prediction")));
+            allOf(hasEntry("dependent_variable", "foo"), hasEntry("prediction_field_name", "foo_prediction")));
     }
 
     public void testFieldCardinalityLimitsIsNonNull() {

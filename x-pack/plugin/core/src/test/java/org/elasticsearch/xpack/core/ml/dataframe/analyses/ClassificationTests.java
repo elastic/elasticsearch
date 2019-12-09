@@ -12,12 +12,16 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -121,35 +125,31 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public void testGetParams() {
-        Map<String, Set<String>> extractedFields =
-            Map.of(
-                "foo", Set.of(BooleanFieldMapper.CONTENT_TYPE),
-                "bar", Set.of(NumberFieldMapper.NumberType.LONG.typeName()),
-                "baz", Set.of(KeywordFieldMapper.CONTENT_TYPE));
+        Map<String, Set<String>> extractedFields = new HashMap<>(3);
+        extractedFields.put("foo", Collections.singleton(BooleanFieldMapper.CONTENT_TYPE));
+        extractedFields.put("bar", Collections.singleton(NumberFieldMapper.NumberType.LONG.typeName()));
+        extractedFields.put("baz", Collections.singleton(KeywordFieldMapper.CONTENT_TYPE));
         assertThat(
             new Classification("foo").getParams(extractedFields),
-            equalTo(
-                Map.of(
-                    "dependent_variable", "foo",
-                    "num_top_classes", 2,
-                    "prediction_field_name", "foo_prediction",
-                    "prediction_field_type", "bool")));
+            Matchers.<Map<String, Object>>allOf(
+                hasEntry("dependent_variable", "foo"),
+                hasEntry("num_top_classes", 2),
+                hasEntry("prediction_field_name", "foo_prediction"),
+                hasEntry("prediction_field_type", "bool")));
         assertThat(
             new Classification("bar").getParams(extractedFields),
-            equalTo(
-                Map.of(
-                    "dependent_variable", "bar",
-                    "num_top_classes", 2,
-                    "prediction_field_name", "bar_prediction",
-                    "prediction_field_type", "int")));
+            Matchers.<Map<String, Object>>allOf(
+                hasEntry("dependent_variable", "bar"),
+                hasEntry("num_top_classes", 2),
+                hasEntry("prediction_field_name", "bar_prediction"),
+                hasEntry("prediction_field_type", "int")));
         assertThat(
             new Classification("baz").getParams(extractedFields),
-            equalTo(
-                Map.of(
-                    "dependent_variable", "baz",
-                    "num_top_classes", 2,
-                    "prediction_field_name", "baz_prediction",
-                    "prediction_field_type", "string")));
+            Matchers.<Map<String, Object>>allOf(
+                hasEntry("dependent_variable", "baz"),
+                hasEntry("num_top_classes", 2),
+                hasEntry("prediction_field_name", "baz_prediction"),
+                hasEntry("prediction_field_type", "string")));
     }
 
     public void testFieldCardinalityLimitsIsNonNull() {

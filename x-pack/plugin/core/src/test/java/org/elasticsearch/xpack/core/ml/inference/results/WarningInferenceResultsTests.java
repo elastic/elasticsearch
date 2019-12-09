@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 
 import java.util.HashMap;
 
@@ -22,7 +23,7 @@ public class WarningInferenceResultsTests extends AbstractWireSerializingTestCas
     public void testWriteResults() {
         WarningInferenceResults result = new WarningInferenceResults("foo");
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        result.writeResult(document, "result_field", new RegressionConfig());
 
         assertThat(document.getFieldValue("result_field", String.class), equalTo("foo"));
     }

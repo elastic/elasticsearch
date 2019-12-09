@@ -352,7 +352,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     private Repository createRepository() {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        return new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(), BlobStoreTestUtil.mockClusterService());
+        return new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(),
+            BlobStoreTestUtil.mockClusterService(repositoryMetaData));
     }
 
     private static void runAsSnapshot(ThreadPool pool, Runnable runnable) {

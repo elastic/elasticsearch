@@ -280,7 +280,7 @@ public abstract class PackagingTestCase extends Assert {
             // In Windows, we have written our stdout and stderr to files in order to run
             // in the background
             String wrapperPid = result.stdout.trim();
-            sh.runIgnoreExitCode("Wait-Process -Timeout 15 -Id " + wrapperPid);
+            sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
             sh.runIgnoreExitCode("Get-EventSubscriber | " +
                 "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |" +
                 "Unregister-EventSubscriber -Force");

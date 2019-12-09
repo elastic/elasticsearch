@@ -65,7 +65,7 @@ public class Archives {
 
     /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
-    private static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
+    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
 
     public static Installation installArchive(Distribution distribution) throws Exception {
         return installArchive(distribution, getDefaultArchiveInstallPath(), getCurrentVersion());

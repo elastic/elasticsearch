@@ -62,8 +62,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
-    private static final ActionListener<Void> noopListener = ActionListener.wrap((x) -> {}, (x) -> {});
-
     /**
      * The initial connect timeout for remote cluster connections
      */

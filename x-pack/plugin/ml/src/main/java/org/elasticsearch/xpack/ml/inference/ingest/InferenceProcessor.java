@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -154,7 +153,7 @@ public class InferenceProcessor extends AbstractProcessor {
         if (response.getInferenceResults().isEmpty()) {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
-        response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField);
+        response.getInferenceResults().get(0).writeResult(ingestDocument, this.targetField, inferenceConfig);
         if (includeModelMetadata) {
             ingestDocument.setFieldValue(modelInfoField + "." + MODEL_ID, modelId);
         }
@@ -227,8 +226,7 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         @Override
-        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config)
-            throws Exception {
+        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
 
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException("Max number of inference processors reached, total inference processors [{}]. " +
@@ -267,7 +265,7 @@ public class InferenceProcessor extends AbstractProcessor {
             this.maxIngestProcessors = maxIngestProcessors;
         }
 
-        InferenceConfig inferenceConfigFromMap(Map<String, Object> inferenceConfig) throws IOException {
+        InferenceConfig inferenceConfigFromMap(Map<String, Object> inferenceConfig) {
             ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
 
             if (inferenceConfig.size() != 1) {
@@ -284,7 +282,7 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, Object> valueMap = (Map<String, Object>)value;
 
             if (inferenceConfig.containsKey(ClassificationConfig.NAME)) {
-                checkSupportedVersion(new ClassificationConfig(0));
+                checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 return ClassificationConfig.fromMap(valueMap);
             } else if (inferenceConfig.containsKey(RegressionConfig.NAME)) {
                 checkSupportedVersion(new RegressionConfig());

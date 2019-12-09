@@ -29,6 +29,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -40,7 +41,7 @@ public class ResultsPersisterService {
 
     public static final Setting<Integer> PERSIST_RESULTS_MAX_RETRIES = Setting.intSetting(
         "xpack.ml.persist_results_max_retries",
-        15,
+        20,
         0,
         50,
         Setting.Property.Dynamic,
@@ -71,15 +72,27 @@ public class ResultsPersisterService {
                                        ToXContent.Params params,
                                        WriteRequest.RefreshPolicy refreshPolicy,
                                        String id,
-                                       Supplier<Boolean> shouldRetry) throws IOException {
+                                       Supplier<Boolean> shouldRetry,
+                                       Consumer<String> msgHandler) throws IOException {
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
         try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
             bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
         }
-        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry);
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler);
     }
 
-    public BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest, String jobId, Supplier<Boolean> shouldRetry) {
+    public BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest,
+                                           String jobId,
+                                           Supplier<Boolean> shouldRetry,
+                                           Consumer<String> msgHandler) {
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler, 10);
+    }
+
+    BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest,
+                                    String jobId,
+                                    Supplier<Boolean> shouldRetry,
+                                    Consumer<String> msgHandler,
+                                    int msgBarrier) {
         int currentMin = MIN_RETRY_SLEEP_MILLIS;
         int currentMax = MIN_RETRY_SLEEP_MILLIS;
         int currentAttempt = 0;
@@ -102,6 +115,20 @@ public class ResultsPersisterService {
                     bulkResponse.buildFailureMessage());
             }
             currentAttempt++;
+            // Before 10, most retries are fairly fast,
+            // After 10, the time between quickly gets on the magnitude of minutes
+            if (currentAttempt > msgBarrier) {
+                int attempt = currentAttempt;
+                LOGGER.warn(()-> new ParameterizedMessage("[{}] failed to index after [{}] attempts. Will attempt [{}] more times.",
+                    jobId,
+                    attempt,
+                    (maxFailureRetries - attempt)));
+                msgHandler.accept(new ParameterizedMessage(
+                    "failed to index after [{}] attempts. Will attempt [{}] more times.",
+                    attempt,
+                    (maxFailureRetries - attempt))
+                    .getFormattedMessage());
+            }
             // Since we exponentially increase, we don't want force randomness to have an excessively long sleep
             if (currentMax < MAX_RETRY_SLEEP_MILLIS) {
                 currentMin = currentMax;

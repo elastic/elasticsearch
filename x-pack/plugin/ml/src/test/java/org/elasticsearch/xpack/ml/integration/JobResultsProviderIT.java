@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 
@@ -88,6 +89,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private JobResultsProvider jobProvider;
     private ResultsPersisterService resultsPersisterService;
+    private AnomalyDetectionAuditor auditor;
 
     @Before
     public void createComponents() throws Exception {
@@ -105,6 +107,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
 
         resultsPersisterService = new ResultsPersisterService(client(), clusterService, builder.build());
+        auditor = new AnomalyDetectionAuditor(client(), "test_node");
         waitForMlTemplates();
     }
 
@@ -596,7 +599,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexDataCounts(DataCounts counts, String jobId) {
-        JobDataCountsPersister persister = new JobDataCountsPersister(client(), resultsPersisterService);
+        JobDataCountsPersister persister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
         persister.persistDataCounts(jobId, counts);
     }
 
@@ -617,17 +620,17 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
-        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService);
+        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
         persister.persistModelSizeStats(modelSizeStats, () -> true);
     }
 
     private void indexModelSnapshot(ModelSnapshot snapshot) {
-        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService);
+        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
         persister.persistModelSnapshot(snapshot, WriteRequest.RefreshPolicy.IMMEDIATE, () -> true);
     }
 
     private void indexQuantiles(Quantiles quantiles) {
-        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService);
+        JobResultsPersister persister = new JobResultsPersister(client(), resultsPersisterService, auditor);
         persister.persistQuantiles(quantiles, () -> true);
     }
 

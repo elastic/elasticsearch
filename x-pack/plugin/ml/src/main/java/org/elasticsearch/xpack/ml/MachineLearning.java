@@ -524,8 +524,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(client, clusterService, settings);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(client, resultsPersisterService);
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client, resultsPersisterService);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(client, resultsPersisterService, anomalyDetectionAuditor);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client,
+            resultsPersisterService,
+            anomalyDetectionAuditor);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);

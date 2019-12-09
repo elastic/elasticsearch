@@ -33,6 +33,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -44,6 +46,7 @@ import static org.mockito.Mockito.when;
 public class ResultsPersisterServiceTests extends ESTestCase {
 
     private final String JOB_ID = "results_persister_test_job";
+    private final Consumer<String> NULL_MSG_HANDLER = (msg) -> {};
 
     public void testBulkRequestChangeOnFailures() {
         IndexRequest indexRequestSuccess = new IndexRequest("my-index").id("success").source(Collections.singletonMap("data", "success"));
@@ -68,7 +71,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         ResultsPersisterService resultsPersisterService = buildResultsPersisterService(client);
 
-        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true);
+        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, NULL_MSG_HANDLER);
 
         ArgumentCaptor<BulkRequest> captor =  ArgumentCaptor.forClass(BulkRequest.class);
         verify(client, times(2)).bulk(captor.capture());
@@ -102,7 +105,8 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         ResultsPersisterService resultsPersisterService = buildResultsPersisterService(client);
 
-        expectThrows(ElasticsearchException.class, () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> false));
+        expectThrows(ElasticsearchException.class,
+            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> false, NULL_MSG_HANDLER));
     }
 
     public void testBulkRequestRetriesConfiguredAttemptNumber() {
@@ -119,8 +123,45 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         ResultsPersisterService resultsPersisterService = buildResultsPersisterService(client);
 
         resultsPersisterService.setMaxFailureRetries(1);
-        expectThrows(ElasticsearchException.class, () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true));
+        expectThrows(ElasticsearchException.class,
+            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, NULL_MSG_HANDLER));
         verify(client, times(2)).bulk(any(BulkRequest.class));
+    }
+
+    public void testBulkRequestRetriesMsgHandlerIsCalled() {
+        IndexRequest indexRequestSuccess = new IndexRequest("my-index").id("success").source(Collections.singletonMap("data", "success"));
+        IndexRequest indexRequestFail = new IndexRequest("my-index").id("fail").source(Collections.singletonMap("data", "fail"));
+        BulkItemResponse successItem = new BulkItemResponse(1,
+            DocWriteRequest.OpType.INDEX,
+            new IndexResponse(new ShardId(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared", "uuid", 1),
+                indexRequestSuccess.id(),
+                0,
+                0,
+                1,
+                true));
+        BulkItemResponse failureItem = new BulkItemResponse(2,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure("my-index", "fail", new Exception("boom")));
+        BulkResponse withFailure = new BulkResponse(new BulkItemResponse[]{ failureItem, successItem }, 0L);
+        Client client = mockClientWithResponse(withFailure, new BulkResponse(new BulkItemResponse[0], 0L));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(indexRequestFail);
+        bulkRequest.add(indexRequestSuccess);
+
+        ResultsPersisterService resultsPersisterService = buildResultsPersisterService(client);
+        AtomicReference<String> msgHolder = new AtomicReference<>("not_called");
+
+        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, msgHolder::set,0);
+
+        ArgumentCaptor<BulkRequest> captor =  ArgumentCaptor.forClass(BulkRequest.class);
+        verify(client, times(2)).bulk(captor.capture());
+
+        List<BulkRequest> requests = captor.getAllValues();
+
+        assertThat(requests.get(0).numberOfActions(), equalTo(2));
+        assertThat(requests.get(1).numberOfActions(), equalTo(1));
+        assertThat(msgHolder.get(), equalTo("failed to index after [1] attempts. Will attempt [19] more times."));
     }
 
     @SuppressWarnings("unchecked")

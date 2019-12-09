@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.mockito.ArgumentCaptor;
 
@@ -44,6 +45,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -76,7 +78,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600);
         bucket.setRecords(Collections.singletonList(record));
 
-        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client));
+        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
         persister.bulkPersisterBuilder(JOB_ID, () -> true).persistBucket(bucket).executeRequest();
         BulkRequest bulkRequest = captor.getValue();
         assertEquals(2, bulkRequest.numberOfActions());
@@ -128,7 +130,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         typicals.add(998765.3);
         r1.setTypical(typicals);
 
-        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client));
+        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
         persister.bulkPersisterBuilder(JOB_ID, () -> true).persistRecords(records).executeRequest();
         BulkRequest bulkRequest = captor.getValue();
         assertEquals(1, bulkRequest.numberOfActions());
@@ -164,7 +166,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         inf.setProbability(0.4);
         influencers.add(inf);
 
-        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client));
+        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
         persister.bulkPersisterBuilder(JOB_ID, () -> true).persistInfluencers(influencers).executeRequest();
         BulkRequest bulkRequest = captor.getValue();
         assertEquals(1, bulkRequest.numberOfActions());
@@ -180,7 +182,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     public void testExecuteRequest_ClearsBulkRequest() {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(captor);
-        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client));
+        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
 
         List<Influencer> influencers = new ArrayList<>();
         Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600);
@@ -197,7 +199,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     public void testBulkRequestExecutesWhenReachMaxDocs() {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(captor);
-        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client));
+        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
 
         JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo", () -> true);
         ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
@@ -214,7 +216,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(bulkRequestCaptor);
 
-        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client));
+        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
         TimingStats timingStats =
             new TimingStats(
                 "foo", 7, 1.0, 2.0, 1.23, 7.89, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
@@ -249,7 +251,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void testPersistDatafeedTimingStats() {
         Client client = mockClient(ArgumentCaptor.forClass(BulkRequest.class));
-        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client));
+        JobResultsPersister persister = new JobResultsPersister(client, buildResultsPersisterService(client), makeAuditor());
         DatafeedTimingStats timingStats =
             new DatafeedTimingStats(
                 "foo", 6, 66, 666.0, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
@@ -319,5 +321,13 @@ public class JobResultsPersisterTests extends ESTestCase {
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
 
         return new ResultsPersisterService(client, clusterService, Settings.EMPTY);
+    }
+
+    private AnomalyDetectionAuditor makeAuditor() {
+        AnomalyDetectionAuditor anomalyDetectionAuditor = mock(AnomalyDetectionAuditor.class);
+        doNothing().when(anomalyDetectionAuditor).warning(any(), any());
+        doNothing().when(anomalyDetectionAuditor).info(any(), any());
+        doNothing().when(anomalyDetectionAuditor).error(any(), any());
+        return anomalyDetectionAuditor;
     }
 }

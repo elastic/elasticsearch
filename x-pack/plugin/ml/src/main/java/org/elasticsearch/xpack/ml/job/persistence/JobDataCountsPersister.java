@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
@@ -36,10 +37,12 @@ public class JobDataCountsPersister {
 
     private final ResultsPersisterService resultsPersisterService;
     private final Client client;
+    private final AnomalyDetectionAuditor auditor;
 
-    public JobDataCountsPersister(Client client, ResultsPersisterService resultsPersisterService) {
+    public JobDataCountsPersister(Client client, ResultsPersisterService resultsPersisterService, AnomalyDetectionAuditor auditor) {
         this.resultsPersisterService = resultsPersisterService;
         this.client = client;
+        this.auditor = auditor;
     }
 
     private static XContentBuilder serialiseCounts(DataCounts counts) throws IOException {
@@ -60,7 +63,9 @@ public class JobDataCountsPersister {
                 counts,
                 ToXContent.EMPTY_PARAMS,
                 WriteRequest.RefreshPolicy.NONE,
-                DataCounts.documentId(jobId), () -> true);
+                DataCounts.documentId(jobId),
+                () -> true,
+                (msg) -> auditor.warning(jobId, "Job data_counts " + msg));
         } catch (IOException ioe) {
             logger.warn(() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
         } catch (Exception ex) {

@@ -43,6 +43,7 @@ import java.util.stream.Stream;
 public class Shell {
 
     public static final int TAIL_WHEN_TOO_MUCH_OUTPUT = 1000;
+    public static final Result NO_OP = new Shell.Result(0, "","");
     protected final Logger logger =  LogManager.getLogger(getClass());
 
     final Map<String, String> env = new HashMap<>();

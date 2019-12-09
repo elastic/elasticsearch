@@ -151,9 +151,9 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 
         Detector.Builder d = new Detector.Builder(function, field);
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
-        analysisConfig.setBucketSpan(bucketSpan);
-        analysisConfig.setSummaryCountFieldName(summaryCountField);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()))
+            .setBucketSpan(bucketSpan)
+            .setSummaryCountFieldName(summaryCountField);
 
         return new Job.Builder().setId(id).setAnalysisConfig(analysisConfig).setDataDescription(dataDescription);
     }

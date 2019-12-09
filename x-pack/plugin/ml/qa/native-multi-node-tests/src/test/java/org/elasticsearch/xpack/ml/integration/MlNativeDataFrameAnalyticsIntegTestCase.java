@@ -163,13 +163,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
-                                                             @Nullable String resultsField, DataFrameAnalysis analysis) {
-        return new DataFrameAnalyticsConfig.Builder()
-            .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null))
-            .setDest(new DataFrameAnalyticsDest(destIndex, resultsField))
-            .setAnalysis(analysis)
-            .build();
+                                                             @Nullable String resultsField, DataFrameAnalysis analysis) throws Exception {
+        return buildAnalytics(id, sourceIndex, destIndex, resultsField, analysis, QueryBuilders.matchAllQuery());
     }
 
     protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,

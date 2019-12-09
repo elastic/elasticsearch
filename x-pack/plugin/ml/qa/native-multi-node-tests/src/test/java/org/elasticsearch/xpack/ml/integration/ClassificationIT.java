@@ -232,7 +232,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, Boolean::valueOf);
     }
 
-    public void testDependentVariableCardinalityTooHighError() {
+    public void testDependentVariableCardinalityTooHighError() throws Exception {
         initialize("cardinality_too_high");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
         // Index one more document with a class different than the two already used.
@@ -250,8 +250,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [2] distinct values but there were at least [3]"));
     }
 
-    public void testDependentVariableCardinalityTooHighErrorButWithQuery() throws Exception {
-        initialize("cardinality_too_high");
+    public void testDependentVariableCardinalityTooHighButWithQueryMakesItWithinRange() throws Exception {
+        initialize("cardinality_too_high_with_query");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
         // Index one more document with a class different than the two already used.
         client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex)

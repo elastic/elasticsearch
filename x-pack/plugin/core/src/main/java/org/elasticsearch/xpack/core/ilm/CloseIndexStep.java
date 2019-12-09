@@ -27,9 +27,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
 
-/**
- * Invokes a Close Index Step on a index.
- */
 public class CloseIndexStep extends AsyncActionStep {
     public static final String NAME = "close-index";
 

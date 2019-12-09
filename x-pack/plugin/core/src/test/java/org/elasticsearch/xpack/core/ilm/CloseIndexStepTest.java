@@ -36,9 +36,6 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * Created by sivagurunathanvelayutham on Dec, 2019
- */
 public class CloseIndexStepTest extends AbstractStepTestCase<CloseIndexStep> {
 
     private Client client;

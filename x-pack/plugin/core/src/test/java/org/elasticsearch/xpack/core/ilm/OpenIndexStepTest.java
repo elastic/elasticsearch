@@ -34,9 +34,6 @@ import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * Created by sivagurunathanvelayutham on Dec, 2019
- */
 public class OpenIndexStepTest extends AbstractStepTestCase<OpenIndexStep> {
 
     private Client client;

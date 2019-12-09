@@ -72,6 +72,8 @@ import static org.mockito.Mockito.when;
 
 public class MinAggregatorTests extends AggregatorTestCase {
 
+    // TODO: Script tests that fail with wrong defaultValuesSourceType.  Also at all modern test structure.
+    
     public void testMinAggregator_numericDv() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

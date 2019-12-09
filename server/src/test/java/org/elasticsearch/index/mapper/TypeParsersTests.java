@@ -263,7 +263,25 @@ public class TypeParsersTests extends ESTestCase {
             Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("foo", Map.of("bar", "baz"))));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
-            assertEquals("[meta] values can only be numbers or strings, but got Map1[{bar=baz}] for field [foo]",
+            assertEquals("[meta] values can only be strings, but got Map1[{bar=baz}] for field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, Object> mapping = new HashMap<>(Map.of("meta", Map.of("bar", "baz", "foo", 3)));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+            assertEquals("[meta] values can only be strings, but got Integer[3] for field [foo]",
+                    e.getMessage());
+        }
+
+        {
+            Map<String, String> meta = new HashMap<>();
+            meta.put("foo", null);
+            Map<String, Object> mapping = new HashMap<>(Map.of("meta", meta));
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                    () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
+            assertEquals("[meta] values can't be null (field [foo])",
                     e.getMessage());
         }
 

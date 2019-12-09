@@ -226,7 +226,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         /** Set metadata on this field. */
-        public T meta(Map<String, ?> meta) {
+        public T meta(Map<String, String> meta) {
             fieldType.setMeta(meta);
             return (T) this;
         }

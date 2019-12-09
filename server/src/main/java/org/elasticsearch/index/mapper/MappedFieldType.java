@@ -74,7 +74,7 @@ public abstract class MappedFieldType extends FieldType {
     private Object nullValue;
     private String nullValueAsString; // for sending null value to _all field
     private boolean eagerGlobalOrdinals;
-    private Map<String,Object> meta;
+    private Map<String, String> meta;
 
     protected MappedFieldType(MappedFieldType ref) {
         super(ref);
@@ -499,14 +499,14 @@ public abstract class MappedFieldType extends FieldType {
     /**
      * Get the metadata associated with this field.
      */
-    public Map<String, Object> meta() {
+    public Map<String, String> meta() {
         return meta;
     }
 
     /**
      * Associate metadata with this field.
      */
-    public void setMeta(Map<String, ?> meta) {
+    public void setMeta(Map<String, String> meta) {
         checkIfFrozen();
         this.meta = Map.copyOf(Objects.requireNonNull(meta));
     }

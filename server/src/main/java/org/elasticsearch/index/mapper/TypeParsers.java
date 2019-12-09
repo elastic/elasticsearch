@@ -34,6 +34,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
@@ -199,12 +201,18 @@ public class TypeParsers {
                     throw new MapperParsingException("[meta] values can't be longer than 50 chars, but got [" + value +
                             "] for field [" + name + "]");
                 }
-            } else if (value instanceof Number == false) {
-                throw new MapperParsingException("[meta] values can only be numbers or strings, but got " +
+            } else if (value == null) {
+                throw new MapperParsingException("[meta] values can't be null (field [" + name + "])");
+            } else {
+                throw new MapperParsingException("[meta] values can only be strings, but got " +
                         value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
             }
         }
-        builder.meta(meta);
+        final Function<Map.Entry<String, ?>, Object> entryValueFunction = Map.Entry::getValue;
+        final Function<Object, String> stringCast = String.class::cast;
+        Map<String, String> checkedMeta = meta.entrySet().stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entryValueFunction.andThen(stringCast)));
+        builder.meta(checkedMeta);
     }
 
     /**

@@ -144,7 +144,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             }
         }
 
-        Map<String, Set<Object>> meta;
+        Map<String, Set<String>> meta;
         switch (randomInt(2)) {
         case 0:
             meta = Collections.emptyMap();
@@ -153,7 +153,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             meta = Map.of("foo", Set.of("bar"));
             break;
         default:
-            meta = Map.of("foo", Set.of("bar", 3));
+            meta = Map.of("foo", Set.of("bar", "baz"));
             break;
         }
 
@@ -171,7 +171,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         String[] indices = instance.indices();
         String[] nonSearchableIndices = instance.nonSearchableIndices();
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
-        Map<String, Set<Object>> meta = instance.meta();
+        Map<String, Set<String>> meta = instance.meta();
         switch (between(0, 7)) {
         case 0:
             name += randomAlphaOfLengthBetween(1, 10);
@@ -228,7 +228,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             nonAggregatableIndices = newNonAggregatableIndices;
             break;
         case 7:
-            Map<String, Set<Object>> newMeta;
+            Map<String, Set<String>> newMeta;
             if (meta.isEmpty()) {
                 newMeta = Map.of("foo", Set.of("bar"));
             } else {

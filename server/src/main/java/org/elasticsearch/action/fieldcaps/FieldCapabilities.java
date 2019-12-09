@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -56,9 +57,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private static final ParseField NON_AGGREGATABLE_INDICES_FIELD = new ParseField("non_aggregatable_indices");
     private static final ParseField META_FIELD = new ParseField("meta");
 
-    private static Map<String, Set<Object>> mapToMapOfSets(Map<String, Object> map) {
+    private static Map<String, Set<String>> mapToMapOfSets(Map<String, String> map) {
+        final Function<Map.Entry<String, String>, String> entryValueFunction = Map.Entry::getValue;
         return map.entrySet().stream().collect(
-                Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> Set.of(entry.getValue())));
+                Collectors.toUnmodifiableMap(Map.Entry::getKey, entryValueFunction.andThen(Set::of)));
     }
 
     private final String name;
@@ -70,7 +72,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final String[] nonSearchableIndices;
     private final String[] nonAggregatableIndices;
 
-    private final Map<String, Set<Object>> meta;
+    private final Map<String, Set<String>> meta;
 
     /**
      * Constructor for a single index.
@@ -81,8 +83,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param meta Metadata about the field.
      */
     public FieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable,
-            Map<String, Object> meta) {
-        this(name, type, isSearchable, isAggregatable, null, null, null, mapToMapOfSets(meta));
+            Map<String, String> meta) {
+        this(name, type, isSearchable, isAggregatable, null, null, null, mapToMapOfSets(Objects.requireNonNull(meta)));
     }
 
     /**
@@ -104,7 +106,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                       String[] indices,
                       String[] nonSearchableIndices,
                       String[] nonAggregatableIndices,
-                      Map<String, Set<Object>> meta) {
+                      Map<String, Set<String>> meta) {
         this.name = name;
         this.type = type;
         this.isSearchable = isSearchable;
@@ -124,7 +126,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readGenericValue));
+            meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
         } else {
             meta = Collections.emptyMap();
         }
@@ -140,7 +142,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeGenericValue));
+            out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
         }
     }
 
@@ -161,13 +163,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
         if (meta.isEmpty() == false) {
             builder.startObject("meta");
-            List<Map.Entry<String, Set<Object>>> entries = new ArrayList<>(meta.entrySet());
+            List<Map.Entry<String, Set<String>>> entries = new ArrayList<>(meta.entrySet());
             entries.sort(Comparator.comparing(Map.Entry::getKey)); // provide predictable order
-            for (Map.Entry<String, Set<Object>> entry : entries) {
-                List<Object> values = new ArrayList<>(entry.getValue());
-                Comparator<Object> comparator = Comparator.comparing(v -> v.getClass().getName());
-                comparator = comparator.thenComparing(Object::toString);
-                values.sort(comparator); // provide predictable order
+            for (Map.Entry<String, Set<String>> entry : entries) {
+                List<String> values = new ArrayList<>(entry.getValue());
+                values.sort(String::compareTo); // provide predictable order
                 builder.field(entry.getKey(), values);
             }
             builder.endObject();
@@ -191,7 +191,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             a[3] != null ? ((List<String>) a[3]).toArray(new String[0]) : null,
             a[4] != null ? ((List<String>) a[4]).toArray(new String[0]) : null,
             a[5] != null ? ((List<String>) a[5]).toArray(new String[0]) : null,
-            a[6] != null ? ((Map<String, Set<Object>>) a[6]) : Collections.emptyMap()));
+            a[6] != null ? ((Map<String, Set<String>>) a[6]) : Collections.emptyMap()));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
@@ -259,7 +259,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     /**
      * Return merged metadata across indices.
      */
-    public Map<String, Set<Object>> meta() {
+    public Map<String, Set<String>> meta() {
         return meta;
     }
 
@@ -298,7 +298,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private boolean isSearchable;
         private boolean isAggregatable;
         private List<IndexCaps> indiceList;
-        private Map<String, Set<Object>> meta;
+        private Map<String, Set<String>> meta;
 
         Builder(String name, String type) {
             this.name = name;
@@ -319,9 +319,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         /**
          * Collect capabilities of an index.
          */
-        void add(String index, boolean search, boolean agg, Map<String, Object> meta) {
+        void add(String index, boolean search, boolean agg, Map<String, String> meta) {
             add(index, search, agg);
-            for (Map.Entry<String, Object> entry : meta.entrySet()) {
+            for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
                         .add(entry.getValue());
             }
@@ -330,9 +330,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         /**
          * Merge another capabilities instance.
          */
-        void merge(String index, boolean search, boolean agg, Map<String, Set<Object>> meta) {
+        void merge(String index, boolean search, boolean agg, Map<String, Set<String>> meta) {
             add(index, search, agg);
-            for (Map.Entry<String, Set<Object>> entry : meta.entrySet()) {
+            for (Map.Entry<String, Set<String>> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
                         .addAll(entry.getValue());
             }
@@ -380,9 +380,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             } else {
                 nonAggregatableIndices = null;
             }
-            Map<String, Set<Object>> immutableMeta = meta.entrySet().stream()
+            final Function<Map.Entry<String, Set<String>>, Set<String>> entryValueFunction = Map.Entry::getValue;
+            Map<String, Set<String>> immutableMeta = meta.entrySet().stream()
                     .collect(Collectors.toUnmodifiableMap(
-                            Map.Entry::getKey, entry -> Set.copyOf(entry.getValue())));
+                            Map.Entry::getKey, entryValueFunction.andThen(Set::copyOf)));
             return new FieldCapabilities(name, type, isSearchable, isAggregatable,
                 indices, nonSearchableIndices, nonAggregatableIndices, immutableMeta);
         }

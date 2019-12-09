@@ -32,7 +32,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -74,6 +76,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
     private final int maxNumConnections;
     private final AtomicLong counter = new AtomicLong(0);
+    private final List<String> configuredAddresses;
     private final List<Supplier<TransportAddress>> addresses;
     private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
     private final ConnectionProfile profile;
@@ -100,6 +103,7 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
                              int maxNumConnections, List<String> configuredAddresses, List<Supplier<TransportAddress>> addresses) {
         super(clusterAlias, transportService, connectionManager);
         this.maxNumConnections = maxNumConnections;
+        this.configuredAddresses = configuredAddresses;
         assert addresses.isEmpty() == false : "Cannot use simple connection strategy with no configured addresses";
         this.addresses = addresses;
         // TODO: Move into the ConnectionManager
@@ -134,7 +138,9 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
-        return false;
+        List<String> addresses = REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        int numOfSockets = REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        return numOfSockets != maxNumConnections || addressesChanged(configuredAddresses, addresses);
     }
 
     @Override
@@ -222,5 +228,14 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
     private static TransportAddress resolveAddress(String address) {
         return new TransportAddress(parseSeedAddress(address));
+    }
+
+    private boolean addressesChanged(final List<String> oldAddresses, final List<String> newAddresses) {
+        if (oldAddresses.size() != newAddresses.size()) {
+            return true;
+        }
+        Set<String> oldSeeds = new HashSet<>(oldAddresses);
+        Set<String> newSeeds = new HashSet<>(newAddresses);
+        return oldSeeds.equals(newSeeds) == false;
     }
 }

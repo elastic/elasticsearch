@@ -642,6 +642,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return custom(IndexGraveyard.TYPE);
     }
 
+    @SuppressWarnings("unchecked")
     public <T extends Custom> T custom(String type) {
         return (T) customs.get(type);
     }

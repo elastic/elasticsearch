@@ -249,9 +249,7 @@ public final class IndexSettings {
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
         Setting.timeSetting("index.translog.retention.age",
-            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) &&
-                IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0) ?
-                TimeValue.MINUS_ONE : TimeValue.timeValueHours(12),
+            settings -> shouldDisableTranslogRetention(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12),
             TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
 
     /**
@@ -262,8 +260,7 @@ public final class IndexSettings {
      **/
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
         Setting.byteSizeSetting("index.translog.retention.size",
-            settings -> INDEX_SOFT_DELETES_SETTING.get(settings) &&
-                IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0) ? "-1" : "512MB",
+            settings -> shouldDisableTranslogRetention(settings) ? "-1" : "512MB",
             Property.Dynamic, Property.IndexScope);
 
     /**
@@ -514,8 +511,8 @@ public final class IndexSettings {
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
-        translogRetentionAge = scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING);
-        translogRetentionSize = scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
+        setTranslogRetentionAge(scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING));
+        setTranslogRetentionSize(scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING));
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
@@ -581,11 +578,21 @@ public final class IndexSettings {
     }
 
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
-        this.translogRetentionSize = byteSizeValue;
+        if (shouldDisableTranslogRetention(settings) && byteSizeValue.getBytes() >= 0) {
+            // ignore the translog retention settings if soft-deletes enabled
+            this.translogRetentionSize = new ByteSizeValue(-1);
+        } else {
+            this.translogRetentionSize = byteSizeValue;
+        }
     }
 
     private void setTranslogRetentionAge(TimeValue age) {
-        this.translogRetentionAge = age;
+        if (shouldDisableTranslogRetention(settings) && age.millis() >= 0) {
+            // ignore the translog retention settings if soft-deletes enabled
+            this.translogRetentionAge = TimeValue.MINUS_ONE;
+        } else {
+            this.translogRetentionAge = age;
+        }
     }
 
     private void setGenerationThresholdSize(final ByteSizeValue generationThresholdSize) {
@@ -768,6 +775,7 @@ public final class IndexSettings {
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
      */
     public ByteSizeValue getTranslogRetentionSize() {
+        assert shouldDisableTranslogRetention(settings) == false || translogRetentionSize.getBytes() == -1L : translogRetentionSize;
         return translogRetentionSize;
     }
 
@@ -776,6 +784,7 @@ public final class IndexSettings {
      * around
      */
     public TimeValue getTranslogRetentionAge() {
+        assert shouldDisableTranslogRetention(settings) == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
         return translogRetentionAge;
     }
 
@@ -785,6 +794,11 @@ public final class IndexSettings {
      */
     public int getTranslogRetentionTotalFiles() {
         return INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.get(getSettings());
+    }
+
+    private static boolean shouldDisableTranslogRetention(Settings settings) {
+        return INDEX_SOFT_DELETES_SETTING.get(settings)
+            && IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(Version.V_7_4_0);
     }
 
     /**

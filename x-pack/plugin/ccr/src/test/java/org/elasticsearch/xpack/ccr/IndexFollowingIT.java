@@ -1523,8 +1523,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         return () -> {
             final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(key)).get();
             assertTrue("Doc with id [" + key + "] is missing", getResponse.isExists());
-            assertTrue((getResponse.getSource().containsKey("f")));
-            assertThat(getResponse.getSource().get("f"), equalTo(value));
+            if (sourceEnabled) {
+                assertTrue((getResponse.getSource().containsKey("f")));
+                assertThat(getResponse.getSource().get("f"), equalTo(value));
+            }
         };
     }
 

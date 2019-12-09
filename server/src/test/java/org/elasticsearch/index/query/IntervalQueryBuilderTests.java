@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -52,7 +53,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     @Override
     protected IntervalQueryBuilder doCreateTestQueryBuilder() {
-        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0));
+        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0, true));
     }
 
     private static final String[] filters = new String[]{
@@ -84,9 +85,9 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
-    private IntervalsSourceProvider createRandomSource(int depth) {
+    private IntervalsSourceProvider createRandomSource(int depth, boolean useScripts) {
         if (depth > 3) {
-            return createRandomMatch(depth + 1);
+            return createRandomMatch(depth + 1, useScripts);
         }
         switch (randomInt(20)) {
             case 0:
@@ -94,29 +95,29 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                 int orCount = randomInt(4) + 1;
                 List<IntervalsSourceProvider> orSources = new ArrayList<>();
                 for (int i = 0; i < orCount; i++) {
-                    orSources.add(createRandomSource(depth + 1));
+                    orSources.add(createRandomSource(depth + 1, useScripts));
                 }
-                return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1));
+                return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1, useScripts));
             case 2:
             case 3:
                 int count = randomInt(5) + 1;
                 List<IntervalsSourceProvider> subSources = new ArrayList<>();
                 for (int i = 0; i < count; i++) {
-                    subSources.add(createRandomSource(depth + 1));
+                    subSources.add(createRandomSource(depth + 1, useScripts));
                 }
                 boolean ordered = randomBoolean();
                 int maxGaps = randomInt(5) - 1;
-                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1);
+                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1, useScripts);
                 return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
             default:
-                return createRandomMatch(depth + 1);
+                return createRandomMatch(depth + 1, useScripts);
         }
     }
 
-    private IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth) {
+    private IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth, boolean useScripts) {
         if (depth < 3 && randomInt(20) > 18) {
-            if (randomBoolean()) {
-                return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1), randomFrom(filters));
+            if (useScripts == false || randomBoolean()) {
+                return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1, false), randomFrom(filters));
             }
             return new IntervalsSourceProvider.IntervalFilter(
                 new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap()));
@@ -124,7 +125,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         return null;
     }
 
-    private IntervalsSourceProvider createRandomMatch(int depth) {
+    private IntervalsSourceProvider createRandomMatch(int depth, boolean useScripts) {
         String useField = rarely() ? MASKED_FIELD : null;
         int wordCount = randomInt(4) + 1;
         List<String> words = new ArrayList<>();
@@ -135,7 +136,25 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         boolean mOrdered = randomBoolean();
         int maxMGaps = randomInt(5) - 1;
         String analyzer = randomFrom("simple", "keyword", "whitespace");
-        return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(depth + 1), useField);
+        return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(depth + 1, useScripts), useField);
+    }
+
+    @Override
+    public void testCacheability() throws IOException {
+        IntervalQueryBuilder queryBuilder = new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0, false));
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        IntervalsSourceProvider.IntervalFilter scriptFilter = new IntervalsSourceProvider.IntervalFilter(
+            new Script(ScriptType.INLINE, "mockscript", "1", Collections.emptyMap())
+        );
+        IntervalsSourceProvider source = new IntervalsSourceProvider.Match("text", 0, true, "simple", scriptFilter, null);
+        queryBuilder = new IntervalQueryBuilder(STRING_FIELD_NAME, source);
+        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("query with scripts should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     @Override
@@ -151,7 +170,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         if (randomBoolean()) {
             return new IntervalQueryBuilder(STRING_FIELD_NAME_2, instance.getSourceProvider());
         }
-        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0));
+        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0, true));
     }
 
     public void testMatchInterval() throws IOException {
@@ -378,7 +397,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         ScriptService scriptService = new ScriptService(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap()){
             @Override
             @SuppressWarnings("unchecked")
-            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+            public <FactoryType extends ScriptFactory> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(IntervalFilterScript.CONTEXT, context);
                 assertEquals(new Script("interval.start > 3"), script);
                 return (FactoryType) factory;

@@ -106,9 +106,9 @@ public class ResultsPersisterService {
             if (currentMax < MAX_RETRY_SLEEP_MILLIS) {
                 currentMin = currentMax;
             }
-            double backOff = ((1 << Math.min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) / 2.0;
-            int max = (int)(backOff * 100);
-            currentMax = Math.min(max, MAX_RETRY_SLEEP_MILLIS);
+            // Exponential backoff calculation taken from: https://en.wikipedia.org/wiki/Exponential_backoff
+            int uncappedBackoff = ((1 << Math.min(currentAttempt, MAX_RETRY_EXPONENT)) - 1) * (50);
+            currentMax = Math.min(uncappedBackoff, MAX_RETRY_SLEEP_MILLIS);
             // Its good to have a random window along the exponentially increasing curve
             // so that not all bulk requests rest for the same amount of time
             int randBound = 1 + (currentMax - currentMin);

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFact
 import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessor;
 import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
@@ -373,7 +374,8 @@ public class AnalyticsProcessManager {
             }
 
             dataExtractor = dataExtractorFactory.newExtractor(false);
-            AnalyticsProcessConfig analyticsProcessConfig = createProcessConfig(config, dataExtractor);
+            AnalyticsProcessConfig analyticsProcessConfig =
+                createProcessConfig(config, dataExtractor, dataExtractorFactory.getExtractedFields());
             LOGGER.trace("[{}] creating analytics process with config [{}]", config.getId(), Strings.toString(analyticsProcessConfig));
             // If we have no rows, that means there is no data so no point in starting the native process
             // just finish the task
@@ -389,11 +391,20 @@ public class AnalyticsProcessManager {
             return true;
         }
 
-        private AnalyticsProcessConfig createProcessConfig(DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor) {
+        private AnalyticsProcessConfig createProcessConfig(
+                DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor, ExtractedFields extractedFields) {
             DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
             Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
-            AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(config.getId(), dataSummary.rows, dataSummary.cols,
-                config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), categoricalFields, config.getAnalysis());
+            AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(
+                config.getId(),
+                dataSummary.rows,
+                dataSummary.cols,
+                config.getModelMemoryLimit(),
+                1,
+                config.getDest().getResultsField(),
+                categoricalFields,
+                config.getAnalysis(),
+                extractedFields);
             return processConfig;
         }
     }

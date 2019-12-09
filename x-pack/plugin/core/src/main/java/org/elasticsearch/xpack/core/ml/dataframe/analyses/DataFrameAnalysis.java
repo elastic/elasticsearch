@@ -16,8 +16,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
     /**
      * @return The analysis parameters as a map
+     * @param extractedFields map of (name, types) for all the extracted fields
      */
-    Map<String, Object> getParams();
+    Map<String, Object> getParams(Map<String, Set<String>> extractedFields);
 
     /**
      * @return {@code true} if this analysis supports fields with categorical values (i.e. text, keyword, ip)

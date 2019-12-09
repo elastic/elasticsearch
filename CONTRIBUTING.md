@@ -253,7 +253,7 @@ is to be helpful, not to turn writing code into a chore.
    1. Always add Javadoc to new code.
    2. Add Javadoc to existing code if you can.
    3. Document the "why", not the "how", unless that's important to the
-      "why.
+      "why".
    4. Don't document anything trivial or obvious (e.g. getters and
       setters). In other words, the Javadoc should add some value.
 
@@ -322,7 +322,12 @@ is to be helpful, not to turn writing code into a chore.
        regular comments in the code. Remember as well that Elasticsearch
        has extensive [user documentation](./docs), and it is not the role
        of Javadoc to replace that.
-   12. If you need help writing Javadoc, just ask!
+   12. Please still try to make class, method or variable names as
+       descriptive and concise as possible, as opposed to relying solely on
+       Javadoc to describe something.
+   13. Use `@link` and `@see` to add references, either to related
+       resources in the codebase or to relevant external resources.
+   14. If you need help writing Javadoc, just ask!
 
 Finally, use your judgement! Base your decisions on what will help other
 developers - including yourself, when you come back to some code

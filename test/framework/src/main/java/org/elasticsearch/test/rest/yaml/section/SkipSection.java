@@ -27,6 +27,7 @@ import org.elasticsearch.test.rest.yaml.Features;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -98,33 +99,30 @@ public class SkipSection {
 
     public static final SkipSection EMPTY = new SkipSection();
 
-    private final Version lowerVersion;
-    private final Version upperVersion;
     private final List<String> features;
     private final String reason;
+    private final List<VersionRange> versionRanges;
 
     private SkipSection() {
-        this.lowerVersion = null;
-        this.upperVersion = null;
+        this.versionRanges = new ArrayList<>();
         this.features = new ArrayList<>();
         this.reason = null;
     }
 
     public SkipSection(String versionRange, List<String> features, String reason) {
         assert features != null;
-        Version[] versions = parseVersionRange(versionRange);
-        this.lowerVersion = versions[0];
-        this.upperVersion = versions[1];
+        this.versionRanges = parseVersionRanges(versionRange);
+        assert versionRanges.size() >= 1;
         this.features = features;
         this.reason = reason;
     }
 
     public Version getLowerVersion() {
-        return lowerVersion;
+        return versionRanges.get(0).lower();
     }
 
     public Version getUpperVersion() {
-        return upperVersion;
+        return versionRanges.get(versionRanges.size() - 1).upper();
     }
 
     public List<String> getFeatures() {
@@ -139,8 +137,11 @@ public class SkipSection {
         if (isEmpty()) {
             return false;
         }
-        boolean skip = lowerVersion != null && upperVersion != null && currentVersion.onOrAfter(lowerVersion)
-            && currentVersion.onOrBefore(upperVersion);
+        boolean skip = false;
+        for (VersionRange versionRange : versionRanges) {
+            skip |= versionRange.contain(currentVersion);
+        }
+
         skip |= Features.areAllSupported(features) == false;
         return skip;
     }
@@ -153,24 +154,35 @@ public class SkipSection {
         return EMPTY.equals(this);
     }
 
-    static Version[] parseVersionRange(String versionRange) {
-        if (versionRange == null) {
-            return new Version[] { null, null };
+    static List<VersionRange> parseVersionRanges(String rawRanges) {
+        if (rawRanges == null) {
+            return Collections.singletonList(new VersionRange(null, null));
         }
-        if (versionRange.trim().equals("all")) {
-            return new Version[]{VersionUtils.getFirstVersion(), Version.CURRENT};
+        if (rawRanges.trim().equals("all")) {
+            return Collections.singletonList(new VersionRange(VersionUtils.getFirstVersion(), Version.CURRENT));
         }
-        String[] skipVersions = versionRange.split("-");
-        if (skipVersions.length > 2) {
-            throw new IllegalArgumentException("version range malformed: " + versionRange);
-        }
+        String[] ranges = rawRanges.split(",");
+        List<VersionRange> versionRanges = new ArrayList<>();
+        for (String rawRange : ranges) {
+            String[] skipVersions = wrapWithSpaces(rawRange).split("-");
+            if (skipVersions.length > 2) {
+                throw new IllegalArgumentException("version range malformed: " + rawRanges);
+            }
 
-        String lower = skipVersions[0].trim();
-        String upper = skipVersions[1].trim();
-        return new Version[] {
-            lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
-            upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
-        };
+            String lower = skipVersions[0].trim();
+            String upper = skipVersions[1].trim();
+            VersionRange versionRange = new VersionRange(
+                lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
+                upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
+            );
+            versionRanges.add(versionRange);
+        }
+        return versionRanges;
+
+    }
+
+    private static String wrapWithSpaces(String rawRange) {
+        return " " + rawRange + " ";
     }
 
     public String getSkipMessage(String description) {

@@ -139,7 +139,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private ActionFuture<BulkResponse> makeFuture(BulkResponse response) {
+    private static ActionFuture<BulkResponse> makeFuture(BulkResponse response) {
         ActionFuture<BulkResponse> future = mock(ActionFuture.class);
         when(future.actionGet()).thenReturn(response);
         return future;

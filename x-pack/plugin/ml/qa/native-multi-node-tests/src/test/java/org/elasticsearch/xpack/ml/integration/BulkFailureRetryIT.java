@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,11 +39,11 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
 
-    private String index = "bulk-failure-retry";
+    private final String index = "bulk-failure-retry";
     private long now = System.currentTimeMillis();
-    private static long DAY = 86400000;
-    private String jobId = "bulk-failure-retry-job";
-    private String resultsIndex = ".ml-anomalies-custom-bulk-failure-retry-job";
+    private static long DAY = Duration.ofDays(1).toMillis();
+    private final String jobId = "bulk-failure-retry-job";
+    private final String resultsIndex = ".ml-anomalies-custom-bulk-failure-retry-job";
 
     @Before
     public void putPastDataIntoIndex() {
@@ -154,11 +155,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         analysisConfig.setBucketSpan(bucketSpan);
         analysisConfig.setSummaryCountFieldName(summaryCountField);
 
-        Job.Builder builder = new Job.Builder();
-        builder.setId(id);
-        builder.setAnalysisConfig(analysisConfig);
-        builder.setDataDescription(dataDescription);
-        return builder;
+        return new Job.Builder().setId(id).setAnalysisConfig(analysisConfig).setDataDescription(dataDescription);
     }
 
     private void writeData(Logger logger, String index, long numDocs, long start, long end) {

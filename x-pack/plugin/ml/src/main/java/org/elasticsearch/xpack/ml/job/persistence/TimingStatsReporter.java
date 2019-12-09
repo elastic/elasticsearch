@@ -44,7 +44,7 @@ public class TimingStatsReporter {
         }
     }
 
-    public void finishReporting() throws JobResultsPersister.BulkIndexException {
+    public void finishReporting() {
         // Don't flush if current timing stats are identical to the persisted ones
         if (currentTimingStats.equals(persistedTimingStats)) {
             return;

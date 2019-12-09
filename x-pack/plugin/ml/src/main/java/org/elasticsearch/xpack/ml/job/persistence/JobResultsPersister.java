@@ -423,15 +423,4 @@ public class JobResultsPersister {
         }
     }
 
-    public static class BulkIndexException extends Exception {
-
-        public BulkIndexException(String msg) {
-            super(msg);
-        }
-
-        public BulkIndexException(BulkResponse bulkResponse) {
-            this(bulkResponse.buildFailureMessage());
-        }
-
-    }
 }

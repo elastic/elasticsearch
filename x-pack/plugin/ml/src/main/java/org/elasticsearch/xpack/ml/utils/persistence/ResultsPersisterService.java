@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -24,10 +25,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -42,7 +45,7 @@ public class ResultsPersisterService {
         50,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope);
-    private static final int MAX_RETRY_SLEEP_MILLIS = 900_000; // 15 min
+    private static final int MAX_RETRY_SLEEP_MILLIS = (int)Duration.ofMinutes(15).toMillis();
     private static final int MIN_RETRY_SLEEP_MILLIS = 50;
     // Having an exponent higher than this causes integer overflow
     private static final int MAX_RETRY_EXPONENT = 29;
@@ -80,8 +83,9 @@ public class ResultsPersisterService {
         int currentMin = MIN_RETRY_SLEEP_MILLIS;
         int currentMax = MIN_RETRY_SLEEP_MILLIS;
         int currentAttempt = 0;
+        BulkResponse bulkResponse = null;
         while(currentAttempt <= maxFailureRetries) {
-            BulkResponse bulkResponse = bulkIndex(bulkRequest);
+            bulkResponse = bulkIndex(bulkRequest);
             if (bulkResponse.hasFailures() == false) {
                 return bulkResponse;
             }
@@ -89,7 +93,9 @@ public class ResultsPersisterService {
                 throw new ElasticsearchException("[{}] failed to index all results. {}", jobId, bulkResponse.buildFailureMessage());
             }
             if (currentAttempt > maxFailureRetries) {
-                LOGGER.warn("[{}] failed to index after [{}] attempts.", jobId, currentAttempt);
+                LOGGER.warn("[{}] failed to index after [{}] attempts. Setting [xpack.ml.persist_results_max_retries] was reduced",
+                    jobId,
+                    currentAttempt);
                 throw new ElasticsearchException("[{}] failed to index all results after [{}] attempts. {}",
                     jobId,
                     currentAttempt,
@@ -105,7 +111,8 @@ public class ResultsPersisterService {
             currentMax = Math.min(max, MAX_RETRY_SLEEP_MILLIS);
             // Its good to have a random window along the exponentially increasing curve
             // so that not all bulk requests rest for the same amount of time
-            int randSleep = currentMin + random.nextInt(1 + (currentMax - currentMin));
+            int randBound = 1 + (currentMax - currentMin);
+            int randSleep = currentMin + random.nextInt(randBound);
             // We should only retry the docs that failed.
             bulkRequest = buildNewRequestFromFailures(bulkRequest, bulkResponse);
             try {
@@ -119,9 +126,12 @@ public class ResultsPersisterService {
                 Thread.currentThread().interrupt();
             }
         }
+        String bulkFailureMessage = bulkResponse == null ? "" : bulkResponse.buildFailureMessage();
+        LOGGER.warn("[{}] failed to index after [{}] attempts.", jobId, currentAttempt);
         throw new ElasticsearchException("[{}] failed to index all results after [{}] attempts. {}",
             jobId,
-            currentAttempt);
+            currentAttempt,
+            bulkFailureMessage);
     }
 
     private BulkResponse bulkIndex(BulkRequest bulkRequest) {
@@ -133,30 +143,16 @@ public class ResultsPersisterService {
     private BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
         // If we failed, lets set the bulkRequest to be a collection of the failed requests
         BulkRequest bulkRequestOfFailures = new BulkRequest();
-        Set<String> failedDocIds = new HashSet<>();
-        bulkResponse.forEach(itemResponse -> {
-            if (itemResponse.isFailed()) {
-                failedDocIds.add(itemResponse.getId());
-            }
-        });
+        Set<String> failedDocIds = Arrays.stream(bulkResponse.getItems())
+            .filter(BulkItemResponse::isFailed)
+            .map(BulkItemResponse::getId)
+            .collect(Collectors.toSet());
         bulkRequest.requests().forEach(docWriteRequest -> {
             if (failedDocIds.contains(docWriteRequest.id())) {
                 bulkRequestOfFailures.add(docWriteRequest);
             }
         });
         return bulkRequestOfFailures;
-    }
-
-    public static class BulkIndexException extends Exception {
-
-        public BulkIndexException(String msg) {
-            super(msg);
-        }
-
-        public BulkIndexException(BulkResponse bulkResponse) {
-            this(bulkResponse.buildFailureMessage());
-        }
-
     }
 
 }

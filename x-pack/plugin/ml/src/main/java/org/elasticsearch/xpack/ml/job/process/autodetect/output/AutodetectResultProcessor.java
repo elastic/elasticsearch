@@ -119,7 +119,7 @@ public class AutodetectResultProcessor {
         this.process = Objects.requireNonNull(autodetectProcess);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
-        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, () -> isDeadOrDying() == false);
+        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
         this.deleteInterimRequired = true;
     }
@@ -177,7 +177,7 @@ public class AutodetectResultProcessor {
                         LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
                     }
                 } catch (Exception e) {
-                    if (isDeadOrDying()) {
+                    if (isAlive() == false) {
                         throw e;
                     }
                     LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
@@ -224,7 +224,7 @@ public class AutodetectResultProcessor {
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {
-            persister.persistCategoryDefinition(categoryDefinition, () -> isDeadOrDying() == false);
+            persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
@@ -260,9 +260,7 @@ public class AutodetectResultProcessor {
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
             // We need to refresh in order for the snapshot to be available when we try to update the job with it
-            BulkResponse bulkResponse = persister.persistModelSnapshot(modelSnapshot,
-                WriteRequest.RefreshPolicy.IMMEDIATE,
-                () -> isDeadOrDying() == false);
+            BulkResponse bulkResponse = persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE, this::isAlive);
             assert bulkResponse.getItems().length == 1;
             IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
             if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
@@ -272,7 +270,7 @@ public class AutodetectResultProcessor {
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
             LOGGER.debug("[{}] Parsed Quantiles with timestamp {}", jobId, quantiles.getTimestamp());
-            persister.persistQuantiles(quantiles, () -> isDeadOrDying() == false);
+            persister.persistQuantiles(quantiles, this::isAlive);
             bulkResultsPersister.executeRequest();
 
             if (processKilled == false && renormalizer.isEnabled()) {
@@ -316,7 +314,7 @@ public class AutodetectResultProcessor {
                 modelSizeStats.getTotalOverFieldCount(), modelSizeStats.getTotalPartitionFieldCount(),
                 modelSizeStats.getBucketAllocationFailuresCount(), modelSizeStats.getMemoryStatus());
 
-        persister.persistModelSizeStats(modelSizeStats, () -> isDeadOrDying() == false);
+        persister.persistModelSizeStats(modelSizeStats, this::isAlive);
         notifyModelMemoryStatusChange(modelSizeStats);
         latestModelSizeStats = modelSizeStats;
     }
@@ -435,8 +433,11 @@ public class AutodetectResultProcessor {
         return deleteInterimRequired;
     }
 
-    private boolean isDeadOrDying() {
-        return processKilled || (process.isProcessAliveAfterWaiting() == false);
+    private boolean isAlive() {
+        if (processKilled) {
+            return false;
+        }
+        return process.isProcessAliveAfterWaiting();
     }
 
     void setDeleteInterimRequired(boolean deleteInterimRequired) {

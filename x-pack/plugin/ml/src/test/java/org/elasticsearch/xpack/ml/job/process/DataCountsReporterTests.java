@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.Before;
 import org.mockito.Mockito;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +24,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class DataCountsReporterTests extends ESTestCase {
@@ -49,14 +49,14 @@ public class DataCountsReporterTests extends ESTestCase {
         jobDataCountsPersister = Mockito.mock(JobDataCountsPersister.class);
     }
 
-    public void testSimpleConstructor() throws Exception {
+    public void testSimpleConstructor() {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         DataCounts stats = dataCountsReporter.incrementalStats();
         assertNotNull(stats);
         assertAllCountFieldsEqualZero(stats);
     }
 
-    public void testComplexConstructor() throws Exception {
+    public void testComplexConstructor() {
         DataCounts counts = new DataCounts("foo", 1L, 1L, 2L, 0L, 3L, 4L, 5L, 6L, 7L, 8L,
                 new Date(), new Date(), new Date(), new Date(), new Date());
 
@@ -76,7 +76,7 @@ public class DataCountsReporterTests extends ESTestCase {
         assertNull(stats.getEarliestRecordTimeStamp());
     }
 
-    public void testResetIncrementalCounts() throws Exception {
+    public void testResetIncrementalCounts() {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         DataCounts stats = dataCountsReporter.incrementalStats();
         assertNotNull(stats);
@@ -128,7 +128,7 @@ public class DataCountsReporterTests extends ESTestCase {
         assertEquals(0, dataCountsReporter.incrementalStats().getSparseBucketCount());
     }
 
-    public void testReportLatestTimeIncrementalStats() throws IOException {
+    public void testReportLatestTimeIncrementalStats() {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         dataCountsReporter.startNewIncrementalCount();
         dataCountsReporter.reportLatestTimeIncrementalStats(5001L);
@@ -265,11 +265,11 @@ public class DataCountsReporterTests extends ESTestCase {
                 dataCountsReporter.runningTotalStats().getLastDataTimeStamp());
 
         dc.setLastDataTimeStamp(dataCountsReporter.incrementalStats().getLastDataTimeStamp());
-        Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("sr"), eq(dc));
+        verify(jobDataCountsPersister, times(1)).persistDataCounts(eq("sr"), eq(dc));
         assertEquals(dc, dataCountsReporter.incrementalStats());
     }
 
-    private void assertAllCountFieldsEqualZero(DataCounts stats) throws Exception {
+    private void assertAllCountFieldsEqualZero(DataCounts stats) {
         assertEquals(0L, stats.getProcessedRecordCount());
         assertEquals(0L, stats.getProcessedFieldCount());
         assertEquals(0L, stats.getInputBytes());

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -43,7 +42,7 @@ public class JobDataCountsPersister {
         this.client = client;
     }
 
-    private XContentBuilder serialiseCounts(DataCounts counts) throws IOException {
+    private static XContentBuilder serialiseCounts(DataCounts counts) throws IOException {
         XContentBuilder builder = jsonBuilder();
         return counts.toXContent(builder, ToXContent.EMPTY_PARAMS);
     }
@@ -63,7 +62,7 @@ public class JobDataCountsPersister {
                 WriteRequest.RefreshPolicy.NONE,
                 DataCounts.documentId(jobId), () -> true);
         } catch (IOException ioe) {
-            logger.warn((Supplier<?>)() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
+            logger.warn(() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
         } catch (Exception ex) {
             logger.warn(() -> new ParameterizedMessage("[{}] Failed to persist DataCounts stats", jobId), ex);
         }
@@ -84,7 +83,7 @@ public class JobDataCountsPersister {
             final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
                 .id(DataCounts.documentId(jobId))
                 .source(content);
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request, new ActionListener<IndexResponse>() {
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request, new ActionListener<>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {
                     listener.onResponse(true);
@@ -96,7 +95,7 @@ public class JobDataCountsPersister {
                 }
             });
         } catch (IOException ioe) {
-            logger.warn((Supplier<?>)() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
+            logger.warn(() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
         }
     }
 }

@@ -22,12 +22,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ChainingInputStreamTests extends ESTestCase {
-
-    // test mark/reset
 
     public void testSkipAcrossComponents() throws Exception {
         ChainingInputStream test = new ChainingInputStream() {
@@ -350,6 +349,126 @@ public class ChainingInputStreamTests extends ESTestCase {
         }
     }
 
+    public void testMark() throws Exception {
+        InputStream mockIn = mock(InputStream.class);
+        when(mockIn.markSupported()).thenAnswer(invocationOnMock -> true);
+        ChainingInputStream test = new ChainingInputStream() {
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                if (currentComponentIn == null) {
+                    return mockIn;
+                } else {
+                    return null;
+                }
+            }
+        };
+        int readLimit = Randomness.get().nextInt(64);
+        // mark at the beginning
+        test.mark(readLimit);
+        assertThat(test.markIn, Matchers.nullValue());
+        // mark intermediary position
+        when(mockIn.read()).thenAnswer(invocationOnMock -> Randomness.get().nextInt(256));
+        test.read();
+        assertThat(test.currentIn, Matchers.is(mockIn));
+        test.mark(readLimit);
+        assertThat(test.markIn, Matchers.is(mockIn));
+        verify(mockIn).mark(Mockito.eq(readLimit));
+        // mark end position
+        when(mockIn.read()).thenAnswer(invocationOnMock -> -1);
+        test.read();
+        assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+        verify(mockIn, never()).close();
+        readLimit = Randomness.get().nextInt(64);
+        test.mark(readLimit);
+        verify(mockIn).close();
+        assertThat(test.markIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
+    }
+
+    public void testReset() throws Exception {
+        InputStream mockMarkIn = mock(InputStream.class);
+        when(mockMarkIn.markSupported()).thenAnswer(invocationOnMock -> true);
+        InputStream mockCurrentIn = mock(InputStream.class);
+        when(mockCurrentIn.markSupported()).thenAnswer(invocationOnMock -> true);
+        ChainingInputStream test = new ChainingInputStream() {
+            @Override
+            InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                return null;
+            }
+        };
+        test.currentIn = mockCurrentIn;
+        test.markIn = mockMarkIn;
+        test.reset();
+        assertThat(test.currentIn, Matchers.is(mockMarkIn));
+        assertThat(test.markIn, Matchers.is(mockMarkIn));
+        verify(mockMarkIn).reset();
+        when(mockCurrentIn.read()).thenAnswer(invocationOnMock -> -1);
+        verify(mockMarkIn, never()).close();
+        verify(mockCurrentIn).close();
+    }
+
+    public void testMarkAfterReset() throws Exception {
+        int len = 8 + Randomness.get().nextInt(8);
+        byte[] b = new byte[len];
+        Randomness.get().nextBytes(b);
+        for (int p = 0; p <= len; p++) {
+            for (int mark1 = 0; mark1 < len; mark1++) {
+                for (int offset1 = 0; offset1 < len - mark1; offset1++) {
+                    for (int mark2 = 0; mark2 < len - mark1; mark2++) {
+                        for (int offset2 = 0; offset2 < len - mark1 - mark2; offset2++) {
+                            final int pivot = p;
+                            ChainingInputStream test = new ChainingInputStream() {
+                                @Override
+                                InputStream nextComponent(InputStream currentComponentIn) throws IOException {
+                                    if (currentComponentIn == null) {
+                                        return new TestInputStream(b, 0, pivot, 1);
+                                    } else if (((TestInputStream) currentComponentIn).label == 1) {
+                                        return new TestInputStream(b, pivot, len - pivot, 2);
+                                    } else if (((TestInputStream) currentComponentIn).label == 2) {
+                                        return null;
+                                    } else {
+                                        throw new IllegalStateException();
+                                    }
+                                }
+                            };
+                            // read "mark1" bytes
+                            byte[] pre = test.readNBytes(mark1);
+                            for (int i = 0; i < pre.length; i++) {
+                                assertThat(pre[i], Matchers.is(b[i]));
+                            }
+                            // first mark
+                            test.mark(len);
+                            // read "offset" bytes
+                            byte[] span1 = test.readNBytes(offset1);
+                            for (int i = 0; i < span1.length; i++) {
+                                assertThat(span1[i], Matchers.is(b[mark1 + i]));
+                            }
+                            // reset back to "mark1" offset
+                            test.reset();
+                            // read/replay "mark2" bytes
+                            byte[] span2 = test.readNBytes(mark2);
+                            for (int i = 0; i < span2.length; i++) {
+                                assertThat(span2[i], Matchers.is(b[mark1 + i]));
+                            }
+                            // second mark
+                            test.mark(len);
+                            byte[] span3 = test.readNBytes(offset2);
+                            for (int i = 0; i < span3.length; i++) {
+                                assertThat(span3[i], Matchers.is(b[mark1 + mark2 + i]));
+                            }
+                            // reset to second mark
+                            test.reset();
+                            // read rest of bytes
+                            byte[] span4 = test.readAllBytes();
+                            for (int i = 0; i < span4.length; i++) {
+                                assertThat(span4[i], Matchers.is(b[mark1 + mark2 + i]));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private byte[] concatenateArrays(byte[] b1, byte[] b2) {
         byte[] result = new byte[b1.length + b2.length];
         System.arraycopy(b1, 0, result, 0, b1.length);
@@ -401,16 +520,30 @@ public class ChainingInputStreamTests extends ESTestCase {
     static class TestInputStream extends InputStream {
 
         final byte[] b;
+        final int label;
+        final int len;
         int i = 0;
+        int mark = -1;
         final AtomicBoolean closed = new AtomicBoolean(false);
 
         TestInputStream(byte[] b) {
+            this(b, 0, b.length, 0);
+        }
+
+        TestInputStream(byte[] b, int label) {
+            this(b, 0, b.length, label);
+        }
+
+        TestInputStream(byte[] b, int offset, int len, int label) {
             this.b = b;
+            this.i = offset;
+            this.len = len;
+            this.label = label;
         }
 
         @Override
         public int read() throws IOException {
-            if (b == null || i >= b.length) {
+            if (b == null || i >= len) {
                 return -1;
             }
             return b[i++];
@@ -419,6 +552,21 @@ public class ChainingInputStreamTests extends ESTestCase {
         @Override
         public void close() throws IOException {
             closed.set(true);
+        }
+
+        @Override
+        public void mark(int readlimit) {
+            this.mark = i;
+        }
+
+        @Override
+        public void reset() {
+            this.i = this.mark;
+        }
+
+        @Override
+        public boolean markSupported() {
+            return true;
         }
 
     }

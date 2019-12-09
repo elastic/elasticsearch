@@ -327,7 +327,11 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.getCurrentBufferCount(), Matchers.is(bufferSize));
         assertThat(test.getRemainingBufferCapacity(), Matchers.is(0));
         assertThat(test.markCalled, Matchers.is(true));
-        assertThat(test.resetCalled, Matchers.is(false));
+        if (readLen3 > 0) {
+            assertThat(test.resetCalled, Matchers.is(false));
+        } else {
+            assertThat(test.resetCalled, Matchers.is(true));
+        }
         // read more bytes
         bytesReadBefore = bytesRead.get();
         int readLen4 = 1 + Randomness.get().nextInt(2 * bufferSize);
@@ -344,7 +348,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.getRemainingBufferCapacity(), Matchers.is(bufferSize));
         assertThat(test.getRemainingBufferToRead(), Matchers.is(0));
         assertThat(test.markCalled, Matchers.is(false));
-        // assert reset does not work any more
+        // assert reset does not work anymore
         IOException e = expectThrows(IOException.class, () -> {
             test.reset();
         });

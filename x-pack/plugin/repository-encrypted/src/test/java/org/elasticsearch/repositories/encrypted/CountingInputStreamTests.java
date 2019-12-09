@@ -27,7 +27,7 @@ public class CountingInputStreamTests extends ESTestCase {
 
     @BeforeClass
     static void createTestArray() throws Exception {
-        testArray = new byte[128];
+        testArray = new byte[32];
         for (int i = 0; i < testArray.length; i++) {
             testArray[i] = (byte) i;
         }
@@ -123,7 +123,7 @@ public class CountingInputStreamTests extends ESTestCase {
         CountingInputStream test = new CountingInputStream(new ByteArrayInputStream(testArray), randomBoolean());
         assertThat(test.getCount(), Matchers.is(0L));
         assertThat(test.markSupported(), Matchers.is(true));
-        int offset1 = Randomness.get().nextInt(testArray.length);
+        int offset1 = Randomness.get().nextInt(testArray.length - 1);
         if (randomBoolean()) {
             test.skip(offset1);
         } else {

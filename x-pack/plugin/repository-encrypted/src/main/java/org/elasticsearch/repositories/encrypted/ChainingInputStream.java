@@ -42,7 +42,7 @@ public abstract class ChainingInputStream extends InputStream {
      * value for the current input stream when there are no subsequent streams left, i.e. when
      * {@link #nextComponent(InputStream)} returns {@code null}
      */
-    private static final InputStream EXHAUSTED_MARKER = InputStream.nullInputStream();
+    protected static final InputStream EXHAUSTED_MARKER = InputStream.nullInputStream(); // protected for tests
 
     /**
      * The instance of the currently in use component input stream,
@@ -52,7 +52,7 @@ public abstract class ChainingInputStream extends InputStream {
     /**
      * The instance of the component input stream at the time of the last {@code mark} call.
      */
-    private InputStream markIn;
+    protected InputStream markIn; // protected for tests
     /**
      * {@code true} if {@link #close()} has been called; any subsequent {@code read}, {@code skip}
      * {@code available} and {@code reset} calls will throw {@code IOException}s
@@ -159,6 +159,13 @@ public abstract class ChainingInputStream extends InputStream {
         ensureOpen();
         if (false == markSupported()) {
             throw new IOException("Mark/reset not supported");
+        }
+        if (currentIn != null && currentIn != EXHAUSTED_MARKER && currentIn != markIn) {
+            try {
+                currentIn.close();
+            } catch (IOException e) {
+                // an IOException on a component input stream close is not important
+            }
         }
         currentIn = markIn;
         if (currentIn != null && currentIn != EXHAUSTED_MARKER) {

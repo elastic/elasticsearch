@@ -50,9 +50,6 @@ import static org.elasticsearch.packaging.util.Packages.clearJournal;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
-import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
-import static org.elasticsearch.packaging.util.Packages.startElasticsearchIgnoringFailure;
-import static org.elasticsearch.packaging.util.Packages.stopElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
@@ -101,9 +98,9 @@ public class PackageTests extends PackagingTestCase {
         try {
             Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.APPEND);
-            startElasticsearch(sh, installation);
+            startElasticsearch();
             runElasticsearchTests();
-            stopElasticsearch(sh);
+            stopElasticsearch();
         } finally {
             Files.write(installation.envFile, originalEnvFile);
         }
@@ -129,9 +126,9 @@ public class PackageTests extends PackagingTestCase {
         }
 
         try {
-            startElasticsearch(sh, installation);
+            startElasticsearch();
             runElasticsearchTests();
-            stopElasticsearch(sh);
+            stopElasticsearch();
         } finally {
             if (Files.exists(Paths.get(backupPath))) {
                 sh.run("sudo mv " + backupPath + " /usr/bin/java");
@@ -153,7 +150,7 @@ public class PackageTests extends PackagingTestCase {
 
     public void test40StartServer() throws Exception {
         String start = sh.runIgnoreExitCode("date ").stdout.trim();
-        startElasticsearch(sh, installation);
+        startElasticsearch();
 
         String journalEntries = sh.runIgnoreExitCode("journalctl _SYSTEMD_UNIT=elasticsearch.service " +
             "--since \"" + start + "\" --output cat | grep -v \"future versions of Elasticsearch will require Java 11\" | wc -l")
@@ -219,7 +216,7 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test60Reinstall() throws Exception {
-        installation = installPackage(distribution());
+        install();
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
 
@@ -229,13 +226,13 @@ public class PackageTests extends PackagingTestCase {
 
     public void test70RestartServer() throws Exception {
         try {
-            installation = installPackage(distribution());
+            install();
             assertInstalled(distribution());
 
-            startElasticsearch(sh, installation);
+            startElasticsearch();
             restartElasticsearch(sh, installation);
             runElasticsearchTests();
-            stopElasticsearch(sh);
+            stopElasticsearch();
         } finally {
             cleanup();
         }
@@ -244,22 +241,22 @@ public class PackageTests extends PackagingTestCase {
 
     public void test72TestRuntimeDirectory() throws Exception {
         try {
-            installation = installPackage(distribution());
+            install();
             FileUtils.rm(installation.pidDir);
-            startElasticsearch(sh, installation);
+            startElasticsearch();
             assertPathsExist(installation.pidDir);
-            stopElasticsearch(sh);
+            stopElasticsearch();
         } finally {
             cleanup();
         }
     }
 
     public void test73gcLogsExist() throws Exception {
-        installation = installPackage(distribution());
-        startElasticsearch(sh, installation);
+        install();
+        startElasticsearch();
         // it can be gc.log or gc.log.0.current
         assertThat(installation.logs, fileWithGlobExist("gc.log*"));
-        stopElasticsearch(sh);
+        stopElasticsearch();
     }
 
     // TEST CASES FOR SYSTEMD ONLY
@@ -278,26 +275,26 @@ public class PackageTests extends PackagingTestCase {
 
         sh.run("systemd-tmpfiles --create");
 
-        startElasticsearch(sh, installation);
+        startElasticsearch();
 
         final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
 
         assertTrue(Files.exists(pidFile));
 
-        stopElasticsearch(sh);
+        stopElasticsearch();
     }
 
     public void test81CustomPathConfAndJvmOptions() throws Exception {
         withCustomConfig(tempConf -> {
             append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
 
-            startElasticsearch(sh, installation);
+            startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
-            stopElasticsearch(sh);
+            stopElasticsearch();
         });
     }
 
@@ -307,7 +304,7 @@ public class PackageTests extends PackagingTestCase {
 
             sh.run("systemctl mask systemd-sysctl.service");
 
-            installation = installPackage(distribution());
+            install();
 
             sh.run("systemctl unmask systemd-sysctl.service");
         } finally {
@@ -319,9 +316,9 @@ public class PackageTests extends PackagingTestCase {
         // Limits are changed on systemd platforms only
         assumeTrue(isSystemd());
 
-        installation = installPackage(distribution());
+        install();
 
-        startElasticsearch(sh, installation);
+        startElasticsearch();
 
         final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
         assertTrue(Files.exists(pidFile));
@@ -338,7 +335,7 @@ public class PackageTests extends PackagingTestCase {
         String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout.trim();
         assertThat(maxAddressSpace, equalTo("unlimited"));
 
-        stopElasticsearch(sh);
+        stopElasticsearch();
     }
 
     public void test90DoNotCloseStderrWhenQuiet() throws Exception {
@@ -348,7 +345,7 @@ public class PackageTests extends PackagingTestCase {
 
             // Make sure we don't pick up the journal entries for previous ES instances.
             clearJournal(sh);
-            startElasticsearchIgnoringFailure(sh);
+            runElasticsearchStartCommand();
 
             final Result logs = sh.run("journalctl -u elasticsearch.service");
 
@@ -366,7 +363,7 @@ public class PackageTests extends PackagingTestCase {
 
         assertPathsExist(installation.envFile);
 
-        stopElasticsearch(sh);
+        stopElasticsearch();
 
         // The custom config directory is not under /tmp or /var/tmp because
         // systemd's private temp directory functionally means different

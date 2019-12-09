@@ -366,8 +366,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
-        this.useRetentionLeasesInPeerRecovery =
-            indexSettings.isSoftDeleteEnabled() && replicationTracker.hasAllPeerRecoveryRetentionLeases();
+        this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
     }
 
     public ThreadPool getThreadPool() {

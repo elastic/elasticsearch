@@ -3,9 +3,6 @@
 [[xpack-ccr]]
 = {ccr-cap}
 
-[partintro]
---
-
 beta[]
 
 WARNING: {ccr} is currently not supported by indices being managed by
@@ -26,7 +23,6 @@ This guide provides an overview of {ccr}:
 * <<ccr-auto-follow>>
 * <<ccr-getting-started>>
 
---
 
 include::overview.asciidoc[]
 include::requirements.asciidoc[]

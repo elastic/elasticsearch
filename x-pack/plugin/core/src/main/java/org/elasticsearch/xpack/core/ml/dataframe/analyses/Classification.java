@@ -177,14 +177,15 @@ public class Classification implements DataFrameAnalysis {
         if (dependentVariableTypes == null) {
             return null;
         }
+        if (Types.categorical().containsAll(dependentVariableTypes)) {
+            return "string";
+        }
         if (Types.bool().containsAll(dependentVariableTypes)) {
             return "bool";
         }
         if (Types.discreteNumerical().containsAll(dependentVariableTypes)) {
+            // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
             return "int";
-        }
-        if (Types.categorical().containsAll(dependentVariableTypes)) {
-            return "string";
         }
         return null;
     }

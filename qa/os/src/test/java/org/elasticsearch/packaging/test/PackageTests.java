@@ -215,7 +215,7 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test60Reinstall() throws Exception {
-        installation = installPackage(distribution());
+        install();
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
 
@@ -225,7 +225,7 @@ public class PackageTests extends PackagingTestCase {
 
     public void test70RestartServer() throws Exception {
         try {
-            installation = installPackage(distribution());
+            install();
             assertInstalled(distribution());
 
             startElasticsearch();
@@ -240,7 +240,7 @@ public class PackageTests extends PackagingTestCase {
 
     public void test72TestRuntimeDirectory() throws Exception {
         try {
-            installation = installPackage(distribution());
+            install();
             FileUtils.rm(installation.pidDir);
             startElasticsearch();
             assertPathsExist(installation.pidDir);
@@ -251,7 +251,7 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test73gcLogsExist() throws Exception {
-        installation = installPackage(distribution());
+        install();
         startElasticsearch();
         // it can be gc.log or gc.log.0.current
         assertThat(installation.logs, fileWithGlobExist("gc.log*"));
@@ -303,7 +303,7 @@ public class PackageTests extends PackagingTestCase {
 
             sh.run("systemctl mask systemd-sysctl.service");
 
-            installation = installPackage(distribution());
+            install();
 
             sh.run("systemctl unmask systemd-sysctl.service");
         } finally {
@@ -315,7 +315,7 @@ public class PackageTests extends PackagingTestCase {
         // Limits are changed on systemd platforms only
         assumeTrue(isSystemd());
 
-        installation = installPackage(distribution());
+        install();
 
         startElasticsearch();
 

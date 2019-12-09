@@ -121,7 +121,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     "search.remote.",
                     "skip_unavailable",
                     key -> boolSetting(key, false, Setting.Property.Deprecated, Setting.Property.Dynamic, Setting.Property.NodeScope),
-                    SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+                    () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
 
     public static final SettingUpgrader<Boolean> SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER = new SettingUpgrader<Boolean>() {
 
@@ -149,19 +149,19 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                                     : SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSetting(key.replaceAll("^cluster", "search")),
                             Setting.Property.Dynamic,
                             Setting.Property.NodeScope),
-                    SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+                    () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
             "cluster.remote.",
             "transport.ping_schedule",
             key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+            () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.compress",
         key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),
-        SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+        () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
 
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();

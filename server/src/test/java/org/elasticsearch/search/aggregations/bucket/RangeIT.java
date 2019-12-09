@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
@@ -68,6 +70,7 @@ public class RangeIT extends ESIntegTestCase {
     private static final String MULTI_VALUED_FIELD_NAME = "l_values";
 
     static int numDocs;
+    static int numDocsBigIndex;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -119,15 +122,16 @@ public class RangeIT extends ESIntegTestCase {
         }
 
         createIndex("idx_big");
-        numDocs = 5000;
-        builders = new ArrayList<>();
-        for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx_big").setSource(jsonBuilder()
+        numDocsBigIndex = 5000;
+        BulkRequestBuilder bulkBuilder = client().prepareBulk("idx_big");
+        for (int i = 0; i < numDocsBigIndex; i++) {
+            bulkBuilder.add(client().prepareIndex().setSource(jsonBuilder()
                 .startObject()
                 .field(SINGLE_VALUED_FIELD_NAME, i+1)
                 .startArray(MULTI_VALUED_FIELD_NAME).value(i+1).value(i+2).endArray()
                 .endObject()));
         }
+        bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         client().admin().indices().prepareForceMerge("idx_big").setMaxNumSegments(1).get();
 
         // Create two indices and add the field 'route_length_miles' as an alias in

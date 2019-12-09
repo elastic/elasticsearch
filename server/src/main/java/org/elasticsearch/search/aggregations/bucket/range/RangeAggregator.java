@@ -18,16 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,9 +35,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -241,12 +237,13 @@ public class RangeAggregator extends BucketsAggregator {
 
     private final String pointField;
     private final boolean canOptimize;
-    private byte[][] encodedRanges;
+    private final byte[][] encodedRanges;
 
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, ValuesSourceConfig<?> config,
                            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context, Aggregator parent,
-                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+                           BiFunction<Number, Boolean, byte[]> pointEncoder) throws IOException {
 
         super(name, factories, context, parent, pipelineAggregators, metaData);
         assert valuesSource != null;
@@ -255,20 +252,14 @@ public class RangeAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
         this.ranges = ranges;
-        BiFunction<Number, Boolean, byte[]> pointEncoder = configurePointEncoder(context, parent, config);
-
-        // Unbounded ranges collect most documents, so the BKD optimization doesn't
-        // help nearly as much
-        boolean rangesAreBounded = Double.isFinite(ranges[0].from);
 
         maxTo = new double[ranges.length];
         maxTo[0] = ranges[0].to;
         for (int i = 1; i < ranges.length; ++i) {
             maxTo[i] = Math.max(ranges[i].to, maxTo[i-1]);
-            rangesAreBounded &= Double.isFinite(ranges[i].to);
         }
 
-        if (pointEncoder != null && rangesAreBounded) {
+        if (pointEncoder != null) {
             pointField = config.fieldContext().field();
             encodedRanges = new byte[ranges.length * 2][];
             for (int i = 0; i < ranges.length; i++) {
@@ -281,6 +272,7 @@ public class RangeAggregator extends BucketsAggregator {
         } else {
             pointField = null;
             canOptimize = false;
+            encodedRanges = null;
         }
     }
 
@@ -393,25 +385,20 @@ public class RangeAggregator extends BucketsAggregator {
     private void tryBKDOptimization(LeafReaderContext ctx, LeafBucketCollector sub) throws CollectionTerminatedException, IOException {
         final PointValues pointValues = ctx.reader().getPointValues(pointField);
         if (pointValues != null) {
-            PointValues.IntersectVisitor[] visitors = new PointValues.IntersectVisitor[ranges.length];
-            DocIdSetBuilder[] results = new DocIdSetBuilder[ranges.length];
-
             final Bits liveDocs = ctx.reader().getLiveDocs();
             int maxDoc = ctx.reader().maxDoc();
-            long estimatedPoints = 0;
-            for (int i = 0; i < ranges.length; i++) {
-                // OK to allocate DocIdSetBuilder now since it allocates memory lazily and the
-                // estimation won't call `grow()` on the visitor (only once we start intersecting)
-                results[i]  = new DocIdSetBuilder(maxDoc);
-                visitors[i] = getVisitor(liveDocs, encodedRanges[i * 2], encodedRanges[i * 2 + 1], results[i]);
-                estimatedPoints += pointValues.estimatePointCount(visitors[i]);
-            }
 
-            if (estimatedPoints < maxDoc * 0.75) {
+            try {
+                // pre-allocate what our DocIdSetBuilder will use as worst-case estimate
+                addRequestCircuitBreakerBytes(maxDoc / 8);
+
                 // We collect ranges individually since a doc can land in multiple ranges.
                 for (int i = 0; i < ranges.length; i++) {
-                    pointValues.intersect(visitors[i]);
-                    DocIdSetIterator iter = results[i].build().iterator();
+                    DocIdSetBuilder result = new DocIdSetBuilder(maxDoc);
+                    PointValues.IntersectVisitor visitor = getVisitor(liveDocs, encodedRanges[i * 2], encodedRanges[i * 2 + 1], result);
+
+                    pointValues.intersect(visitor);
+                    DocIdSetIterator iter = result.build().iterator();
                     while (iter.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         // Now that we know the matching docs, collect the bucket and sub-aggs
                         //
@@ -419,11 +406,15 @@ public class RangeAggregator extends BucketsAggregator {
                         // and bucket ordinals are zero-based offset by range ordinal
                         collectBucket(sub, iter.docID(), i);
                     }
-                    // free this DocIdSet since we no longer need it, and it could be holding
-                    // non-negligible amount of memory
-                    results[i] = null;
                 }
                 throw new CollectionTerminatedException();
+
+            } catch (CircuitBreakingException e) {
+                // If we tripped the breaker the DocIdSetBuilder is (potentially) too large.
+                // Exit without throwing CollectionTerminatedException so we can fall back to old method
+            } finally {
+                // Make sure we account for DocIdSetBuilder deallocation
+                addRequestCircuitBreakerBytes(-maxDoc / 8);
             }
         }
     }
@@ -432,7 +423,6 @@ public class RangeAggregator extends BucketsAggregator {
      * Returns a BKD intersection visitor for the provided range (`from` inclusive, `to` exclusive)
      */
     private PointValues.IntersectVisitor getVisitor(Bits liveDocs, byte[] from, byte[] to, DocIdSetBuilder result) {
-
 
         return new PointValues.IntersectVisitor() {
             DocIdSetBuilder.BulkAdder adder;
@@ -486,7 +476,7 @@ public class RangeAggregator extends BucketsAggregator {
                 if (from != null && compareUnsigned(maxPackedValue, 0, packedLength, from, 0, from.length) < 0) {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
-                // min >= from (inclusive, since ranges are exclusive on to)
+                // min >= to (inclusive, since ranges are exclusive on to)
                 if (to != null && compareUnsigned(minPackedValue, 0, packedLength, to, 0, to.length) >= 0) {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
@@ -507,42 +497,6 @@ public class RangeAggregator extends BucketsAggregator {
 
             }
         };
-    }
-
-    /**
-     * Returns a converter for point values if BKD optimization is applicable to
-     * the context or <code>null</code> otherwise.  Optimization criteria is:
-     * - Match_all query
-     * - no parent agg
-     * - no script
-     * - no missing value
-     * - has indexed points
-     *
-     * @param context The {@link SearchContext} of the aggregation.
-     * @param parent The parent aggregator.
-     * @param config The config for the values source metric.
-     */
-    private BiFunction<Number, Boolean, byte[]> configurePointEncoder(SearchContext context, Aggregator parent,
-                                          ValuesSourceConfig<?> config) {
-        if (context.query() != null &&
-            context.query().getClass() != MatchAllDocsQuery.class) {
-            return null;
-        }
-        if (parent != null) {
-            return null;
-        }
-        if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
-            MappedFieldType fieldType = config.fieldContext().fieldType();
-            if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
-                return null;
-            }
-            if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-                return ((NumberFieldMapper.NumberFieldType) fieldType)::encodePoint;
-            } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
-                return NumberFieldMapper.NumberType.LONG::encodePoint;
-            }
-        }
-        return null;
     }
 
     private long subBucketOrdinal(long owningBucketOrdinal, int rangeOrd) {

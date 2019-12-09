@@ -203,7 +203,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public int bytesPerEncodedPoint() {
-                return Integer.BYTES;
+                return HalfFloatPoint.BYTES;
             }
 
             @Override

@@ -82,7 +82,7 @@ public class GeoDistanceRangeAggregatorFactory
                                             Map<String, Object> metaData) throws IOException {
         DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
         return new RangeAggregator(name, factories, distanceSource, config, rangeFactory, ranges, keyed, searchContext,
-            parent, pipelineAggregators, metaData);
+            parent, pipelineAggregators, metaData, null);
     }
 
     private static class DistanceSource extends ValuesSource.Numeric {

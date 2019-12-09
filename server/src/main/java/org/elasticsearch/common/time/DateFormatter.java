@@ -136,19 +136,21 @@ public interface DateFormatter {
             return Joda.forPattern(input);
         }
 
-        // dates starting with 8 will not be using joda but java time formatters
-        input = input.substring(1);
-
-        List<String> patterns = splitCombinedPatterns(input);
+        // support the 6.x BWC compatible way of parsing java 8 dates
+        String format = strip8Prefix(input);
+        List<String> patterns = splitCombinedPatterns(format);
         List<DateFormatter> formatters = patterns.stream()
                                                  .map(DateFormatters::forPattern)
                                                  .collect(Collectors.toList());
 
-        if (formatters.size() == 1) {
-            return formatters.get(0);
-        }
-
         return JavaDateFormatter.combined(input, formatters);
+    }
+
+    static String strip8Prefix(String input) {
+        if (input.startsWith("8")) {
+            return input.substring(1);
+        }
+        return input;
     }
 
     static List<String> splitCombinedPatterns(String input) {

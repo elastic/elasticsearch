@@ -295,15 +295,14 @@ A specific test case can be run with
 To run REST tests of licensed features, use the following command:
 
 ---------------------------------------------------------------------------
-./gradlew ':x-pack:plugin:integTestRunner' \
-  --tests "org.elasticsearch.xpack.test.rest.XPackRestIT"
+./gradlew :x-pack:plugin:integTest
 ---------------------------------------------------------------------------
 
 A specific test case can be run with
 
 ---------------------------------------------------------------------------
-./gradlew ':x-pack:plugin:integTestRunner' \
-  --tests "org.elasticsearch.xpack.test.rest.XPackRestIT.test {p0=indices.freeze/10_basic/Basic}"
+./gradlew :x-pack:plugin:integTest \
+  -Dtests.method="test {p0=indices.freeze/10_basic/Basic}"
 ---------------------------------------------------------------------------
 
 `*Yaml*IT` are the executable test classes that runs all the

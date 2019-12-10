@@ -32,5 +32,3 @@ include::get-dfanalytics-stats.asciidoc[]
 //SET/START/STOP
 include::start-dfanalytics.asciidoc[]
 include::stop-dfanalytics.asciidoc[]
-//ANALYSIS OBJECTS
-include::analysisobjects.asciidoc[]

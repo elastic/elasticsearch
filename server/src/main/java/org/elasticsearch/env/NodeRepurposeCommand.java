@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
 
@@ -165,7 +166,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
             indexPaths[i] = nodePaths[i].resolve(uuid);
         }
         try {
-            IndexMetaData metaData = IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, indexPaths);
+            IndexMetaData metaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, indexPaths);
             return metaData.getIndex().getName();
         } catch (Exception e) {
             return "no name for uuid: " + uuid + ": " + e;
@@ -194,7 +195,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     private Manifest loadManifest(Terminal terminal, Path[] dataPaths) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading manifest");
-        final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, dataPaths);
+        final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, dataPaths);
 
         if (manifest == null) {
             terminal.println(Terminal.Verbosity.SILENT, PRE_V7_MESSAGE);

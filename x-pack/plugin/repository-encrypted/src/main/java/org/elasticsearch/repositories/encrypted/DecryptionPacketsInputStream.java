@@ -39,7 +39,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         long completePackets = size / encryptedPacketLength;
         long decryptedSize = completePackets * packetLength;
         if (size % encryptedPacketLength != 0) {
-            decryptedSize += (size % encryptedPacketLength) - EncryptedRepository.GCM_TAG_SIZE_IN_BYTES
+            decryptedSize += (size % encryptedPacketLength) - EncryptedRepository.GCM_IV_SIZE_IN_BYTES
                     - EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
         }
         return decryptedSize;

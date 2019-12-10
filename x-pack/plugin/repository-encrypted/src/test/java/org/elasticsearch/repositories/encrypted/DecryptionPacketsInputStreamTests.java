@@ -18,7 +18,7 @@ import java.io.InputStream;
 import java.security.SecureRandom;
 import java.util.Arrays;
 
-public class EncryptedRepositoryTests extends ESTestCase {
+public class DecryptionPacketsInputStreamTests extends ESTestCase {
 
     public void testSuccessEncryptAndDecryptSmallPacketLength() throws Exception {
         int len = 8 + Randomness.get().nextInt(8);
@@ -135,8 +135,8 @@ public class EncryptedRepositoryTests extends ESTestCase {
     }
 
     public void testFailureEncryptAndDecryptAlteredCiphertextIV() throws Exception {
-        int len = 16;
-        int packetLen = 8;
+        int len = 8 + Randomness.get().nextInt(8);
+        int packetLen = 4 + Randomness.get().nextInt(4);
         byte[] plainBytes = new byte[len];
         Randomness.get().nextBytes(plainBytes);
         SecretKey secretKey = generateSecretKey();
@@ -168,18 +168,21 @@ public class EncryptedRepositoryTests extends ESTestCase {
     }
 
     private void testEncryptAndDecryptSuccess(byte[] plainBytes, SecretKey secretKey, int nonce, int packetLen) throws Exception {
-        for (int len = 0; len < plainBytes.length; len++) {
+        for (int len = 0; len <= plainBytes.length; len++) {
             byte[] encryptedBytes;
             try (InputStream in = new EncryptionPacketsInputStream(new ByteArrayInputStream(plainBytes, 0, len), secretKey, nonce,
                     packetLen)) {
                 encryptedBytes = in.readAllBytes();
             }
+            assertThat((long) encryptedBytes.length, Matchers.is(EncryptionPacketsInputStream.getEncryptionSize(len, packetLen)));
             byte[] decryptedBytes;
             try (InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, nonce,
                     packetLen)) {
                 decryptedBytes = in.readAllBytes();
             }
             assertThat(decryptedBytes.length, Matchers.is(len));
+            assertThat((long) decryptedBytes.length, Matchers.is(DecryptionPacketsInputStream.getDecryptionSize(encryptedBytes.length,
+                    packetLen)));
             for (int i = 0; i < len; i++) {
                 assertThat(decryptedBytes[i], Matchers.is(plainBytes[i]));
             }

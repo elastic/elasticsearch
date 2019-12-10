@@ -22,19 +22,42 @@ package org.elasticsearch.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Manifest;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeMetaData;
+import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.node.InternalSettingsPreparer;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
+
+    protected static final Logger logger = LogManager.getLogger(EnvironmentAwareCommand.class);
+
+    public static final String NO_NODE_METADATA_FOUND_MSG = "no node meta data is found, node has not been started yet?";
 
     private final OptionSpec<KeyValuePair> settingOption;
 
@@ -125,6 +148,45 @@ public abstract class EnvironmentAwareCommand extends Command {
                 settings.put(setting, value);
             }
         }
+    }
+
+    public static String loadNodeId(Terminal terminal, Path[] dataPaths) throws IOException {
+        terminal.println(Terminal.Verbosity.VERBOSE, "Loading node metadata");
+        final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, dataPaths);
+        if (nodeMetaData == null) {
+            throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
+        }
+
+        String nodeId = nodeMetaData.nodeId();
+        terminal.println(Terminal.Verbosity.VERBOSE, "Current nodeId is " + nodeId);
+        return nodeId;
+    }
+
+    public static LucenePersistedStateFactory createLucenePersistedStateFactory(Path[] dataPaths, String nodeId) {
+        final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(
+            Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
+                .flatMap(Function.identity())
+                .collect(Collectors.toList()));
+        return new LucenePersistedStateFactory(dataPaths, nodeId, true, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
+            // do not load legacy files
+            new LucenePersistedStateFactory.LegacyLoader() {
+                @Override
+                public Tuple<Manifest, MetaData> loadClusterState() {
+                    return null;
+                }
+
+                @Override
+                public void clean() {
+
+                }
+            });
+    }
+
+    public static BiFunction<Long, MetaData, ClusterState> clusterState(Environment environment) {
+        return (version, metadata) -> ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(environment.settings()))
+            .version(version)
+            .metaData(metadata)
+            .build();
     }
 
     /** Execute the command with the initialized {@link Environment}. */

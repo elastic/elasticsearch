@@ -20,30 +20,22 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
 
@@ -67,7 +59,6 @@ import java.util.stream.StreamSupport;
  * non-stale state, and master-ineligible nodes receive the real cluster state from the elected master after joining the cluster.
  */
 public class GatewayMetaState implements Closeable {
-    private static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
 
     // Set by calling start()
     private final SetOnce<PersistedState> persistedState = new SetOnce<>();
@@ -83,7 +74,7 @@ public class GatewayMetaState implements Closeable {
     }
 
     public void start(Settings settings, TransportService transportService, ClusterService clusterService,
-                      MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                      MetaDataIndexUpgradeService metaDataIndexUpgradeService,
                       MetaDataUpgrader metaDataUpgrader, LucenePersistedStateFactory lucenePersistedStateFactory,
                       DanglingIndicesState danglingIndicesState) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
@@ -97,6 +88,8 @@ public class GatewayMetaState implements Closeable {
                             .metaData(upgradeMetaDataForMasterEligibleNode(metadata, metaDataIndexUpgradeService, metaDataUpgrader))
                             .build()));
                 //TODO: on data node scan on-disk folders for additional dangling indices candidates
+                //TODO: only consider those indices as dangling candidates for which there is a shard folder (at least on data nodes)
+                //also need to persist dangling indices candidates so that they don't get lost after first CS from master gets written out
                 danglingIndicesState.setInitialDanglingIndicesCandidates(
                     StreamSupport.stream(ps.getLastAcceptedState().metaData().indices().values().spliterator(), false).map(cur -> cur.value)
                     .collect(Collectors.toList()));
@@ -105,7 +98,7 @@ public class GatewayMetaState implements Closeable {
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to load metadata", e);
             }
-        } else if (DiscoveryNode.isMasterNode(settings) == false) {
+        } else {
             persistedState.set(
                 new InMemoryPersistedState(0L, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build()));
         }
@@ -128,70 +121,6 @@ public class GatewayMetaState implements Closeable {
                                                   MetaDataIndexUpgradeService metaDataIndexUpgradeService,
                                                   MetaDataUpgrader metaDataUpgrader) {
         return upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
-    }
-
-    // exposed so it can be overridden by tests
-    void upgradeMetaData(Settings settings, MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                         MetaDataUpgrader metaDataUpgrader) throws IOException {
-        if (isMasterOrDataNode(settings)) {
-            try {
-                final Tuple<Manifest, MetaData> metaStateAndData = metaStateService.loadFullState();
-                final Manifest manifest = metaStateAndData.v1();
-                final MetaData metaData = metaStateAndData.v2();
-
-                // We finished global state validation and successfully checked all indices for backward compatibility
-                // and found no non-upgradable indices, which means the upgrade can continue.
-                // Now it's safe to overwrite global and index metadata.
-                // We don't re-write metadata if it's not upgraded by upgrade plugins, because
-                // if there is manifest file, it means metadata is properly persisted to all data paths
-                // if there is no manifest file (upgrade from 6.x to 7.x) metadata might be missing on some data paths,
-                // but anyway we will re-write it as soon as we receive first ClusterState
-                final IncrementalClusterStateWriter.AtomicClusterStateWriter writer
-                    = new IncrementalClusterStateWriter.AtomicClusterStateWriter(metaStateService, manifest);
-                final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
-
-                final long globalStateGeneration;
-                if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
-                    globalStateGeneration = writer.writeGlobalState("upgrade", upgradedMetaData);
-                } else {
-                    globalStateGeneration = manifest.getGlobalGeneration();
-                }
-
-                Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
-                for (IndexMetaData indexMetaData : upgradedMetaData) {
-                    if (metaData.hasIndexMetaData(indexMetaData) == false) {
-                        final long generation = writer.writeIndex("upgrade", indexMetaData);
-                        indices.put(indexMetaData.getIndex(), generation);
-                    }
-                }
-
-                final Manifest newManifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(),
-                        globalStateGeneration, indices);
-                writer.writeManifestAndCleanup("startup", newManifest);
-            } catch (Exception e) {
-                logger.error("failed to read or upgrade local state, exiting...", e);
-                throw e;
-            }
-        }
-    }
-
-    private static Tuple<Manifest,ClusterState> loadStateAndManifest(ClusterName clusterName,
-                                                                     MetaStateService metaStateService) throws IOException {
-        final long startNS = System.nanoTime();
-        final Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
-        final Manifest manifest = manifestAndMetaData.v1();
-
-        final ClusterState clusterState = ClusterState.builder(clusterName)
-            .version(manifest.getClusterStateVersion())
-            .metaData(manifestAndMetaData.v2()).build();
-
-        logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
-
-        return Tuple.tuple(manifest, clusterState);
-    }
-
-    private static boolean isMasterOrDataNode(Settings settings) {
-        return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
     }
 
     /**
@@ -246,38 +175,6 @@ public class GatewayMetaState implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(persistedState.get());
-    }
-
-    private static class GatewayClusterApplier implements ClusterStateApplier {
-
-        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
-
-        private GatewayClusterApplier(IncrementalClusterStateWriter incrementalClusterStateWriter) {
-            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
-        }
-
-        @Override
-        public void applyClusterState(ClusterChangedEvent event) {
-            if (event.state().blocks().disableStatePersistence()) {
-                incrementalClusterStateWriter.setIncrementalWrite(false);
-                return;
-            }
-
-            try {
-                // Hack: This is to ensure that non-master-eligible Zen2 nodes always store a current term
-                // that's higher than the last accepted term.
-                // TODO: can we get rid of this hack?
-                if (event.state().term() > incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm()) {
-                    incrementalClusterStateWriter.setCurrentTerm(event.state().term());
-                }
-
-                incrementalClusterStateWriter.updateClusterState(event.state());
-                incrementalClusterStateWriter.setIncrementalWrite(true);
-            } catch (WriteStateException e) {
-                logger.warn("Exception occurred when storing new meta data", e);
-            }
-        }
-
     }
 
 }

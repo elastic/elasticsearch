@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,7 +50,7 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
 
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         final String nodeId = loadNodeId(terminal, dataPaths);
         final LucenePersistedStateFactory psf = createLucenePersistedStateFactory(dataPaths, nodeId);
 

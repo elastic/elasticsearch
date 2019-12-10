@@ -74,7 +74,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         assert DiscoveryNode.isDataNode(env.settings()) == false;
 
         if (DiscoveryNode.isMasterNode(env.settings()) == false) {

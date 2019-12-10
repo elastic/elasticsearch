@@ -155,8 +155,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             fail("expected the command to fail as node is locked");
         } catch (Exception e) {
             assertThat(e.getMessage(),
-                allOf(containsString("Failed to lock node's directory"),
-                    containsString("is Elasticsearch still running ?")));
+                allOf(containsString("failed to lock node's directory"),
+                    containsString("is Elasticsearch still running?")));
         }
 
         final Path indexDir = getPathToShardData(indexName, ShardPath.INDEX_FOLDER_NAME);
@@ -573,8 +573,8 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         for (String nodeName : nodeNames) {
             final Path indexPath = indexPathByNodeName.get(nodeName);
             final OptionSet options = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-            command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName),
-                shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
+            command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName), environmentByNodeName.get(nodeName).dataFiles(),
+                state, shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
         }
     }
 

@@ -185,17 +185,6 @@ public class MetaStateService {
     }
 
     /**
-     * Loads Manifest file from disk, returns <code>Manifest.empty()</code> if there is no manifest file.
-     */
-    public Manifest loadManifestOrEmpty() throws IOException {
-        Manifest manifest = MANIFEST_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-        if (manifest == null) {
-            manifest = Manifest.empty();
-        }
-        return manifest;
-    }
-
-    /**
      * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
      */
     MetaData loadGlobalState() throws IOException {
@@ -276,35 +265,9 @@ public class MetaStateService {
     }
 
     /**
-     * Writes index metadata and updates manifest file accordingly.
-     * Used by tests.
-     */
-    public void writeIndexAndUpdateManifest(String reason, IndexMetaData metaData) throws IOException {
-        long generation = writeIndex(reason, metaData);
-        Manifest manifest = loadManifestOrEmpty();
-        Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
-        indices.put(metaData.getIndex(), generation);
-        manifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(), manifest.getGlobalGeneration(), indices);
-        writeManifestAndCleanup(reason, manifest);
-        cleanupIndex(metaData.getIndex(), generation);
-    }
-
-    /**
-     * Writes global metadata and updates manifest file accordingly.
-     * Used by tests.
-     */
-    public void writeGlobalStateAndUpdateManifest(String reason, MetaData metaData) throws IOException {
-        long generation = writeGlobalState(reason, metaData);
-        Manifest manifest = loadManifestOrEmpty();
-        manifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(), generation, manifest.getIndexGenerations());
-        writeManifestAndCleanup(reason, manifest);
-        cleanupGlobalState(generation);
-    }
-
-    /**
      * Removes manifest file and global metadata
      */
-    public void cleanAll() throws IOException {
+    public void cleanAll() {
         MANIFEST_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
         META_DATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
         // TODO: what to do about indices metadata in the index folders?

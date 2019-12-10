@@ -705,7 +705,7 @@ public class Node implements Closeable {
 
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
-        gatewayMetaState.start(settings(), transportService, clusterService, injector.getInstance(MetaStateService.class),
+        gatewayMetaState.start(settings(), transportService, clusterService,
             injector.getInstance(MetaDataIndexUpgradeService.class), injector.getInstance(MetaDataUpgrader.class),
             injector.getInstance(LucenePersistedStateFactory.class), injector.getInstance(DanglingIndicesState.class));
         // we load the global state here (the persistent part of the cluster state stored on disk) to

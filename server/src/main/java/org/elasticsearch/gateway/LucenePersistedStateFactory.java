@@ -266,8 +266,8 @@ public class LucenePersistedStateFactory {
                     final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
                     if (nodeId.equals(onDiskState.nodeId) == false) {
-                        throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
+//                        throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
+//                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
                     }
 
                     if (onDiskState.metaData.clusterUUIDCommitted()) {
@@ -287,7 +287,8 @@ public class LucenePersistedStateFactory {
 
                     long acceptedTerm = onDiskState.metaData.coordinationMetaData().term();
                     long maxAcceptedTerm = bestOnDiskState.metaData.coordinationMetaData().term();
-                    if (acceptedTerm > maxAcceptedTerm
+                    if (bestOnDiskState == NO_ON_DISK_STATE
+                        || acceptedTerm > maxAcceptedTerm
                         || (acceptedTerm == maxAcceptedTerm
                             && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
                                 || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)

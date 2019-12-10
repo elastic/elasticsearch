@@ -22,6 +22,28 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
+/**
+ * A {@code DecryptionPacketsInputStream} wraps an encrypted input stream and decrypts
+ * its contents. This is designed (and tested) to decrypt only the encryption format that
+ * {@link EncryptionPacketsInputStream} generates. No decrypted bytes are returned before
+ * they are authenticated.
+ * <p>
+ * The same parameters, namely {@code secretKey}, {@code nonce} and {@code packetLength},
+ * that have been used during encryption must also be used for decryption, otherwise
+ * decryption will fail.
+ * <p>
+ * This implementation buffers the encrypted packet in memory. The maximum packet size it can
+ * accommodate is {@link EncryptedRepository#MAX_PACKET_LENGTH_IN_BYTES}.
+ * <p>
+ * This implementation does not support {@code mark} and {@code reset}.
+ * <p>
+ * The {@code close} call will close the decryption input stream and any subsequent {@code read},
+ * {@code skip}, {@code available} and {@code reset} calls will throw {@code IOException}s.
+ * <p>
+ * This is NOT thread-safe, multiple threads sharing a single instance must synchronize access.
+ *
+ * @see EncryptionPacketsInputStream
+ */
 public final class DecryptionPacketsInputStream extends ChainingInputStream {
 
     private final InputStream source;
@@ -49,6 +71,9 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         this.source = Objects.requireNonNull(source);
         this.secretKey = Objects.requireNonNull(secretKey);
         this.nonce = nonce;
+        if (packetLength <= 0 || packetLength >= EncryptedRepository.MAX_PACKET_LENGTH_IN_BYTES) {
+            throw new IllegalArgumentException("Invalid packet length [" + packetLength + "]");
+        }
         this.packetLength = packetLength;
         this.packet = new byte[packetLength + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES];
         this.iv = new byte[EncryptedRepository.GCM_IV_SIZE_IN_BYTES];

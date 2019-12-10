@@ -12,4 +12,5 @@ public class EncryptedRepository {
     static final int AES_BLOCK_SIZE_IN_BYTES = 128;
     static final String GCM_ENCRYPTION_SCHEME = "AES/GCM/NoPadding";
     static final long PACKET_START_COUNTER = Long.MIN_VALUE;
+    static final int MAX_PACKET_LENGTH_IN_BYTES = 1 << 30;
 }

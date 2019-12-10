@@ -12,7 +12,7 @@ import java.util.Objects;
 
 /**
  * A {@code CountingInputStream} wraps another input stream and counts the number of bytes
- * that have been read or skipped. This input stream must be used in place of the wrapped one.
+ * that have been read or skipped.
  * Bytes replayed following a {@code reset} call are not counted multiple times, i.e. only
  * the bytes that are produced in a single pass, without resets, by the wrapped stream are counted.
  * This input stream does no buffering on its own and only supports {@code mark} and

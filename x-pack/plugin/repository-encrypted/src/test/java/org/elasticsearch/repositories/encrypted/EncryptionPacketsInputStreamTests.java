@@ -176,7 +176,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
         Randomness.get().nextBytes(bytes);
         int nonce = Randomness.get().nextInt();
         EncryptionPacketsInputStream test = new EncryptionPacketsInputStream(new TestInputStream(bytes), secretKey, nonce, packetSize);
-        int offset1 = 1 + Randomness.get().nextInt(encryptedPacketSize);
+        int offset1 = 1 + Randomness.get().nextInt(encryptedPacketSize - 1);
         // read past the first packet
         test.readNBytes(encryptedPacketSize + offset1);
         assertThat(test.counter, Matchers.is(Long.MIN_VALUE + 2));
@@ -276,8 +276,8 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
     }
 
     public void testMarkAfterResetNoMock() throws Exception {
-        int packetSize = 1 + Randomness.get().nextInt(3);
-        int plainLen = packetSize + 1 + Randomness.get().nextInt(packetSize);
+        int packetSize = 4 + Randomness.get().nextInt(4);
+        int plainLen = packetSize + 1 + Randomness.get().nextInt(packetSize - 1);
         int plaintextOffset = Randomness.get().nextInt(testPlaintextArray.length - plainLen + 1);
         int nonce = Randomness.get().nextInt();
         final byte[] referenceCiphertextArray;

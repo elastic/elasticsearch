@@ -475,11 +475,6 @@ alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
 and end with alphanumeric characters.
 end::job-id-data-frame-analytics-define[]
 
-tag::jobs-stats-anomaly-detection[]
-An array of {anomaly-job} statistics objects.
-For more information, see <<ml-jobstats>>.
-end::jobs-stats-anomaly-detection[]
-
 tag::lambda[]
 `lambda`::
 (Optional, double) Regularization parameter to prevent overfitting on the 

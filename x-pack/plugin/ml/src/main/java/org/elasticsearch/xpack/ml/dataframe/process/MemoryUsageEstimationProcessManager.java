@@ -79,7 +79,8 @@ public class MemoryUsageEstimationProcessManager {
                 1,
                 "",
                 categoricalFields,
-                config.getAnalysis());
+                config.getAnalysis(),
+                dataExtractorFactory.getExtractedFields());
         AnalyticsProcess<MemoryUsageEstimationResult> process =
             processFactory.createAnalyticsProcess(
                 config,

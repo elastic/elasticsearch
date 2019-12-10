@@ -1327,9 +1327,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> delete the last snapshot");
         client.admin().cluster().prepareDeleteSnapshots("test-repo", new String[]{lastSnapshot}).get();
-        logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
-                    "plus one because one backup index-N file should remain");
-        assertFileCount(repo, numberOfFiles[0] + 1);
+        logger.info("--> make sure that number of files is back to what it was when the first snapshot was made");
+        assertFileCount(repo, numberOfFiles[0]);
     }
 
     public void testGetSnapshotsNoRepos() {

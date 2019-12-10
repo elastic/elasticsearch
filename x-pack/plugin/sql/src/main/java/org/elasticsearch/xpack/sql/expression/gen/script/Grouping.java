@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.expression.gen.script;
 
-import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 
-class Grouping extends Param<GroupingFunctionAttribute> {
+class Grouping extends Param<GroupingFunction> {
 
-    Grouping(GroupingFunctionAttribute groupRef) {
+    Grouping(GroupingFunction groupRef) {
         super(groupRef);
     }
 
     String groupName() {
-        return value().functionId();
+        return Integer.toHexString(value().hashCode());
     }
 
     @Override

@@ -55,7 +55,7 @@ public class AttributeMapTests extends ESTestCase {
 
         Attribute one = m.keySet().iterator().next();
         assertThat(m.containsKey(one), is(true));
-        assertThat(m.containsKey(a("one")), is(true));
+        assertThat(m.containsKey(a("one")), is(false));
         assertThat(m.containsValue("one"), is(true));
         assertThat(m.containsValue("on"), is(false));
         assertThat(m.attributeNames(), contains("one", "two", "three"));
@@ -74,7 +74,7 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(m.isEmpty(), is(false));
 
         assertThat(m.containsKey(one), is(true));
-        assertThat(m.containsKey(a("one")), is(true));
+        assertThat(m.containsKey(a("one")), is(false));
         assertThat(m.containsValue("one"), is(true));
         assertThat(m.containsValue("on"), is(false));
     }

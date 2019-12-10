@@ -138,5 +138,5 @@ These are the possible reasons for a shard to be in a unassigned state:
 `ALLOCATION_FAILED`::       Unassigned as a result of a failed allocation of the shard.
 `NODE_LEFT`::               Unassigned as a result of the node hosting it leaving the cluster.
 `REROUTE_CANCELLED`::       Unassigned as a result of explicit cancel reroute command.
-`REINITIALIZED`::           When a shard moves from started back to initializing, for example, with shadow replicas.
+`REINITIALIZED`::           When a shard moves from started back to initializing.
 `REALLOCATED_REPLICA`::     A better replica location is identified and causes the existing replica allocation to be cancelled.

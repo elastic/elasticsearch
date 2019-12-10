@@ -113,7 +113,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
          */
         REROUTE_CANCELLED,
         /**
-         * When a shard moves from started back to initializing, for example, during shadow replica
+         * When a shard moves from started back to initializing.
          */
         REINITIALIZED,
         /**

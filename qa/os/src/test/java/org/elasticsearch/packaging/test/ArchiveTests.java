@@ -25,7 +25,6 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
@@ -202,7 +201,6 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test53JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
-            final Shell sh = new Shell();
             String javaPath = "C:\\Program Files (x86)\\java";
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
@@ -228,7 +226,6 @@ public class ArchiveTests extends PackagingTestCase {
         });
 
         Platforms.onLinux(() -> {
-            final Shell sh = newShell();
             // Create temporary directory with a space and link to real java home
             String testJavaHome = Paths.get("/tmp", "java home").toString();
             try {

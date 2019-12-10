@@ -422,7 +422,7 @@ public class DoSection implements ExecutableSection {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-        Version[] range = SkipSection.parseVersionRange(parser.text());
+        List<VersionRange> skipVersionRanges = SkipSection.parseVersionRanges(parser.text());
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {
@@ -433,7 +433,8 @@ public class DoSection implements ExecutableSection {
                                 + node);
                     }
                     Version version = Version.fromString(node.getVersion());
-                    if (false == (version.onOrAfter(range[0]) && version.onOrBefore(range[1]))) {
+                    boolean skip = skipVersionRanges.stream().anyMatch(v -> v.contains(version));
+                    if (false == skip) {
                         itr.remove();
                     }
                 }
@@ -441,7 +442,7 @@ public class DoSection implements ExecutableSection {
 
             @Override
             public String toString() {
-                return "version between [" + range[0] + "] and [" + range[1] + "]";
+                return "version ranges "+skipVersionRanges;
             }
         };
     }

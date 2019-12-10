@@ -26,3 +26,6 @@ PUT my_index
 NOTE: Field metadata enforces at most 5 entries, that keys have a length that
 is less than or equal to 20, and that values are strings whose length is less
 than or equal to 50.
+
+NOTE: Field metadata is updatable by submitting a mapping update. The metadata
+of the update will override the metadata of the existing field.

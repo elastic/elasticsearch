@@ -384,13 +384,13 @@ Which would look like:
         "value": 1,
         "relation": "eq"
     },
-    "max_score": 0.6931472,
+    "max_score": 0.6931471,
     "hits": [
       {
         "_index": "test",
         "_type": "_doc",
         "_id": "1",
-        "_score": 0.6931472,
+        "_score": 0.6931471,
         "_source": ...,
         "inner_hits": {
           "comments.votes": { <1>
@@ -399,7 +399,7 @@ Which would look like:
                   "value": 1,
                   "relation": "eq"
               },
-              "max_score": 0.6931472,
+              "max_score": 0.6931471,
               "hits": [
                 {
                   "_index": "test",
@@ -413,7 +413,7 @@ Which would look like:
                       "offset": 0
                     }
                   },
-                  "_score": 0.6931472,
+                  "_score": 0.6931471,
                   "_source": {
                     "value": 1,
                     "voter": "kimchy"

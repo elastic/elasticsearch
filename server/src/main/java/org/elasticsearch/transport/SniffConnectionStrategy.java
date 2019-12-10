@@ -147,7 +147,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             Setting.Property.Deprecated,
             Setting.Property.Dynamic,
             Setting.Property.NodeScope),
-        REMOTE_CLUSTER_SEEDS);
+        () -> REMOTE_CLUSTER_SEEDS);
 
     /**
      * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
@@ -168,7 +168,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             SEARCH_REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(ns),
             Setting.Property.Dynamic,
             Setting.Property.NodeScope),
-        REMOTE_CLUSTER_SEEDS);
+        () -> REMOTE_CLUSTER_SEEDS);
 
     public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =
         intSetting("search.remote.connections_per_cluster", 3, 1, Setting.Property.NodeScope, Setting.Property.Deprecated);

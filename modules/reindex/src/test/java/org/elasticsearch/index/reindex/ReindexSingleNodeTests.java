@@ -55,6 +55,6 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
 
         assertHitCount(client().prepareSearch("dest").setSize(0).get(), subsetSize);
         assertHitCount(client().prepareSearch("dest").setQuery(new RangeQueryBuilder("foo").gte(0).lt(max-subsetSize)).get(), 0);
-        assertWarnings(Reindexer.SORT_DEPRECATED_MESSAGE);
+        assertWarnings(ReindexValidator.SORT_DEPRECATED_MESSAGE);
     }
 }

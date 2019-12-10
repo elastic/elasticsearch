@@ -14,8 +14,11 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
@@ -36,13 +39,17 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -160,10 +167,16 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
-                                                             @Nullable String resultsField, DataFrameAnalysis analysis) {
+                                                             @Nullable String resultsField, DataFrameAnalysis analysis) throws Exception {
+        return buildAnalytics(id, sourceIndex, destIndex, resultsField, analysis, QueryBuilders.matchAllQuery());
+    }
+
+    protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
+                                                             @Nullable String resultsField, DataFrameAnalysis analysis,
+                                                             QueryBuilder queryBuilder) throws Exception {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null))
             .setDest(new DataFrameAnalyticsDest(destIndex, resultsField))
             .setAnalysis(analysis)
             .build();
@@ -173,7 +186,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         assertThat(stats.getFailureReason(), is(nullValue()));
-        assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
+        assertThat("Stats were: " + Strings.toString(stats), stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
     protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {
@@ -202,7 +215,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
             .get();
-        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), arrayWithSize(1));
     }
 
     /**
@@ -242,5 +255,23 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return Arrays.stream(searchResponse.getHits().getHits())
             .map(hit -> (String) hit.getSourceAsMap().get("message"))
             .collect(Collectors.toList());
+    }
+
+    protected static Set<String> getTrainingRowsIds(String index) {
+        Set<String> trainingRowsIds = new HashSet<>();
+        SearchResponse hits = client().prepareSearch(index).get();
+        for (SearchHit hit : hits.getHits()) {
+            Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+            assertThat(sourceAsMap.containsKey("ml"), is(true));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resultsObject = (Map<String, Object>) sourceAsMap.get("ml");
+
+            assertThat(resultsObject.containsKey("is_training"), is(true));
+            if (Boolean.TRUE.equals(resultsObject.get("is_training"))) {
+                trainingRowsIds.add(hit.getId());
+            }
+        }
+        assertThat(trainingRowsIds.isEmpty(), is(false));
+        return trainingRowsIds;
     }
 }

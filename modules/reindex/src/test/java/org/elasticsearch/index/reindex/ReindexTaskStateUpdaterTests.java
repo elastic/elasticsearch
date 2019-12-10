@@ -266,7 +266,7 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
             reindex().source("source").destination("dest").refresh(true).request().setCheckpointInterval(TimeValue.ZERO);
 
         PlainActionFuture<ReindexTaskState> future = PlainActionFuture.newFuture();
-        client.createReindexTaskDoc(taskId, new ReindexTaskStateDoc(request), future);
+        client.createReindexTaskDoc(taskId, new ReindexTaskStateDoc(request, Collections.emptyList()), future);
         future.actionGet();
     }
 

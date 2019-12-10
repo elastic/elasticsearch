@@ -210,6 +210,8 @@ As a result, not all incoming data was processed.
 (long) The number of bytes of memory used by the models. This is the maximum
 value since the last time the model was persisted. If the job is closed,
 this value indicates the latest size.
++
+--
 ////
 `model_bytes_exceeded`:::
 TBD
@@ -217,6 +219,7 @@ TBD
 `model_bytes_memory_limit`:::
 TBD
 ////
+--
 `result_type`:::
 (string) For internal use. The type of result.
 
@@ -296,10 +299,13 @@ this job. It has the following properties:
 `exponential_average_bucket_processing_time_ms`:::
 (double) Exponential moving average of all bucket processing times in
 milliseconds.
++
+--
 ////
 `exponential_average_bucket_processing_time_per_hour_ms`:::
 TBD
 ////
+--
 `job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]

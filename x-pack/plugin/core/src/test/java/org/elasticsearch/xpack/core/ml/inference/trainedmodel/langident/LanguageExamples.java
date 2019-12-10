@@ -522,7 +522,7 @@ public final class LanguageExamples {
             "ukuthola imiphumela eqediwe zama ukulayisha kabusha leli khasi emizuzwini " +
             "engu uma inkinga iqhubeka siza uthumele";
 
-    public static final String goldLangText[][] = {
+    public static final String[][] goldLangText = new String [][]{
         {"af", kTestStrAF},
         {"ar", kTestStrAR},
         {"az", kTestStrAZ},
@@ -614,7 +614,7 @@ public final class LanguageExamples {
         {"zh", kTestStrZH},
         {"zu", kTestStrZU}};
 
-    public static final String goldLangResults[][] = {
+    public static final String[][] goldLangResults = new String[][] {
         {"af", "af", "1"},
         {"ar", "ar", "0.999949"},
         {"az", "az", "1"},

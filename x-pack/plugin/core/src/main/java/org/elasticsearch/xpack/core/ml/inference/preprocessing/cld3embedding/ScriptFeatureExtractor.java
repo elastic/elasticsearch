@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public final class ScriptFeatureExtractor {
-
-    private ScriptFeatureExtractor() { }
+public final class ScriptFeatureExtractor implements FeatureExtractor {
 
     private static ULScript getScriptIdOfFirstLetter(String text) {
         // TODO - do we need to look for marks as well?
@@ -67,5 +65,10 @@ public final class ScriptFeatureExtractor {
         }
 
         return numHangul > numNonHangul ? ULScript.NUM_ULSCRIPTS.toInt() : ULScript.ULScript_Hani.toInt();
+    }
+
+    @Override
+    public FeatureValue[] extractFeatures(String text) {
+        return new FeatureValue[] { new DiscreteFeatureValue(getScriptFeatureValue(text)) };
     }
 }

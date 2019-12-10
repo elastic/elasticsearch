@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.inference.trainedmodels;
+package org.elasticsearch.xpack.ml.inference.trainedmodels.langident;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.Language
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 
 public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
@@ -72,6 +74,10 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
                 cld3Probability,
                 singleValueInferenceResults.getTopClasses().get(0).getProbability(), 0.01);
         }
+    }
+
+    public void testExamples() {
+        assertThat(ContinuousNGramExtractionExamples.GOLDEN_NGRAMS.length, equalTo(360));
     }
 
     @Override

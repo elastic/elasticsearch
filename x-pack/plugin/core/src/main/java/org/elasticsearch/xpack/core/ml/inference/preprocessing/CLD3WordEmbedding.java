@@ -15,8 +15,11 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.ContinuousFeatureValue;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.FeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.FeatureUtils;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.FeatureValue;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.NGramFeatureExtractor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.RelevantScriptFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.ScriptDetector;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.cld3embedding.ScriptFeatureExtractor;
 
@@ -28,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * This embedding class creates and embeds all the features layed out here
@@ -129,6 +133,15 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
     private static final int concatLayerSize = 80;
     private static final int[] embeddingDim = new int[]{16, 16, 8, 8, 16, 16};
     private static final int[] concatOffset = new int[]{0, 16, 32, 40, 48, 64};
+    // Order matters
+    private static final List<FeatureExtractor> FEATURE_EXTRACTORS = Arrays.asList(
+        new NGramFeatureExtractor(2, 1000),
+        new NGramFeatureExtractor(4, 5000),
+        new RelevantScriptFeatureExtractor(),
+        new ScriptFeatureExtractor(),
+        new NGramFeatureExtractor(3, 5000),
+        new NGramFeatureExtractor(1, 100)
+    );
 
     private final short[][] embeddingsQuantScales;
     private final int[][] embeddingsWeights;
@@ -227,7 +240,7 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
     /**
      * Derived from: https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/language_identifier_features.cc#L56
      */
-    private static FeatureValue[] getNGramFeatureValue(String text, int nGramSize, int idDimension) throws Exception {
+    public static FeatureValue[] getNGramFeatureValue(String text, int nGramSize, int idDimension) throws Exception {
 
         // First add terminators:
         // Split the text based on spaces to get tokens, adds "^"
@@ -349,13 +362,10 @@ public class CLD3WordEmbedding implements LenientlyParsedPreProcessor, StrictlyP
             // https://github.com/google/cld3/blob/06f695f1c8ee530104416aab5dcf2d6a1414a56a/src/nnet_language_identifier.cc#L190..L226
             text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
             text = FeatureUtils.cleanAndLowerText(text);
-            processedFeatures.add(getNGramFeatureValue(text, 2, 1000));
-            processedFeatures.add(getNGramFeatureValue(text, 4, 5000));
-            processedFeatures.add(getRelevantScriptFeature(text));
-            processedFeatures.add(ScriptFeatureExtractor.getScriptFeature(text));
-            processedFeatures.add(getNGramFeatureValue(text, 3, 5000));
-            processedFeatures.add(getNGramFeatureValue(text, 1, 100));
-
+            String finalText = text;
+            processedFeatures = FEATURE_EXTRACTORS.stream()
+                .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
+                .collect(Collectors.toList());
             fields.put(destField, concatEmbeddings(processedFeatures));
         } catch (Exception e) {
             throw new ElasticsearchException("Failure embedding the text in pre-processor", e);

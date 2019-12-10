@@ -161,12 +161,15 @@ public class AnalyticsProcessManager {
             refreshDest(config);
             LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
-            String errorMsg =
-                new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage()).getFormattedMessage();
             if (task.isStopping()) {
                 // Errors during task stopping are expected but we still want to log them just in case.
+                String errorMsg =
+                    new ParameterizedMessage(
+                        "[{}] Error while processing data [{}]; task is stopping", config.getId(), e.getMessage()).getFormattedMessage();
                 LOGGER.debug(errorMsg, e);
             } else {
+                String errorMsg =
+                    new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage()).getFormattedMessage();
                 LOGGER.error(errorMsg, e);
                 processContext.setFailureReason(errorMsg);
             }

@@ -95,7 +95,7 @@ public final class CsvProcessor extends AbstractProcessor {
             if (separator.length() != 1) {
                 throw newConfigurationException(TYPE, processorTag, "separator", "separator has to be single character like , or ;");
             }
-            boolean trim = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trim", true);
+            boolean trim = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trim", false);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             List<String> targetFields = ConfigurationUtils.readList(TYPE, processorTag, config, "target_fields");
             if (targetFields.isEmpty()) {

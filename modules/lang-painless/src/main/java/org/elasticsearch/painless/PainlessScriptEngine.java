@@ -28,6 +28,7 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ScriptFactory;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -66,7 +67,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      */
     private static final AccessControlContext COMPILATION_CONTEXT;
 
-    /**
+    /*
      * Setup the allowed permissions.
      */
     static {
@@ -122,7 +123,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+    public <T extends ScriptFactory> T compile(
+        String scriptName,
+        String scriptSource,
+        ScriptContext<T> context,
+        Map<String, String> params
+    ) {
         Compiler compiler = contextsToCompilers.get(context);
 
         // Check we ourselves are not being called by unprivileged code.
@@ -162,12 +168,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context, Set<String> extractedVariables) {
+    private <T extends ScriptFactory> Type generateStatefulFactory(
+        Loader loader,
+        ScriptContext<T> context,
+        Set<String> extractedVariables
+    ) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.statefulFactoryClazz).getInternalName();
         String className = interfaceBase + "$StatefulFactory";
-        String classInterfaces[] = new String[] { interfaceBase };
+        String[] classInterfaces = new String[] { interfaceBase };
 
         ClassWriter writer = new ClassWriter(classFrames);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
@@ -263,12 +273,17 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> T generateFactory(Loader loader, ScriptContext<T> context, Set<String> extractedVariables, Type classType) {
+    private <T extends ScriptFactory> T generateFactory(
+        Loader loader,
+        ScriptContext<T> context,
+        Set<String> extractedVariables,
+        Type classType
+    ) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.factoryClazz).getInternalName();
         String className = interfaceBase + "$Factory";
-        String classInterfaces[] = new String[] { interfaceBase };
+        String[] classInterfaces = new String[] { interfaceBase };
 
         ClassWriter writer = new ClassWriter(classFrames);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);

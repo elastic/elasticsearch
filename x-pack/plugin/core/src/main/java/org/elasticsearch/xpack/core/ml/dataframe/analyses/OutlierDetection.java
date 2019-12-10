@@ -192,7 +192,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getParams() {
+    public Map<String, Object> getParams(Map<String, Set<String>> extractedFields) {
         Map<String, Object> params = new HashMap<>();
         if (nNeighbors != null) {
             params.put(N_NEIGHBORS.getPreferredName(), nNeighbors);

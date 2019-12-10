@@ -717,7 +717,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         public IntervalsSource filter(IntervalsSource input, QueryShardContext context, MappedFieldType fieldType) throws IOException {
             if (script != null) {
-                IntervalFilterScript ifs = context.getScriptService().compile(script, IntervalFilterScript.CONTEXT).newInstance();
+                IntervalFilterScript ifs = context.compile(script, IntervalFilterScript.CONTEXT).newInstance();
                 return new ScriptFilterSource(input, script.getIdOrCode(), ifs);
             }
             IntervalsSource filterSource = filter.getSource(context, fieldType);

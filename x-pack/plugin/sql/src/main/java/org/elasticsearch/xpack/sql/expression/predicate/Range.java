@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -179,30 +178,5 @@ public class Range extends ScalarFunction {
                 && Objects.equals(value, other.value)
                 && Objects.equals(lower, other.lower)
                 && Objects.equals(upper, other.upper);
-    }
-
-    private static String name(Expression value, Expression lower, Expression upper, boolean includeLower, boolean includeUpper) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(Expressions.name(lower));
-        if (!(lower instanceof Literal)) {
-            sb.insert(0, "(");
-            sb.append(")");
-        }
-        sb.append(includeLower ? " <= " : " < ");
-        int pos = sb.length();
-        sb.append(Expressions.name(value));
-        if (!(value instanceof Literal)) {
-            sb.insert(pos, "(");
-            sb.append(")");
-        }
-        sb.append(includeUpper ? " <= " : " < ");
-        pos = sb.length();
-        sb.append(Expressions.name(upper));
-        if (!(upper instanceof Literal)) {
-            sb.insert(pos, "(");
-            sb.append(")");
-        }
-
-        return sb.toString();
     }
 }

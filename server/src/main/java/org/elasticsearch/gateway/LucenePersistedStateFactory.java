@@ -50,8 +50,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
@@ -128,18 +131,41 @@ public class LucenePersistedStateFactory {
     private final boolean preserveUnknownCustoms;
     private final NamedXContentRegistry namedXContentRegistry;
     private final BigArrays bigArrays;
+    private final LegacyLoader legacyLoader;
+
+    public interface LegacyLoader {
+        @Nullable
+        Tuple<Manifest, MetaData> loadClusterState() throws IOException;
+        void clean() throws IOException;
+    }
 
     public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
-        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, namedXContentRegistry, bigArrays);
+        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, namedXContentRegistry, bigArrays, new LegacyLoader() {
+            @Override
+            public Tuple<Manifest, MetaData> loadClusterState() {
+                return null;
+            }
+
+            @Override
+            public void clean() {
+
+            }
+        });
+    }
+
+    public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
+                                       LegacyLoader legacyLoader) {
+        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, namedXContentRegistry, bigArrays, legacyLoader);
     }
 
     public LucenePersistedStateFactory(Path[] dataPaths, String nodeId, boolean preserveUnknownCustoms,
-                                       NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
+                                       NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays, LegacyLoader legacyLoader) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
         this.preserveUnknownCustoms = preserveUnknownCustoms;
         this.namedXContentRegistry = namedXContentRegistry;
         this.bigArrays = bigArrays;
+        this.legacyLoader = legacyLoader;
     }
 
     public void cleanDirs() throws IOException {
@@ -189,7 +215,9 @@ public class LucenePersistedStateFactory {
             success = true;
             return lucenePersistedState;
         } finally {
-            if (success == false) {
+            if (success) {
+                legacyLoader.clean();
+            } else {
                 IOUtils.closeWhileHandlingException(lucenePersistedState);
             }
         }
@@ -219,10 +247,12 @@ public class LucenePersistedStateFactory {
         }
     }
 
+    private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, MetaData.EMPTY_META_DATA);
+
     private OnDiskState loadBestOnDiskState() throws IOException {
         String committedClusterUuid = null;
         Path committedClusterUuidPath = null;
-        OnDiskState bestOnDiskState = new OnDiskState(null, null, 0L, 0L, MetaData.EMPTY_META_DATA);
+        OnDiskState bestOnDiskState = NO_ON_DISK_STATE;
         OnDiskState maxCurrentTermOnDiskState = bestOnDiskState;
 
         // We use a write-all-read-one strategy: metadata is written to every data path when accepting it, which means it is mostly
@@ -274,6 +304,14 @@ public class LucenePersistedStateFactory {
             throw new IllegalStateException("inconsistent terms found: best state is from [" + bestOnDiskState.dataPath +
                 "] in term [" + bestOnDiskState.currentTerm + "] but there is a stale state in [" + maxCurrentTermOnDiskState.dataPath +
                 "] with greater term [" + maxCurrentTermOnDiskState.currentTerm + "]");
+        }
+
+        if (bestOnDiskState == NO_ON_DISK_STATE) {
+            Tuple<Manifest, MetaData> legacyState = legacyLoader.loadClusterState();
+            if (legacyState != null) {
+                return new OnDiskState(nodeId, null, legacyState.v1().getCurrentTerm(), legacyState.v1().getClusterStateVersion(),
+                    legacyState.v2());
+            }
         }
 
         return bestOnDiskState;

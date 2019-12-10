@@ -68,7 +68,7 @@ public class MetaStateService {
      * meta state with globalGeneration -1 and empty meta data is returned.
      * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
      */
-    Tuple<Manifest, MetaData> loadFullState() throws IOException {
+    public Tuple<Manifest, MetaData> loadFullState() throws IOException {
         final Manifest manifest = MANIFEST_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         if (manifest == null) {
             return loadFullStateBWC();
@@ -299,5 +299,14 @@ public class MetaStateService {
         manifest = new Manifest(manifest.getCurrentTerm(), manifest.getClusterStateVersion(), generation, manifest.getIndexGenerations());
         writeManifestAndCleanup(reason, manifest);
         cleanupGlobalState(generation);
+    }
+
+    /**
+     * Removes manifest file and global metadata
+     */
+    public void cleanAll() throws IOException {
+        MANIFEST_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        META_DATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        // TODO: what to do about indices metadata in the index folders?
     }
 }

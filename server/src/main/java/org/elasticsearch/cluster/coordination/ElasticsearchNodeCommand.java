@@ -28,7 +28,9 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -137,7 +139,19 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     protected LucenePersistedStateFactory createLucenePersistedStateFactory(Path[] dataPaths, String nodeId) {
-        return new LucenePersistedStateFactory(dataPaths, nodeId, true, NamedXContentRegistry.EMPTY, BigArrays.NON_RECYCLING_INSTANCE);
+        return new LucenePersistedStateFactory(dataPaths, nodeId, true, NamedXContentRegistry.EMPTY, BigArrays.NON_RECYCLING_INSTANCE,
+            // do not load legacy files
+            new LucenePersistedStateFactory.LegacyLoader() {
+                @Override
+                public Tuple<Manifest, MetaData> loadClusterState() {
+                    return null;
+                }
+
+                @Override
+                public void clean() {
+
+                }
+            });
     }
 
     protected BiFunction<Long, MetaData, ClusterState> clusterState(Environment environment) {

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -32,6 +33,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -66,6 +68,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final TransformAuditor auditor;
+    private final boolean isRemoteSearchEnabled;
 
     @Inject
     public TransportStartTransformAction(
@@ -77,7 +80,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        Settings settings
     ) {
         this(
             StartTransformAction.NAME,
@@ -89,7 +93,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             indexNameExpressionResolver,
             transformServices,
             persistentTasksService,
-            client
+            client,
+            settings
         );
     }
 
@@ -103,7 +108,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        Settings settings
     ) {
         super(
             name,
@@ -119,6 +125,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.auditor = transformServices.getAuditor();
+        this.isRemoteSearchEnabled = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
     }
 
     @Override
@@ -205,7 +212,16 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 return;
             }
             // Validate source and destination indices
-            SourceDestValidator.validate(config, clusterService.state(), indexNameExpressionResolver, false);
+            SourceDestValidator.validate(
+                clusterService.state(),
+                indexNameExpressionResolver,
+                transportService.getRemoteClusterService(),
+                isRemoteSearchEnabled ? SourceDestValidator.remoteClusterLicenseCheckerBasicLicense(client) : null,
+                config.getSource().getIndex(),
+                config.getDestination().getIndex(),
+                clusterService.getNodeName(),
+                false
+            );
 
             transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
             final String destinationIndex = config.getDestination().getIndex();

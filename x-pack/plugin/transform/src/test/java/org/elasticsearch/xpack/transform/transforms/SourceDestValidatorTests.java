@@ -5,156 +5,420 @@
  */
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
-import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class SourceDestValidatorTests extends ESTestCase {
 
     private static final String SOURCE_1 = "source-1";
+    private static final String SOURCE_1_ALIAS = "source-1-alias";
     private static final String SOURCE_2 = "source-2";
+    private static final String DEST_ALIAS = "dest-alias";
     private static final String ALIASED_DEST = "aliased-dest";
+    private static final String ALIAS_READ_WRITE_DEST = "alias-read-write-dest";
 
     private static final ClusterState CLUSTER_STATE;
+    private static final RemoteClusterLicenseChecker remoteClusterLicenseChecker;
+
+    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+    private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
 
     static {
-        IndexMetaData source1 = IndexMetaData.builder(SOURCE_1).settings(Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
-            .putAlias(AliasMetaData.builder("source-1-alias").build())
+        IndexMetaData source1 = IndexMetaData.builder(SOURCE_1)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            )
+            .putAlias(AliasMetaData.builder(SOURCE_1_ALIAS).build())
+            .putAlias(AliasMetaData.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
-        IndexMetaData source2 = IndexMetaData.builder(SOURCE_2).settings(Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
-            .putAlias(AliasMetaData.builder("dest-alias").build())
+        IndexMetaData source2 = IndexMetaData.builder(SOURCE_2)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            )
+            .putAlias(AliasMetaData.builder(DEST_ALIAS).build())
+            .putAlias(AliasMetaData.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
-        IndexMetaData aliasedDest = IndexMetaData.builder(ALIASED_DEST).settings(Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
-            .putAlias(AliasMetaData.builder("dest-alias").build())
+        IndexMetaData aliasedDest = IndexMetaData.builder(ALIASED_DEST)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            )
+            .putAlias(AliasMetaData.builder(DEST_ALIAS).build())
+            .putAlias(AliasMetaData.builder(ALIAS_READ_WRITE_DEST).build())
             .build();
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
-        state.metaData(MetaData.builder()
-            .put(IndexMetaData.builder(source1).build(), false)
-            .put(IndexMetaData.builder(source2).build(), false)
-            .put(IndexMetaData.builder(aliasedDest).build(), false));
+        state.metaData(
+            MetaData.builder()
+                .put(IndexMetaData.builder(source1).build(), false)
+                .put(IndexMetaData.builder(source2).build(), false)
+                .put(IndexMetaData.builder(aliasedDest).build(), false)
+        );
         CLUSTER_STATE = state.build();
     }
 
+    static {
+        remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
+            mock(Client.class),
+            (operationMode -> operationMode != License.OperationMode.MISSING)
+        );
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
     public void testCheck_GivenSimpleSourceIndexAndValidDestIndex() {
-        TransformConfig config = createTransform(new SourceConfig(SOURCE_1), new DestConfig("dest", null));
-        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false);
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1 },
+            "dest",
+            "node_id",
+            false
+        );
+        assertNull(e);
+    }
+
+    public void testCheck_GivenSimpleCCSSourceIndexAndValidDestIndex() {
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            remoteClusterLicenseChecker,
+            new String[] { "ccs:" + SOURCE_1 },
+            "dest",
+            "node_id",
+            false
+        );
+        assertNull(e);
+        e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { "ccs:" + SOURCE_1 },
+            "dest",
+            "node_id",
+            false
+        );
+        assertNull(e);
+    }
+
+    public void testCheck_GivenNoSourceIndexAndValidDestIndex() {
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] {},
+            "dest",
+            "node_id",
+            false
+        );
+
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("Source index [] does not exist"));
     }
 
     public void testCheck_GivenMissingConcreteSourceIndex() {
-        TransformConfig config = createTransform(new SourceConfig("missing"), new DestConfig("dest", null));
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { "missing" },
+            "dest",
+            "node_id",
+            false
+        );
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("Source index [missing] does not exist"));
-        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
+        e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { "missing" },
+            "dest",
+            "node_id",
+            true
+        );
+        assertNull(e);
     }
 
-    public void testCheck_GivenMissingWildcardSourceIndex() {
-        TransformConfig config = createTransform(new SourceConfig("missing*"), new DestConfig("dest", null));
+    public void testCheck_GivenMixedMissingAndExistingConcreteSourceIndex() {
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1, "missing" },
+            "dest",
+            "node_id",
+            false
+        );
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("Source index [missing*] does not exist"));
-        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
+        e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1, "missing" },
+            "dest",
+            "node_id",
+            true
+        );
+        assertNull(e);
+    }
+
+    public void testCheck_GivenMixedMissingWildcardExistingConcreteSourceIndex() {
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1, "wildcard*", "missing" },
+            "dest",
+            "node_id",
+            false
+        );
+
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("no such index [missing]"));
+        e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1, "wildcard*", "missing" },
+            "dest",
+            "node_id",
+            true
+        );
+        assertNull(e);
+    }
+
+    public void testCheck_GivenWildcardSourceIndex() {
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { "wildcard*" },
+            "dest",
+            "node_id",
+            false
+        );
+        assertNull(e);
     }
 
     public void testCheck_GivenDestIndexSameAsSourceIndex() {
-        TransformConfig config = createTransform(new SourceConfig(SOURCE_1), new DestConfig("source-1", null));
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1 },
+            "source-1",
+            "node_id",
+            false
+        );
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("Destination index [source-1] is included in source expression [source-1]"));
-        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("Destination index [source-1] is included in source expression [source-1]"));
+        e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1 },
+            "source-1",
+            "node_id",
+            true
+        );
+        assertNull(e);
     }
 
     public void testCheck_GivenDestIndexMatchesSourceIndex() {
-        TransformConfig config = createTransform(new SourceConfig("source-*"), new DestConfig(SOURCE_2, null));
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("Destination index [source-2] is included in source expression [source-*]"));
-        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { "source-*" },
+            SOURCE_2,
+            "node_id",
+            false
+        );
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("Destination index [source-2] is included in source expression [source-*]"));
+        e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { "source-*" },
+            SOURCE_2,
+            "node_id",
+            true
+        );
+        assertNull(e);
     }
 
     public void testCheck_GivenDestIndexMatchesOneOfSourceIndices() {
-        TransformConfig config = createTransform(new SourceConfig("source-1", "source-*"),
-            new DestConfig(SOURCE_2, null));
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("Destination index [source-2] is included in source expression [source-*]"));
-        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { "source-1", "source-*" },
+            SOURCE_2,
+            "node_id",
+            false
+        );
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("Destination index [source-2] is included in source expression [source-*]"));
+        e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { "source-1", "source-*" },
+            SOURCE_2,
+            "node_id",
+            true
+        );
+        assertNull(e);
     }
 
     public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndices() {
-        TransformConfig config = createTransform(new SourceConfig(SOURCE_1), new DestConfig("dest-alias", null));
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1 },
+            DEST_ALIAS,
+            "node_id",
+            false
+        );
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo(
+                "no write index is defined for alias [dest-alias]. The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one being designated as a write index"
+            )
+        );
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(),
-            equalTo("Destination index [dest-alias] should refer to a single index"));
+        e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1 },
+            DEST_ALIAS,
+            "node_id",
+            true
+        );
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo(
+                "no write index is defined for alias [dest-alias]. The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one being designated as a write index"
+            )
+        );
+    }
 
-        e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(),
-            equalTo("Destination index [dest-alias] should refer to a single index"));
+    public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndicesButHasSingleWriteAlias() {
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
+            null,
+            new String[] { SOURCE_1 },
+            ALIAS_READ_WRITE_DEST,
+            "node_id",
+            false
+        );
+        assertNotNull(e);
     }
 
     public void testCheck_GivenDestIndexIsAliasThatIsIncludedInSource() {
-        TransformConfig config = createTransform(new SourceConfig(SOURCE_1), new DestConfig("source-1-alias", null));
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(),
-            equalTo("Destination index [source-1] is included in source expression [source-1]"));
-
-        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
-    }
-
-    private static TransformConfig createTransform(SourceConfig sourceConfig, DestConfig destConfig) {
-        return new TransformConfig("test",
-            sourceConfig,
-            destConfig,
-            TimeValue.timeValueSeconds(60),
+        ValidationException e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
             null,
+            new String[] { SOURCE_1 },
+            SOURCE_1_ALIAS,
+            "node_id",
+            false
+        );
+        assertNotNull(e);
+        assertEquals(1, e.validationErrors().size());
+        assertThat(e.validationErrors().get(0), equalTo("Destination index [source-1] is included in source expression [source-1]"));
+
+        e = SourceDestValidator.validate(
+            CLUSTER_STATE,
+            new IndexNameExpressionResolver(),
+            transportService.getRemoteClusterService(),
             null,
-            PivotConfigTests.randomPivotConfig(),
-            null);
+            new String[] { SOURCE_1 },
+            SOURCE_1_ALIAS,
+            "node_id",
+            true
+        );
+        assertNull(e);
     }
 }

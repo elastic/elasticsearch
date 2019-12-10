@@ -296,10 +296,27 @@ public class IndexNameExpressionResolver {
         if (request.indices() == null || (request.indices() != null && request.indices().length != 1)) {
             throw new IllegalArgumentException("indices request must specify a single index expression");
         }
-        Context context = new Context(state, request.indicesOptions(), false, true);
-        Index[] indices = concreteIndices(context, request.indices()[0]);
+        return concreteWriteIndex(state, request.indicesOptions(), request.indices()[0], false);
+    }
+
+    /**
+     * Utility method that allows to resolve an index expression to its corresponding single write index.
+     *
+     * @param state             the cluster state containing all the data to resolve to expression to a concrete index
+     * @param options           defines how the aliases or indices need to be resolved to concrete indices
+     * @param index             index that can be resolved to alias or index name.
+     * @param allowNoIndices    whether to allow resolve to no index
+     * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
+     * @return the write index obtained as a result of the index resolution or null if no index
+     */
+    public Index concreteWriteIndex(ClusterState state, IndicesOptions options, String index, boolean allowNoIndices) {
+        Context context = new Context(state, options, false, true);
+        Index[] indices = concreteIndices(context, index);
+        if (allowNoIndices && indices.length == 0) {
+            return null;
+        }
         if (indices.length != 1) {
-            throw new IllegalArgumentException("The index expression [" + request.indices()[0] +
+            throw new IllegalArgumentException("The index expression [" + index +
                 "] and options provided did not point to a single write-index");
         }
         return indices[0];

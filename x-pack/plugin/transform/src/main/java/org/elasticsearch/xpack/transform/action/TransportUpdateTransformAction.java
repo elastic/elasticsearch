@@ -29,6 +29,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -70,6 +71,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
+    private final boolean isRemoteSearchEnabled;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -117,6 +119,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.auditor = transformServices.getAuditor();
+        this.isRemoteSearchEnabled = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
     }
 
     @Override
@@ -205,7 +208,16 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
         ActionListener<Response> listener
     ) {
         try {
-            SourceDestValidator.validate(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
+            SourceDestValidator.validate(
+                clusterState,
+                indexNameExpressionResolver,
+                transportService.getRemoteClusterService(),
+                isRemoteSearchEnabled ? SourceDestValidator.remoteClusterLicenseCheckerBasicLicense(client) : null,
+                config.getSource().getIndex(),
+                config.getDestination().getIndex(),
+                clusterService.getNodeName(),
+                request.isDeferValidation()
+            );
         } catch (ElasticsearchStatusException ex) {
             listener.onFailure(ex);
             return;

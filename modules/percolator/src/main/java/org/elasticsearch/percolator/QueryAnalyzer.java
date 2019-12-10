@@ -247,16 +247,10 @@ final class QueryAnalyzer {
         int msm = 0;
         boolean verified = conjunctionsWithUnknowns.size() == conjunctions.size();
         boolean matchAllDocs = true;
-        boolean hasDuplicateTerms = false;
         Set<QueryExtraction> extractions = new HashSet<>();
         Set<String> seenRangeFields = new HashSet<>();
         for (Result result : conjunctions) {
-            // In case that there are duplicate query extractions we need to be careful with
-            // incrementing msm,
-            // because that could lead to valid matches not becoming candidate matches:
-            // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
-            // doc: field: val1 val2 val3
-            // So lets be protective and decrease the msm:
+
             int resultMsm = result.minimumShouldMatch;
             for (QueryExtraction queryExtraction : result.extractions) {
                 if (queryExtraction.range != null) {
@@ -278,12 +272,20 @@ final class QueryAnalyzer {
                         verified = false;
                     }
                 }
-
-                if (extractions.contains(queryExtraction)) {
-                    resultMsm = Math.max(0, resultMsm - 1);
-                    verified = false;
+                else {
+                    // In case that there are duplicate term query extractions we need to be careful with
+                    // incrementing msm, because that could lead to valid matches not becoming candidate matches:
+                    // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
+                    // doc: field: val1 val2 val3
+                    // So lets be protective and decrease the msm:
+                    if (extractions.contains(queryExtraction)) {
+                        resultMsm = Math.max(0, resultMsm - 1);
+                        verified = false;
+                    }
                 }
             }
+            msm += resultMsm;
+
             // add range fields from this Result to the seenRangeFields set so that minimumShouldMatch is correctly
             // calculated for subsequent Results
             result.extractions.stream()
@@ -291,7 +293,6 @@ final class QueryAnalyzer {
                 .filter(Objects::nonNull)
                 .map(e -> e.fieldName)
                 .forEach(seenRangeFields::add);
-            msm += resultMsm;
 
             if (result.verified == false
                 // If some inner extractions are optional, the result can't be verified
@@ -304,7 +305,7 @@ final class QueryAnalyzer {
         if (matchAllDocs) {
             return new Result(matchAllDocs, verified);
         } else {
-            return new Result(verified, extractions, hasDuplicateTerms ? 1 : msm);
+            return new Result(verified, extractions, msm);
         }
     }
 

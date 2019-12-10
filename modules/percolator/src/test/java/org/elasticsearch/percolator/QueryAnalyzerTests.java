@@ -1321,6 +1321,23 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.extractions, hasSize(4));
         assertFalse(result.verified);
         assertFalse(result.matchAllDocs);
+
+        // mixed term and range conjunctions
+        Query q7 = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder()
+                .add(IntPoint.newRangeQuery("i", 1, 2), Occur.MUST)
+                .add(new TermQuery(new Term("f", "1")), Occur.MUST)
+                .build(), Occur.MUST)
+            .add(new BooleanQuery.Builder()
+                .add(IntPoint.newRangeQuery("i", 1, 2), Occur.MUST)
+                .add(new TermQuery(new Term("f", "2")), Occur.MUST)
+                .build(), Occur.MUST)
+            .build();
+        result = analyze(q7, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertThat(result.extractions, hasSize(3));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
     }
 
 }

@@ -853,7 +853,8 @@ public class NodeToStringTests extends ESTestCase {
     public void testSTryAndSCatch() {
         assertToString(
                   "(SClass (STry (SBlock (SReturn (ENumeric 1)))\n"
-                + "  (SCatch Exception e (SBlock (SReturn (ENumeric 2))))))",
+                + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [Exception]) e) " +
+                          "(SBlock (SReturn (ENumeric 2))))))",
                   "try {\n"
                 + "  return 1\n"
                 + "} catch (Exception e) {\n"
@@ -863,7 +864,8 @@ public class NodeToStringTests extends ESTestCase {
                 "(SClass (STry (SBlock\n"
               + "  (SDeclBlock (SDeclaration (DUnresolvedType [int]) i (ENumeric 1)))\n"
               + "  (SReturn (ENumeric 1)))\n"
-              + "  (SCatch Exception e (SBlock (SReturn (ENumeric 2))))))",
+              + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [Exception]) e) " +
+                        "(SBlock (SReturn (ENumeric 2))))))",
                 "try {\n"
               + "  int i = 1;"
               + "  return 1\n"
@@ -872,7 +874,7 @@ public class NodeToStringTests extends ESTestCase {
               + "}");
         assertToString(
                 "(SClass (STry (SBlock (SReturn (ENumeric 1)))\n"
-              + "  (SCatch Exception e (SBlock\n"
+              + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [Exception]) e) (SBlock\n"
               + "    (SDeclBlock (SDeclaration (DUnresolvedType [int]) i (ENumeric 1)))\n"
               + "    (SReturn (ENumeric 2))))))",
                 "try {\n"
@@ -883,8 +885,10 @@ public class NodeToStringTests extends ESTestCase {
               + "}");
         assertToString(
                 "(SClass (STry (SBlock (SReturn (ENumeric 1)))\n"
-              + "  (SCatch NullPointerException e (SBlock (SReturn (ENumeric 2))))\n"
-              + "  (SCatch Exception e (SBlock (SReturn (ENumeric 3))))))",
+              + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [NullPointerException]) e) " +
+                        "(SBlock (SReturn (ENumeric 2))))\n"
+              + "  (SCatch (DResolvedType [java.lang.Exception]) (SDeclaration (DUnresolvedType [Exception]) e) " +
+                        "(SBlock (SReturn (ENumeric 3))))))",
                 "try {\n"
               + "  return 1\n"
               + "} catch (NullPointerException e) {\n"

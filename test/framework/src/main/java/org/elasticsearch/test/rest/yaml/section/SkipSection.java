@@ -112,7 +112,7 @@ public class SkipSection {
     public SkipSection(String versionRange, List<String> features, String reason) {
         assert features != null;
         this.versionRanges = parseVersionRanges(versionRange);
-        assert versionRanges.size() >= 1;
+        assert versionRanges.isEmpty() == false;
         this.features = features;
         this.reason = reason;
     }
@@ -137,11 +137,7 @@ public class SkipSection {
         if (isEmpty()) {
             return false;
         }
-        boolean skip = false;
-        for (VersionRange versionRange : versionRanges) {
-            skip |= versionRange.contain(currentVersion);
-        }
-
+        boolean skip = versionRanges.stream().anyMatch(range -> range.contain(currentVersion));
         skip |= Features.areAllSupported(features) == false;
         return skip;
     }

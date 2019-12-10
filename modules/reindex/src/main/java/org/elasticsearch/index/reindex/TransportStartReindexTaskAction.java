@@ -41,6 +41,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -49,8 +50,12 @@ import java.util.stream.Collectors;
 public class TransportStartReindexTaskAction
     extends HandledTransportAction<StartReindexTaskAction.Request, StartReindexTaskAction.Response> {
 
+    // TODO: Configurable?
+    private static final int MAX_CONCURRENT_REINDEX_TASKS = 50;
+
     private final List<String> headersToInclude;
     private final ThreadPool threadPool;
+    private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final ReindexValidator reindexValidator;
     private final ReindexIndexClient reindexIndexClient;
@@ -63,6 +68,7 @@ public class TransportStartReindexTaskAction
         super(StartReindexTaskAction.NAME, transportService, actionFilters, StartReindexTaskAction.Request::new);
         this.headersToInclude = ReindexHeaders.REINDEX_INCLUDED_HEADERS.get(settings);
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.persistentTasksService = persistentTasksService;
         this.reindexIndexClient = new ReindexIndexClient(client, clusterService, xContentRegistry);
@@ -75,6 +81,15 @@ public class TransportStartReindexTaskAction
         } catch (Exception e) {
             listener.onFailure(e);
             return;
+        }
+
+        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (tasks != null) {
+            Collection<PersistentTasksCustomMetaData.PersistentTask<?>> reindexTasks = tasks.findTasks(ReindexTask.NAME, (t) -> true);
+            if (reindexTasks != null && reindexTasks.size() >= MAX_CONCURRENT_REINDEX_TASKS) {
+                listener.onFailure(new IllegalStateException("Maximum concurrent reindex operations exceeded [max=" +
+                    MAX_CONCURRENT_REINDEX_TASKS + "]"));
+            }
         }
 
         String generatedId = UUIDs.randomBase64UUID();

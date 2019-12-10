@@ -83,9 +83,6 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         try (CoordinationState.PersistedState persistedState = psf.loadPersistedState(clusterState(env))) {
             final MetaData metaData = persistedState.getLastAcceptedState().metaData();
-            if (metaData.equals(MetaData.EMPTY_META_DATA)) {
-                throw new ElasticsearchException(CS_MISSING_MSG);
-            }
 
             final CoordinationMetaData coordinationMetaData = metaData.coordinationMetaData();
             if (coordinationMetaData == null ||

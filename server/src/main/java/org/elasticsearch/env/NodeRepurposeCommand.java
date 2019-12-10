@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.LucenePersistedStateFactory;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -41,7 +42,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 
 public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
@@ -117,7 +121,11 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         confirm(terminal, "Do you want to proceed?");
 
         removePaths(terminal, indexPaths); // clean-up shard dirs
-        psf.cleanDirs(); // clean-up metadata dirs
+        // clean-up metadata dirs
+        IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(LucenePersistedStateFactory.METADATA_DIRECTORY_NAME))
+            .toArray(Path[]::new));
+        IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(MetaDataStateFormat.STATE_DIR_NAME)).toArray(Path[]::new));
+        IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(INDICES_FOLDER)).toArray(Path[]::new));
 
         terminal.println("Node successfully repurposed to no-master and no-data.");
     }

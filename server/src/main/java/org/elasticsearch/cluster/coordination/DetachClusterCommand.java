@@ -57,7 +57,7 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         try (CoordinationState.PersistedState persistedState = psf.loadPersistedState(clusterState(env))) {
             final MetaData metaData = persistedState.getLastAcceptedState().metaData();
-            if (metaData.equals(MetaData.EMPTY_META_DATA)) {
+            if (metaData.clusterUUIDCommitted() == false) {
                 throw new ElasticsearchException(CS_MISSING_MSG);
             }
 

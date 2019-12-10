@@ -168,10 +168,6 @@ public class LucenePersistedStateFactory {
         this.legacyLoader = legacyLoader;
     }
 
-    public void cleanDirs() throws IOException {
-        IOUtils.rm(Stream.of(dataPaths).map(path -> path.resolve(METADATA_DIRECTORY_NAME)).toArray(Path[]::new));
-    }
-
     public CoordinationState.PersistedState loadPersistedState(BiFunction<Long, MetaData, ClusterState> clusterStateFromMetaData)
         throws IOException {
 

@@ -74,13 +74,12 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                             .build();
                     }
                 }));
-        assertThat(ex.getMessage(), containsString(indexUUID));
         assertThat(ex.getMessage(),
             startsWith("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false and "
                 + Node.NODE_MASTER_SETTING.getKey()
-                + "=false, but has index metadata"));
+                + "=false, but has metadata folders"));
 
         logger.info("--> start the node again with node.data=true and node.master=true");
         internalCluster().startNode(dataPathSettings);

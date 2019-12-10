@@ -140,26 +140,6 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapMasterCommand.NO_NODE_METADATA_FOUND_MSG);
     }
 
-    public void testBootstrapNotBootstrappedCluster() throws Exception {
-        String node = internalCluster().startNode(
-                Settings.builder()
-                        .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
-                        .build());
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().setLocal(true)
-                    .execute().actionGet().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-        });
-
-        Settings dataPathSettings = internalCluster().dataPathSettings(node);
-
-        internalCluster().stopRandomDataNode();
-
-        Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.CS_MISSING_MSG);
-    }
-
     public void testDetachNotBootstrappedCluster() throws Exception {
         String node = internalCluster().startNode(
                 Settings.builder()

@@ -84,7 +84,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.IntPredicate;
-import java.util.stream.Stream;
 
 /**
  * Stores cluster metadata in a bare Lucene index (per data path) split across a number of documents. This is used by master-eligible nodes
@@ -129,6 +128,7 @@ public class LucenePersistedStateFactory {
     private final Path[] dataPaths;
     private final String nodeId;
     private final boolean preserveUnknownCustoms;
+    private final boolean persistInitialState;
     private final NamedXContentRegistry namedXContentRegistry;
     private final BigArrays bigArrays;
     private final LegacyLoader legacyLoader;
@@ -140,7 +140,7 @@ public class LucenePersistedStateFactory {
     }
 
     public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays) {
-        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, namedXContentRegistry, bigArrays, new LegacyLoader() {
+        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, true, namedXContentRegistry, bigArrays, new LegacyLoader() {
             @Override
             public Tuple<Manifest, MetaData> loadClusterState() {
                 return null;
@@ -155,14 +155,15 @@ public class LucenePersistedStateFactory {
 
     public LucenePersistedStateFactory(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
                                        LegacyLoader legacyLoader) {
-        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, namedXContentRegistry, bigArrays, legacyLoader);
+        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), false, true, namedXContentRegistry, bigArrays, legacyLoader);
     }
 
-    public LucenePersistedStateFactory(Path[] dataPaths, String nodeId, boolean preserveUnknownCustoms,
+    public LucenePersistedStateFactory(Path[] dataPaths, String nodeId, boolean preserveUnknownCustoms, boolean persistInitialState,
                                        NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays, LegacyLoader legacyLoader) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
         this.preserveUnknownCustoms = preserveUnknownCustoms;
+        this.persistInitialState = persistInitialState;
         this.namedXContentRegistry = namedXContentRegistry;
         this.bigArrays = bigArrays;
         this.legacyLoader = legacyLoader;
@@ -207,12 +208,16 @@ public class LucenePersistedStateFactory {
             = new LucenePersistedState(nodeId, metaDataIndexWriters, onDiskState.currentTerm, clusterState, bigArrays);
         success = false;
         try {
-            lucenePersistedState.persistInitialState();
+            if (persistInitialState) {
+                lucenePersistedState.persistInitialState();
+            }
             success = true;
             return lucenePersistedState;
         } finally {
             if (success) {
-                legacyLoader.clean();
+                if (persistInitialState) {
+                    legacyLoader.clean();
+                }
             } else {
                 IOUtils.closeWhileHandlingException(lucenePersistedState);
             }

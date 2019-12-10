@@ -167,7 +167,7 @@ public abstract class EnvironmentAwareCommand extends Command {
             Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
                 .flatMap(Function.identity())
                 .collect(Collectors.toList()));
-        return new LucenePersistedStateFactory(dataPaths, nodeId, true, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
+        return new LucenePersistedStateFactory(dataPaths, nodeId, true, false, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
             // do not load legacy files
             new LucenePersistedStateFactory.LegacyLoader() {
                 @Override

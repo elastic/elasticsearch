@@ -27,8 +27,6 @@ import org.hamcrest.Matcher;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.contains;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeRepurposeCommandIT extends ESIntegTestCase {
@@ -120,7 +118,6 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         Settings settingsWithPath = Settings.builder().put(internalCluster().getDefaultSettings()).put(settings).build();
         Matcher<String> matcher = allOf(
             containsString(NodeRepurposeCommand.noMasterMessage(expectedIndexCount, expectedShardCount, 0)),
-            not(contains(NodeRepurposeCommand.PRE_V7_MESSAGE)),
             NodeRepurposeCommandTests.conditionalNot(containsString("test-repurpose"), verbose == false));
         NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher,
             verbose);

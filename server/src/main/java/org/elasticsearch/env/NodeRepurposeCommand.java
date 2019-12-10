@@ -54,9 +54,6 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     static final String NO_CLEANUP = "Node has node.data=true -> no clean up necessary";
     static final String NO_DATA_TO_CLEAN_UP_FOUND = "No data to clean-up found";
     static final String NO_SHARD_DATA_TO_CLEAN_UP_FOUND = "No shard data to clean-up found";
-    static final String PRE_V7_MESSAGE =
-        "No manifest file found. If you were previously running this node on Elasticsearch version 6, please proceed.\n" +
-            "If this node was ever started on Elasticsearch version 7 or higher, it might mean metadata corruption, please abort.";
 
     public NodeRepurposeCommand() {
         super("Repurpose this node to another master/data role, cleaning up any excess persisted data");

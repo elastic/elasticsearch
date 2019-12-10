@@ -17,11 +17,11 @@ An `outlier_detection` configuration object has the following properties:
 
 `compute_feature_influence`::
 (Optional, boolean) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feaure-influence]
+include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
   
 `feature_influence_threshold`:: 
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=feaure-influence-threshold]
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
 
 `method`::
 (Optional, string)
@@ -188,9 +188,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
-
+[discrete]
 [[ml-hyperparameter-optimization]]
-===== Hyperparameter optimization
+==== Hyperparameter optimization
 
 If you don't supply {regression} or {classification} parameters, hyperparameter 
 optimization will be performed by default to set a value for the undefined 

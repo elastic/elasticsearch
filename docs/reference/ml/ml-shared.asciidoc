@@ -246,9 +246,9 @@ add them here as
 <<analysis-pattern-replace-charfilter,pattern replace character filters>>.
 end::char-filter[]
 
-tag::compute-feature-influnece[]
+tag::compute-feature-influence[]
 If `true`, the feature influence calculation is enabled. Defaults to `true`.
-end::compute-feature-influnece[]
+end::compute-feature-influence[]
 
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
@@ -443,7 +443,7 @@ tag::description-dfa[]
 A description of the job.
 end::description-dfa[]
 
-tag:dest[]
+tag::dest[]
 The destination configuration, consisting of `index` and 
 optionally `results_field` (`ml` by default).
 
@@ -454,7 +454,7 @@ optionally `results_field` (`ml` by default).
   `results_field`:::
     (Optional, string) Defines the name of the field in which to store the 
     results of the analysis. Default to `ml`.
-end:dest[]
+end::dest[]
 
 tag::detector-description[]
 A description of the detector. For example, `Low event rate`.
@@ -542,10 +542,10 @@ Defines the fraction of features that will be used when
 selecting a random bag for each candidate split. 
 end::feature-bag-fraction[]
 
-tag::feature-influnece-threshold[]
+tag::feature-influence-threshold[]
 The minimum {olscore} that a document needs to have in order to calculate its 
 {fiscore}. Value range: 0-1 (`0.1` by default).
-end::feature-influnece-threshold[]
+end::feature-influence-threshold[]
 
 tag::field-selection[]
 An array of objects that explain selection for each field, sorted by 
@@ -900,7 +900,7 @@ The configuration of how to source the analysis data. It requires an
       excluded from the destination.
 end::source-put-dfa[]
 
-tag::standardiztation-enabled[]
+tag::standardization-enabled[]
 If `true`, then the following operation is performed on the columns before 
 computing outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For 
 more information, see 
@@ -920,10 +920,10 @@ function.
 --
 end::summary-count-field-name[]
 
-tag:timeout-start[]
+tag::timeout-start[]
 Controls the amount of time to wait until the {dfanalytics-job} starts. Defaults 
 to 20 seconds.
-end:timeout-start[]
+end::timeout-start[]
 
 tag::timeout-stop[]
 Controls the amount of time to wait until the {dfanalytics-job} stops. Defaults 

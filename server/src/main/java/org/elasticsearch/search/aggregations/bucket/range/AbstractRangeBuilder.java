@@ -44,10 +44,9 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     protected boolean keyed = false;
 
     protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
+        // TODO: We used to set targetValueType here to rangeFactory.getValueType(), not sure if we need that information now.
         super(name);
         this.rangeFactory = rangeFactory;
-        // TODO: This is just copy/pasta from the old targetValueType setting.  It may not be appropriate to set userValueTypeHint here.
-        userValueTypeHint(rangeFactory.getValueType());
     }
 
     protected AbstractRangeBuilder(AbstractRangeBuilder<AB, R> clone,
@@ -63,12 +62,11 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      */
     protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, Writeable.Reader<R> rangeReader)
             throws IOException {
+        // TODO: We used to set targetValueType here to rangeFactory.getValueType(), not sure if we need that information now.
         super(in);
         this.rangeFactory = rangeFactory;
         ranges = in.readList(rangeReader);
         keyed = in.readBoolean();
-        // TODO: This is just copy/pasta from the old targetValueType setting.  It may not be appropriate to set userValueTypeHint here.
-        userValueTypeHint(rangeFactory.getValueType());
     }
 
     /**

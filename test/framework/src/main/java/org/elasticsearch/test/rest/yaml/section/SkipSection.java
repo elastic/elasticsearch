@@ -138,8 +138,7 @@ public class SkipSection {
             return false;
         }
         boolean skip = versionRanges.stream().anyMatch(range -> range.contains(currentVersion));
-        skip |= Features.areAllSupported(features) == false;
-        return skip;
+        return skip || Features.areAllSupported(features) == false;
     }
 
     public boolean isVersionCheck() {
@@ -174,10 +173,6 @@ public class SkipSection {
             versionRanges.add(versionRange);
         }
         return versionRanges;
-    }
-
-    private static String wrapWithSpaces(String rawRange) {
-        return " " + rawRange + " ";
     }
 
     public String getSkipMessage(String description) {

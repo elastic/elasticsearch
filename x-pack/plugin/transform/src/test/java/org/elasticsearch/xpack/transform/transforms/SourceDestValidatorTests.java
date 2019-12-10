@@ -113,6 +113,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1 },
             "dest",
             "node_id",
+            "license",
             false
         );
         assertNull(e);
@@ -127,6 +128,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { "ccs:" + SOURCE_1 },
             "dest",
             "node_id",
+            "license",
             false
         );
         assertNull(e);
@@ -138,6 +140,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { "ccs:" + SOURCE_1 },
             "dest",
             "node_id",
+            "license",
             false
         );
         assertNull(e);
@@ -152,6 +155,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] {},
             "dest",
             "node_id",
+            "license",
             false
         );
 
@@ -169,6 +173,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { "missing" },
             "dest",
             "node_id",
+            "license",
             false
         );
 
@@ -183,6 +188,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { "missing" },
             "dest",
             "node_id",
+            "license",
             true
         );
         assertNull(e);
@@ -197,6 +203,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1, "missing" },
             "dest",
             "node_id",
+            "license",
             false
         );
 
@@ -211,6 +218,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1, "missing" },
             "dest",
             "node_id",
+            "license",
             true
         );
         assertNull(e);
@@ -225,6 +233,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1, "wildcard*", "missing" },
             "dest",
             "node_id",
+            "license",
             false
         );
 
@@ -239,6 +248,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1, "wildcard*", "missing" },
             "dest",
             "node_id",
+            "license",
             true
         );
         assertNull(e);
@@ -253,6 +263,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { "wildcard*" },
             "dest",
             "node_id",
+            "license",
             false
         );
         assertNull(e);
@@ -267,6 +278,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1 },
             "source-1",
             "node_id",
+            "license",
             false
         );
 
@@ -281,6 +293,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1 },
             "source-1",
             "node_id",
+            "license",
             true
         );
         assertNull(e);
@@ -295,6 +308,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { "source-*" },
             SOURCE_2,
             "node_id",
+            "license",
             false
         );
         assertNotNull(e);
@@ -308,6 +322,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { "source-*" },
             SOURCE_2,
             "node_id",
+            "license",
             true
         );
         assertNull(e);
@@ -322,6 +337,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { "source-1", "source-*" },
             SOURCE_2,
             "node_id",
+            "license",
             false
         );
         assertNotNull(e);
@@ -335,6 +351,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { "source-1", "source-*" },
             SOURCE_2,
             "node_id",
+            "license",
             true
         );
         assertNull(e);
@@ -349,6 +366,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1 },
             DEST_ALIAS,
             "node_id",
+            "license",
             false
         );
         assertNotNull(e);
@@ -368,6 +386,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1 },
             DEST_ALIAS,
             "node_id",
+            "license",
             true
         );
         assertNotNull(e);
@@ -389,6 +408,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1 },
             ALIAS_READ_WRITE_DEST,
             "node_id",
+            "license",
             false
         );
         assertNotNull(e);
@@ -403,6 +423,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1 },
             SOURCE_1_ALIAS,
             "node_id",
+            "license",
             false
         );
         assertNotNull(e);
@@ -417,6 +438,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             new String[] { SOURCE_1 },
             SOURCE_1_ALIAS,
             "node_id",
+            "license",
             true
         );
         assertNull(e);

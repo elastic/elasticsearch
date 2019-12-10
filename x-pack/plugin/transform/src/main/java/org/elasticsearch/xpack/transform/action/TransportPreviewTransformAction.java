@@ -20,6 +20,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -127,15 +128,21 @@ public class TransportPreviewTransformAction extends
         ClusterState clusterState = clusterService.state();
 
         final TransformConfig config = request.getConfig();
-        SourceDestValidator.validateForPreview(
+        ValidationException validationResult = SourceDestValidator.validateForPreview(
             clusterState,
             indexNameExpressionResolver,
             this.transportService.getRemoteClusterService(),
             isRemoteSearchEnabled ? SourceDestValidator.remoteClusterLicenseCheckerBasicLicense(client) : null,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
-            clusterService.getNodeName()
+            clusterService.getNodeName(),
+            "basic"
         );
+
+        if (validationResult != null) {
+            listener.onFailure(validationResult);
+            return;
+        }
 
         Pivot pivot = new Pivot(config.getPivotConfig());
         try {

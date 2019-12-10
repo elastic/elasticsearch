@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -212,7 +213,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 return;
             }
             // Validate source and destination indices
-            SourceDestValidator.validate(
+            ValidationException validationResult = SourceDestValidator.validate(
                 clusterService.state(),
                 indexNameExpressionResolver,
                 transportService.getRemoteClusterService(),
@@ -220,8 +221,14 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
                 clusterService.getNodeName(),
+                "basic",
                 false
             );
+
+            if (validationResult != null) {
+                listener.onFailure(validationResult);
+                return;
+            }
 
             transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
             final String destinationIndex = config.getDestination().getIndex();

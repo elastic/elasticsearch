@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -211,19 +212,20 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             );
             return;
         }
-        try {
-            SourceDestValidator.validate(
-                clusterState,
-                indexNameExpressionResolver,
-                transportService.getRemoteClusterService(),
-                isRemoteSearchEnabled ? SourceDestValidator.remoteClusterLicenseCheckerBasicLicense(client) : null,
-                config.getSource().getIndex(),
-                config.getDestination().getIndex(),
-                clusterService.getNodeName(),
-                request.isDeferValidation()
-            );
-        } catch (ElasticsearchStatusException ex) {
-            listener.onFailure(ex);
+
+        ValidationException validationResult = SourceDestValidator.validate(
+            clusterState,
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            isRemoteSearchEnabled ? SourceDestValidator.remoteClusterLicenseCheckerBasicLicense(client) : null,
+            config.getSource().getIndex(),
+            config.getDestination().getIndex(),
+            clusterService.getNodeName(),
+            "basic",
+            request.isDeferValidation()
+        );
+        if (validationResult != null) {
+            listener.onFailure(validationResult);
             return;
         }
 

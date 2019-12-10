@@ -57,6 +57,7 @@ public final class SourceDestValidator {
         private final String[] source;
         private final String dest;
         private final String nodeName;
+        private final String license;
 
         private ValidationException validationException = null;
         private Set<String> resolvedSource = null;
@@ -70,7 +71,8 @@ public final class SourceDestValidator {
             final RemoteClusterLicenseChecker remoteClusterLicenseChecker,
             final String[] source,
             final String dest,
-            final String nodeName
+            final String nodeName,
+            final String license
         ) {
             this.state = state;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -79,6 +81,7 @@ public final class SourceDestValidator {
             this.source = source;
             this.dest = dest;
             this.nodeName = nodeName;
+            this.license = license;
         }
 
         public ClusterState getState() {
@@ -111,6 +114,10 @@ public final class SourceDestValidator {
 
         public String getNodeName() {
             return nodeName;
+        }
+
+        public String getLicense() {
+            return license;
         }
 
         public Set<String> resolveSource() {
@@ -219,6 +226,7 @@ public final class SourceDestValidator {
      * @param source an array of source indices
      * @param dest destination index
      * @param nodeName the name of this node
+     * @param license the license of the feature validated for
      * @return ValidationException instance containing all validation errors or null if validation found no problems.
      */
     public static ValidationException validateForPreview(
@@ -228,7 +236,8 @@ public final class SourceDestValidator {
         RemoteClusterLicenseChecker remoteClusterLicenseChecker,
         String[] source,
         String dest,
-        String nodeName
+        String nodeName,
+        String license
     ) {
         Context context = new Context(
             clusterState,
@@ -237,7 +246,8 @@ public final class SourceDestValidator {
             remoteClusterLicenseChecker,
             source,
             dest,
-            nodeName
+            nodeName,
+            license
         );
 
         // validation exception might gets thrown if validation stops early
@@ -260,6 +270,8 @@ public final class SourceDestValidator {
      * @param remoteClusterLicenseChecker A RemoteClusterLicenseChecker or null if CCS is disabled
      * @param source an array of source indexes
      * @param dest destination index
+     * @param nodeName the name of this node
+     * @param license the license of the feature validated for
      * @param shouldDefer whether to defer certain validations, used for put while source indices are not created yet
      * @return ValidationException instance containing all validation errors or null if validation found no problems.
      */
@@ -272,6 +284,7 @@ public final class SourceDestValidator {
         String[] source,
         String dest,
         String nodeName,
+        String license,
         boolean shouldDefer
     ) {
         Context context = new Context(
@@ -281,7 +294,8 @@ public final class SourceDestValidator {
             remoteClusterLicenseChecker,
             source,
             dest,
-            nodeName
+            nodeName,
+            license
         );
 
         // validation exception might gets thrown if validation stops early

@@ -74,9 +74,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         IOException ioe = null;
         for (String blobName : blobNames) {
             try {
-                if (store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true)) == false) {
-                    throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-                }
+                store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true));
             } catch (final FileNotFoundException ignored) {
                 // This exception is ignored
             } catch (IOException e) {

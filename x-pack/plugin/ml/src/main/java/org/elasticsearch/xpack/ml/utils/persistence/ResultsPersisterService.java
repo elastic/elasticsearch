@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -85,14 +86,6 @@ public class ResultsPersisterService {
                                            String jobId,
                                            Supplier<Boolean> shouldRetry,
                                            Consumer<String> msgHandler) {
-        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler, 10);
-    }
-
-    BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest,
-                                    String jobId,
-                                    Supplier<Boolean> shouldRetry,
-                                    Consumer<String> msgHandler,
-                                    int msgBarrier) {
         int currentMin = MIN_RETRY_SLEEP_MILLIS;
         int currentMax = MIN_RETRY_SLEEP_MILLIS;
         int currentAttempt = 0;
@@ -115,20 +108,6 @@ public class ResultsPersisterService {
                     bulkResponse.buildFailureMessage());
             }
             currentAttempt++;
-            // Before 10, most retries are fairly fast,
-            // After 10, the time between quickly gets on the magnitude of minutes
-            if (currentAttempt > msgBarrier) {
-                int attempt = currentAttempt;
-                LOGGER.warn(()-> new ParameterizedMessage("[{}] failed to index after [{}] attempts. Will attempt [{}] more times.",
-                    jobId,
-                    attempt,
-                    (maxFailureRetries - attempt)));
-                msgHandler.accept(new ParameterizedMessage(
-                    "failed to index after [{}] attempts. Will attempt [{}] more times.",
-                    attempt,
-                    (maxFailureRetries - attempt))
-                    .getFormattedMessage());
-            }
             // Since we exponentially increase, we don't want force randomness to have an excessively long sleep
             if (currentMax < MAX_RETRY_SLEEP_MILLIS) {
                 currentMin = currentMax;
@@ -140,6 +119,15 @@ public class ResultsPersisterService {
             // so that not all bulk requests rest for the same amount of time
             int randBound = 1 + (currentMax - currentMin);
             int randSleep = currentMin + random.nextInt(randBound);
+            {
+                String msg = new ParameterizedMessage(
+                    "failed to index after [{}] attempts. Will attempt again in [{}].",
+                    currentAttempt,
+                    TimeValue.timeValueMillis(randSleep).getStringRep())
+                    .getFormattedMessage();
+                LOGGER.warn(()-> new ParameterizedMessage("[{}] {}", jobId, msg));
+                msgHandler.accept(msg);
+            }
             // We should only retry the docs that failed.
             bulkRequest = buildNewRequestFromFailures(bulkRequest, bulkResponse);
             try {

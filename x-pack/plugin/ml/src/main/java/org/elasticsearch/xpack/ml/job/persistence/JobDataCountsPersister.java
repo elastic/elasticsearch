@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
@@ -67,9 +68,9 @@ public class JobDataCountsPersister {
                 () -> true,
                 (msg) -> auditor.warning(jobId, "Job data_counts " + msg));
         } catch (IOException ioe) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
+            logger.error(() -> new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId), ioe);
         } catch (Exception ex) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to persist DataCounts stats", jobId), ex);
+            logger.error(() -> new ParameterizedMessage("[{}] Failed persisting data_counts stats", jobId), ex);
         }
     }
 
@@ -100,7 +101,9 @@ public class JobDataCountsPersister {
                 }
             });
         } catch (IOException ioe) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Error serialising DataCounts stats", jobId), ioe);
+            String msg = new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId).getFormattedMessage();
+            logger.error(msg, ioe);
+            listener.onFailure(ExceptionsHelper.serverError(msg, ioe));
         }
     }
 }

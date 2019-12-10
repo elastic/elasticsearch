@@ -78,7 +78,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
             acknowledgedResponseHolder,
             exceptionHolder);
         if (exceptionHolder.get() != null) {
-            logger.error("FAILED TO MARK ["+ resultsIndex + "] as read-write again", exceptionHolder.get());
+            fail("FAILED TO MARK ["+ resultsIndex + "] as read-write again" + exceptionHolder.get());
         }
     }
 
@@ -91,7 +91,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
             acknowledgedResponseHolder,
             exceptionHolder);
         if (exceptionHolder.get() != null) {
-            logger.error("FAILED TO MARK ["+ resultsIndex + "] as read-ONLY", exceptionHolder.get());
+            fail("FAILED TO MARK ["+ resultsIndex + "] as read-ONLY: " + exceptionHolder.get());
         }
     }
 

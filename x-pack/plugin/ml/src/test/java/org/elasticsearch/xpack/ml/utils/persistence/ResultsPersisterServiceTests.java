@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -152,7 +153,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         ResultsPersisterService resultsPersisterService = buildResultsPersisterService(client);
         AtomicReference<String> msgHolder = new AtomicReference<>("not_called");
 
-        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, msgHolder::set,0);
+        resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, msgHolder::set);
 
         ArgumentCaptor<BulkRequest> captor =  ArgumentCaptor.forClass(BulkRequest.class);
         verify(client, times(2)).bulk(captor.capture());
@@ -161,7 +162,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         assertThat(requests.get(0).numberOfActions(), equalTo(2));
         assertThat(requests.get(1).numberOfActions(), equalTo(1));
-        assertThat(msgHolder.get(), equalTo("failed to index after [1] attempts. Will attempt [19] more times."));
+        assertThat(msgHolder.get(), containsString("failed to index after [1] attempts. Will attempt again in"));
     }
 
     @SuppressWarnings("unchecked")

@@ -614,12 +614,12 @@ public class Setting<T> implements ToXContentObject {
             }
 
             @Override
-            public void apply(String target, Tuple<A, B> value, Settings current, Settings previous) {
+            public void apply(Tuple<A, B> value, Settings current, Settings previous) {
                 if (aSettingUpdater.hasChanged(current, previous)) {
-                    logSettingUpdate(target, aSetting, current, previous, logger);
+                    logSettingUpdate(aSetting, current, previous, logger);
                 }
                 if (bSettingUpdater.hasChanged(current, previous)) {
-                    logSettingUpdate(target, bSetting, current, previous, logger);
+                    logSettingUpdate(bSetting, current, previous, logger);
                 }
                 consumer.accept(value.v1(), value.v2());
             }
@@ -660,7 +660,7 @@ public class Setting<T> implements ToXContentObject {
             }
 
             @Override
-            public void apply(String target, Settings value, Settings current, Settings previous) {
+            public void apply(Settings value, Settings current, Settings previous) {
                 consumer.accept(value);
             }
 
@@ -732,10 +732,9 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(String target, Map<AbstractScopedSettings.SettingUpdater<T>, T> value,
-                                  Settings current, Settings previous) {
+                public void apply(Map<AbstractScopedSettings.SettingUpdater<T>, T> value, Settings current, Settings previous) {
                     for (Map.Entry<AbstractScopedSettings.SettingUpdater<T>, T> entry : value.entrySet()) {
-                        entry.getKey().apply(target, entry.getValue(), current, previous);
+                        entry.getKey().apply(entry.getValue(), current, previous);
                     }
                 }
             };
@@ -770,7 +769,7 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(String target, Map<String, T> value, Settings current, Settings previous) {
+                public void apply(Map<String, T> value, Settings current, Settings previous) {
                     consumer.accept(value);
                 }
             };
@@ -995,8 +994,8 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(String target, Settings value, Settings current, Settings previous) {
-                    Setting.logSettingUpdate(target, GroupSetting.this, current, previous, logger);
+                public void apply(Settings value, Settings current, Settings previous) {
+                    Setting.logSettingUpdate(GroupSetting.this, current, previous, logger);
                     consumer.accept(value);
                 }
 
@@ -1053,8 +1052,8 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public void apply(String target, T value, Settings current, Settings previous) {
-            logSettingUpdate(target, Setting.this, current, previous, logger);
+        public void apply(T value, Settings current, Settings previous) {
+            logSettingUpdate(Setting.this, current, previous, logger);
             consumer.accept(value);
         }
     }
@@ -1464,22 +1463,12 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    static void logSettingUpdate(String target, Setting setting, Settings current, Settings previous, Logger logger) {
+    static void logSettingUpdate(Setting setting, Settings current, Settings previous, Logger logger) {
         if (logger.isInfoEnabled()) {
             if (setting.isFiltered()) {
-                if (target == null) {
-                    logger.info("updating [{}]", setting.key);
-                } else {
-                    logger.info("updating [{}] [{}]", target, setting.key);
-
-                }
+                logger.info("updating [{}]", setting.key);
             } else {
-                if (target == null) {
-                    logger.info("updating [{}] from [{}] to [{}]", setting.key, setting.getRaw(previous), setting.getRaw(current));
-                } else {
-                    logger.info("updating [{}] [{}] from [{}] to [{}]",
-                        target, setting.key, setting.getRaw(previous), setting.getRaw(current));
-                }
+                logger.info("updating [{}] from [{}] to [{}]", setting.key, setting.getRaw(previous), setting.getRaw(current));
             }
         }
     }

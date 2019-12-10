@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common.settings;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
@@ -55,7 +55,7 @@ public abstract class AbstractScopedSettings {
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
-    protected final Logger logger = LogManager.getLogger(this.getClass());
+    protected final Logger logger;
 
     private final Settings settings;
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
@@ -69,7 +69,9 @@ public abstract class AbstractScopedSettings {
             final Settings settings,
             final Set<Setting<?>> settingsSet,
             final Set<SettingUpgrader<?>> settingUpgraders,
-            final Setting.Property scope) {
+            final Setting.Property scope,
+            final String prefix) {
+        this.logger = Loggers.getLogger(this.getClass(), prefix);
         this.settings = settings;
         this.lastSettingsApplied = Settings.EMPTY;
 
@@ -110,7 +112,8 @@ public abstract class AbstractScopedSettings {
         }
     }
 
-    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
+    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other, String prefix) {
+        this.logger = Loggers.getLogger(this.getClass(), prefix);
         this.settings = nodeSettings;
         this.lastSettingsApplied = scopeSettings;
         this.scope = other.scope;
@@ -171,15 +174,6 @@ public abstract class AbstractScopedSettings {
      * @return the unmerged applied settings
     */
     public synchronized Settings applySettings(Settings newSettings) {
-        return applySettings(null, newSettings);
-    }
-
-    /**
-     * @param target the target to be applied newSettings
-     * @param newSettings the settings to apply
-     * @return the unmerged applied settings
-    */
-    public synchronized Settings applySettings(String target, Settings newSettings) {
         if (lastSettingsApplied != null && newSettings.equals(lastSettingsApplied)) {
             // nothing changed in the settings, ignore
             return newSettings;
@@ -190,7 +184,7 @@ public abstract class AbstractScopedSettings {
             List<Runnable> applyRunnables = new ArrayList<>();
             for (SettingUpdater<?> settingUpdater : settingUpdaters) {
                 try {
-                    applyRunnables.add(settingUpdater.updater(target, current, previous));
+                    applyRunnables.add(settingUpdater.updater(current, previous));
                 } catch (Exception ex) {
                     logger.warn(() -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
                     throw ex;
@@ -296,7 +290,7 @@ public abstract class AbstractScopedSettings {
             }
 
             @Override
-            public void apply(String target, Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
+            public void apply(Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
                 for (Map.Entry<String, Tuple<A, B>> entry : values.entrySet()) {
                     consumer.accept(entry.getKey(), entry.getValue());
                 }
@@ -345,7 +339,7 @@ public abstract class AbstractScopedSettings {
             }
 
             @Override
-            public void apply(String target, Map<String, Settings> values, Settings current, Settings previous) {
+            public void apply(Map<String, Settings> values, Settings current, Settings previous) {
                 for (Map.Entry<String, Settings> entry : values.entrySet()) {
                     consumer.accept(entry.getKey(), entry.getValue());
                 }
@@ -593,34 +587,30 @@ public abstract class AbstractScopedSettings {
         /**
          * Applies the given value to the updater. This methods will actually run the update.
          */
-        void apply(String target, T value, Settings current, Settings previous);
+        void apply(T value, Settings current, Settings previous);
 
         /**
          * Updates this updaters value if it has changed.
          * @return <code>true</code> iff the value has been updated.
          */
         default boolean apply(Settings current, Settings previous) {
-            return apply(null, current, previous);
-        }
-
-        default boolean apply(String target, Settings current, Settings previous) {
             if (hasChanged(current, previous)) {
                 T value = getValue(current, previous);
-                apply(target, value, current, previous);
+                apply(value, current, previous);
                 return true;
             }
             return false;
         }
 
         /**
-         * Returns a callable runnable that calls {@link #apply(String, Object, Settings, Settings)} if the settings
+         * Returns a callable runnable that calls {@link #apply(Object, Settings, Settings)} if the settings
          * actually changed. This allows to defer the update to a later point in time while keeping type safety.
          * If the value didn't change the returned runnable is a noop.
          */
-        default Runnable updater(String target, Settings current, Settings previous) {
+        default Runnable updater(Settings current, Settings previous) {
             if (hasChanged(current, previous)) {
                 T value = getValue(current, previous);
-                return () -> { apply(target, value, current, previous);};
+                return () -> { apply(value, current, previous);};
             }
             return () -> {};
         }

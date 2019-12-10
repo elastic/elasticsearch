@@ -477,7 +477,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             logger.debug("applying settings from cluster state with version {}", newClusterState.version());
             final Settings incomingSettings = clusterChangedEvent.state().metaData().settings();
             try (Releasable ignored = stopWatch.timing("applying settings")) {
-                clusterSettings.applySettings("cluster", incomingSettings);
+                clusterSettings.applySettings(incomingSettings);
             }
         }
 

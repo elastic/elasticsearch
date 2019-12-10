@@ -124,7 +124,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
     }
 
     public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
-        super(nodeSettings, settingsSet, settingUpgraders, Property.NodeScope);
+        super(nodeSettings, settingsSet, settingUpgraders, Property.NodeScope, "cluster");
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 
@@ -158,7 +158,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
 
         @Override
-        public void apply(String target, Settings value, Settings current, Settings previous) {
+        public void apply(Settings value, Settings current, Settings previous) {
             for (String key : value.keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());

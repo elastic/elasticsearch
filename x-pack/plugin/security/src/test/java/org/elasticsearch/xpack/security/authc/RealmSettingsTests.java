@@ -317,7 +317,7 @@ public class RealmSettingsTests extends ESTestCase {
     private void validate(Settings settings) {
         final Set<Setting<?>> settingsSet = new HashSet<>(InternalRealmsSettings.getSettings());
         final AbstractScopedSettings validator = new AbstractScopedSettings(settings, settingsSet, Collections.emptySet(),
-            Setting.Property.NodeScope) {
+            Setting.Property.NodeScope, "realm") {
         };
         validator.validate(settings, false);
     }

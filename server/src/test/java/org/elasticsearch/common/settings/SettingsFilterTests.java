@@ -114,7 +114,7 @@ public class SettingsFilterTests extends ESTestCase {
         Settings newSettings = Settings.builder().put("key", "new").build();
 
         Setting<String> filteredSetting = Setting.simpleString("key", Property.Filtered);
-        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate("index1", filteredSetting, newSettings, oldSettings, testLogger),
+        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger),
             new MockLogAppender.SeenEventExpectation("secure logging", "org.elasticsearch.test", Level.INFO, "updating [key]"),
             new MockLogAppender.UnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
             new MockLogAppender.UnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
@@ -126,7 +126,7 @@ public class SettingsFilterTests extends ESTestCase {
         Settings newSettings = Settings.builder().put("key", "new").build();
 
         Setting<String> regularSetting = Setting.simpleString("key");
-        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate("index1", regularSetting, newSettings, oldSettings, testLogger),
+        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(regularSetting, newSettings, oldSettings, testLogger),
             new MockLogAppender.SeenEventExpectation("regular logging", "org.elasticsearch.test", Level.INFO,
             "updating [key] from [old] to [new]"));
     }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.time.OffsetTime;
@@ -28,7 +28,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expression> {
 

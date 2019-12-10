@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.NodeSubclassTests;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.SourceTests;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.ArrayList;
@@ -22,10 +22,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
 
 /**
  * Needed to override tests in {@link NodeSubclassTests} as Case is special since its children are not usual

@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.sql.plan.physical;
 import java.util.List;
 import java.util.Objects;
 
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class OrderExec extends UnaryExec implements Unexecutable {
 

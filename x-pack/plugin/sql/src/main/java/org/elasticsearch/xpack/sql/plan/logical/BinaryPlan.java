@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.Arrays;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class BinaryPlan extends LogicalPlan {
 

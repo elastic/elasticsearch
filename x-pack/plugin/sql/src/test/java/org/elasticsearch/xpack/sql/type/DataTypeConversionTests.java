@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 
 import java.time.OffsetTime;

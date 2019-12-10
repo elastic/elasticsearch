@@ -14,7 +14,7 @@ import java.time.ZonedDateTime;
 import java.util.BitSet;
 import java.util.Iterator;
 
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public final class FunctionTestUtils {
 

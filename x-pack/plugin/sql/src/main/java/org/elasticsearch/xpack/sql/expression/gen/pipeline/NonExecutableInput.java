@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 public abstract class NonExecutableInput<T> extends LeafInput<T> {
     NonExecutableInput(Source source, Expression expression, T context) {

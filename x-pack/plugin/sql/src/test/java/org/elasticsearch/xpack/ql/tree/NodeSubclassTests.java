@@ -3,12 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.tree;
+package org.elasticsearch.xpack.ql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.tree.Node;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.NodeTests.ChildrenAreAProperty;
+import org.elasticsearch.xpack.ql.tree.NodeTests.Dummy;
+import org.elasticsearch.xpack.ql.tree.NodeTests.NoChildren;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
@@ -36,9 +42,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
-import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
-import org.elasticsearch.xpack.sql.tree.NodeTests.NoChildren;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;

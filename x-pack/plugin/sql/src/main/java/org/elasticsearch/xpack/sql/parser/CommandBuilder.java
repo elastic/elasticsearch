@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.Token;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
@@ -31,8 +33,6 @@ import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.EnumSet;

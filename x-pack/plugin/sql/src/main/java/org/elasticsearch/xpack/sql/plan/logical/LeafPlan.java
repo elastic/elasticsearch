@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.Collections;
 import java.util.List;
-
-import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class LeafPlan extends LogicalPlan {
 

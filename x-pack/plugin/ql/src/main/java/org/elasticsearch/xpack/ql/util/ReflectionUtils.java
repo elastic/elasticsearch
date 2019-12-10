@@ -3,9 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.util;
+package org.elasticsearch.xpack.ql.util;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -20,7 +20,7 @@ public class ReflectionUtils {
             if (type instanceof ParameterizedType) {
                 Type[] typeArguments = ((ParameterizedType) type).getActualTypeArguments();
                 if (typeArguments.length != 2 && typeArguments.length != 1) {
-                    throw new SqlIllegalArgumentException("Unexpected number of type arguments {} for {}", Arrays.toString(typeArguments),
+                    throw new QlIllegalArgumentException("Unexpected number of type arguments {} for {}", Arrays.toString(typeArguments),
                             c);
                 }
 
@@ -34,11 +34,11 @@ public class ReflectionUtils {
                         return (Class<E>) rawType;
                     }
                 }
-                throw new SqlIllegalArgumentException("Unexpected class structure for class {}", c);
+                throw new QlIllegalArgumentException("Unexpected class structure for class {}", c);
             }
             clazz = clazz.getSuperclass();
         }
-        throw new SqlIllegalArgumentException("Unexpected class structure for class {}", c);
+        throw new QlIllegalArgumentException("Unexpected class structure for class {}", c);
     }
     
     // remove packaging from the name - strategy used for naming rules by default

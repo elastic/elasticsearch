@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestCase<BinaryArithmeticProcessor> {
     public static BinaryArithmeticProcessor randomProcessor() {

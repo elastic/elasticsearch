@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.util;
+package org.elasticsearch.xpack.ql.util;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -104,7 +104,7 @@ public final class StringUtils {
             if (!escaped && (curr == escape) && escape != 0) {
                 escaped = true;
                 if (i + 1 == pattern.length()) {
-                    throw new SqlIllegalArgumentException(
+                    throw new QlIllegalArgumentException(
                             "Invalid sequence - escape character is not followed by special wildcard char");
                 }
             }
@@ -118,7 +118,7 @@ public final class StringUtils {
                         break;
                     default:
                         if (escaped) {
-                            throw new SqlIllegalArgumentException(
+                            throw new QlIllegalArgumentException(
                                     "Invalid sequence - escape character is not followed by special wildcard char");
                         }
                         // escape special regex characters
@@ -168,7 +168,7 @@ public final class StringUtils {
 
             if (!escaped && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
-                    throw new SqlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
+                    throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
                 }
                 escaped = true;
             } else {
@@ -181,7 +181,7 @@ public final class StringUtils {
                         break;
                     default:
                         if (escaped) {
-                            throw new SqlIllegalArgumentException(
+                            throw new QlIllegalArgumentException(
                                     "Invalid sequence - escape character is not followed by special wildcard char");
                         }
                         // escape special regex characters
@@ -214,7 +214,7 @@ public final class StringUtils {
 
             if (!escaped && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
-                    throw new SqlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
+                    throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
                 }
                 escaped = true;
             } else {
@@ -227,7 +227,7 @@ public final class StringUtils {
                         break;
                     default:
                         if (escaped) {
-                            throw new SqlIllegalArgumentException(
+                            throw new QlIllegalArgumentException(
                                     "Invalid sequence - escape character is not followed by special wildcard char");
                         }
                         // the resolver doesn't support escaping...
@@ -291,24 +291,24 @@ public final class StringUtils {
                 .collect(toList());
     }
 
-    public static double parseDouble(String string) throws SqlIllegalArgumentException {
+    public static double parseDouble(String string) throws QlIllegalArgumentException {
         double value;
         try {
             value = Double.parseDouble(string);
         } catch (NumberFormatException nfe) {
-            throw new SqlIllegalArgumentException("Cannot parse number [{}]", string);
+            throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
         }
 
         if (Double.isInfinite(value)) {
-            throw new SqlIllegalArgumentException("Number [{}] is too large", string);
+            throw new QlIllegalArgumentException("Number [{}] is too large", string);
         }
         if (Double.isNaN(value)) {
-            throw new SqlIllegalArgumentException("[{}] cannot be parsed as a number (NaN)", string);
+            throw new QlIllegalArgumentException("[{}] cannot be parsed as a number (NaN)", string);
         }
         return value;
     }
 
-    public static long parseLong(String string) throws SqlIllegalArgumentException {
+    public static long parseLong(String string) throws QlIllegalArgumentException {
         try {
             return Long.parseLong(string);
         } catch (NumberFormatException nfe) {
@@ -317,12 +317,12 @@ public final class StringUtils {
                 try {
                     bi.longValueExact();
                 } catch (ArithmeticException ae) {
-                    throw new SqlIllegalArgumentException("Number [{}] is too large", string);
+                    throw new QlIllegalArgumentException("Number [{}] is too large", string);
                 }
             } catch (NumberFormatException ex) {
                 // parsing fails, go through
             }
-            throw new SqlIllegalArgumentException("Cannot parse number [{}]", string);
+            throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
         }
     }
 

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Nullability;
@@ -17,8 +19,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProce
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonPipe;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;

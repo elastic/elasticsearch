@@ -20,10 +20,10 @@ import java.util.stream.Stream;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.literal.Intervals.intervalType;
 import static org.elasticsearch.xpack.sql.expression.literal.Intervals.of;
 import static org.elasticsearch.xpack.sql.expression.literal.Intervals.parseInterval;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_HOUR;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_MINUTE;

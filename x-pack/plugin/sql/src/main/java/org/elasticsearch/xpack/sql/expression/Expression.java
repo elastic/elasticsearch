@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.xpack.ql.tree.Node;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.capabilities.Resolvable;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
-import org.elasticsearch.xpack.sql.tree.Node;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
 

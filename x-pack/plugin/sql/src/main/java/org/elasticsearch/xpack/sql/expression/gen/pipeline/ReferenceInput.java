@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class ReferenceInput extends NonExecutableInput<FieldExtraction> {
     public ReferenceInput(Source source, Expression expression, FieldExtraction context) {

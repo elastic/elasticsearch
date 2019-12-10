@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.AggRef;
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
@@ -73,8 +75,6 @@ import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.rule.Rule;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -88,11 +88,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.and;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 /**
  * Folds the PhysicalPlan into a {@link Query}.

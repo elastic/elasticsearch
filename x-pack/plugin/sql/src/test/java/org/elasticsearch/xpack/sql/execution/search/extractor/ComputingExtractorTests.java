@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<ComputingExtractor> {

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
@@ -17,8 +17,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isBoolean;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Iif extends Case {
 

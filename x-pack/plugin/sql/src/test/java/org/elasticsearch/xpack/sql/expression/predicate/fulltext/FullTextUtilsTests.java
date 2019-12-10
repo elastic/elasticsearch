@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 import io.netty.util.internal.StringUtil;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Map;
 

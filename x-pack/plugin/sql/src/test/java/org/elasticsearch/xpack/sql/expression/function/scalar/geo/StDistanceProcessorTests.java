@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class StDistanceProcessorTests extends AbstractWireSerializingTestCase<StDistanceProcessor> {

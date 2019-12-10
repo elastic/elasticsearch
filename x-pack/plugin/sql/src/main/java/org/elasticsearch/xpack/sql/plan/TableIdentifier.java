@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plan;
 
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
 

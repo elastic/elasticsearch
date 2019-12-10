@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.sql.expression.literal;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
 import java.time.Period;

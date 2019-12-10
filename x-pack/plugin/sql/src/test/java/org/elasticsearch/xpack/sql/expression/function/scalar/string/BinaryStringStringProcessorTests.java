@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
 
 public class BinaryStringStringProcessorTests extends AbstractWireSerializingTestCase<BinaryStringStringProcessor> {

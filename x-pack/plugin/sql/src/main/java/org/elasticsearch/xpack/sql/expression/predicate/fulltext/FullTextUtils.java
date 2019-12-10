@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate.Operator;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;

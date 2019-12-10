@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
+import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;
@@ -72,14 +77,9 @@ import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.sql.rule.Rule;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
-import org.elasticsearch.xpack.sql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,6 +94,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
@@ -103,7 +104,6 @@ import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.inComm
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.subtract;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {

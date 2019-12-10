@@ -20,8 +20,8 @@ import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Arithmetics.mod;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_HOUR;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_HOUR;

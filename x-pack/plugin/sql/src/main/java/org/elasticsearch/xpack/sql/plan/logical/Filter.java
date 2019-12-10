@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.plan.logical;
 
 import java.util.Objects;
 
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * A {@code Filter} is a type of Plan that performs filtering of results. In

@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.xpack.ql.tree.Node;
+import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -39,12 +42,9 @@ import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.util.Holder;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -60,6 +60,7 @@ import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
@@ -69,7 +70,6 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.sql.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.DataType.SHAPE;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 /**
  * The verifier has the role of checking the analyzed tree for failures and build a list of failures following this check.

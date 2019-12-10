@@ -6,11 +6,11 @@
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
@@ -18,8 +18,8 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.util.StringUtils.ordinal;
 import static org.elasticsearch.xpack.sql.type.DataTypes.areTypesCompatible;
-import static org.elasticsearch.xpack.sql.util.StringUtils.ordinal;
 
 /**
  * Base class for conditional predicates.

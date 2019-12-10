@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;

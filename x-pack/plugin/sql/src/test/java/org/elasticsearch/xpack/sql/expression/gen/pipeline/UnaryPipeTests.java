@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests.DummyPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe.AttributeResolver;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import static org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests.tracksScores;
 

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.sql.util;
+package org.elasticsearch.xpack.ql.util;
 
 /**
  * Simply utility class used for setting a state, typically

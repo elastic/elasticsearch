@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.plan;
 
+import org.elasticsearch.xpack.ql.tree.Node;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.ArrayList;

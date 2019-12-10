@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.Reg
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
 import java.time.OffsetTime;

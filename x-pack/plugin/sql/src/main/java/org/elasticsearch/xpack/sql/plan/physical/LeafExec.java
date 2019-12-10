@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.Collections;
 import java.util.List;
-
-import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class LeafExec extends PhysicalPlan {
     LeafExec(Source source) {

@@ -9,8 +9,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 /**
  * A {@code UnaryPlan} is a {@code LogicalPlan} with exactly one child, for example, {@code WHERE x} in a

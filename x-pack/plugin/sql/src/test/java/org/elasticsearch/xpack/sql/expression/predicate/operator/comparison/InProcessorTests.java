@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 
 public class InProcessorTests extends AbstractWireSerializingTestCase<InProcessor> {
 

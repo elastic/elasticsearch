@@ -3,7 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.util;
+package org.elasticsearch.xpack.ql.util;
+
+import org.elasticsearch.xpack.ql.tree.Node;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -11,8 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.elasticsearch.xpack.sql.tree.Node;
 
 // use the awesome http://mdaines.github.io/viz.js/ to visualize and play around with the various options
 public abstract class Graphviz {

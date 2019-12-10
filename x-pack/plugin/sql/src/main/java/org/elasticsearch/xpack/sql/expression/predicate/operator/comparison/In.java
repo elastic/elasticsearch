@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
@@ -13,10 +16,7 @@ import org.elasticsearch.xpack.sql.expression.TypeResolutions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -25,9 +25,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.util.StringUtils.ordinal;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.type.DataTypes.areTypesCompatible;
-import static org.elasticsearch.xpack.sql.util.StringUtils.ordinal;
 
 public class In extends ScalarFunction {
 

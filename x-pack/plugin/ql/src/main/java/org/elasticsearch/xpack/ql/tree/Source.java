@@ -4,15 +4,13 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.sql.tree;
-
-import org.elasticsearch.xpack.sql.proto.StringUtils;
+package org.elasticsearch.xpack.ql.tree;
 
 import java.util.Objects;
 
 public final class Source {
 
-    public static final Source EMPTY = new Source(Location.EMPTY, StringUtils.EMPTY);
+    public static final Source EMPTY = new Source(Location.EMPTY, "");
 
     private final Location location;
     private final String text;

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.expression.gen.script;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
 import java.util.Locale;

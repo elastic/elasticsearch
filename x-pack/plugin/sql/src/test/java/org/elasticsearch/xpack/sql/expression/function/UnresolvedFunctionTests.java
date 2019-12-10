@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,8 +16,8 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 import static org.elasticsearch.xpack.sql.expression.UnresolvedAttributeTests.randomUnresolvedAttribute;
-import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
 
 public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunction, Expression> {
     public static UnresolvedFunction randomUnresolvedFunction() {

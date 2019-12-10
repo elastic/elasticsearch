@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
-import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Objects;
 

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
@@ -12,8 +14,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunctio
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Locale;
 import java.util.Objects;

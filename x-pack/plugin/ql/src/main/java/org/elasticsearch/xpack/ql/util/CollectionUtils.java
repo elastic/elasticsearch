@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.util;
+package org.elasticsearch.xpack.ql.util;
 
 import java.util.ArrayList;
 import java.util.Collection;

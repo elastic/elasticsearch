@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.Period;
 
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class TyperResolutionTests extends ESTestCase {
 

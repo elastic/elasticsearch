@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.sql.plan.physical;
 
 import java.util.List;
 
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
 import org.elasticsearch.xpack.sql.session.Executable;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.Schema;
 
 /**

@@ -3,10 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.tree;
+package org.elasticsearch.xpack.ql.tree;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.ql.tree.Node;
 
 /**
  * Superclass for tests of subclasses of {@link Node}.

@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 
 public class InTests extends ESTestCase {
 

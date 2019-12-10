@@ -6,9 +6,10 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import java.util.List;
+
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
 

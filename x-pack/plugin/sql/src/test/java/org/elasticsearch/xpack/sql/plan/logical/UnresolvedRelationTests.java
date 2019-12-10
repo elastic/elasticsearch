@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.plan.logical;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.SourceTests;
 
 import java.util.ArrayList;
 import java.util.List;

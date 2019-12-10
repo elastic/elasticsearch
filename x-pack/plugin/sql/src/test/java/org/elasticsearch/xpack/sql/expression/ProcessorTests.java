@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.NodeSubclassTests;
 import org.junit.BeforeClass;
 
 import java.lang.reflect.Field;

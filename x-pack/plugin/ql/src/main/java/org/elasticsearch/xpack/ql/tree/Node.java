@@ -3,9 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.tree;
+package org.elasticsearch.xpack.ql.tree;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -41,7 +41,7 @@ public abstract class Node<T extends Node<T>> {
     public Node(Source source, List<T> children) {
         this.source = (source != null ? source : Source.EMPTY);
         if (children.contains(null)) {
-            throw new SqlIllegalArgumentException("Null children are not allowed");
+            throw new QlIllegalArgumentException("Null children are not allowed");
         }
         this.children = children;
     }

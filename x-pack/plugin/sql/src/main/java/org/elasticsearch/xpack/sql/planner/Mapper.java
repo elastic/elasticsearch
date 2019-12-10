@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
@@ -30,9 +33,6 @@ import org.elasticsearch.xpack.sql.plan.physical.PivotExec;
 import org.elasticsearch.xpack.sql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.sql.rule.Rule;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor;
-import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
 import java.util.Arrays;
 import java.util.List;

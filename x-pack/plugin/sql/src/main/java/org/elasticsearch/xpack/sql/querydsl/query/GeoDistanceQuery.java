@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
 

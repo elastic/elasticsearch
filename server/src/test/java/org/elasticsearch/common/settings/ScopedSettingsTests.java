@@ -170,7 +170,7 @@ public class ScopedSettingsTests extends ESTestCase {
         }
         assertEquals(0, consumer.get());
         assertEquals(0, consumer2.get());
-        service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
+        service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build(), logger);
         assertEquals(2, consumer.get());
         assertEquals(0, consumer2.get());
     }
@@ -251,7 +251,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put(intBuilder.apply(group2), 7)
             .putList(listBuilder.apply(group1), "16", "17")
             .putList(listBuilder.apply(group2), "18", "19", "20")
-            .build());
+            .build(), logger);
         assertEquals(2, results.get(group1).v2().intValue());
         assertEquals(7, results.get(group2).v2().intValue());
         assertEquals(Arrays.asList(16, 17), results.get(group1).v1());
@@ -265,7 +265,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put(intBuilder.apply(group2), 7)
             .putList(listBuilder.apply(group1), "16", "17")
             .putNull(listBuilder.apply(group2)) // removed
-            .build());
+            .build(), logger);
 
         assertNull(group1 + " wasn't changed", results.get(group1));
         assertEquals(1, results.get(group2).v1().size());
@@ -279,7 +279,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put(intBuilder.apply(group2), 7)
             .putList(listBuilder.apply(group1), "16", "17")
             .putList(listBuilder.apply(group3), "5", "6") // added
-            .build());
+            .build(), logger);
         assertNull(group1 + " wasn't changed", results.get(group1));
         assertNull(group2 + " wasn't changed", results.get(group2));
 
@@ -294,7 +294,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put(intBuilder.apply(group2), 7)
             .putList(listBuilder.apply(group1), "16", "17")
             .putList(listBuilder.apply(group3), "5", "6")
-            .build());
+            .build(), logger);
         assertNull(group2 + " wasn't changed", results.get(group2));
         assertNull(group3 + " wasn't changed", results.get(group3));
 
@@ -310,7 +310,7 @@ public class ScopedSettingsTests extends ESTestCase {
                 .put(intBuilder.apply(group2), 7)
                 .putList(listBuilder.apply(group1)) // modified to trip validator
                 .putList(listBuilder.apply(group3), "5", "6")
-                .build())
+                .build(), logger)
         );
         assertEquals("boom", iae.getMessage());
         assertEquals(0, results.size());
@@ -340,7 +340,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put(intBuilder.apply(group2), 7)
             .putList(listBuilder.apply(group1), "16", "17")
             .putList(listBuilder.apply(group2), "18", "19", "20")
-            .build());
+            .build(), logger);
         Settings groupOneSettings = results.get(group1);
         Settings groupTwoSettings = results.get(group2);
         assertEquals(2, intSetting.getConcreteSettingForNamespace(group1).get(groupOneSettings).intValue());
@@ -358,7 +358,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put(intBuilder.apply(group2), 7)
             .putList(listBuilder.apply(group1), "16", "17")
             .putNull(listBuilder.apply(group2)) // removed
-            .build());
+            .build(), logger);
 
         assertNull(group1 + " wasn't changed", results.get(group1));
         groupTwoSettings = results.get(group2);
@@ -373,7 +373,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put(intBuilder.apply(group2), 7)
             .putList(listBuilder.apply(group1), "16", "17")
             .putList(listBuilder.apply(group3), "5", "6") // added
-            .build());
+            .build(), logger);
         assertNull(group1 + " wasn't changed", results.get(group1));
         assertNull(group2 + " wasn't changed", results.get(group2));
 
@@ -389,7 +389,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put(intBuilder.apply(group2), 7)
             .putList(listBuilder.apply(group1), "16", "17")
             .putList(listBuilder.apply(group3), "5", "6")
-            .build());
+            .build(), logger);
         assertNull(group2 + " wasn't changed", results.get(group2));
         assertNull(group3 + " wasn't changed", results.get(group3));
 
@@ -422,7 +422,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put("foo.test_1.bar", 7)
             .putList("foo.test_list.list", "16", "17")
             .putList("foo.test_list_1.list", "18", "19", "20")
-            .build());
+            .build(), logger);
         assertEquals(2, intResults.get("test").intValue());
         assertEquals(7, intResults.get("test_1").intValue());
         assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
@@ -438,7 +438,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put("foo.test_1.bar", 8)
             .putList("foo.test_list.list", "16", "17")
             .putNull("foo.test_list_1.list")
-            .build());
+            .build(), logger);
         assertNull("test wasn't changed", intResults.get("test"));
         assertEquals(8, intResults.get("test_1").intValue());
         assertNull("test_list wasn't changed", listResults.get("test_list"));
@@ -473,7 +473,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put("foo.test_1.bar", 7)
             .putList("foo.test_list.list", "16", "17")
             .putList("foo.test_list_1.list", "18", "19", "20")
-            .build());
+            .build(), logger);
         assertEquals(2, intResults.get("test").intValue());
         assertEquals(7, intResults.get("test_1").intValue());
         assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
@@ -486,7 +486,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put("foo.test_1.bar", 7)
             .putList("foo.test_list.list", "16", "17")
             .putList("foo.test_list_1.list", "18", "19", "20")
-            .build());
+            .build(), logger);
 
         assertEquals(2, intResults.get("test").intValue());
         assertEquals(7, intResults.get("test_1").intValue());
@@ -503,7 +503,7 @@ public class ScopedSettingsTests extends ESTestCase {
             .put("foo.test_1.bar", 8)
             .putList("foo.test_list.list", "16", "17")
             .putNull("foo.test_list_1.list")
-            .build());
+            .build(), logger);
         assertNull("test wasn't changed", intResults.get("test"));
         assertEquals(8, intResults.get("test_1").intValue());
         assertNull("test_list wasn't changed", listResults.get("test_list"));
@@ -529,14 +529,14 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, affixResults.size());
         service.applySettings(Settings.builder()
                 .put("eggplant._name", 2)
-                .build());
+                .build(), logger);
         assertThat(affixResults.size(), equalTo(1));
         assertThat(affixResults.get("_name"), equalTo(2));
 
         service.applySettings(Settings.builder()
                 .put("eggplant._name", 2)
                 .put("other.thing", 3)
-                .build());
+                .build(), logger);
 
         assertThat(affixResults.get("_name"), equalTo(2));
     }
@@ -563,7 +563,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
         try {
-            service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
+            service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build(), logger);
             fail("invalid value");
         } catch (IllegalArgumentException ex) {
             assertEquals("illegal value can't update [foo.bar.baz] from [1] to [-15]", ex.getMessage());
@@ -589,7 +589,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
 
-        service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
+        service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build(), logger);
         assertEquals(2, consumer.get());
         assertEquals(15, consumer2.get());
         assertEquals(2, aC.get());
@@ -752,7 +752,7 @@ public class ScopedSettingsTests extends ESTestCase {
         AtomicReference<List<String>> ref = new AtomicReference<>();
         settings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, ref::set);
         settings.applySettings(Settings.builder()
-                .putList("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*").build());
+                .putList("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*").build(), logger);
         assertNotNull(ref.get().size());
         assertEquals(ref.get().size(), 2);
         assertTrue(ref.get().contains("internal:index/shard/recovery/*"));
@@ -912,13 +912,13 @@ public class ScopedSettingsTests extends ESTestCase {
                     () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), false));
             assertEquals("Unknown level constant [BOOM].", ex.getMessage());
             assertEquals(level, LogManager.getRootLogger().getLevel());
-            settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
+            settings.applySettings(Settings.builder().put("logger._root", "TRACE").build(), logger);
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
-            settings.applySettings(Settings.builder().build());
+            settings.applySettings(Settings.builder().build(), logger);
             assertEquals(property, LogManager.getRootLogger().getLevel());
-            settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
+            settings.applySettings(Settings.builder().put("logger.test", "TRACE").build(), logger);
             assertEquals(Level.TRACE, LogManager.getLogger("test").getLevel());
-            settings.applySettings(Settings.builder().build());
+            settings.applySettings(Settings.builder().build(), logger);
             assertEquals(property, LogManager.getLogger("test").getLevel());
         } finally {
             Loggers.setLevel(LogManager.getRootLogger(), level);
@@ -932,9 +932,9 @@ public class ScopedSettingsTests extends ESTestCase {
             ClusterSettings settings =
                 new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             assertEquals(level, LogManager.getRootLogger().getLevel());
-            settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
+            settings.applySettings(Settings.builder().put("logger._root", "TRACE").build(), logger);
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
-            settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
+            settings.applySettings(Settings.builder().build(), logger); // here we fall back to 'logger.level' which is our default.
             assertEquals(Level.ERROR, LogManager.getRootLogger().getLevel());
         } finally {
             Loggers.setLevel(LogManager.getRootLogger(), level);

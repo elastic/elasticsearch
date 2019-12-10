@@ -256,7 +256,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 2.0);
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
             ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
-        service.applySettings(settings.build());
+        service.applySettings(settings.build(), logger);
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));
@@ -265,7 +265,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.5);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 0.1);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 3.0);
-        service.applySettings(settings.build());
+        service.applySettings(settings.build(), logger);
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.5f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.1f));
         assertThat(allocator.getThreshold(), Matchers.equalTo(3.0f));

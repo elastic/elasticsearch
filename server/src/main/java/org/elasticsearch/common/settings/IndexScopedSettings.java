@@ -182,15 +182,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Collections.emptySet(), Property.IndexScope, "indexScopedSettings");
+        super(settings, settingsSet, Collections.emptySet(), Property.IndexScope);
     }
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet, String prefix) {
-        super(settings, settingsSet, Collections.emptySet(), Property.IndexScope, prefix);
+        super(settings, settingsSet, Collections.emptySet(), Property.IndexScope);
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {
-        super(settings, metaData.getSettings(), other, metaData.getIndex().getName());
+        super(settings, metaData.getSettings(), other);
     }
 
     public IndexScopedSettings copy(Settings settings, IndexMetaData metaData) {

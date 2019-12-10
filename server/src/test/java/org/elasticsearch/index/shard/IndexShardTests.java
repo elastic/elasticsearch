@@ -3053,7 +3053,7 @@ public class IndexShardTests extends IndexShardTestCase {
         expectThrows(AlreadyClosedException.class, () -> newShard.getEngine()); // no engine
         Thread thread = new Thread(() -> {
             latch.countDown();
-            while(stop.get() == false){
+            while(stop.get() == false) {
                 try {
                     Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
                     assertEquals(0, storeFileMetaDatas.recoveryDiff(readMeta).different.size());
@@ -3332,17 +3332,17 @@ public class IndexShardTests extends IndexShardTestCase {
 
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
-        scopedSettings.applySettings(settings);
+        scopedSettings.applySettings(settings, logger);
         assertTrue(primary.isSearchIdle());
 
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMinutes(1))
             .build();
-        scopedSettings.applySettings(settings);
+        scopedSettings.applySettings(settings, logger);
         assertFalse(primary.isSearchIdle());
 
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(10))
             .build();
-        scopedSettings.applySettings(settings);
+        scopedSettings.applySettings(settings, logger);
 
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
@@ -3374,7 +3374,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(primary.scheduledRefresh());
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
-        scopedSettings.applySettings(settings);
+        scopedSettings.applySettings(settings, logger);
 
         assertFalse(primary.getEngine().refreshNeeded());
         indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
@@ -3451,7 +3451,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
-        scopedSettings.applySettings(settings);
+        scopedSettings.applySettings(settings, logger);
 
         doc = indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         CountDownLatch latch1 = new CountDownLatch(1);

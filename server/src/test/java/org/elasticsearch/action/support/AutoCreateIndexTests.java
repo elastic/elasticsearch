@@ -181,11 +181,11 @@ public class AutoCreateIndexTests extends ESTestCase {
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
         Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), !value).build();
-        clusterSettings.applySettings(newSettings);
+        clusterSettings.applySettings(newSettings, logger);
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(!value));
 
         newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "logs-*").build();
-        clusterSettings.applySettings(newSettings);
+        clusterSettings.applySettings(newSettings, logger);
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(true));
         assertThat(autoCreateIndex.getAutoCreate().getExpressions().size(), equalTo(1));
         assertThat(autoCreateIndex.getAutoCreate().getExpressions().get(0).v1(), equalTo("logs-*"));

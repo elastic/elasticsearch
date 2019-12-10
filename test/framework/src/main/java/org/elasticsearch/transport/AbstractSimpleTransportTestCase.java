@@ -1059,7 +1059,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         clusterSettingsA.applySettings(Settings.builder()
             .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings)
             .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
-            .build());
+            .build(), logger);
 
         MockLogAppender appender = new MockLogAppender();
         try {

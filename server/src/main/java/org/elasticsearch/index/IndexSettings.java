@@ -613,6 +613,13 @@ public final class IndexSettings {
     public Settings getSettings() { return settings; }
 
     /**
+     * Returns the logger
+     */
+    public Logger getLogger() {
+        return logger;
+    }
+
+    /**
      * Returns the index this settings object belongs to
      */
     public Index getIndex() {
@@ -702,7 +709,7 @@ public final class IndexSettings {
             // nothing to update, same settings
             return false;
         }
-        scopedSettings.applySettings(newSettings);
+        scopedSettings.applySettings(newSettings, logger);
         this.settings = newIndexSettings;
         return true;
     }

@@ -490,7 +490,7 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
         clusterSettings.applySettings(Settings.builder()
             .put(IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD.getKey(), writeDurationMillis.get() + "ms")
-            .build());
+            .build(), logger);
         assertExpectedLogs(clusterState, incrementalClusterStateWriter, new MockLogAppender.SeenEventExpectation(
             "should see warning at reduced threshold",
             IncrementalClusterStateWriter.class.getCanonicalName(),

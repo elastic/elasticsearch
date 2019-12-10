@@ -718,7 +718,7 @@ public class HttpClientTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("is not whitelisted"));
 
             Settings newSettings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri()).build();
-            clusterSettings.applySettings(newSettings);
+            clusterSettings.applySettings(newSettings, logger);
 
             HttpResponse response = client.execute(request);
             assertThat(response.status(), is(200));

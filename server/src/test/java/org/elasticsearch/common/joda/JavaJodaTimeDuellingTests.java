@@ -43,18 +43,18 @@ import static org.hamcrest.Matchers.is;
 public class JavaJodaTimeDuellingTests extends ESTestCase {
     public void testCompositeDateMathParsing(){
         //in all these examples the second pattern will be used
-        assertDateMathEquals("2014-06-06T12:01:02.123", "8yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "8strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "8yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
     public void testExceptionWhenCompositeParsingFailsDateMath(){
         //both parsing failures should contain pattern and input text in exception
         //both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
-        String pattern = "8yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
+        String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
         String text = "2014-06-06T12:01:02.123";
         ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class,
-            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));
+            () -> dateMathToMillis(text, DateFormatter.forPattern("8"+pattern)));
         assertThat(e1.getMessage(), containsString(pattern));
         assertThat(e1.getMessage(), containsString(text));
 
@@ -845,7 +845,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertDateMathEquals(String text, String pattern) {
-        long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern(pattern));
+        long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern("8"+pattern));
         long gotMillisJoda = dateMathToMillis(text, Joda.forPattern(pattern));
 
         assertEquals(gotMillisJoda, gotMillisJava);

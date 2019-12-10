@@ -28,10 +28,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
-import org.elasticsearch.common.geo.GeometryTreeReader;
-import org.elasticsearch.common.geo.TriangleTreeWriter;
+import org.elasticsearch.common.geo.TriangleTreeReader;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
@@ -45,6 +43,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.LongUnaryOperator;
+
+import static org.elasticsearch.common.geo.GeoTestUtils.triangleTreeReader;
 
 public class MissingValuesTests extends ESTestCase {
 
@@ -406,15 +406,11 @@ public class MissingValuesTests extends ESTestCase {
     public void testMissingGeoShapes() throws IOException {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);
         final MultiGeoValues.GeoShapeValue[][] values = new MultiGeoValues.GeoShapeValue[numDocs][];
-        GeometryTreeReader reader = new GeometryTreeReader(GeoShapeCoordinateEncoder.INSTANCE);
         for (int i = 0; i < numDocs; ++i) {
             values[i] = new MultiGeoValues.GeoShapeValue[random().nextInt(4)];
             for (int j = 0; j < values[i].length; ++j) {
                 ShapeBuilder builder = RandomShapeGenerator.createShape(random());
-                BytesStreamOutput outputStream = new BytesStreamOutput();
-                TriangleTreeWriter writer = new TriangleTreeWriter(builder.buildGeometry(), GeoShapeCoordinateEncoder.INSTANCE);
-                writer.writeTo(outputStream);
-                reader.reset(outputStream.bytes().toBytesRef());
+                TriangleTreeReader reader = triangleTreeReader(builder.buildGeometry(), GeoShapeCoordinateEncoder.INSTANCE);
                 values[i][j] = new MultiGeoValues.GeoShapeValue(reader);
             }
         }
@@ -446,10 +442,7 @@ public class MissingValuesTests extends ESTestCase {
             }
         };
         ShapeBuilder builder = RandomShapeGenerator.createShape(random());
-        BytesStreamOutput outputStream = new BytesStreamOutput();
-        TriangleTreeWriter writer = new TriangleTreeWriter(builder.buildGeometry(), GeoShapeCoordinateEncoder.INSTANCE);
-        writer.writeTo(outputStream);
-        reader.reset(outputStream.bytes().toBytesRef());
+        TriangleTreeReader reader = triangleTreeReader(builder.buildGeometry(), GeoShapeCoordinateEncoder.INSTANCE);
         final MultiGeoValues.GeoShapeValue missing = new MultiGeoValues.GeoShapeValue(reader);
         MultiGeoValues withMissingReplaced = MissingValues.replaceMissing(asGeoValues, missing);
         for (int i = 0; i < numDocs; ++i) {

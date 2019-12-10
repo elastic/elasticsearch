@@ -34,17 +34,17 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GeoTestUtils {
 
-    public static void assertRelation(GeoRelation expectedRelation, ShapeTreeReader reader, Extent extent) throws IOException {
+    public static void assertRelation(GeoRelation expectedRelation, TriangleTreeReader reader, Extent extent) throws IOException {
         GeoRelation actualRelation = reader.relate(extent.minX(), extent.minY(), extent.maxX(), extent.maxY());
         assertThat(actualRelation, equalTo(expectedRelation));
     }
 
-    public static GeometryTreeReader geometryTreeReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
-        GeometryTreeWriter writer = new GeometryTreeWriter(geometry, encoder);
+    public static TriangleTreeReader triangleTreeReader(Geometry geometry, CoordinateEncoder encoder) throws IOException {
+        TriangleTreeWriter writer = new TriangleTreeWriter(geometry, encoder);
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(encoder);
+        TriangleTreeReader reader = new TriangleTreeReader(encoder);
         reader.reset(output.bytes().toBytesRef());
         return reader;
     }

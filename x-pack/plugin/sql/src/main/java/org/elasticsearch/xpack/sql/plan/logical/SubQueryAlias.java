@@ -17,6 +17,7 @@ import static java.util.stream.Collectors.toList;
 public class SubQueryAlias extends UnaryPlan {
 
     private final String alias;
+    private List<Attribute> output;
 
     public SubQueryAlias(Source source, LogicalPlan child, String alias) {
         super(source, child);
@@ -39,11 +40,13 @@ public class SubQueryAlias extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        return (alias == null ? child().output() :
+        if (output == null) {
+            output = alias == null ? child().output() :
                 child().output().stream()
                 .map(e -> e.withQualifier(alias))
-                .collect(toList())
-                );
+                .collect(toList()); 
+        }
+        return output;
     }
 
     @Override

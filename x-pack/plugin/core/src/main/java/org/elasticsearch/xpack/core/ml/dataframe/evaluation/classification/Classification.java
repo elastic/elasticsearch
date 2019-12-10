@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -13,17 +12,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -55,13 +48,13 @@ public class Classification implements Evaluation {
 
     /**
      * The field containing the actual value
-     * The value of this field is assumed to be numeric
+     * The value of this field is assumed to be categorical
      */
     private final String actualField;
 
     /**
      * The field containing the predicted value
-     * The value of this field is assumed to be numeric
+     * The value of this field is assumed to be categorical
      */
     private final String predictedField;
 
@@ -73,7 +66,11 @@ public class Classification implements Evaluation {
     public Classification(String actualField, String predictedField, @Nullable List<ClassificationMetric> metrics) {
         this.actualField = ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD);
         this.predictedField = ExceptionsHelper.requireNonNull(predictedField, PREDICTED_FIELD);
-        this.metrics = initMetrics(metrics);
+        this.metrics = initMetrics(metrics, Classification::defaultMetrics);
+    }
+
+    private static List<ClassificationMetric> defaultMetrics() {
+        return Arrays.asList(new MulticlassConfusionMatrix());
     }
 
     public Classification(StreamInput in) throws IOException {
@@ -82,49 +79,24 @@ public class Classification implements Evaluation {
         this.metrics = in.readNamedWriteableList(ClassificationMetric.class);
     }
 
-    private static List<ClassificationMetric> initMetrics(@Nullable List<ClassificationMetric> parsedMetrics) {
-        List<ClassificationMetric> metrics = parsedMetrics == null ? defaultMetrics() : new ArrayList<>(parsedMetrics);
-        if (metrics.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("[{}] must have one or more metrics", NAME.getPreferredName());
-        }
-        Collections.sort(metrics, Comparator.comparing(ClassificationMetric::getName));
-        return metrics;
-    }
-
-    private static List<ClassificationMetric> defaultMetrics() {
-        return Arrays.asList(new MulticlassConfusionMatrix());
-    }
-
     @Override
     public String getName() {
         return NAME.getPreferredName();
     }
 
     @Override
+    public String getActualField() {
+        return actualField;
+    }
+
+    @Override
+    public String getPredictedField() {
+        return predictedField;
+    }
+
+    @Override
     public List<ClassificationMetric> getMetrics() {
         return metrics;
-    }
-
-    @Override
-    public SearchSourceBuilder buildSearch(QueryBuilder userProvidedQueryBuilder) {
-        ExceptionsHelper.requireNonNull(userProvidedQueryBuilder, "userProvidedQueryBuilder");
-        SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder(List.of(actualField, predictedField), userProvidedQueryBuilder);
-        for (ClassificationMetric metric : metrics) {
-            List<AggregationBuilder> aggs = metric.aggs(actualField, predictedField);
-            aggs.forEach(searchSourceBuilder::aggregation);
-        }
-        return searchSourceBuilder;
-    }
-
-    @Override
-    public void process(SearchResponse searchResponse) {
-        ExceptionsHelper.requireNonNull(searchResponse, "searchResponse");
-        if (searchResponse.getHits().getTotalHits().value == 0) {
-            throw ExceptionsHelper.badRequestException("No documents found containing both [{}, {}] fields", actualField, predictedField);
-        }
-        for (ClassificationMetric metric : metrics) {
-            metric.process(searchResponse.getAggregations());
-        }
     }
 
     @Override

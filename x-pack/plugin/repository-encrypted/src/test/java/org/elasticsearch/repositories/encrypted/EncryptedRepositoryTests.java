@@ -115,7 +115,8 @@ public class EncryptedRepositoryTests extends ESTestCase {
                 packetLen)) {
             encryptedBytes = in.readAllBytes();
         }
-        for (int i = EncryptedRepository.GCM_IV_SIZE_IN_BYTES; i < EncryptedRepository.GCM_IV_SIZE_IN_BYTES + len + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES; i++) {
+        for (int i = EncryptedRepository.GCM_IV_SIZE_IN_BYTES; i < EncryptedRepository.GCM_IV_SIZE_IN_BYTES + len +
+                EncryptedRepository.GCM_TAG_SIZE_IN_BYTES; i++) {
             for (int j = 0; j < 8; j++) {
                 // flip bit
                 encryptedBytes[i] ^= (1 << j);
@@ -133,38 +134,38 @@ public class EncryptedRepositoryTests extends ESTestCase {
         }
     }
 
-//    public void testFailureEncryptAndDecryptAlteredCiphertextIV() throws Exception {
-//        int len = 16;
-//        int packetLen = 8;
-//        byte[] plainBytes = new byte[len];
-//        Randomness.get().nextBytes(plainBytes);
-//        SecretKey secretKey = generateSecretKey();
-//        int nonce = Randomness.get().nextInt();
-//        byte[] encryptedBytes;
-//        try (InputStream in = new EncryptionPacketsInputStream(new ByteArrayInputStream(plainBytes, 0, len), secretKey, nonce,
-//                packetLen)) {
-//            encryptedBytes = in.readAllBytes();
-//        }
-//        for (int k = 0; k < EncryptionPacketsInputStream.getEncryptionSize(len, packetLen);
-//             k += EncryptedRepository.GCM_IV_SIZE_IN_BYTES + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES + packetLen) {
-//            for (int i = 0; i < EncryptedRepository.GCM_IV_SIZE_IN_BYTES; i++) {
-//                for (int j = 0; i < 8; j++) {
-//                    // flip bit
-//                    encryptedBytes[k + i] ^= (1 << j);
-//                    // fail decryption
-//                    try (InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, nonce,
-//                            packetLen)) {
-//                        IOException e = expectThrows(IOException.class, () -> {
-//                            in.readAllBytes();
-//                        });
-//                        assertThat(e.getMessage(), Matchers.is("Invalid packet IV"));
-//                    }
-//                    // flip bit back
-//                    encryptedBytes[k + i] ^= (1 << j);
-//                }
-//            }
-//        }
-//    }
+    public void testFailureEncryptAndDecryptAlteredCiphertextIV() throws Exception {
+        int len = 16;
+        int packetLen = 8;
+        byte[] plainBytes = new byte[len];
+        Randomness.get().nextBytes(plainBytes);
+        SecretKey secretKey = generateSecretKey();
+        int nonce = Randomness.get().nextInt();
+        byte[] encryptedBytes;
+        try (InputStream in = new EncryptionPacketsInputStream(new ByteArrayInputStream(plainBytes, 0, len), secretKey, nonce,
+                packetLen)) {
+            encryptedBytes = in.readAllBytes();
+        }
+        assertThat(encryptedBytes.length, Matchers.is((int) EncryptionPacketsInputStream.getEncryptionSize(len, packetLen)));
+        int encryptedPacketLen = EncryptedRepository.GCM_IV_SIZE_IN_BYTES + packetLen + EncryptedRepository.GCM_TAG_SIZE_IN_BYTES;
+        for (int i = 0; i < encryptedBytes.length; i += encryptedPacketLen) {
+            for (int j = 0; j < EncryptedRepository.GCM_IV_SIZE_IN_BYTES; j++) {
+                for (int k = 0; k < 8; k++) {
+                    // flip bit
+                    encryptedBytes[i + j] ^= (1 << k);
+                    try (InputStream in = new DecryptionPacketsInputStream(new ByteArrayInputStream(encryptedBytes), secretKey, nonce,
+                            packetLen)) {
+                        IOException e = expectThrows(IOException.class, () -> {
+                            in.readAllBytes();
+                        });
+                        assertThat(e.getMessage(), Matchers.is("Invalid packet IV"));
+                    }
+                    // flip bit back
+                    encryptedBytes[i + j] ^= (1 << k);
+                }
+            }
+        }
+    }
 
     private void testEncryptAndDecryptSuccess(byte[] plainBytes, SecretKey secretKey, int nonce, int packetLen) throws Exception {
         for (int len = 0; len < plainBytes.length; len++) {

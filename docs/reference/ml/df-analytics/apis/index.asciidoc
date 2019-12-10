@@ -14,6 +14,8 @@ You can use the following APIs to perform {ml} {dfanalytics} activities.
 * <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
 * <<explain-dfanalytics,Explain {dfanalytics}>>
 
+For the `analysis` object resources, check <<ml-dfanalytics-analysis-objects>>.
+
 See also <<ml-apis>>.
 
 //CREATE
@@ -30,3 +32,5 @@ include::get-dfanalytics-stats.asciidoc[]
 //SET/START/STOP
 include::start-dfanalytics.asciidoc[]
 include::stop-dfanalytics.asciidoc[]
+//ANALYSIS OBJECTS
+include::analysisobjects.asciidoc[]

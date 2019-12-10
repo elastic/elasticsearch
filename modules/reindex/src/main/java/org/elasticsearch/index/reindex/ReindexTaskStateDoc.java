@@ -37,7 +37,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ReindexTaskStateDoc, Void> PARSER =
-        new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskStateDoc((ReindexRequest) a[0], (List<Set<String>>) a[1],
+        new ConstructingObjectParser<>("reindex/index_state", a -> new ReindexTaskStateDoc((ReindexRequest) a[0], (List<List<String>>) a[1],
             (Long) a[2], (BulkByScrollResponse) a[3], (ElasticsearchException) a[4], (Integer) a[5],
             (ScrollableHitSource.Checkpoint) a[6]));
 

@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -161,10 +163,16 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
-                                                             @Nullable String resultsField, DataFrameAnalysis analysis) {
+                                                             @Nullable String resultsField, DataFrameAnalysis analysis) throws Exception {
+        return buildAnalytics(id, sourceIndex, destIndex, resultsField, analysis, QueryBuilders.matchAllQuery());
+    }
+
+    protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
+                                                             @Nullable String resultsField, DataFrameAnalysis analysis,
+                                                             QueryBuilder queryBuilder) throws Exception {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null))
             .setDest(new DataFrameAnalyticsDest(destIndex, resultsField))
             .setAnalysis(analysis)
             .build();
@@ -174,7 +182,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
         assertThat(stats.getId(), equalTo(id));
         assertThat(stats.getFailureReason(), is(nullValue()));
-        assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
+        assertThat("Stats were: " + Strings.toString(stats), stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
     protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {

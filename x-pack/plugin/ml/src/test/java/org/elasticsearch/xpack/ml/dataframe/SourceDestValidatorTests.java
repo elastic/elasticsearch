@@ -183,6 +183,6 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     private static DataFrameAnalyticsSource createSource(String... index) {
-        return new DataFrameAnalyticsSource(index, null);
+        return new DataFrameAnalyticsSource(index, null, null);
     }
 }

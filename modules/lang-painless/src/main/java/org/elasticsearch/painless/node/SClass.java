@@ -118,19 +118,6 @@ public final class SClass extends AStatement {
     }
 
     @Override
-    public void storeSettings(CompilerSettings settings) {
-        for (SFunction function : functions) {
-            function.storeSettings(settings);
-        }
-
-        for (AStatement statement : statements) {
-            statement.storeSettings(settings);
-        }
-
-        this.settings = settings;
-    }
-
-    @Override
     public void extractVariables(Set<String> variables) {
         for (SFunction function : functions) {
             function.extractVariables(null);
@@ -143,7 +130,8 @@ public final class SClass extends AStatement {
         extractedVariables.addAll(variables);
     }
 
-    public void analyze(PainlessLookup painlessLookup) {
+    public void analyze(PainlessLookup painlessLookup, CompilerSettings settings) {
+        this.settings = settings;
         table = new ScriptRoot(painlessLookup, settings, scriptClassInfo, this);
 
         for (SFunction function : functions) {

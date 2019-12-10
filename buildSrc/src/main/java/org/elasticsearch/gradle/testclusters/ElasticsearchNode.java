@@ -424,7 +424,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         if (plugins.isEmpty() == false) {
             logToProcessStdout("Installing " + plugins.size() + " plugins");
-            plugins.forEach(plugin -> runElaticsearchBinScript(
+            plugins.forEach(plugin -> runElasticsearchBinScript(
                 "elasticsearch-plugin",
                 "install", "--batch", plugin.toString())
             );
@@ -432,7 +432,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         if (getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT) {
             LOGGER.info("emulating the {} flavor for {} by installing x-pack", testDistribution, getVersion());
-            runElaticsearchBinScript(
+            runElasticsearchBinScript(
                 "elasticsearch-plugin",
                 "install", "--batch", "x-pack"
             );
@@ -440,7 +440,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             logToProcessStdout("Adding " + keystoreSettings.size() + " keystore settings and " + keystoreFiles.size() + " keystore files");
-            runElaticsearchBinScript("elasticsearch-keystore", "create");
+            runElasticsearchBinScript("elasticsearch-keystore", "create");
 
             keystoreSettings.forEach((key, value) ->
                 runElasticsearchBinScriptWithInput(value.toString(), "elasticsearch-keystore", "add", "-x", key)
@@ -452,7 +452,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (file.exists() == false) {
                     throw new TestClustersException("supplied keystore file " + file + " does not exist, require for " + this);
                 }
-                runElaticsearchBinScript("elasticsearch-keystore", "add-file", entry.getKey(), file.getAbsolutePath());
+                runElasticsearchBinScript("elasticsearch-keystore", "add-file", entry.getKey(), file.getAbsolutePath());
             }
         }
 
@@ -467,7 +467,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (credentials.isEmpty() == false) {
             logToProcessStdout("Setting up " + credentials.size() + " users");
 
-            credentials.forEach(paramMap -> runElaticsearchBinScript(
+            credentials.forEach(paramMap -> runElasticsearchBinScript(
                 getVersion().onOrAfter("6.3.0") ? "elasticsearch-users" : "x-pack/users",
                 paramMap.entrySet().stream()
                     .flatMap(entry -> Stream.of(entry.getKey(), entry.getValue()))
@@ -663,7 +663,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private void runElaticsearchBinScript(String tool, String... args) {
+    private void runElasticsearchBinScript(String tool, String... args) {
         runElasticsearchBinScriptWithInput("", tool, args);
     }
 

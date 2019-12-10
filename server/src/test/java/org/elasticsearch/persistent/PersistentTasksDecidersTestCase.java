@@ -92,7 +92,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         Settings.Builder updated = Settings.builder();
         clusterSettings.updateDynamicSettings(settings, updated, Settings.builder(), getTestClass().getName());
-        clusterSettings.applySettings(updated.build(), logger);
+        clusterSettings.applySettings(updated.build());
     }
 
     protected static ClusterState createClusterStateWithTasks(final int nbNodes, final int nbTasks) {

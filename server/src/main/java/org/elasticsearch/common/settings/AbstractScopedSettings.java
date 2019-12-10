@@ -55,7 +55,7 @@ public abstract class AbstractScopedSettings {
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
-    protected final Logger logger = LogManager.getLogger(this.getClass());
+    private final Logger logger;
 
     private final Settings settings;
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
@@ -70,6 +70,7 @@ public abstract class AbstractScopedSettings {
             final Set<Setting<?>> settingsSet,
             final Set<SettingUpgrader<?>> settingUpgraders,
             final Setting.Property scope) {
+        this.logger = LogManager.getLogger(this.getClass());
         this.settings = settings;
         this.lastSettingsApplied = Settings.EMPTY;
 
@@ -110,7 +111,8 @@ public abstract class AbstractScopedSettings {
         }
     }
 
-    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
+    protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other, Logger logger) {
+        this.logger = logger;
         this.settings = nodeSettings;
         this.lastSettingsApplied = scopeSettings;
         this.scope = other.scope;
@@ -134,6 +136,10 @@ public abstract class AbstractScopedSettings {
     // pkg private for tests
     static boolean isValidAffixKey(String key) {
         return AFFIX_KEY_PATTERN.matcher(key).matches();
+    }
+
+    public Logger getLogger() {
+        return logger;
     }
 
     public Setting.Property getScope() {
@@ -170,7 +176,7 @@ public abstract class AbstractScopedSettings {
      * @param newSettings the settings to apply
      * @return the unmerged applied settings
     */
-    public synchronized Settings applySettings(Settings newSettings, Logger logger) {
+    public synchronized Settings applySettings(Settings newSettings) {
         if (lastSettingsApplied != null && newSettings.equals(lastSettingsApplied)) {
             // nothing changed in the settings, ignore
             return newSettings;
@@ -181,7 +187,7 @@ public abstract class AbstractScopedSettings {
             List<Runnable> applyRunnables = new ArrayList<>();
             for (SettingUpdater<?> settingUpdater : settingUpdaters) {
                 try {
-                    applyRunnables.add(settingUpdater.updater(current, previous, logger));
+                    applyRunnables.add(settingUpdater.updater(current, previous));
                 } catch (Exception ex) {
                     logger.warn(() -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
                     throw ex;
@@ -209,7 +215,7 @@ public abstract class AbstractScopedSettings {
         if (setting != get(setting.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
-        addSettingsUpdater(setting.newUpdater(consumer, validator));
+        addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
     }
 
     /**
@@ -229,7 +235,7 @@ public abstract class AbstractScopedSettings {
     public synchronized <T> void addAffixUpdateConsumer(Setting.AffixSetting<T> setting,  BiConsumer<String, T> consumer,
                                                         BiConsumer<String, T> validator) {
         ensureSettingIsRegistered(setting);
-        addSettingsUpdater(setting.newAffixUpdater(consumer, validator));
+        addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
     }
 
     /**
@@ -248,8 +254,8 @@ public abstract class AbstractScopedSettings {
         // down the road this would be nice to have!
         ensureSettingIsRegistered(settingA);
         ensureSettingIsRegistered(settingB);
-        SettingUpdater<Map<SettingUpdater<A>, A>> affixUpdaterA = settingA.newAffixUpdater((a,b)-> {}, (a,b)-> {});
-        SettingUpdater<Map<SettingUpdater<B>, B>> affixUpdaterB = settingB.newAffixUpdater((a,b)-> {}, (a,b)-> {});
+        SettingUpdater<Map<SettingUpdater<A>, A>> affixUpdaterA = settingA.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {});
+        SettingUpdater<Map<SettingUpdater<B>, B>> affixUpdaterB = settingB.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {});
 
         addSettingsUpdater(new SettingUpdater<Map<String, Tuple<A, B>>>() {
 
@@ -276,10 +282,10 @@ public abstract class AbstractScopedSettings {
                         map.put(key, new Tuple<>(settingA.getConcreteSettingForNamespace(key).get(current), value));
                     }
                 };
-                SettingUpdater<Map<SettingUpdater<A>, A>> affixUpdaterA = settingA.newAffixUpdater(aConsumer, (a,b) ->{});
-                SettingUpdater<Map<SettingUpdater<B>, B>> affixUpdaterB = settingB.newAffixUpdater(bConsumer, (a,b) ->{});
-                affixUpdaterA.apply(current, previous, logger);
-                affixUpdaterB.apply(current, previous, logger);
+                SettingUpdater<Map<SettingUpdater<A>, A>> affixUpdaterA = settingA.newAffixUpdater(aConsumer, logger, (a,b) ->{});
+                SettingUpdater<Map<SettingUpdater<B>, B>> affixUpdaterB = settingB.newAffixUpdater(bConsumer, logger, (a,b) ->{});
+                affixUpdaterA.apply(current, previous);
+                affixUpdaterB.apply(current, previous);
                 for (Map.Entry<String, Tuple<A, B>> entry : map.entrySet()) {
                     validator.accept(entry.getKey(), entry.getValue());
                 }
@@ -287,7 +293,7 @@ public abstract class AbstractScopedSettings {
             }
 
             @Override
-            public void apply(Map<String, Tuple<A, B>> values, Settings current, Settings previous, Logger logger) {
+            public void apply(Map<String, Tuple<A, B>> values, Settings current, Settings previous) {
                 for (Map.Entry<String, Tuple<A, B>> entry : values.entrySet()) {
                     consumer.accept(entry.getKey(), entry.getValue());
                 }
@@ -307,7 +313,7 @@ public abstract class AbstractScopedSettings {
         List<SettingUpdater> affixUpdaters = new ArrayList<>(settings.size());
         for (Setting.AffixSetting<?> setting : settings) {
             ensureSettingIsRegistered(setting);
-            affixUpdaters.add(setting.newAffixUpdater((a,b)-> {}, (a,b)-> {}));
+            affixUpdaters.add(setting.newAffixUpdater((a,b)-> {}, logger, (a,b)-> {}));
         }
 
         addSettingsUpdater(new SettingUpdater<Map<String, Settings>>() {
@@ -321,8 +327,8 @@ public abstract class AbstractScopedSettings {
             public Map<String, Settings> getValue(Settings current, Settings previous) {
                 Set<String> namespaces = new HashSet<>();
                 for (Setting.AffixSetting<?> setting : settings) {
-                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), (a, b) ->{});
-                    affixUpdaterA.apply(current, previous, logger);
+                    SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) ->{});
+                    affixUpdaterA.apply(current, previous);
                 }
                 Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
                 for (String namespace : namespaces) {
@@ -336,7 +342,7 @@ public abstract class AbstractScopedSettings {
             }
 
             @Override
-            public void apply(Map<String, Settings> values, Settings current, Settings previous, Logger logger) {
+            public void apply(Map<String, Settings> values, Settings current, Settings previous) {
                 for (Map.Entry<String, Settings> entry : values.entrySet()) {
                     consumer.accept(entry.getKey(), entry.getValue());
                 }
@@ -362,7 +368,7 @@ public abstract class AbstractScopedSettings {
         if (setting != registeredSetting) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
-        addSettingsUpdater(setting.newAffixMapUpdater(consumer, validator));
+        addSettingsUpdater(setting.newAffixMapUpdater(consumer, logger, validator));
     }
 
     synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
@@ -394,7 +400,7 @@ public abstract class AbstractScopedSettings {
         if (b != get(b.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + b.getKey() + "]");
         }
-        addSettingsUpdater(Setting.compoundUpdater(consumer, validator, a, b));
+        addSettingsUpdater(Setting.compoundUpdater(consumer, validator, a, b, logger));
     }
 
     /**
@@ -584,30 +590,30 @@ public abstract class AbstractScopedSettings {
         /**
          * Applies the given value to the updater. This methods will actually run the update.
          */
-        void apply(T value, Settings current, Settings previous, Logger logger);
+        void apply(T value, Settings current, Settings previous);
 
         /**
          * Updates this updaters value if it has changed.
          * @return <code>true</code> iff the value has been updated.
          */
-        default boolean apply(Settings current, Settings previous, Logger logger) {
+        default boolean apply(Settings current, Settings previous) {
             if (hasChanged(current, previous)) {
                 T value = getValue(current, previous);
-                apply(value, current, previous, logger);
+                apply(value, current, previous);
                 return true;
             }
             return false;
         }
 
         /**
-         * Returns a callable runnable that calls {@link #apply(Object, Settings, Settings, Logger)} if the settings
+         * Returns a callable runnable that calls {@link #apply(Object, Settings, Settings)} if the settings
          * actually changed. This allows to defer the update to a later point in time while keeping type safety.
          * If the value didn't change the returned runnable is a noop.
          */
-        default Runnable updater(Settings current, Settings previous, Logger logger) {
+        default Runnable updater(Settings current, Settings previous) {
             if (hasChanged(current, previous)) {
                 T value = getValue(current, previous);
-                return () -> { apply(value, current, previous, logger);};
+                return () -> { apply(value, current, previous);};
             }
             return () -> {};
         }

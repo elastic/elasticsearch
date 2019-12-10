@@ -575,17 +575,17 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Build a new updater with a noop validator.
      */
-    final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer) {
-        return newUpdater(consumer, (s) -> {});
+    final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger) {
+        return newUpdater(consumer, logger, (s) -> {});
     }
 
     /**
      * Build the updater responsible for validating new values, logging the new
      * value, and eventually setting the value where it belongs.
      */
-    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Consumer<T> validator) {
+    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
         if (isDynamic()) {
-            return new Updater(consumer, validator);
+            return new Updater(consumer, logger, validator);
         } else {
             throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
         }
@@ -596,9 +596,9 @@ public class Setting<T> implements ToXContentObject {
      * See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and its usage for details.
      */
     static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A, B> consumer,
-            final BiConsumer<A, B> validator, final Setting<A> aSetting, final Setting<B> bSetting) {
-        final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null);
-        final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null);
+            final BiConsumer<A, B> validator, final Setting<A> aSetting, final Setting<B> bSetting, Logger logger) {
+        final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
+        final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
         return new AbstractScopedSettings.SettingUpdater<Tuple<A, B>>() {
             @Override
             public boolean hasChanged(Settings current, Settings previous) {
@@ -614,7 +614,7 @@ public class Setting<T> implements ToXContentObject {
             }
 
             @Override
-            public void apply(Tuple<A, B> value, Settings current, Settings previous, Logger logger) {
+            public void apply(Tuple<A, B> value, Settings current, Settings previous) {
                 if (aSettingUpdater.hasChanged(current, previous)) {
                     logSettingUpdate(aSetting, current, previous, logger);
                 }
@@ -660,7 +660,7 @@ public class Setting<T> implements ToXContentObject {
             }
 
             @Override
-            public void apply(Settings value, Settings current, Settings previous, Logger logger) {
+            public void apply(Settings value, Settings current, Settings previous) {
                 consumer.accept(value);
             }
 
@@ -703,7 +703,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>> newAffixUpdater(
-            BiConsumer<String, T> consumer, BiConsumer<String, T> validator) {
+            BiConsumer<String, T> consumer, Logger logger, BiConsumer<String, T> validator) {
             return new AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>>() {
 
                 @Override
@@ -719,7 +719,7 @@ public class Setting<T> implements ToXContentObject {
                         String namespace = key.getNamespace(aKey);
                         Setting<T> concreteSetting = getConcreteSetting(namespace, aKey);
                         AbstractScopedSettings.SettingUpdater<T> updater =
-                            concreteSetting.newUpdater((v) -> consumer.accept(namespace, v),
+                            concreteSetting.newUpdater((v) -> consumer.accept(namespace, v), logger,
                                 (v) -> validator.accept(namespace, v));
                         if (updater.hasChanged(current, previous)) {
                             // only the ones that have changed otherwise we might get too many updates
@@ -732,16 +732,15 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(Map<AbstractScopedSettings.SettingUpdater<T>, T> value, Settings current,
-                                  Settings previous, Logger logger) {
+                public void apply(Map<AbstractScopedSettings.SettingUpdater<T>, T> value, Settings current, Settings previous) {
                     for (Map.Entry<AbstractScopedSettings.SettingUpdater<T>, T> entry : value.entrySet()) {
-                        entry.getKey().apply(entry.getValue(), current, previous, logger);
+                        entry.getKey().apply(entry.getValue(), current, previous);
                     }
                 }
             };
         }
 
-        AbstractScopedSettings.SettingUpdater<Map<String, T>> newAffixMapUpdater(Consumer<Map<String, T>> consumer,
+        AbstractScopedSettings.SettingUpdater<Map<String, T>> newAffixMapUpdater(Consumer<Map<String, T>> consumer, Logger logger,
                                                                                  BiConsumer<String, T> validator) {
             return new AbstractScopedSettings.SettingUpdater<Map<String, T>>() {
 
@@ -758,7 +757,7 @@ public class Setting<T> implements ToXContentObject {
                         String namespace = key.getNamespace(aKey);
                         Setting<T> concreteSetting = getConcreteSetting(namespace, aKey);
                         AbstractScopedSettings.SettingUpdater<T> updater =
-                            concreteSetting.newUpdater((v) -> {}, (v) -> validator.accept(namespace, v));
+                            concreteSetting.newUpdater((v) -> {}, logger, (v) -> validator.accept(namespace, v));
                         if (updater.hasChanged(current, previous)) {
                             // only the ones that have changed otherwise we might get too many updates
                             // the hasChanged above checks only if there are any changes
@@ -770,7 +769,7 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(Map<String, T> value, Settings current, Settings previous, Logger logger) {
+                public void apply(Map<String, T> value, Settings current, Settings previous) {
                     consumer.accept(value);
                 }
             };
@@ -965,7 +964,8 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, Consumer<Settings> validator) {
+        public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, Logger logger,
+                                                                          Consumer<Settings> validator) {
             if (isDynamic() == false) {
                 throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
             }
@@ -994,7 +994,7 @@ public class Setting<T> implements ToXContentObject {
                 }
 
                 @Override
-                public void apply(Settings value, Settings current, Settings previous, Logger logger) {
+                public void apply(Settings value, Settings current, Settings previous) {
                     Setting.logSettingUpdate(GroupSetting.this, current, previous, logger);
                     consumer.accept(value);
                 }
@@ -1009,10 +1009,12 @@ public class Setting<T> implements ToXContentObject {
 
     private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
+        private final Logger logger;
         private final Consumer<T> accept;
 
-        Updater(Consumer<T> consumer, Consumer<T> accept) {
+        Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
             this.consumer = consumer;
+            this.logger = logger;
             this.accept = accept;
         }
 
@@ -1050,7 +1052,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public void apply(T value, Settings current, Settings previous, Logger logger) {
+        public void apply(T value, Settings current, Settings previous) {
             logSettingUpdate(Setting.this, current, previous, logger);
             consumer.accept(value);
         }

@@ -165,7 +165,7 @@ public class IPFilterTests extends ESTestCase {
                 .put("transport.profiles.client.xpack.security.filter.deny", "192.168.0.3").build();
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         clusterSettings.updateDynamicSettings(newSettings, updatedSettingsBuilder, Settings.builder(), "test");
-        clusterSettings.applySettings(updatedSettingsBuilder.build(), logger);
+        clusterSettings.applySettings(updatedSettingsBuilder.build());
         assertAddressIsAllowed("127.0.0.1");
         // when "localhost" is used, ES considers all local addresses see PatternRule#isLocalhost()
         assertAddressIsDenied(randomNonLocalIPv4Address());

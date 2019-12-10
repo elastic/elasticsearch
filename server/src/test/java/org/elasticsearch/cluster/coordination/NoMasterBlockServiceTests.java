@@ -62,7 +62,7 @@ public class NoMasterBlockServiceTests extends ESTestCase {
         createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "all").build());
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_ALL));
 
-        clusterSettings.applySettings(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "write").build(), logger);
+        clusterSettings.applySettings(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "write").build());
         assertThat(noMasterBlockService.getNoMasterBlock(), sameInstance(NO_MASTER_BLOCK_WRITES));
     }
 }

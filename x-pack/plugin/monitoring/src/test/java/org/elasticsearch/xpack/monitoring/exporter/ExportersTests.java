@@ -248,7 +248,7 @@ public class ExportersTests extends ESTestCase {
                 .put("xpack.monitoring.exporters._name0.use_ingest", true)
                 .put("xpack.monitoring.exporters._name1.use_ingest", false)
                 .build();
-        clusterSettings.applySettings(update, logger);
+        clusterSettings.applySettings(update);
         assertThat(settingsHolder.get(), notNullValue());
         settings = settingsHolder.get();
         logger.info(settings);

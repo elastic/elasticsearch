@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -185,12 +186,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         super(settings, settingsSet, Collections.emptySet(), Property.IndexScope);
     }
 
-    public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet, String prefix) {
-        super(settings, settingsSet, Collections.emptySet(), Property.IndexScope);
-    }
-
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {
-        super(settings, metaData.getSettings(), other);
+        super(settings, metaData.getSettings(), other, Loggers.getLogger(IndexScopedSettings.class, metaData.getIndex()));
     }
 
     public IndexScopedSettings copy(Settings settings, IndexMetaData metaData) {

@@ -67,7 +67,7 @@ public class IndexSettingsModule extends AbstractModule {
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
         }
-        return new IndexSettings(metaData, nodeSettings, new IndexScopedSettings(Settings.EMPTY, settingSet, index.getName()));
+        return new IndexSettings(metaData, nodeSettings, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings settings, IndexScopedSettings indexScopedSettings) {
@@ -85,7 +85,6 @@ public class IndexSettingsModule extends AbstractModule {
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
         }
-        return new IndexSettings(indexMetaData, Settings.EMPTY,
-            new IndexScopedSettings(Settings.EMPTY, settingSet, indexMetaData.getIndex().getName()));
+        return new IndexSettings(indexMetaData, Settings.EMPTY, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 }

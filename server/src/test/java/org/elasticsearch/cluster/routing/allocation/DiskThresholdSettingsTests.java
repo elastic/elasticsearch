@@ -59,7 +59,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "250mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s")
             .build();
-        nss.applySettings(newSettings, logger);
+        nss.applySettings(newSettings);
 
         assertEquals(ByteSizeValue.parseBytesSizeValue("500mb", "test"), diskThresholdSettings.getFreeBytesThresholdHigh());
         assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdHigh(), 0.0D);
@@ -91,8 +91,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "80%")
                 .build();
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(newSettings, logger));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.low] from [85%] to [90%]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
@@ -111,8 +110,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "55%")
                 .build();
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(newSettings, logger));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.low] from [85%] to [50%]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
@@ -131,8 +129,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "250m")
                 .build();
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(newSettings, logger));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.low] from [85%] to [500m]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
@@ -151,8 +148,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "750m")
                 .build();
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(newSettings, logger));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.low] from [85%] to [500m]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
@@ -171,8 +167,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "95%")
                 .build();
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(newSettings, logger));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.low] from [85%] to [90%]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
@@ -198,8 +193,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "75%")
                 .build();
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(newSettings, logger));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.high] from [90%] to [75%]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());

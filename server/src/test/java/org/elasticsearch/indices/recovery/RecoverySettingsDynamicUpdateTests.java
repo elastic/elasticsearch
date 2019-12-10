@@ -33,7 +33,7 @@ public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
 
     public void testZeroBytesPerSecondIsNoRateLimit() {
         clusterSettings.applySettings(Settings.builder().put(
-                RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build(), logger);
+                RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build());
         assertEquals(null, recoverySettings.rateLimiter());
     }
 
@@ -42,7 +42,7 @@ public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
         clusterSettings.applySettings(Settings.builder().put(
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), duration, timeUnit
-        ).build(), logger);
+        ).build());
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.retryDelayStateSync());
     }
 
@@ -51,7 +51,7 @@ public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
         clusterSettings.applySettings(Settings.builder().put(
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), duration, timeUnit
-        ).build(), logger);
+        ).build());
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.retryDelayNetwork());
     }
 
@@ -60,7 +60,7 @@ public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
         clusterSettings.applySettings(Settings.builder().put(
                 RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(), duration, timeUnit
-        ).build(), logger);
+        ).build());
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.activityTimeout());
     }
 
@@ -69,7 +69,7 @@ public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
         clusterSettings.applySettings(Settings.builder().put(
                 RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), duration, timeUnit
-        ).build(), logger);
+        ).build());
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionTimeout());
     }
 
@@ -78,7 +78,7 @@ public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
         TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
         clusterSettings.applySettings(Settings.builder().put(
                 RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(), duration, timeUnit
-        ).build(), logger);
+        ).build());
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionLongTimeout());
     }
 }

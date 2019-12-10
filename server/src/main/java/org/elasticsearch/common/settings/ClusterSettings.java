@@ -19,7 +19,6 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -159,7 +158,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
 
         @Override
-        public void apply(Settings value, Settings current, Settings previous, Logger logger) {
+        public void apply(Settings value, Settings current, Settings previous) {
             for (String key : value.keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());

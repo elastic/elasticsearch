@@ -221,7 +221,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                     .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), allowedOnes).build()))).build();
 
         }
-        clusterSettings.applySettings(clusterState.metaData().settings(), logger);
+        clusterSettings.applySettings(clusterState.metaData().settings());
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat("expected 6 shards to be started 2 to relocate useClusterSettings: " + useClusterSetting,
             clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(6));
@@ -312,7 +312,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                         .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
                             randomBoolean() ? Rebalance.PRIMARIES : Rebalance.ALL).build()))).build();
         }
-        clusterSettings.applySettings(clusterState.metaData().settings(), logger);
+        clusterSettings.applySettings(clusterState.metaData().settings());
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat("expected 4 primaries to be started and 2 to relocate useClusterSettings: " +
             useClusterSetting, clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));

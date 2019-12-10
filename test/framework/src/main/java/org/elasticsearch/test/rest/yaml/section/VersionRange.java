@@ -29,15 +29,15 @@ public class VersionRange {
         this.upper = upper;
     }
 
-    public Version lower() {
+    public Version getLower() {
         return lower;
     }
 
-    public Version upper() {
+    public Version getUpper() {
         return upper;
     }
 
-    public boolean contain(Version currentVersion) {
+    public boolean contains(Version currentVersion) {
         return lower != null && upper != null && currentVersion.onOrAfter(lower)
             && currentVersion.onOrBefore(upper);
     }

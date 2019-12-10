@@ -433,7 +433,7 @@ public class DoSection implements ExecutableSection {
                                 + node);
                     }
                     Version version = Version.fromString(node.getVersion());
-                    boolean skip = skipVersionRanges.stream().anyMatch(v -> v.contain(version));
+                    boolean skip = skipVersionRanges.stream().anyMatch(v -> v.contains(version));
                     if (false == skip) {
                         itr.remove();
                     }

@@ -118,11 +118,11 @@ public class SkipSection {
     }
 
     public Version getLowerVersion() {
-        return versionRanges.get(0).lower();
+        return versionRanges.get(0).getLower();
     }
 
     public Version getUpperVersion() {
-        return versionRanges.get(versionRanges.size() - 1).upper();
+        return versionRanges.get(versionRanges.size() - 1).getUpper();
     }
 
     public List<String> getFeatures() {
@@ -137,7 +137,7 @@ public class SkipSection {
         if (isEmpty()) {
             return false;
         }
-        boolean skip = versionRanges.stream().anyMatch(range -> range.contain(currentVersion));
+        boolean skip = versionRanges.stream().anyMatch(range -> range.contains(currentVersion));
         skip |= Features.areAllSupported(features) == false;
         return skip;
     }
@@ -160,7 +160,7 @@ public class SkipSection {
         String[] ranges = rawRanges.split(",");
         List<VersionRange> versionRanges = new ArrayList<>();
         for (String rawRange : ranges) {
-            String[] skipVersions = wrapWithSpaces(rawRange).split("-");
+            String[] skipVersions = rawRange.split("-", -1);
             if (skipVersions.length > 2) {
                 throw new IllegalArgumentException("version range malformed: " + rawRanges);
             }

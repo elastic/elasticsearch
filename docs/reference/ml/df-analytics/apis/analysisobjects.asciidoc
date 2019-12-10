@@ -11,7 +11,7 @@ object grouped by {dfanalytics} types.
 
 [discrete]
 [[outlierdetection-resources]]
-==== {oldetection-cap} configuration objects 
+==== {oldetection-cap} configuration objects
 
 An `outlier_detection` configuration object has the following properties:
 

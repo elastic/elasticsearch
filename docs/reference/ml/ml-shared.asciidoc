@@ -53,7 +53,7 @@ end::allow-no-match[]
 
 tag::analysis[]
 Defines the type of {dfanalytics} you want to perform on your source index. For 
-example: `outlier_detection`. See <<ml-dfanalytics-analysis-objects>>.
+example: `outlier_detection`. See <<ml-dfa-analysis-objects>>.
 end::analysis[]
 
 tag::analysis-config[]

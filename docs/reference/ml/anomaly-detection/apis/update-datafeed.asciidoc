@@ -70,7 +70,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
 `max_empty_searches`::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
++
+--
 The special value `-1` unsets this setting.
+--
 
 `query`::
 (Optional, object)

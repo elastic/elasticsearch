@@ -238,10 +238,7 @@ A chunking configuration object has the following properties:
 
 `mode`:::
 (string)
-+
---
 include::{docdir}/ml/ml-shared.asciidoc[tag=mode]
---
 
 `time_span`:::
 (<<time-units,time units>>)
@@ -623,11 +620,13 @@ end::maximum_number_trees[]
 
 tag::mode[]
 There are three available modes: 
-
++
+--
 * `auto`: The chunk size is dynamically calculated. This is the default and
 recommended value.
 * `manual`: Chunking is applied according to the specified `time_span`.
 * `off`: No chunking is applied.
+--
 end::mode[]
 
 tag::model-memory-limit[]

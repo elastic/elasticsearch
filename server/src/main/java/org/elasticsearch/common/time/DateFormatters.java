@@ -1019,7 +1019,7 @@ public class DateFormatters {
         new DateTimeFormatterBuilder().appendValue(WeekFields.ISO.weekBasedYear()).toFormatter(Locale.ROOT));
 
     /*
-     * Returns a formatter for a four digit year. (uuuu)
+     * Returns a formatter for a four digit weekyear. (uuuu)
      */
     private static final DateFormatter YEAR = new JavaDateFormatter("year",
         new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR).toFormatter(Locale.ROOT));

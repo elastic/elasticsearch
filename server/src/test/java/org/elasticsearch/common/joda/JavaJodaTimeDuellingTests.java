@@ -43,15 +43,15 @@ import static org.hamcrest.Matchers.is;
 public class JavaJodaTimeDuellingTests extends ESTestCase {
     public void testCompositeDateMathParsing(){
         //in all these examples the second pattern will be used
-        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "8yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "8strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "8yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
     public void testExceptionWhenCompositeParsingFailsDateMath(){
         //both parsing failures should contain pattern and input text in exception
         //both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
-        String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
+        String pattern = "8yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
         String text = "2014-06-06T12:01:02.123";
         ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class,
             () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));
@@ -143,20 +143,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("12/06", "dd/MM");
         assertSameDate("Nov 24 01:29:01 -0800", "MMM dd HH:mm:ss Z");
     }
-
-    // this test requires tests to run with -Djava.locale.providers=COMPAT in order to work
-//    public void testCustomLocales() {
-//
-//        // also ensure that locale based dates are the same
-//        assertSameDate("Di., 05 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Mi., 06 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Do., 07 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//        assertSameDate("Fr., 08 Dez. 2000 00:00:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
-//
-//        DateTime dateTimeNow = DateTime.now(DateTimeZone.UTC);
-//        ZonedDateTime javaTimeNow = Instant.ofEpochMilli(dateTimeNow.getMillis()).atZone(ZoneOffset.UTC);
-//        assertSamePrinterOutput("E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"), javaTimeNow, dateTimeNow);
-//    }
 
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");

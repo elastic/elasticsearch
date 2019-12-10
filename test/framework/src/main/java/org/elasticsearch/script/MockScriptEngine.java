@@ -35,7 +35,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 
@@ -81,7 +84,7 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
+    public <T extends ScriptFactory> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
         Function<Map<String, Object>, Object> script = scripts.get(source);
@@ -302,6 +305,35 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(compiler.compile(script, params));
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
+    }
+
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        // TODO(stu): make part of `compile()`
+        return Stream.of(
+            FieldScript.CONTEXT,
+            TermsSetQueryScript.CONTEXT,
+            NumberSortScript.CONTEXT,
+            StringSortScript.CONTEXT,
+            IngestScript.CONTEXT,
+            AggregationScript.CONTEXT,
+            IngestConditionalScript.CONTEXT,
+            UpdateScript.CONTEXT,
+            BucketAggregationScript.CONTEXT,
+            BucketAggregationSelectorScript.CONTEXT,
+            SignificantTermsHeuristicScoreScript.CONTEXT,
+            TemplateScript.CONTEXT,
+            FilterScript.CONTEXT,
+            SimilarityScript.CONTEXT,
+            SimilarityWeightScript.CONTEXT,
+            MovingFunctionScript.CONTEXT,
+            ScoreScript.CONTEXT,
+            ScriptedMetricAggContexts.InitScript.CONTEXT,
+            ScriptedMetricAggContexts.MapScript.CONTEXT,
+            ScriptedMetricAggContexts.CombineScript.CONTEXT,
+            ScriptedMetricAggContexts.ReduceScript.CONTEXT,
+            IntervalFilterScript.CONTEXT
+        ).collect(Collectors.toSet());
     }
 
     private Map<String, Object> createVars(Map<String, Object> params) {

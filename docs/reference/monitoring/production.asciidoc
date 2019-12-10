@@ -8,13 +8,25 @@ not. For example, you can use {metricbeat} to ship monitoring data about {kib},
 {es}, {ls}, and Beats to the monitoring cluster.
 //If you are sending your data to the {esms-init}, see <<esms>>.
 
-If you have at least a gold license, using a dedicated monitoring cluster also 
+[IMPORTANT]
+=========================
+{metricbeat} is the recommended method for collecting and shipping monitoring
+data to a monitoring cluster.
+
+If you have previously configured internal collection, you should migrate to
+using {metricbeat} collection. Use either {metricbeat} collection or
+internal collection; do not use both.
+
+Learn more about <<configuring-metricbeat>>.
+=========================
+
+If you have at least a gold license, using a dedicated monitoring cluster also
 enables you to monitor multiple clusters from a central location.
 
 To store monitoring data in a separate cluster:
 
-. Set up the {es} cluster you want to use as the monitoring cluster. 
-For example, you might set up a two host cluster with the nodes `es-mon-1` and 
+. Set up the {es} cluster you want to use as the monitoring cluster.
+For example, you might set up a two host cluster with the nodes `es-mon-1` and
 `es-mon-2`.
 +
 --
@@ -27,10 +39,10 @@ cluster; it does not need to be a dedicated ingest node.
 ===============================
 --
 
-.. (Optional) Verify that the collection of monitoring data is disabled on the 
-monitoring cluster. By default, the `xpack.monitoring.collection.enabled` setting 
-is `false`. 
-+ 
+.. (Optional) Verify that the collection of monitoring data is disabled on the
+monitoring cluster. By default, the `xpack.monitoring.collection.enabled` setting
+is `false`.
++
 --
 For example, you can use the following APIs to review and change this setting:
 
@@ -48,28 +60,28 @@ PUT _cluster/settings
 // TEST[skip:security errs]
 --
 
-.. If the {es} {security-features} are enabled on the monitoring cluster, create 
-users that can send and retrieve monitoring data. 
+.. If the {es} {security-features} are enabled on the monitoring cluster, create
+users that can send and retrieve monitoring data.
 +
 --
-NOTE: If you plan to use {kib} to view monitoring data, username and password 
-credentials must be valid on both the {kib} server and the monitoring cluster. 
+NOTE: If you plan to use {kib} to view monitoring data, username and password
+credentials must be valid on both the {kib} server and the monitoring cluster.
 
 --
 
-*** If you plan to use {metricbeat} to collect data about {es} or {kib}, 
-create a user that has the `remote_monitoring_collector` built-in role and a 
-user that has the `remote_monitoring_agent` 
-<<built-in-roles-remote-monitoring-agent,built-in role>>. Alternatively, use the 
-`remote_monitoring_user` <<built-in-users,built-in user>>. 
+*** If you plan to use {metricbeat} to collect data about {es} or {kib},
+create a user that has the `remote_monitoring_collector` built-in role and a
+user that has the `remote_monitoring_agent`
+<<built-in-roles-remote-monitoring-agent,built-in role>>. Alternatively, use the
+`remote_monitoring_user` <<built-in-users,built-in user>>.
 
-*** If you plan to use HTTP exporters to route data through your production 
-cluster, create a user that has the `remote_monitoring_agent` 
-<<built-in-roles-remote-monitoring-agent,built-in role>>. 
+*** If you plan to use HTTP exporters to route data through your production
+cluster, create a user that has the `remote_monitoring_agent`
+<<built-in-roles-remote-monitoring-agent,built-in role>>.
 +
 --
-For example, the 
-following request creates a `remote_monitor` user that has the 
+For example, the
+following request creates a `remote_monitor` user that has the
 `remote_monitoring_agent` role:
 
 [source,console]
@@ -83,11 +95,11 @@ POST /_security/user/remote_monitor
 ---------------------------------------------------------------
 // TEST[skip:needs-gold+-license]
 
-Alternatively, use the `remote_monitoring_user` <<built-in-users,built-in user>>. 
+Alternatively, use the `remote_monitoring_user` <<built-in-users,built-in user>>.
 --
 
-. Configure your production cluster to collect data and send it to the 
-monitoring cluster. 
+. Configure your production cluster to collect data and send it to the
+monitoring cluster.
 
 ** <<configuring-metricbeat,Use {metricbeat}>>.
 
@@ -97,13 +109,13 @@ monitoring cluster.
 {logstash-ref}/configuring-logstash.html[Configure {ls} to collect data and send it to the monitoring cluster].
 
 . (Optional) Configure the Beats to collect data and send it to the monitoring
-cluster. 
+cluster.
 ** {auditbeat-ref}/monitoring.html[Auditbeat]
 ** {filebeat-ref}/monitoring.html[Filebeat]
 ** {heartbeat-ref}/monitoring.html[Heartbeat]
 ** {metricbeat-ref}/monitoring.html[Metricbeat]
 ** {packetbeat-ref}/monitoring.html[Packetbeat]
-** {winlogbeat-ref}/monitoring.html[Winlogbeat] 
+** {winlogbeat-ref}/monitoring.html[Winlogbeat]
 
 . (Optional) Configure {kib} to collect data and send it to the monitoring cluster:
 
@@ -111,13 +123,13 @@ cluster.
 
 ** {kibana-ref}/monitoring-kibana.html[Use HTTP exporters].
 
-. (Optional) Create a dedicated {kib} instance for monitoring, rather than using 
-a single {kib} instance to access both your production cluster and monitoring 
+. (Optional) Create a dedicated {kib} instance for monitoring, rather than using
+a single {kib} instance to access both your production cluster and monitoring
 cluster.
 
-.. (Optional) Disable the collection of monitoring data in this {kib} instance. 
-Set the `xpack.monitoring.kibana.collection.enabled` setting to `false` in the 
-`kibana.yml` file. For more information about this setting, see 
-{kibana-ref}/monitoring-settings-kb.html[Monitoring settings in {kib}]. 
+.. (Optional) Disable the collection of monitoring data in this {kib} instance.
+Set the `xpack.monitoring.kibana.collection.enabled` setting to `false` in the
+`kibana.yml` file. For more information about this setting, see
+{kibana-ref}/monitoring-settings-kb.html[Monitoring settings in {kib}].
 
-. {kibana-ref}/monitoring-data.html[Configure {kib} to retrieve and display the monitoring data]. 
+. {kibana-ref}/monitoring-data.html[Configure {kib} to retrieve and display the monitoring data].

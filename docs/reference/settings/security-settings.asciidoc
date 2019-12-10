@@ -1496,6 +1496,16 @@ through the list of URLs will continue until a successful connection is made.
 
 [float]
 [[ssl-tls-settings]]
+==== General TLS settings
+`xpack.security.ssl.diagnose.trust`::
+Controls whether to output diagnostic messages for SSL/TLS trust failures.
+If this is `true` (the default), a message will be printed to the Elasticsearch
+log whenever an SSL connection (incoming or outgoing) is rejected due to a failure
+to establish trust.
+This diagnostic message contains information that can be used to determine the
+cause of the failure and assist with resolving the problem.
+Set to `false` to disable these messages.
+
 ==== Default values for TLS/SSL settings
 In general, the values below represent the default values for the various TLS
 settings.

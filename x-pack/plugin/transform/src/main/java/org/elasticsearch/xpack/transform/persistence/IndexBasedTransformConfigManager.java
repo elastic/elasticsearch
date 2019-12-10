@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -63,6 +64,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -146,16 +148,18 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void deleteOldTransformConfigurations(String transformId, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(
+        DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
+        deleteByQueryRequest.indices(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
             TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
-        ).setQuery(
+        );
+        deleteByQueryRequest.setQuery(
             QueryBuilders.constantScoreQuery(
                 QueryBuilders.boolQuery()
                     .mustNot(QueryBuilders.termQuery("_index", TransformInternalIndexConstants.LATEST_INDEX_NAME))
                     .filter(QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId)))
             )
-        ).setIndicesOptions(IndicesOptions.lenientExpandOpen());
+        );
 
         executeAsyncWithOrigin(
             client,
@@ -177,17 +181,18 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(
+        DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
+        deleteByQueryRequest.indices(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
             TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
-        ).setQuery(
+        );
+        deleteByQueryRequest.setQuery(
             QueryBuilders.constantScoreQuery(
                 QueryBuilders.boolQuery()
                     .mustNot(QueryBuilders.termQuery("_index", TransformInternalIndexConstants.LATEST_INDEX_NAME))
                     .filter(QueryBuilders.termQuery("_id", TransformStoredDoc.documentId(transformId)))
             )
-        ).setIndicesOptions(IndicesOptions.lenientExpandOpen());
-
+        );
         executeAsyncWithOrigin(
             client,
             TRANSFORM_ORIGIN,
@@ -202,6 +207,41 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     return;
                 }
                 listener.onResponse(true);
+            }, listener::onFailure)
+        );
+    }
+
+    @Override
+    public void deleteOldCheckpoints(String transformId, long deleteCheckpointsBelow, long deleteOlderThan, ActionListener<Long> listener) {
+        DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
+        deleteByQueryRequest.indices(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        );
+        deleteByQueryRequest.setQuery(
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
+                .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformCheckpoint.NAME))
+                .filter(QueryBuilders.rangeQuery(TransformCheckpoint.CHECKPOINT.getPreferredName()).lt(deleteCheckpointsBelow))
+                .filter(
+                    QueryBuilders.rangeQuery(TransformField.TIMESTAMP_MILLIS.getPreferredName()).lt(deleteOlderThan).format("epoch_millis")
+                )
+        );
+        logger.debug("Deleting old checkpoints using {}", deleteByQueryRequest.getSearchRequest());
+        executeAsyncWithOrigin(
+            client,
+            TRANSFORM_ORIGIN,
+            DeleteByQueryAction.INSTANCE,
+            deleteByQueryRequest,
+            ActionListener.wrap(response -> {
+                if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                    Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
+                    listener.onFailure(
+                        new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2())
+                    );
+                    return;
+                }
+                listener.onResponse(response.getDeleted());
             }, listener::onFailure)
         );
     }
@@ -262,6 +302,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
+            .setAllowPartialSearchResults(false)
             .request();
 
         executeAsyncWithOrigin(
@@ -293,6 +334,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
+            .setAllowPartialSearchResults(false)
             .request();
 
         executeAsyncWithOrigin(
@@ -327,6 +369,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
+            .setAllowPartialSearchResults(false)
             .seqNoAndPrimaryTerm(true)
             .request();
 
@@ -416,9 +459,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void deleteTransform(String transformId, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false); // since these documents are not
-                                                                                                    // updated, a conflict just means it was
-                                                                                                    // deleted previously
+        DeleteByQueryRequest request = createDeleteByQueryRequest();
 
         request.indices(TransformInternalIndexConstants.INDEX_NAME_PATTERN, TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED);
         QueryBuilder query = QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId);
@@ -506,6 +547,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
+            .setAllowPartialSearchResults(false)
             .seqNoAndPrimaryTerm(true)
             .request();
 
@@ -670,5 +712,23 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             }
         }
         return new Tuple<>(status, reason);
+    }
+
+    /**
+     * Create DBQ request with good defaults
+     *
+     * @return new DeleteByQueryRequest with some defaults set
+     */
+    private static DeleteByQueryRequest createDeleteByQueryRequest() {
+
+        DeleteByQueryRequest deleteByQuery = new DeleteByQueryRequest();
+
+        deleteByQuery.setAbortOnVersionConflict(false)
+            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+
+        // disable scoring by using index order
+        deleteByQuery.getSearchRequest().source().sort(SINGLE_MAPPING_NAME);
+        return deleteByQuery;
     }
 }

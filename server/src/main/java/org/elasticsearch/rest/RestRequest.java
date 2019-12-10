@@ -64,8 +64,9 @@ public class RestRequest implements ToXContent.Params {
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
-    private final HttpRequest httpRequest;
     private final HttpChannel httpChannel;
+
+    private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
 
@@ -95,6 +96,15 @@ public class RestRequest implements ToXContent.Params {
     protected RestRequest(RestRequest restRequest) {
         this(restRequest.getXContentRegistry(), restRequest.params(), restRequest.path(), restRequest.getHeaders(),
             restRequest.getHttpRequest(), restRequest.getHttpChannel());
+    }
+
+    /**
+     * Invoke {@link HttpRequest#releaseAndCopy()} on the http request in this instance and replace a pooled http request
+     * with an unpooled copy. This is supposed to be used before passing requests to {@link RestHandler} instances that can not safely
+     * handle http requests that use pooled buffers as determined by {@link RestHandler#allowsUnsafeBuffers()}.
+     */
+    void ensureSafeBuffers() {
+        httpRequest = httpRequest.releaseAndCopy();
     }
 
     /**

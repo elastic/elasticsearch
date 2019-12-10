@@ -31,7 +31,6 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,8 +57,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     public TransportVerifyShardBeforeCloseAction(final Settings settings, final TransportService transportService,
                                                  final ClusterService clusterService, final IndicesService indicesService,
                                                  final ThreadPool threadPool, final ShardStateAction stateAction,
-                                                 final ActionFilters actionFilters, final IndexNameExpressionResolver resolver) {
-        super(settings, NAME, transportService, clusterService, indicesService, threadPool, stateAction, actionFilters, resolver,
+                                                 final ActionFilters actionFilters) {
+        super(settings, NAME, transportService, clusterService, indicesService, threadPool, stateAction, actionFilters,
             ShardRequest::new, ShardRequest::new, ThreadPool.Names.MANAGEMENT);
     }
 

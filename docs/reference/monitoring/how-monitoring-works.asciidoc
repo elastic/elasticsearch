@@ -10,18 +10,12 @@ Each {es} node, {ls} node, {kib} instance, and Beat is considered unique in the
 cluster based on its persistent UUID, which is written to the
 <<path-settings,`path.data`>> directory when the node or instance starts.
 
-Monitoring documents are just ordinary JSON documents built by monitoring each 
+Monitoring documents are just ordinary JSON documents built by monitoring each
 {stack} component at a specified collection interval. If you want to alter the
 templates for these indices, see <<config-monitoring-indices>>.
 
-Each component in the {stack} is responsible for monitoring itself and then 
-forwarding those documents to the production cluster for both routing and 
-indexing (storage). The routing and indexing processes in {es} are handled by 
-what are called <<es-monitoring-collectors,collectors>> and 
-<<es-monitoring-exporters,exporters>>.
-
-Alternatively, you can use {metricbeat} to collect monitoring data and ship it
-directly to the monitoring cluster. 
+{metricbeat} is used to collect monitoring data and to ship it directly to the
+monitoring cluster.
 
 To learn how to collect monitoring data, see:
 
@@ -32,7 +26,7 @@ To learn how to collect monitoring data, see:
 * Monitoring Beats:
 ** {auditbeat-ref}/monitoring.html[{auditbeat}]
 ** {filebeat-ref}/monitoring.html[{filebeat}]
-** {functionbeat-ref}/monitoring.html[{functionbeat}] 
+** {functionbeat-ref}/monitoring.html[{functionbeat}]
 ** {heartbeat-ref}/monitoring.html[{heartbeat}]
 ** {metricbeat-ref}/monitoring.html[{metricbeat}]
 ** {packetbeat-ref}/monitoring.html[{packetbeat}]

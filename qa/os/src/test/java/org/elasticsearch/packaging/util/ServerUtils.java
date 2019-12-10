@@ -29,8 +29,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -39,13 +45,33 @@ public class ServerUtils {
 
     private static final Logger logger =  LogManager.getLogger(ServerUtils.class);
 
+    private static String SECURITY_ENABLED = "xpack.security.enabled: true";
+
     // generous timeout  as nested virtualization can be quite slow ...
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(30);
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
 
     public static void waitForElasticsearch(Installation installation) throws IOException {
-        waitForElasticsearch("green", null, installation, null, null);
+        boolean securityEnabled = false;
+
+        // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
+        if (installation.distribution.packaging != Distribution.Packaging.DOCKER) {
+            Path configFilePath = installation.config("elasticsearch.yml");
+            // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
+            try (Stream<String> lines = Files.lines(configFilePath, StandardCharsets.UTF_8)) {
+              securityEnabled = lines.anyMatch(line -> line.contains(SECURITY_ENABLED));
+            }
+        }
+
+        if (securityEnabled) {
+            // with security enabled, we may or may not have setup a user/pass, so we use a more generic port being available check.
+            // this isn't as good as a health check, but long term all this waiting should go away when node startup does not
+            // make the http port available until the system is really ready to serve requests
+            waitForXpack();
+        } else {
+            waitForElasticsearch("green", null, installation, null, null);
+        }
     }
 
     /**
@@ -66,6 +92,26 @@ public class ServerUtils {
         }
 
         return executor.execute(request).returnResponse();
+    }
+
+    // polls every second for Elasticsearch to be running on 9200
+    private static void waitForXpack() {
+        int retries = 60;
+        while (retries > 0) {
+            retries -= 1;
+            try (Socket s = new Socket(InetAddress.getLoopbackAddress(), 9200)) {
+                return;
+            } catch (IOException e) {
+                // ignore, only want to establish a connection
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        throw new RuntimeException("Elasticsearch (with x-pack) did not start");
     }
 
     public static void waitForElasticsearch(

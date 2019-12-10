@@ -35,12 +35,14 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.file.RelativePath;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.authentication.http.HttpHeaderAuthentication;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -145,6 +147,14 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                     }
                     throw new IllegalStateException("unexpected file extension on [" + archivePath + "]");
                 });
+
+                // Workaround for https://github.com/elastic/elasticsearch/issues/49417
+                syncTask.eachFile(details -> {
+                    String[] segments = details.getRelativePath().getSegments();
+                    if (segments[0].equals(".")) {
+                        details.setRelativePath(new RelativePath(true, Arrays.copyOfRange(segments, 1, segments.length)));
+                    }
+                });
             });
             rootProject.getArtifacts().add(extractedConfigName,
                 rootProject.getLayout().getProjectDirectory().dir(extractDir),
@@ -212,7 +222,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
 
         if (distribution.getType() == Type.INTEG_TEST_ZIP) {
-            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion();
+            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
         }
 
 

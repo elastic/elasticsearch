@@ -99,9 +99,9 @@ public class SkipSection {
 
     public static final SkipSection EMPTY = new SkipSection();
 
+    private final List<VersionRange> versionRanges;
     private final List<String> features;
     private final String reason;
-    private final List<VersionRange> versionRanges;
 
     private SkipSection() {
         this.versionRanges = new ArrayList<>();
@@ -178,7 +178,6 @@ public class SkipSection {
             versionRanges.add(versionRange);
         }
         return versionRanges;
-
     }
 
     private static String wrapWithSpaces(String rawRange) {

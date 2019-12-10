@@ -7,7 +7,6 @@ public class VersionRange {
     private final Version upper;
 
     public VersionRange(Version lower, Version upper) {
-
         this.lower = lower;
         this.upper = upper;
     }

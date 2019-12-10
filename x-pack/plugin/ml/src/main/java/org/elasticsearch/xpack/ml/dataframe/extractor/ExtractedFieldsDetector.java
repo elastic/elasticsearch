@@ -379,14 +379,12 @@ public class ExtractedFieldsDetector {
         List<ExtractedField> adjusted = new ArrayList<>(extractedFields.getAllFields().size());
         for (ExtractedField field : extractedFields.getAllFields()) {
             if (isBoolean(field.getTypes())) {
-                if (config.getAnalysis().getAllowedCategoricalTypes(field.getName()).contains(BooleanFieldMapper.CONTENT_TYPE)) {
-                    // We convert boolean field to string if it is a categorical dependent variable
-                    adjusted.add(ExtractedFields.applyBooleanMapping(field, Boolean.TRUE.toString(), Boolean.FALSE.toString()));
-                } else {
-                    // We convert boolean fields to integers with values 0, 1 as this is the preferred
-                    // way to consume such features in the analytics process.
-                    adjusted.add(ExtractedFields.applyBooleanMapping(field, 1, 0));
-                }
+                // We convert boolean fields to integers with values 0, 1 as this is the preferred
+                // way to consume such features in the analytics process regardless of:
+                //  - analysis type
+                //  - whether or not the field is categorical
+                //  - whether or not the field is a dependent variable
+                adjusted.add(ExtractedFields.applyBooleanMapping(field));
             } else {
                 adjusted.add(field);
             }

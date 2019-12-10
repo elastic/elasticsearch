@@ -9,7 +9,6 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<ml-datafeed-counts,{dfeed-cap} counts>>
 * <<ml-dfanalytics-resources,{dfanalytics-cap}>>
 * <<ml-evaluate-dfanalytics-resources,Evaluate {dfanalytics}>>
-* <<ml-job-resource,{anomaly-jobs-cap}>>
 * <<ml-jobstats,{anomaly-jobs-cap} statistics>>
 * <<ml-snapshot-resource,{anomaly-detect-cap} model snapshots>>
 * <<ml-results-resource,{anomaly-detect-cap} results>>
@@ -19,7 +18,6 @@ These resource definitions are used in APIs related to {ml-features} and
 include::{es-repo-dir}/ml/anomaly-detection/apis/datafeedresource.asciidoc[]
 include::{es-repo-dir}/ml/df-analytics/apis/dfanalyticsresources.asciidoc[]
 include::{es-repo-dir}/ml/df-analytics/apis/evaluateresources.asciidoc[]
-include::{es-repo-dir}/ml/anomaly-detection/apis/jobresource.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/jobcounts.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/snapshotresource.asciidoc[]
 include::{xes-repo-dir}/rest-api/security/role-mapping-resources.asciidoc[]

@@ -26,7 +26,8 @@ privileges. See <<security-privileges>> and <<built-in-roles>>.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the {anomaly-job}.
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-get-record-request-body]]
 ==== {api-request-body-title}

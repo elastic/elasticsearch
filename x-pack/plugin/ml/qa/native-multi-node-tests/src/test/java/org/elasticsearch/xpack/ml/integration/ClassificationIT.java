@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParamsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
@@ -31,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.allOf;
@@ -158,7 +160,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Classification(dependentVariable, BoostedTreeParamsTests.createRandom(), null, numTopClasses, 50.0));
+                new Classification(dependentVariable, BoostedTreeParamsTests.createRandom(), null, numTopClasses, 50.0, null));
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -268,6 +270,44 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgress(jobId, 100, 100, 100, 100);
     }
 
+    public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
+        String sourceIndex = "classification_two_jobs_with_same_randomize_seed_source";
+        String dependentVariable = KEYWORD_FIELD;
+        indexData(sourceIndex, 10, 0, dependentVariable);
+
+        String firstJobId = "classification_two_jobs_with_same_randomize_seed_1";
+        String firstJobDestIndex = firstJobId + "_dest";
+
+        BoostedTreeParams boostedTreeParams = new BoostedTreeParams(1.0, 1.0, 1.0, 1, 1.0);
+
+        DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
+            new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, null));
+        registerAnalytics(firstJob);
+        putAnalytics(firstJob);
+
+        String secondJobId = "classification_two_jobs_with_same_randomize_seed_2";
+        String secondJobDestIndex = secondJobId + "_dest";
+
+        long randomizeSeed = ((Classification) firstJob.getAnalysis()).getRandomizeSeed();
+        DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
+            new Classification(dependentVariable, boostedTreeParams, null, 1, 50.0, randomizeSeed));
+
+        registerAnalytics(secondJob);
+        putAnalytics(secondJob);
+
+        // Let's run both jobs in parallel and wait until they are finished
+        startAnalytics(firstJobId);
+        startAnalytics(secondJobId);
+        waitUntilAnalyticsIsStopped(firstJobId);
+        waitUntilAnalyticsIsStopped(secondJobId);
+
+        // Now we compare they both used the same training rows
+        Set<String> firstRunTrainingRowsIds = getTrainingRowsIds(firstJobDestIndex);
+        Set<String> secondRunTrainingRowsIds = getTrainingRowsIds(secondJobDestIndex);
+
+        assertThat(secondRunTrainingRowsIds, equalTo(firstRunTrainingRowsIds));
+    }
+
     private void initialize(String jobId) {
         this.jobId = jobId;
         this.sourceIndex = jobId + "_source_index";
@@ -340,10 +380,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     @SuppressWarnings("unchecked")
     private static <T> void assertTopClasses(
-            Map<String, Object> resultsObject,
-            int numTopClasses,
-            String dependentVariable,
-            List<T> dependentVariableValues) {
+        Map<String, Object> resultsObject,
+    int numTopClasses,
+    String dependentVariable,
+    List<T> dependentVariableValues) {
         assertThat(resultsObject.containsKey("top_classes"), is(true));
         List<Map<String, Object>> topClasses = (List<Map<String, Object>>) resultsObject.get("top_classes");
         assertThat(topClasses, hasSize(numTopClasses));

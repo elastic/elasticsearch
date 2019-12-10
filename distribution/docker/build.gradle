@@ -151,7 +151,7 @@ check.dependsOn integTest
 
 void addBuildDockerImage(final boolean oss, final boolean ubi) {
   final Task buildDockerImageTask = task(taskName("build", oss, ubi, "DockerImage"), type: LoggedExec) {
-    dependsOn taskName("copy", oss, ubi, "DockerContext")
+    inputs.files(tasks.named(taskName("copy", oss, ubi, "DockerContext")))
     List<String> tags
     if (oss) {
       tags = [

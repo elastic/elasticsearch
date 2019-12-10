@@ -94,6 +94,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
 
+`randomize_seed`::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize_seed]
+
 
 [float]
 [[regression-resources-advanced]]
@@ -155,6 +159,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 `training_percent`::
 (Optional, integer) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+
+`randomize_seed`::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize_seed]
 
 
 [float]
